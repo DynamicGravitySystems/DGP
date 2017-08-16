@@ -9,7 +9,8 @@ Library for gravity data import functions
 import csv
 import numpy as np
 import pandas as pd
-
+import functools
+import datetime
 
 def safe_float(data, none_val=np.nan):
     if data is None:
@@ -18,7 +19,6 @@ def safe_float(data, none_val=np.nan):
         return float(data)
     except ValueError:
         return none_val
-
 
 def convert_gps_time(gpsweek, gpsweekseconds):
     """
@@ -54,7 +54,7 @@ def read_at1m(path):
     CSV Columns:
         gravity, long, cross, beam, temp, status, pressure, Etemp, GPSweek, GPSweekseconds
     :param path: Filesystem path to gravity data file
-    :return: Pandas DataFrame of gravity data indexed by line number of file, with UNIX timestamp converted from GPS time
+    :return: Pandas DataFrame of gravity data indexed by datetime, with UNIX timestamp converted from GPS time
     """
     fields = ['gravity', 'long', 'cross', 'beam', 'temp', 'status', 'pressure', 'Etemp', 'GPSweek', 'GPSweekseconds']
     data_fields = fields[:-2]
@@ -70,4 +70,15 @@ def read_at1m(path):
             # row_time = {k: int(v) for k, v in row.items() if k in time_fields}
             data.append(row_data)
 
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+
+    # create datetime index
+    dt = datetime.datetime(1970, 1, 1) + pd.to_timedelta(df['timestamp'], unit='s')
+    df.index = pd.DatetimeIndex(dt)
+
+    # resample
+    # offset_str = '{:d}U'.format(int(0.1 * 1e6))
+    offset_str = '100000U'
+    df = df.resample(offset_str).mean()
+
+    return df

@@ -2,6 +2,7 @@
 
 import os
 import unittest
+import pandas as pd
 
 from .context import dgp
 from dgp.lib import gravity_ingestor as gi
@@ -28,5 +29,5 @@ class TestGravityIngestor(unittest.TestCase):
 
         self.assertEqual(df.gravity[5], sample_line['gravity'])
         self.assertEqual(df.long[5], sample_line['long'])
+        self.assertTrue(df.iloc[[2]].isnull().all)
         print(df[['gravity', 'long', 'cross']])
-
