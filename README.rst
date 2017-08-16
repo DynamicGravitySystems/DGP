@@ -1,7 +1,7 @@
 DGP (Dynamic Gravity Processor)
 ===============================
-
-
+.. image:: https://travis-ci.org/DynamicGravitySystems/DGP.svg?branch=master
+    :target: https://travis-ci.org/DynamicGravitySystems/DGP
 -------------------
 Package Structure
 -------------------
