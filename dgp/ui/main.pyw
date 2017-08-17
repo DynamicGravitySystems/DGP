@@ -1,7 +1,7 @@
 
 import sys
 
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtWidgets, Qt, QtGui
 from PyQt5.uic import loadUiType
 
 import dgp.lib.gravity_ingestor as gi
@@ -18,14 +18,16 @@ class MainWindow(base_class, form_class):
 
         self.log('Initializing GUI')
 
-        self.Plot = GeneralPlot(parent=self)
-        self.mpl_toolbar = GeneralPlot.get_toolbar(self.Plot, parent=self)
-        self.plotLayout.addWidget(self.Plot)
+        self.plotter = GeneralPlot(parent=self)
+        self.plotter.generate_subplots(3)
+        print(self.plotter.axes)
+        self.mpl_toolbar = GeneralPlot.get_toolbar(self.plotter, parent=self)
+        self.plotLayout.addWidget(self.plotter)
         self.plotLayout.addWidget(self.mpl_toolbar)
 
         self.init_slots()
 
-        self.import_base_path = "C:\\Users\\bradyzp\\OneDrive\\Dev\\DGS\\DGP\\tests"
+        self.import_base_path = "C:\\Users\\bradyzp\\OneDrive\\Dev\\DGS\\DGP\\test"
         self.grav_file = None
         self.grav_data = None
 
@@ -34,13 +36,15 @@ class MainWindow(base_class, form_class):
     def init_slots(self):
         """Initialize PyQt Signals/Slots for UI Buttons and Menus"""
 
-        # Menu Actions #
-        self.actionGravity_Data.triggered.connect(self.import_gravity)
+        # File Menu Actions #
         self.actionExit.triggered.connect(self.exit)
+
+        # Import Menu Actions #
+        self.actionGravity_Data.triggered.connect(self.import_gravity)
 
         # Plot Tool Actions #
         self.drawPlot_btn.clicked.connect(self.draw_plot)
-        self.clearPlot_btn.clicked.connect(self.Plot.clear)
+        self.clearPlot_btn.clicked.connect(self.plotter.clear)
 
     def exit(self):
         """Exit the PyQt application by closing the main window (self)"""
@@ -53,7 +57,7 @@ class MainWindow(base_class, form_class):
     def draw_plot(self):
         self.log('Plotting stuff on plotter')
         if self.grav_data is not None:
-            self.Plot.linear_plot(self.grav_data.cross, self.grav_data.long, self.grav_data.Etemp)
+            self.plotter.linear_plot(self.grav_data.gravity)
         else:
             self.log("Nothing to plot")
 
