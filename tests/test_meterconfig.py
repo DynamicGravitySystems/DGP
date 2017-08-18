@@ -6,10 +6,12 @@ import configparser
 from .context import dgp
 from dgp.meterconfig import *
 
+os.chdir('tests')
+
 
 class TestMeterconfig(unittest.TestCase):
     def setUp(self):
-        self.ini_path = 'tests/at1m.ini'
+        self.ini_path = os.path.abspath('./at1m.ini')
         self.config = {
             'g0': 10000.0,
             'GravCal': 227626.0,
