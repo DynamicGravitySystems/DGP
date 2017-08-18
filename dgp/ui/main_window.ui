@@ -60,12 +60,15 @@
                 <layout class="QHBoxLayout" name="horizontalLayout">
                  <item>
                   <widget class="QPushButton" name="drawPlot_btn">
+<<<<<<< HEAD
                    <property name="maximumSize">
                     <size>
                      <width>200</width>
                      <height>16777215</height>
                     </size>
                    </property>
+=======
+>>>>>>> dd46f7c72f3b468eecf2f9b57709e83b1eb50453
                    <property name="text">
                     <string>Plot</string>
                    </property>
@@ -73,18 +76,22 @@
                  </item>
                  <item>
                   <widget class="QPushButton" name="clearPlot_btn">
+<<<<<<< HEAD
                    <property name="maximumSize">
                     <size>
                      <width>200</width>
                      <height>16777215</height>
                     </size>
                    </property>
+=======
+>>>>>>> dd46f7c72f3b468eecf2f9b57709e83b1eb50453
                    <property name="text">
                     <string>Clear</string>
                    </property>
                   </widget>
                  </item>
                  <item>
+<<<<<<< HEAD
                   <widget class="QPushButton" name="reset_btn">
                    <property name="maximumSize">
                     <size>
@@ -94,6 +101,18 @@
                    </property>
                    <property name="text">
                     <string>Reset</string>
+=======
+                  <widget class="QPushButton" name="pushButton_4">
+                   <property name="text">
+                    <string>PushButton</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QPushButton" name="pushButton">
+                   <property name="text">
+                    <string>PushButton</string>
+>>>>>>> dd46f7c72f3b468eecf2f9b57709e83b1eb50453
                    </property>
                   </widget>
                  </item>
@@ -197,8 +216,13 @@
     <property name="title">
      <string>View</string>
     </property>
+<<<<<<< HEAD
     <addaction name="actionChannelDock"/>
     <addaction name="actionToolDock"/>
+=======
+    <addaction name="actionControls"/>
+    <addaction name="actionTools"/>
+>>>>>>> dd46f7c72f3b468eecf2f9b57709e83b1eb50453
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuImport"/>
@@ -207,10 +231,14 @@
    <addaction name="menuHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
+<<<<<<< HEAD
   <widget class="QDockWidget" name="channelDock">
    <property name="enabled">
     <bool>true</bool>
    </property>
+=======
+  <widget class="QDockWidget" name="infoDockWidget">
+>>>>>>> dd46f7c72f3b468eecf2f9b57709e83b1eb50453
    <property name="sizePolicy">
     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
      <horstretch>0</horstretch>
@@ -230,23 +258,39 @@
     </size>
    </property>
    <property name="windowTitle">
+<<<<<<< HEAD
     <string>Channels</string>
+=======
+    <string>Info</string>
+>>>>>>> dd46f7c72f3b468eecf2f9b57709e83b1eb50453
    </property>
    <attribute name="dockWidgetArea">
     <number>1</number>
    </attribute>
    <widget class="QWidget" name="dockWidgetContents">
     <layout class="QFormLayout" name="formLayout">
+<<<<<<< HEAD
      <item row="0" column="1">
       <widget class="QListWidget" name="channelList"/>
+=======
+     <item row="0" column="0">
+      <widget class="QTreeView" name="treeView"/>
+     </item>
+     <item row="0" column="1">
+      <widget class="QListWidget" name="importedFileList"/>
+>>>>>>> dd46f7c72f3b468eecf2f9b57709e83b1eb50453
      </item>
     </layout>
    </widget>
   </widget>
+<<<<<<< HEAD
   <widget class="QDockWidget" name="toolsDock">
    <property name="enabled">
     <bool>true</bool>
    </property>
+=======
+  <widget class="QDockWidget" name="toolDockWidget">
+>>>>>>> dd46f7c72f3b468eecf2f9b57709e83b1eb50453
    <property name="windowTitle">
     <string>Tools</string>
    </property>
@@ -275,6 +319,7 @@
     <string>Exit</string>
    </property>
   </action>
+<<<<<<< HEAD
   <action name="actionChannelDock">
    <property name="checkable">
     <bool>true</bool>
@@ -293,12 +338,21 @@
    <property name="checked">
     <bool>false</bool>
    </property>
+=======
+  <action name="actionControls">
+   <property name="text">
+    <string>Controls</string>
+   </property>
+  </action>
+  <action name="actionTools">
+>>>>>>> dd46f7c72f3b468eecf2f9b57709e83b1eb50453
    <property name="text">
     <string>Tools</string>
    </property>
   </action>
  </widget>
  <resources/>
+<<<<<<< HEAD
  <connections>
   <connection>
    <sender>actionChannelDock</sender>
@@ -365,4 +419,7 @@
    </hints>
   </connection>
  </connections>
+=======
+ <connections/>
+>>>>>>> dd46f7c72f3b468eecf2f9b57709e83b1eb50453
 </ui>

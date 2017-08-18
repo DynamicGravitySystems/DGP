@@ -1,7 +1,7 @@
 
 import sys
 
-from PyQt5 import QtCore, QtWidgets, Qt, QtGui
+from PyQt5 import QtCore, QtWidgets
 from PyQt5.uic import loadUiType
 
 import dgp.lib.gravity_ingestor as gi
