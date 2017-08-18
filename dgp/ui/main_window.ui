@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1280</width>
+    <width>1271</width>
     <height>1024</height>
    </rect>
   </property>
@@ -25,6 +25,9 @@
      <widget class="QSplitter" name="splitter">
       <property name="orientation">
        <enum>Qt::Vertical</enum>
+      </property>
+      <property name="childrenCollapsible">
+       <bool>false</bool>
       </property>
       <widget class="QWidget" name="tabContainerWidget" native="true">
        <layout class="QVBoxLayout" name="verticalLayout">
@@ -60,15 +63,12 @@
                 <layout class="QHBoxLayout" name="horizontalLayout">
                  <item>
                   <widget class="QPushButton" name="drawPlot_btn">
-<<<<<<< HEAD
                    <property name="maximumSize">
                     <size>
                      <width>200</width>
                      <height>16777215</height>
                     </size>
                    </property>
-=======
->>>>>>> dd46f7c72f3b468eecf2f9b57709e83b1eb50453
                    <property name="text">
                     <string>Plot</string>
                    </property>
@@ -76,23 +76,32 @@
                  </item>
                  <item>
                   <widget class="QPushButton" name="clearPlot_btn">
-<<<<<<< HEAD
                    <property name="maximumSize">
                     <size>
                      <width>200</width>
                      <height>16777215</height>
                     </size>
                    </property>
-=======
->>>>>>> dd46f7c72f3b468eecf2f9b57709e83b1eb50453
                    <property name="text">
                     <string>Clear</string>
                    </property>
                   </widget>
                  </item>
                  <item>
-<<<<<<< HEAD
-                  <widget class="QPushButton" name="reset_btn">
+                  <widget class="QPushButton" name="addPlot_btn">
+                   <property name="maximumSize">
+                    <size>
+                     <width>200</width>
+                     <height>16777215</height>
+                    </size>
+                   </property>
+                   <property name="text">
+                    <string>Add Plot</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QPushButton" name="resetPlot_btn">
                    <property name="maximumSize">
                     <size>
                      <width>200</width>
@@ -101,18 +110,6 @@
                    </property>
                    <property name="text">
                     <string>Reset</string>
-=======
-                  <widget class="QPushButton" name="pushButton_4">
-                   <property name="text">
-                    <string>PushButton</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QPushButton" name="pushButton">
-                   <property name="text">
-                    <string>PushButton</string>
->>>>>>> dd46f7c72f3b468eecf2f9b57709e83b1eb50453
                    </property>
                   </widget>
                  </item>
@@ -161,15 +158,68 @@
           </property>
           <property name="maximumSize">
            <size>
-            <width>16777215</width>
-            <height>500</height>
+            <width>5000</width>
+            <height>400</height>
            </size>
+          </property>
+          <property name="palette">
+           <palette>
+            <active>
+             <colorrole role="Base">
+              <brush brushstyle="SolidPattern">
+               <color alpha="255">
+                <red>85</red>
+                <green>170</green>
+                <blue>255</blue>
+               </color>
+              </brush>
+             </colorrole>
+            </active>
+            <inactive>
+             <colorrole role="Base">
+              <brush brushstyle="SolidPattern">
+               <color alpha="255">
+                <red>85</red>
+                <green>170</green>
+                <blue>255</blue>
+               </color>
+              </brush>
+             </colorrole>
+            </inactive>
+            <disabled>
+             <colorrole role="Base">
+              <brush brushstyle="SolidPattern">
+               <color alpha="255">
+                <red>240</red>
+                <green>240</green>
+                <blue>240</blue>
+               </color>
+              </brush>
+             </colorrole>
+            </disabled>
+           </palette>
+          </property>
+          <property name="autoFillBackground">
+           <bool>true</bool>
           </property>
           <property name="frameShape">
            <enum>QFrame::StyledPanel</enum>
           </property>
           <property name="readOnly">
            <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="clearConsole">
+          <property name="maximumSize">
+           <size>
+            <width>100</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>Clear</string>
           </property>
          </widget>
         </item>
@@ -184,7 +234,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1280</width>
+     <width>1271</width>
      <height>21</height>
     </rect>
    </property>
@@ -192,6 +242,10 @@
     <property name="title">
      <string>File</string>
     </property>
+    <addaction name="actionNew_Project"/>
+    <addaction name="actionOpen_Project"/>
+    <addaction name="actionSave_Project"/>
+    <addaction name="separator"/>
     <addaction name="actionExit"/>
    </widget>
    <widget class="QMenu" name="menuImport">
@@ -201,11 +255,6 @@
     <addaction name="actionGravity_Data"/>
     <addaction name="actionGPS_Data"/>
    </widget>
-   <widget class="QMenu" name="menuTools">
-    <property name="title">
-     <string>Tools</string>
-    </property>
-   </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
      <string>Help</string>
@@ -214,31 +263,21 @@
    </widget>
    <widget class="QMenu" name="menuView">
     <property name="title">
-     <string>View</string>
+     <string>Panels</string>
     </property>
-<<<<<<< HEAD
     <addaction name="actionChannelDock"/>
     <addaction name="actionToolDock"/>
-=======
-    <addaction name="actionControls"/>
-    <addaction name="actionTools"/>
->>>>>>> dd46f7c72f3b468eecf2f9b57709e83b1eb50453
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuImport"/>
    <addaction name="menuView"/>
-   <addaction name="menuTools"/>
    <addaction name="menuHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
-<<<<<<< HEAD
   <widget class="QDockWidget" name="channelDock">
    <property name="enabled">
     <bool>true</bool>
    </property>
-=======
-  <widget class="QDockWidget" name="infoDockWidget">
->>>>>>> dd46f7c72f3b468eecf2f9b57709e83b1eb50453
    <property name="sizePolicy">
     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
      <horstretch>0</horstretch>
@@ -247,7 +286,7 @@
    </property>
    <property name="minimumSize">
     <size>
-     <width>196</width>
+     <width>200</width>
      <height>400</height>
     </size>
    </property>
@@ -257,40 +296,105 @@
      <height>800</height>
     </size>
    </property>
+   <property name="allowedAreas">
+    <set>Qt::LeftDockWidgetArea|Qt::RightDockWidgetArea</set>
+   </property>
    <property name="windowTitle">
-<<<<<<< HEAD
     <string>Channels</string>
-=======
-    <string>Info</string>
->>>>>>> dd46f7c72f3b468eecf2f9b57709e83b1eb50453
    </property>
    <attribute name="dockWidgetArea">
     <number>1</number>
    </attribute>
    <widget class="QWidget" name="dockWidgetContents">
-    <layout class="QFormLayout" name="formLayout">
-<<<<<<< HEAD
-     <item row="0" column="1">
-      <widget class="QListWidget" name="channelList"/>
-=======
-     <item row="0" column="0">
-      <widget class="QTreeView" name="treeView"/>
-     </item>
-     <item row="0" column="1">
-      <widget class="QListWidget" name="importedFileList"/>
->>>>>>> dd46f7c72f3b468eecf2f9b57709e83b1eb50453
+    <layout class="QVBoxLayout" name="verticalLayout_4">
+     <item>
+      <layout class="QGridLayout" name="gridLayout_2">
+       <property name="leftMargin">
+        <number>5</number>
+       </property>
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_2">
+         <property name="text">
+          <string>Data Channels</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0" colspan="2">
+        <widget class="QListWidget" name="channelList"/>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="label">
+         <property name="text">
+          <string>File Info:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0" colspan="2">
+        <widget class="QTextEdit" name="fileInfo">
+         <property name="enabled">
+          <bool>true</bool>
+         </property>
+         <property name="focusPolicy">
+          <enum>Qt::NoFocus</enum>
+         </property>
+         <property name="toolTip">
+          <string>File Info</string>
+         </property>
+         <property name="documentTitle">
+          <string>File Info</string>
+         </property>
+         <property name="readOnly">
+          <bool>true</bool>
+         </property>
+         <property name="placeholderText">
+          <string>File Info</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QPushButton" name="selectAllChannels">
+         <property name="minimumSize">
+          <size>
+           <width>50</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>100</width>
+           <height>16777215</height>
+          </size>
+         </property>
+         <property name="text">
+          <string>Select All</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0" colspan="2">
+        <spacer name="verticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
      </item>
     </layout>
    </widget>
   </widget>
-<<<<<<< HEAD
   <widget class="QDockWidget" name="toolsDock">
    <property name="enabled">
     <bool>true</bool>
    </property>
-=======
-  <widget class="QDockWidget" name="toolDockWidget">
->>>>>>> dd46f7c72f3b468eecf2f9b57709e83b1eb50453
+   <property name="allowedAreas">
+    <set>Qt::LeftDockWidgetArea|Qt::RightDockWidgetArea</set>
+   </property>
    <property name="windowTitle">
     <string>Tools</string>
    </property>
@@ -319,7 +423,6 @@
     <string>Exit</string>
    </property>
   </action>
-<<<<<<< HEAD
   <action name="actionChannelDock">
    <property name="checkable">
     <bool>true</bool>
@@ -338,21 +441,27 @@
    <property name="checked">
     <bool>false</bool>
    </property>
-=======
-  <action name="actionControls">
-   <property name="text">
-    <string>Controls</string>
-   </property>
-  </action>
-  <action name="actionTools">
->>>>>>> dd46f7c72f3b468eecf2f9b57709e83b1eb50453
    <property name="text">
     <string>Tools</string>
    </property>
   </action>
+  <action name="actionNew_Project">
+   <property name="text">
+    <string>New Project</string>
+   </property>
+  </action>
+  <action name="actionOpen_Project">
+   <property name="text">
+    <string>Open Project</string>
+   </property>
+  </action>
+  <action name="actionSave_Project">
+   <property name="text">
+    <string>Save Project</string>
+   </property>
+  </action>
  </widget>
  <resources/>
-<<<<<<< HEAD
  <connections>
   <connection>
    <sender>actionChannelDock</sender>
@@ -418,8 +527,21 @@
     </hint>
    </hints>
   </connection>
+  <connection>
+   <sender>clearConsole</sender>
+   <signal>clicked()</signal>
+   <receiver>textEdit</receiver>
+   <slot>clear()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>293</x>
+     <y>974</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>748</x>
+     <y>841</y>
+    </hint>
+   </hints>
+  </connection>
  </connections>
-=======
- <connections/>
->>>>>>> dd46f7c72f3b468eecf2f9b57709e83b1eb50453
 </ui>

@@ -1,7 +1,7 @@
 
 import sys
 
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtWidgets, Qt
 from PyQt5.uic import loadUiType
 
 import dgp.lib.gravity_ingestor as gi
@@ -19,7 +19,7 @@ class MainWindow(base_class, form_class):
         self.log('Initializing GUI')
 
         self.plotter = GeneralPlot(parent=self)
-        self.plotter.generate_subplots(3)
+        self.plotter.generate_subplots(2)
         print(self.plotter.axes)
         self.mpl_toolbar = GeneralPlot.get_toolbar(self.plotter, parent=self)
         self.plotLayout.addWidget(self.plotter)
@@ -31,7 +31,7 @@ class MainWindow(base_class, form_class):
         self.grav_file = None
         self.grav_data = None
 
-        self.log('GUI Initialized')
+        self.active_plot = 0
 
     def init_slots(self):
         """Initialize PyQt Signals/Slots for UI Buttons and Menus"""
@@ -46,6 +46,9 @@ class MainWindow(base_class, form_class):
         self.drawPlot_btn.clicked.connect(self.draw_plot)
         self.clearPlot_btn.clicked.connect(self.plotter.clear)
 
+        # Channel Panel Buttons #
+        self.selectAllChannels.clicked.connect(self.select_all_channels)
+
     def exit(self):
         """Exit the PyQt application by closing the main window (self)"""
         self.close()
@@ -57,9 +60,35 @@ class MainWindow(base_class, form_class):
     def draw_plot(self):
         self.log('Plotting stuff on plotter')
         if self.grav_data is not None:
-            self.plotter.linear_plot(self.grav_data.gravity)
+            checked = self.get_selected_channels()
+            series = [self.grav_data[x] for x in checked]
+            self.plotter.linear_plot(self.active_plot, *series)
         else:
             self.log("Nothing to plot")
+
+    def select_all_channels(self):
+        for i in range(self.channelList.count()):
+            self.channelList.item(i).setCheckState(2)  # Qt::CheckState 2 = checked 1 = partially checked
+
+    def get_selected_channels(self):
+        checked = []
+        for i in range(self.channelList.count()):
+            cn = self.channelList.item(i)
+            if cn.checkState():
+                checked.append(cn.text())
+        return checked
+
+    def set_channels(self):
+        if self.grav_data is not None:
+            for col in self.grav_data.columns:
+                item = QtWidgets.QListWidgetItem(str(col))
+                item.setCheckState(QtCore.Qt.Unchecked)
+                self.channelList.addItem(item)
+        else:
+            return
+
+    def set_file_info(self, path):
+        self.fileInfo.append("File path:\n{}".format(path))
 
     def import_gravity(self):
         # getOpenFileName returns a tuple of (path, filter), we only need the path
@@ -73,7 +102,10 @@ class MainWindow(base_class, form_class):
                 self.log('Error importing file')
             else:
                 self.log('Data file loaded')
+                self.set_file_info(path)
+                self.set_channels()
                 self.log(str(self.grav_data.describe()))
+
 
 
 class TableModel(QtCore.QAbstractTableModel):
