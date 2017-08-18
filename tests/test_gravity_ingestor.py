@@ -10,13 +10,6 @@ from dgp.lib import gravity_ingestor as gi
 
 class TestGravityIngestor(unittest.TestCase):
 
-    def test_convert_gps_time(self):
-        gpsweek = 1959
-        gpsweeksecond = 219698.000
-        result = 1500987698  # 2017-07-25 13:01:38+00:00
-        test_res = gi.convert_gps_time(gpsweek, gpsweeksecond)
-        self.assertEqual(result, test_res)
-
     def test_import_at1m(self):
         os.chdir('tests')
         df = gi.read_at1m(os.path.abspath('./sample.csv'))
