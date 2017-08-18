@@ -3,6 +3,17 @@
 import os
 import configparser
 
+"""
+Dynamic Gravity Processor (DGP) :: meterconfig.py
+License: Apache License V2
+
+Overview:
+meterconfig.py provides the object framework for dealing with Gravity Meter/Sensor configurations,
+each sensor may have different configuration values that may impact the data processing, and these
+classes will provide a way to easily store and retrieve those configuration values when a meter
+is associated with a particular project/flight.
+"""
+
 
 class MeterConfig:
     """

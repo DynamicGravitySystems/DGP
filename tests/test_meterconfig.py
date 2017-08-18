@@ -1,17 +1,22 @@
 # coding: utf-8
 
+import os
 import unittest
 import configparser
 
 from .context import dgp
-from dgp.meterconfig import *
+from dgp.meterconfig import MeterConfig, AT1Meter
 
-os.chdir('tests')
 
+"""
+Dynamic Gravity Processor (DGP) :: test_meterconfig.py
+License: Apache License V2
+
+"""
 
 class TestMeterconfig(unittest.TestCase):
     def setUp(self):
-        self.ini_path = os.path.abspath('./at1m.ini')
+        self.ini_path = os.path.abspath('tests/at1m.ini')
         self.config = {
             'g0': 10000.0,
             'GravCal': 227626.0,
