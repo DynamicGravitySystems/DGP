@@ -102,7 +102,7 @@ Functional Requirements
 
 14. FR14
   - Description: The user shall be able to import a background image or data set as the background for the map.
-  - Priority: Medium
+  - Priority: Low
   - Rationale: To facilitate selection of sections for processing.
   - Dependencies: FR13
 
@@ -111,3 +111,33 @@ Functional Requirements
   - Priority: High
   - Rationale: To facilitate comparison of processing methods.
   - Dependencies: None
+
+16. FR16
+  - Description: The user shall be able to compute statistics for any channel.
+  - Priority: High
+  - Rationale: For quality control of data, diagnostics, and performance assessment.
+  - Dependencies:
+
+17. FR17
+  - Description: The user shall be able to perform cross-over analysis.
+  - Priority: Medium
+  - Rationale: For quality control at the level of a whole survey.
+  - Dependencies:
+
+18. FR18
+  - Description: The user shall be able to perform upward continuation.
+  - Priority: Low
+  - Rationale: For quality control at the level of a whole survey.
+  - Dependencies:
+
+19. FR19
+  - Description: The user shall ble able to flag bad data within lines and choose whether to exclude from processing.
+  - Priority: High
+  - Rationale: For quality control of data, diagnostics, and performance assessment.
+  - Dependencies:
+
+20. FR20
+  - Description: The user shall be able to import outside data sets (e.g., SRTM, geoid) for comparison with flown gravity.
+  - Priority: High
+  - Rationale: For quality control of data, diagnostics, and performance assessment.
+  - Dependencies
