@@ -100,3 +100,13 @@ def leap_seconds(**kwargs):
             leap_seconds = leap_seconds + 1
 
     return leap_seconds
+
+def matlab_to_datetime(timestamp):
+    # TO DO: Check whether input is in range
+    if isinstance(time, pd.Series):
+        return (timestamp.astype(int).map(datetime.datetime.fromordinal) +
+                pd.to_timedelta(timestamp % 1, unit='D') -
+                pd.to_timedelta('366 days'))
+    else:
+        return (datetime.datetime.fromordinal(int(timestamp)) +
+                timedelta(days=timestamp % 1) - datetime.timedelta(days=366))
