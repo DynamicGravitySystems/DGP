@@ -63,10 +63,14 @@ class BasePlottingCanvas(FigureCanvas):
     def onrelease(self, event):
         pass
 
+    def __len__(self):
+        return len(self.axes)
+
 
 class GeneralPlot(BasePlottingCanvas):
     def __init__(self, n=1, parent=None):
         BasePlottingCanvas.__init__(self, parent=parent)
+        self.resample_rule = '100ms'
 
     def clear(self):
         if not self.axes:
@@ -77,17 +81,16 @@ class GeneralPlot(BasePlottingCanvas):
 
     def onclick(self, event):
         for ax in self.axes:
+            # Set the parent GUI active_plot to the axes clicked on
             if event.inaxes == ax:
                 idx = self.axes.index(ax)
-                self.parent.active_plot = idx
-                print("Active plot set to: {}".format(self.parent.active_plot))
-                self.set_focus(self.axes.index(ax))
+                self.parent.set_active_plot(idx)
+                self.set_focus(idx)  # Set the color of the focused axes
             else:
                 continue
 
     def set_focus(self, ind: int):
         """Set a colored border around the plot in focus"""
-        print("Setting axes border color")
         focus = self.axes[ind]
         for spine in focus.spines.values():
             spine.set_color('orange')
@@ -99,37 +102,28 @@ class GeneralPlot(BasePlottingCanvas):
 
         self.draw()
 
-
-    def plot(self, df):
-        # TODO: make this a more general function with ability to choose channels/method of plotting
-        self.clear()
-        if self.axes:
-            self.axes[0].plot(df[df.columns[0]][::100])
-            self.draw()
-        else:
-            self.parent.log("Axes not initialized")
-
-    def linear_plot(self, ind=0, *series):
+    def linear_plot(self, axes=0, *series, resample='1S'):
         """
         Generate a linear plot from an arbitrary list of Pandas Series
+        :param axes: index of axes to draw the plot on
         :param series:
+        :param resample:
         :return: None
         """
         if not self.axes:
             return
 
-        # self.clear()
-        self.axes[ind].cla()
+        self.axes[axes].cla()
         # self.axes[ind].set_title('Linear Plot')
         for data in series:
             if type(data) is Series:
-                dec_data = data[::5]
+                # dec_data = data[::5]
+                dec_data = data.resample(resample).mean()
                 x = np.linspace(0, 1, len(dec_data))
-
-                self.axes[ind].plot(x, dec_data, label=data.name)
+                line = self.axes[axes].plot(x, dec_data, label=data.name)
             else:
                 continue
-        self.axes[ind].legend()
+        self.axes[axes].legend()
         self.draw()
 
     @staticmethod
