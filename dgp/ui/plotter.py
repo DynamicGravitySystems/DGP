@@ -4,6 +4,8 @@
 Class to handle Matplotlib plotting of data to be displayed in Qt GUI
 """
 
+from collections import namedtuple
+
 from PyQt5.QtWidgets import QSizePolicy
 
 from matplotlib.backends.backend_qt5agg import (FigureCanvasQTAgg as FigureCanvas,
@@ -29,6 +31,7 @@ class BasePlottingCanvas(FigureCanvas):
 
         # self.axes = self.figure.add_subplot(111)
         self.axes = []
+        self.lines = {}
 
         # self.compute_initial_figure()
         self.figure.canvas.mpl_connect('button_press_event', self.onclick)
@@ -39,6 +42,7 @@ class BasePlottingCanvas(FigureCanvas):
         # TODO: Experimenting with generating multiple plots, work with Chris on this class
         # Clear any current axes first
         self.axes = []
+        self.lines = {x: {} for x in range(rows)}
         i = 0
         for i in range(rows):
             if i == 0:
@@ -67,16 +71,19 @@ class BasePlottingCanvas(FigureCanvas):
         return len(self.axes)
 
 
+plotline = namedtuple('plotline', ['line', 'data'])
+
+
 class GeneralPlot(BasePlottingCanvas):
     def __init__(self, n=1, parent=None):
         BasePlottingCanvas.__init__(self, parent=parent)
-        self.resample_rule = '100ms'
+        self._resample = '100ms'
 
     def clear(self):
-        if not self.axes:
-            return 0
-        for axes in self.axes:
-            axes.cla()
+        for x in range(len(self.axes)):
+            for line in self.lines[x].values():
+                line.remove()
+            self.lines[x].clear()
         self.draw()
 
     def onclick(self, event):
@@ -102,29 +109,58 @@ class GeneralPlot(BasePlottingCanvas):
 
         self.draw()
 
-    def linear_plot(self, axes=0, *series, resample='1S'):
+    def linear_resample(self, data):
+        y = data.resample(self._resample).mean()
+        x = np.linspace(0, 1, len(y))
+        return x, y
+
+    def linear_plot2(self, axes, *series):
         """
-        Generate a linear plot from an arbitrary list of Pandas Series
-        :param axes: index of axes to draw the plot on
+        linear_plot2 is an improvement on the original function which stores plotted lines so that
+        the data may be updated instead of completely redrawn - this is important when changing the
+        plot sampling level and when the user has zoomed or panned the plot. By updating the existing
+        line data we can keep the users perspective on the plot.
+        :param axes:
         :param series:
-        :param resample:
-        :return: None
+        :return:
         """
-        if not self.axes:
+        if not series:
+            for k, line in self.lines[axes].items():
+                line.remove()
+            self.lines[axes].clear()
+            self.axes[axes].relim()
+            self.draw()
             return
 
-        self.axes[axes].cla()
-        # self.axes[ind].set_title('Linear Plot')
+        # Prune non selected lines from plot
+        remove = []
+        for k, line in self.lines[axes].items():
+            if k not in [s.name for s in series]:
+                line.remove()
+                remove.append(k)
+        for item in remove:
+            self.lines[axes].pop(item)
+
         for data in series:
-            if type(data) is Series:
-                # dec_data = data[::5]
-                dec_data = data.resample(resample).mean()
-                x = np.linspace(0, 1, len(dec_data))
-                line = self.axes[axes].plot(x, dec_data, label=data.name)
+            x, y = self.linear_resample(data)
+            label = data.name
+            if label not in self.lines[axes].keys():
+                # Plot the data and add it to lines array
+                self.lines[axes][label], = self.axes[axes].plot(x, y, label=label)
             else:
-                continue
+                # Update the data
+                self.lines[axes][label].set_data(x, y)
+
         self.axes[axes].legend()
+        self.axes[axes].relim()
+        self.axes[axes].autoscale_view()
         self.draw()
+        print(self.lines)
+
+
+
+
+
 
     @staticmethod
     def get_toolbar(plot, parent=None):
