@@ -14,6 +14,7 @@ import datetime
 
 from .time_utils import convert_gps_time
 
+
 def safe_float(data, none_val=np.nan):
     if data is None:
         return none_val
@@ -22,11 +23,12 @@ def safe_float(data, none_val=np.nan):
     except ValueError:
         return none_val
 
-def read_at1m(path):
-    """
-    read_at1m :: String -> DataFrame
 
-    Read and parse gravity data file from DGS AT1M meter.
+def read_at1a(path):
+    """
+    read_at1a :: String -> DataFrame
+
+    Read and parse gravity data file from DGS AT1A (Airborne) meter.
     CSV Columns:
         gravity, long, cross, beam, temp, status, pressure, Etemp, GPSweek, GPSweekseconds
     :param path: Filesystem path to gravity data file
