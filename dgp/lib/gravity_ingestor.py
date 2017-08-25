@@ -33,24 +33,17 @@ def read_at1m(path):
     :return: Pandas DataFrame of gravity data indexed by datetime, with UNIX timestamp converted from GPS time
     """
     fields = ['gravity', 'long', 'cross', 'beam', 'temp', 'status', 'pressure', 'Etemp', 'GPSweek', 'GPSweekseconds']
-    data_fields = fields[:-2]
 
     data = []
-    with open(path, newline='') as gravdata:
-        reader = csv.DictReader(gravdata, fieldnames=fields)
-
-        for row in reader:
-            timestamp = convert_gps_time(row['GPSweek'], row['GPSweekseconds'])
-            row_data = {k: safe_float(v) for k, v in row.items() if k in data_fields}
-            row_data['timestamp'] = timestamp
-            # row_time = {k: int(v) for k, v in row.items() if k in time_fields}
-            data.append(row_data)
-
-    df = pd.DataFrame(data)
+    df = pd.read_csv(path, header=None, engine='c', na_filter=False)
+    df.columns = fields
 
     # create datetime index
-    dt = datetime.datetime(1970, 1, 1) + pd.to_timedelta(df['timestamp'], unit='s')
-    df.index = pd.DatetimeIndex(dt)
+    dt_list = []
+    for (week, sow) in zip(df['GPSweek'], df['GPSweekseconds']):
+        dt_list.append(convert_gps_time(week, sow, format='datetime'))
+
+    df.index = pd.DatetimeIndex(dt_list)
 
     # resample
     # offset_str = '{:d}U'.format(int(0.1 * 1e6))

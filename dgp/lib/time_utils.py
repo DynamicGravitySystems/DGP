@@ -1,6 +1,7 @@
 import datetime
+import pandas as pd
 
-def convert_gps_time(gpsweek, gpsweekseconds):
+def convert_gps_time(gpsweek, gpsweekseconds, format='unix'):
     """
     convert_gps_time :: (String -> String) -> Float
 
@@ -23,7 +24,13 @@ def convert_gps_time(gpsweek, gpsweekseconds):
     gpsweek_cf = 604800
 
     gps_ticks = (float(gpsweek) * gpsweek_cf) + float(gpsweekseconds)
-    return gps_delta + gps_ticks
+
+    timestamp = gps_delta + gps_ticks
+
+    if format == 'unix':
+        return timestamp
+    elif format == 'datetime':
+        return datetime.datetime(1970, 1, 1) + pd.to_timedelta(timestamp, unit='s')
 
 def leap_seconds(**kwargs):
     """

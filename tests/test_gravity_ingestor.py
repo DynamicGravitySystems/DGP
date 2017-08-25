@@ -13,7 +13,7 @@ class TestGravityIngestor(unittest.TestCase):
     def test_import_at1m(self):
         os.chdir('tests')
         df = gi.read_at1m(os.path.abspath('./sample.csv'))
-        self.assertEqual(df.shape, (10, 9))
+        self.assertEqual(df.shape, (10, 10))
 
         fields = ['gravity', 'long', 'cross', 'beam', 'temp', 'status', 'pressure', 'Etemp', 'GPSweek', 'GPSweekseconds']
         # Test and verify an arbitrary line of data against the same line in the pandas DataFrame
