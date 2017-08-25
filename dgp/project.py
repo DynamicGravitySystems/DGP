@@ -4,7 +4,7 @@ import os
 import uuid
 import pickle
 
-import yaml
+from pandas import HDFStore
 
 from .meterconfig import MeterConfig, AT1Meter
 from dgp.lib.gravity_ingestor import read_at1m
@@ -47,9 +47,15 @@ class GravityProject:
         if os.path.exists(path):
             self.projectdir = path
         else:
-            self.projectdir = None
+            raise FileNotFoundError
+        if not os.path.isdir(self.projectdir):
+            self.projectdir, _ = os.path.split(self.projectdir)
+
         self.name = name
         self.description = description
+
+        self.datastore = os.path.join(self.projectdir, 'prjdata.h5')
+
         # Store MeterConfig objects in dictionary keyed by the meter name
         self.sensors = {}
 
@@ -112,7 +118,9 @@ class Flight:
     """
     def __init__(self, meter: MeterConfig, **kwargs):
         # If uuid is passed use the value else assign new uuid
-        self.uid = kwargs.get('uuid', uuid.uuid4())
+        # the letter 'f' is prepended to the uuid to ensure that we have a natural python name
+        # as python variables cannot start with a number (this takes care of warning when storing data in pytables)
+        self.uid = kwargs.get('uuid', 'f{}'.format(uuid.uuid4().hex))
         self.meter = meter
 
         # Known Absolute Site Reading/Location
@@ -142,7 +150,7 @@ class Flight:
 
     def add_line(self, start: float, end: float):
         """Add a flight line to the flight by start/stop index and sequence number"""
-        uid = uuid.uuid4()
+        uid = uuid.uuid4().hex
         line = flightline(uid, len(self.lines), None, start, end)
         self.lines[uid] = line
         return line
@@ -169,6 +177,18 @@ class AirborneProject(GravityProject):
         # Dictionary of Flight objects keyed by the flight uuid
         self.flights = {}
 
+    def get_data(self, flight: Flight):
+        with HDFStore(self.datastore) as store:
+            try:
+                gravity = store.get('gravity/{}'.format(flight.uid))
+            except KeyError:
+                gravity = None
+            try:
+                gps = store.get('gps/{}'.format(flight.uid))
+            except KeyError:
+                gps = None
+        return gravity, gps
+
     def add_data(self, path, datatype: str='gravity', flight: Flight=None):
         """
         Import a data file into the project
@@ -179,7 +199,7 @@ class AirborneProject(GravityProject):
         """
         abspath = os.path.abspath(path)
         if os.path.exists(abspath):
-            self.data_sources[uuid.uuid4()] = abspath
+            self.data_sources[uuid.uuid4().hex] = abspath
         else:
             raise FileNotFoundError
 
@@ -189,7 +209,13 @@ class AirborneProject(GravityProject):
             df = read_at1m(abspath)
 
         elif datatype.lower() == 'gps':
+            df = None
             pass
+
+        # TODO:
+        with HDFStore(self.datastore) as store:
+            store.put('gravity/{}'.format(assoc_flight.uid), df, format='table', data_columns=True)
+        del df
 
 
     def add_flight(self, flight: Flight):
@@ -201,31 +227,3 @@ class AirborneProject(GravityProject):
 
     def __len__(self):
         return len(self.flights)
-
-    # TODO: Consider usefulness of this if pickling works as intended.
-    @staticmethod
-    def load_yaml(path):
-        with open(path) as yml_config:
-            config = yaml.load(yml_config)
-
-        name = config['project'].get('name', 'Untitled')
-        prpath = os.path.abspath(config['project'].get('projectdir', '.'))
-        ap = AirborneProject(prpath, name)
-
-        # Load Meter Configs
-        meter_configs = {}
-        for meter in config['meters']:
-            mtype = config['meters'][meter].pop('type')
-            if 'AT1'.lower() in mtype.lower():
-                meter_configs[meter] = AT1Meter(meter, **config['meters'][meter])
-            else:
-                meter_configs[meter] = None
-
-        # Load Flights
-        for entry in config['flights']:
-            fmeter = entry['meter']
-            flight = Flight(meter_configs.get(fmeter, None), uuid=entry['flight'])
-            # flight = Flight.load(**entry, meter=meter_configs.get(fmeter, None))
-            ap.add_flight(flight)
-
-        return ap
