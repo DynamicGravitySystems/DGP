@@ -1,0 +1,43 @@
+version: 0.2
+project:
+  name: Test Project
+  dgpversion: 0.1
+  projectdir: .
+  description:
+meters:
+  AT1A-5:
+    type: AT1A
+    LongCal: 200
+    CrossCal: 200
+  AT1A-6:
+    type: AT1A
+    LongCal: 100
+    CrossCal: 100
+
+flights:
+  - flight: 4fec08e6-6fe3-422e-a46a-80af263e7364
+    meter: AT1A-5
+    datetime: 12348694
+    begin_still:
+      reading: 123456
+      datetime: 123456
+      lat: 9999
+      long: 8888
+      alt: 500
+    end_still:
+      reading:
+      datetime:
+      lat:
+      long:
+      alt:
+    lines:
+      - line: 5b074cd7-9417-4a7a-be42-46f780f653b2
+        sequence: 0
+        file_ref:
+        start: 0
+        end: 123
+      - line: 149a47df-1ca5-459e-b98b-15cfeebba9ef
+        sequence: 1
+        file_ref:
+        start: 124
+        end: 500

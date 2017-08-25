@@ -1,9 +1,14 @@
 # coding: utf-8
 
 import os
+import uuid
+import pickle
+
+import yaml
 
 from .meterconfig import MeterConfig, AT1Meter
-from dgp.lib.types import location, stillreading
+from dgp.lib.gravity_ingestor import read_at1m
+from dgp.lib.types import location, stillreading, flightline
 
 """
 Dynamic Gravity Processor (DGP) :: project.py
@@ -40,9 +45,9 @@ class GravityProject:
         :param description: Project description
         """
         if os.path.exists(path):
-            self.dir = path
+            self.projectdir = path
         else:
-            self.dir = None
+            self.projectdir = None
         self.name = name
         self.description = description
         # Store MeterConfig objects in dictionary keyed by the meter name
@@ -81,17 +86,33 @@ class GravityProject:
         else:
             return list(self.sensors.keys())
 
-    def __str__(self):
-        description = """
-Gravity Project: {name}
-Meters assigned: {meters}
-Data Sources: {sources}""".format(name=self.name, meters=self.sensors, sources=self.data_sources)
-        return description
+    def save(self, path):
+        """
+        Export the project class as a pickled python object
+        :param path: Path to save file
+        :return:
+        """
+        if path is None:
+            path = os.path.join(self.projectdir, '{}.p'.format(self.name))
+        with open(path, 'wb') as f:
+            pickle.dump(self, f)
+
+    @staticmethod
+    def load(path):
+        """Use python pickling to load project"""
+        with open(path, 'rb') as pickled:
+            project = pickle.load(pickled)
+        return project
 
 
 class Flight:
-    def __init__(self, flight_id: int, meter: MeterConfig):
-        self.id = flight_id
+    """
+    Define a Flight class used to record and associate data with an entire survey flight (takeoff -> landing)
+    This class is iterable, yielding the flightlines named tuple objects from its lines dictionary
+    """
+    def __init__(self, meter: MeterConfig, **kwargs):
+        # If uuid is passed use the value else assign new uuid
+        self.uid = kwargs.get('uuid', uuid.uuid4())
         self.meter = meter
 
         # Known Absolute Site Reading/Location
@@ -103,7 +124,10 @@ class Flight:
 
         self.flight_timeshift = 0
 
-        # Flight lines should be keyed by sequence number with the value being a tuple of (start, stop) data indicies
+        # Flight data files
+        self.data = {}
+
+        # Flight lines keyed by UUID
         self.lines = {}
 
     def set_gravity_tie(self, gravity: float, loc: location):
@@ -116,19 +140,92 @@ class Flight:
     def post_still_reading(self, gravity: float, loc: location, time: float):
         self.post_still_reading = stillreading(gravity, loc, time)
 
-    def add_line(self, seq: int, start: float, stop: float):
+    def add_line(self, start: float, end: float):
         """Add a flight line to the flight by start/stop index and sequence number"""
-        self.lines[seq] = (start, stop)
+        uid = uuid.uuid4()
+        line = flightline(uid, len(self.lines), None, start, end)
+        self.lines[uid] = line
+        return line
+
+    def __iter__(self):
+        """Iterate over flight lines in the Flight instance"""
+        for k, line in self.lines.items():
+            yield line
+
+    def __len__(self):
+        return len(self.lines)
 
 
 class AirborneProject(GravityProject):
     """
     A subclass of the base GravityProject, AirborneProject will define an Airborne survey
     project with parameters unique to airborne operations, and defining flight lines etc.
+
+    This class is iterable, yielding the Flight objects contained within its flights dictionary
     """
     def __init__(self, path, name):
         super().__init__(path, name)
+
+        # Dictionary of Flight objects keyed by the flight uuid
         self.flights = {}
 
+    def add_data(self, path, datatype: str='gravity', flight: Flight=None):
+        """
+        Import a data file into the project
+        :param path: Relative or absolute path to datafile
+        :param datatype: type of data file: Gravity or GPS
+        :param flight: (optional) flight to associate data file with
+        :return: pandas.DataFrame
+        """
+        abspath = os.path.abspath(path)
+        if os.path.exists(abspath):
+            self.data_sources[uuid.uuid4()] = abspath
+        else:
+            raise FileNotFoundError
+
+        assoc_flight = self.flights.get(flight.uid, None)
+
+        if datatype.lower() == 'gravity':
+            df = read_at1m(abspath)
+
+        elif datatype.lower() == 'gps':
+            pass
+
+
     def add_flight(self, flight: Flight):
-        self.flights[flight.id] = flight
+        self.flights[flight.uid] = flight
+
+    def __iter__(self):
+        for uid, flight in self.flights.items():
+            yield flight
+
+    def __len__(self):
+        return len(self.flights)
+
+    # TODO: Consider usefulness of this if pickling works as intended.
+    @staticmethod
+    def load_yaml(path):
+        with open(path) as yml_config:
+            config = yaml.load(yml_config)
+
+        name = config['project'].get('name', 'Untitled')
+        prpath = os.path.abspath(config['project'].get('projectdir', '.'))
+        ap = AirborneProject(prpath, name)
+
+        # Load Meter Configs
+        meter_configs = {}
+        for meter in config['meters']:
+            mtype = config['meters'][meter].pop('type')
+            if 'AT1'.lower() in mtype.lower():
+                meter_configs[meter] = AT1Meter(meter, **config['meters'][meter])
+            else:
+                meter_configs[meter] = None
+
+        # Load Flights
+        for entry in config['flights']:
+            fmeter = entry['meter']
+            flight = Flight(meter_configs.get(fmeter, None), uuid=entry['flight'])
+            # flight = Flight.load(**entry, meter=meter_configs.get(fmeter, None))
+            ap.add_flight(flight)
+
+        return ap

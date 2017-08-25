@@ -15,3 +15,5 @@ types.py is a library utility module used to define custom reusable types for us
 location = namedtuple('location', ['lat', 'long', 'alt'])
 
 stillreading = namedtuple('stillreading', ['gravity', 'location', 'time'])
+
+flightline = namedtuple('flightline', ['id', 'sequence', 'file_ref', 'start', 'end'])
