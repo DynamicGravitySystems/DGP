@@ -11,8 +11,7 @@ from dgp.lib import gravity_ingestor as gi
 class TestGravityIngestor(unittest.TestCase):
 
     def test_import_at1m(self):
-        os.chdir('tests')
-        df = gi.read_at1m(os.path.abspath('./sample.csv'))
+        df = gi.read_at1m(os.path.abspath('tests/sample.csv'))
         self.assertEqual(df.shape, (10, 9))
 
         fields = ['gravity', 'long', 'cross', 'beam', 'temp', 'status', 'pressure', 'Etemp', 'GPSweek', 'GPSweekseconds']
@@ -23,4 +22,3 @@ class TestGravityIngestor(unittest.TestCase):
         self.assertEqual(df.gravity[5], sample_line['gravity'])
         self.assertEqual(df.long[5], sample_line['long'])
         self.assertTrue(df.iloc[[2]].isnull().all)
-        print(df[['gravity', 'long', 'cross']])
