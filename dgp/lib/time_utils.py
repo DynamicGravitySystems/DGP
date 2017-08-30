@@ -1,5 +1,21 @@
 import datetime
 import pandas as pd
+import collections
+
+def datetime_to_sow(dt):
+    def _to_sow(dt):
+        delta = dt - datetime.datetime(1980, 1, 6)
+        week = delta.days // 7
+        sow = (delta.days % 7) * 86400. + delta.seconds + delta.microseconds * 1e-6
+        return week, sow
+
+    if isinstance(dt, collections.Iterable):
+        res = []
+        for i in dt:
+            res.append(_to_sow(i))
+        return res
+    else:
+        return _to_sow(dt)
 
 def convert_gps_time(gpsweek, gpsweekseconds, format='unix'):
     """
@@ -23,7 +39,10 @@ def convert_gps_time(gpsweek, gpsweekseconds, format='unix'):
     gps_delta = 315964800.0
     gpsweek_cf = 604800
 
-    gps_ticks = (float(gpsweek) * gpsweek_cf) + float(gpsweekseconds)
+    if isinstance(gpsweek, pd.Series) and isinstance(gpsweekseconds, pd.Series):
+        gps_ticks = (gpsweek.astype('float64') * gpsweek_cf) + gpsweekseconds.astype('float64')
+    else:
+        gps_ticks = (float(gpsweek) * gpsweek_cf) + float(gpsweekseconds)
 
     timestamp = gps_delta + gps_ticks
 
@@ -107,3 +126,13 @@ def leap_seconds(**kwargs):
             leap_seconds = leap_seconds + 1
 
     return leap_seconds
+
+def datenum_to_datetime(timestamp):
+ # TO DO: Check whether input is in range
+    if isinstance(time, pd.Series):
+        return (timestamp.astype(int).map(datetime.datetime.fromordinal) +
+                pd.to_timedelta(timestamp % 1, unit='D') -
+                pd.to_timedelta('366 days'))
+    else:
+        return (datetime.datetime.fromordinal(int(timestamp)) +
+                timedelta(days=timestamp % 1) - datetime.timedelta(days=366))
