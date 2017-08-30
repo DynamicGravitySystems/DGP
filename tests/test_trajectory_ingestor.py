@@ -13,7 +13,7 @@ class TestTrajectoryIngestor(unittest.TestCase):
 
     def test_import_trajectory(self):
         fields = ['mdy', 'hms', 'lat', 'long', 'ell_ht', 'ortho_ht', 'num_sats', 'pdop']
-        df = ti.import_trajectory(os.path.abspath('./sample_trajectory.txt'),
+        df = ti.import_trajectory(os.path.abspath('tests/sample_trajectory.txt'),
                                   columns=fields, skiprows=1)
 
         # Test and verify an arbitrary line of data against the same line in the pandas DataFrame
