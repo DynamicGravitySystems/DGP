@@ -1,2 +1,0 @@
-# DGP
-Dynamic Gravity Processor
