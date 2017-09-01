@@ -5,8 +5,8 @@ import random
 import shutil
 
 from .context import dgp
-from dgp.project import *
-from dgp.meterconfig import *
+from dgp.lib.project import *
+from dgp.lib.meterconfig import *
 
 
 class TestProject(unittest.TestCase):
