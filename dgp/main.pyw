@@ -1,27 +1,69 @@
 # coding: utf-8
 
 import os
+import re
 import sys
 
-from PyQt5 import QtCore, QtWidgets, Qt
+from PyQt5 import QtCore, QtWidgets, Qt, QtGui
 from PyQt5.uic import loadUiType
 
 import dgp.lib.gravity_ingestor as gi
 import dgp.lib.trajectory_ingestor as ti
-# import dgp.project as prj
+import dgp.lib.project as prj
 from dgp.ui.plotter import GeneralPlot
 
 # Load .ui forms
-main_window, _ = loadUiType('main_window.ui')
-project_dialog, _ = loadUiType('project_dialog.ui')
+main_window, _ = loadUiType('ui/main_window.ui')
+project_dialog, _ = loadUiType('ui/project_dialog.ui')
 
 
 class MainWindow(QtWidgets.QMainWindow, main_window):
     def __init__(self, *args):
         super().__init__(*args)
         self.setupUi(self)  # Set up ui within this class - which is base_class defined by .ui file
-
+        self.setWindowIcon(QtGui.QIcon('ui/assets/DGSIcon.xpm'))
         self.log('Initializing GUI')
+
+        # See http://doc.qt.io/qt-5/stylesheet-examples.html#customizing-qtreeview
+        self.setStyleSheet("""
+            QTreeView::item {
+                
+            }
+            QTreeView::branch:has-siblings:adjoins-them {
+                border: 1px solid black;
+            }
+            QTreeView::branch {
+                background: palette(base);
+            }
+
+            QTreeView::branch:has-siblings:!adjoins-item {
+                background: cyan;
+            }
+
+            QTreeView::branch:has-siblings:adjoins-item {
+                background: orange;
+            }
+
+            QTreeView::branch:!has-children:!has-siblings:adjoins-item {
+                background: blue;
+            }
+
+            QTreeView::branch:closed:has-children:has-siblings {
+                background: pink;
+            }
+
+            QTreeView::branch:has-children:!has-siblings:closed {
+                background: gray;
+            }
+
+            QTreeView::branch:open:has-children:has-siblings {
+                background: magenta;
+            }
+
+            QTreeView::branch:open:has-children:!has-siblings {
+                background: green;
+            }
+        """)
 
         # Initialize plotter canvas
         self.plotter = GeneralPlot(parent=self)
@@ -33,13 +75,14 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.plotLayout.addWidget(self.mpl_toolbar)
 
         # Initialize Variables
-        self.import_base_path = os.path.join(os.getcwd(), '../../tests')
+        self.import_base_path = os.path.join(os.getcwd(), '../tests')
         self.grav_file = None
         self.grav_data = None
+        self.gps_data = None
         self.refocus_flag = False
         self.plot_curves = None
         self.active_plot = 0
-        self.project = None
+        self.active_project = None
 
         # Call sub-initialization functions
         self.init_plot()
@@ -59,7 +102,9 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
         # File Menu Actions #
         self.actionExit.triggered.connect(self.exit)
-        self.actionNewPrj.triggered.connect(self.new_project)
+        self.action_file_new.triggered.connect(self.new_project)
+        self.action_file_open.triggered.connect(self.open_project)
+        self.action_file_save.triggered.connect(self.save_project)
 
         # Import Menu Actions #
         self.actionGravity_Data.triggered.connect(self.import_gravity)
@@ -69,6 +114,13 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.drawPlot_btn.clicked.connect(self.draw_plot)
         # self.clearPlot_btn.clicked.connect(self.plotter.clear)
 
+        # Project Tree View Actions #
+        self.prj_tree.doubleClicked.connect(self.log_tree)
+
+        # Project Control Buttons #
+        self.prj_add_flight.clicked.connect(self.add_flight)
+
+
         # Channel Panel Buttons #
         self.selectAllChannels.clicked.connect(self.set_channel_state)
         self.list_channels.itemChanged.connect(self.recalc_plots)
@@ -77,6 +129,12 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
     def exit(self):
         """Exit the PyQt application by closing the main window (self)"""
         self.close()
+
+    # TODO: Delete after testing
+    def log_tree(self, index: QtCore.QModelIndex):
+        item = self.prj_tree.model().itemFromIndex(index)
+        print(item.text())
+        print(dir(item))
 
     def log(self, text):
         """Log a message to the GUI console"""
@@ -142,6 +200,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             else:
                 continue
 
+    # TODO: The import functions should be defined within the project and called from here
     def import_gravity(self):
         # getOpenFileName returns a tuple of (path, filter), we only need the path
         path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Import Gravity Data File",
@@ -154,6 +213,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             except OSError:
                 self.log('Error importing Gravity data file')
             else:
+                # Set up the channel list for each column in gravity data
                 self.set_channel_state(state=0)
                 self.init_plot()  # Reinitialize plot to clear old data
                 self.log('Data file loaded')
@@ -173,7 +233,9 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
                                                         "Data Files (*.csv *.dat)")
         if path:
             try:
-                self.gps_data = None
+                gps_fields = ['mdy', 'hms', 'lat', 'lon', 'ell_ht', 'ortho_ht', 'num_sats', 'pdop']
+                self.gps_data = ti.import_trajectory(path, columns=gps_fields, skiprows=1)
+
             except OSError:
                 self.log('Error importing GPS data file')
             else:
@@ -184,14 +246,52 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         if dialog.exec_():
             name, path, prtype, desc = dialog.content
             self.log("Creating new project")
-            self.log(name)
-            self.log(prtype)
-            self.log(path)
+            self.active_project = prj.AirborneProject(path, name, desc)
+            self.active_project.save()
+            self.log(str(self.active_project))
+            self.update_project()
         else:
             print("Dialog cancelled")
             return
 
-        # self.project = prj.AirborneProject(path, name)
+    def open_project(self):
+        path = QtWidgets.QFileDialog.getExistingDirectory(self, "Open Project Directory")
+        if not path:
+            return
+
+        pattern = re.compile(r'[a-zA-Z0-9]+\.d2p')
+        files = [file.name for file in os.scandir(path) if file.is_file()]
+        for file in files:
+            if re.match(pattern, file):
+                self.log("Loading project file: {}".format(file))
+                self.active_project = prj.AirborneProject.load(os.path.normpath(os.path.join(path, file)))
+                self.update_project()
+                return
+        self.log("Project file could not be located in directory: {}".format(path))
+
+    def update_project(self):
+        if self.active_project is None:
+            return
+        self.prj_tree.setModel(self.active_project.generate_model())
+        self.prj_tree.expandAll()
+
+    def save_project(self):
+        if self.active_project is None:
+            return
+        if self.active_project.save():
+            self.log("Project saved.")
+        else:
+            self.log("Error saving project.")
+
+    # TODO: Add decorator that will call update_project for functions that affecr project structure
+    def add_flight(self):
+        if self.active_project is None:
+            return
+        meter = prj.AT1Meter('AT1M-Test')
+        flight = prj.Flight(meter)
+        self.active_project.add_flight(flight)
+        self.update_project()
+
 
 
 class CreateProject(QtWidgets.QDialog, project_dialog):

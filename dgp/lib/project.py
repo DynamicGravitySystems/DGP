@@ -5,6 +5,7 @@ import uuid
 import pickle
 
 from pandas import HDFStore
+from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIcon
 
 from .meterconfig import MeterConfig, AT1Meter
 from dgp.lib.gravity_ingestor import read_at1m
@@ -92,16 +93,17 @@ class GravityProject:
         else:
             return list(self.sensors.keys())
 
-    def save(self, path):
+    def save(self, path=None):
         """
         Export the project class as a pickled python object
         :param path: Path to save file
         :return:
         """
         if path is None:
-            path = os.path.join(self.projectdir, '{}.p'.format(self.name))
+            path = os.path.join(self.projectdir, '{}.d2p'.format(self.name))
         with open(path, 'wb') as f:
             pickle.dump(self, f)
+        return True
 
     @staticmethod
     def load(path):
@@ -171,8 +173,8 @@ class AirborneProject(GravityProject):
 
     This class is iterable, yielding the Flight objects contained within its flights dictionary
     """
-    def __init__(self, path, name):
-        super().__init__(path, name)
+    def __init__(self, path, name, description=None):
+        super().__init__(path, name, description)
 
         # Dictionary of Flight objects keyed by the flight uuid
         self.flights = {}
@@ -217,9 +219,34 @@ class AirborneProject(GravityProject):
             store.put('gravity/{}'.format(assoc_flight.uid), df, format='table', data_columns=True)
         del df
 
-
     def add_flight(self, flight: Flight):
         self.flights[flight.uid] = flight
+
+    def generate_model(self):
+        """Generate a Qt Model based on the project."""
+        model = QStandardItemModel()
+        root = model.invisibleRootItem()
+
+        dgs_ico = QIcon('ui/assets/DGSIcon.xpm')
+        flt_ico = QIcon('')
+
+        prj_header = QStandardItem(dgs_ico, "{name}: {path}".format(name=self.name, path=self.projectdir))
+        prj_header.setEditable(False)
+        fli_header = QStandardItem(dgs_ico, "Flights")
+        fli_header.setEditable(False)
+        # TODO: Add a human readable identifier to flights
+        for uid, flight in self.flights.items():
+            fli_item = QStandardItem(flt_ico, "Flight: {}".format(uid))
+            fli_item.setEditable(False)
+            for line in flight:
+                line_item = QStandardItem("Line {}:{}".format(line.start, line.end))
+                line_item.setEditable(False)
+                fli_item.appendRow(line_item)
+            fli_header.appendRow(fli_item)
+        prj_header.appendRow(fli_header)
+
+        root.appendRow(prj_header)
+        return model
 
     def __iter__(self):
         for uid, flight in self.flights.items():
@@ -227,3 +254,8 @@ class AirborneProject(GravityProject):
 
     def __len__(self):
         return len(self.flights)
+
+    def __str__(self):
+        return "Project: {name}\nPath: {path}\nDescription: {desc}".format(name=self.name,
+                                                                           path=self.projectdir,
+                                                                           desc=self.description)

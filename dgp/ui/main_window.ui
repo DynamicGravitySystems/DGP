@@ -174,9 +174,9 @@
     <property name="title">
      <string>File</string>
     </property>
-    <addaction name="actionNewPrj"/>
-    <addaction name="actionOpen_Project"/>
-    <addaction name="actionSave_Project"/>
+    <addaction name="action_file_new"/>
+    <addaction name="action_file_open"/>
+    <addaction name="action_file_save"/>
     <addaction name="separator"/>
     <addaction name="actionExit"/>
    </widget>
@@ -219,7 +219,7 @@
    <property name="minimumSize">
     <size>
      <width>300</width>
-     <height>400</height>
+     <height>528</height>
     </size>
    </property>
    <property name="maximumSize">
@@ -244,16 +244,6 @@
        <property name="leftMargin">
         <number>5</number>
        </property>
-       <item row="2" column="0" colspan="2">
-        <widget class="QListWidget" name="list_channels"/>
-       </item>
-       <item row="3" column="0">
-        <widget class="QLabel" name="label_prj_info">
-         <property name="text">
-          <string>Project Info:</string>
-         </property>
-        </widget>
-       </item>
        <item row="0" column="0">
         <widget class="QLabel" name="label_data_channels">
          <property name="text">
@@ -270,6 +260,29 @@
           <number>15</number>
          </property>
         </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="label_prj_info">
+         <property name="text">
+          <string>Project Info:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0" colspan="2">
+        <widget class="QListWidget" name="list_channels"/>
+       </item>
+       <item row="7" column="0" colspan="2">
+        <spacer name="verticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
        </item>
        <item row="0" column="1">
         <widget class="QPushButton" name="selectAllChannels">
@@ -290,18 +303,12 @@
          </property>
         </widget>
        </item>
-       <item row="6" column="0" colspan="2">
-        <spacer name="verticalSpacer">
-         <property name="orientation">
-          <enum>Qt::Vertical</enum>
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_resample_key">
+         <property name="text">
+          <string>Plot Resample Value (x100ms)</string>
          </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>20</width>
-           <height>40</height>
-          </size>
-         </property>
-        </spacer>
+        </widget>
        </item>
        <item row="4" column="0" colspan="2">
         <widget class="QTextEdit" name="prj_info">
@@ -325,15 +332,31 @@
          </property>
         </widget>
        </item>
-       <item row="1" column="0">
-        <widget class="QLabel" name="label_resample_key">
-         <property name="text">
-          <string>Plot Resample Value (x100ms)</string>
+       <item row="5" column="0" colspan="2">
+        <widget class="QTreeView" name="prj_tree">
+         <property name="alternatingRowColors">
+          <bool>true</bool>
+         </property>
+         <property name="autoExpandDelay">
+          <number>1</number>
+         </property>
+         <property name="rootIsDecorated">
+          <bool>false</bool>
+         </property>
+         <property name="uniformRowHeights">
+          <bool>true</bool>
+         </property>
+         <property name="headerHidden">
+          <bool>true</bool>
          </property>
         </widget>
        </item>
-       <item row="5" column="0" colspan="2">
-        <widget class="QTreeView" name="projectTree"/>
+       <item row="6" column="0">
+        <widget class="QPushButton" name="prj_add_flight">
+         <property name="text">
+          <string>Add Flight</string>
+         </property>
+        </widget>
        </item>
       </layout>
      </item>
@@ -467,17 +490,17 @@
     <string>Tools</string>
    </property>
   </action>
-  <action name="actionNewPrj">
+  <action name="action_file_new">
    <property name="text">
     <string>New Project...</string>
    </property>
   </action>
-  <action name="actionOpen_Project">
+  <action name="action_file_open">
    <property name="text">
     <string>Open Project</string>
    </property>
   </action>
-  <action name="actionSave_Project">
+  <action name="action_file_save">
    <property name="text">
     <string>Save Project</string>
    </property>
