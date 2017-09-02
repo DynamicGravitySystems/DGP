@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import functools
 import datetime
+import struct
 
 from .time_utils import convert_gps_time
 
@@ -23,6 +24,29 @@ def safe_float(data, none_val=np.nan):
     except ValueError:
         return none_val
 
+def _extract_bits(bitfield, columns=None, as_bool=False):
+    def _unpack_bits(n):
+        # assumes 32-bit number
+        x = np.array(struct.unpack('4B', struct.pack('>I', n)), dtype=np.uint8)
+        return np.flip(np.unpackbits(x), axis=0)
+
+    data = bitfield.apply(_unpack_bits)
+    df = pd.DataFrame(np.column_stack(list(zip(*data))))
+
+    # TO DO: simplify?
+    if columns is not None:
+        if len(columns) < len(df.columns):
+            df.drop(df.columns[range(len(columns), len(df.columns))], axis=1, inplace=True)
+            df.columns = columns
+        elif len(columns) > len(df.columns):
+            df.columns = columns[:len(df.columns)]
+        else:
+            df.columns = columns
+
+    if as_bool:
+        return df.astype(np.bool_)
+    else:
+        return df
 
 def read_at1a(path):
     """
