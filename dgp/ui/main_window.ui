@@ -19,6 +19,13 @@
   <property name="windowTitle">
    <string>Dynamic Gravity Processor</string>
   </property>
+  <property name="windowIcon">
+   <iconset resource="resources.qrc">
+    <normaloff>:/images/assets/geoid_icon.png</normaloff>:/images/assets/geoid_icon.png</iconset>
+  </property>
+  <property name="tabShape">
+   <enum>QTabWidget::Triangular</enum>
+  </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout">
     <item row="0" column="0">
@@ -180,13 +187,6 @@
     <addaction name="separator"/>
     <addaction name="actionExit"/>
    </widget>
-   <widget class="QMenu" name="menuImport">
-    <property name="title">
-     <string>Import</string>
-    </property>
-    <addaction name="actionGravity_Data"/>
-    <addaction name="actionGPS_Data"/>
-   </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
      <string>Help</string>
@@ -200,12 +200,28 @@
     <addaction name="actionChannelDock"/>
     <addaction name="actionToolDock"/>
    </widget>
+   <widget class="QMenu" name="menuProject">
+    <property name="title">
+     <string>Project</string>
+    </property>
+    <addaction name="action_import_data"/>
+    <addaction name="action_add_flight"/>
+    <addaction name="action_add_meter"/>
+    <addaction name="action_project_info"/>
+   </widget>
    <addaction name="menuFile"/>
-   <addaction name="menuImport"/>
+   <addaction name="menuProject"/>
    <addaction name="menuView"/>
    <addaction name="menuHelp"/>
   </widget>
-  <widget class="QStatusBar" name="statusbar"/>
+  <widget class="QStatusBar" name="statusbar">
+   <property name="enabled">
+    <bool>true</bool>
+   </property>
+   <property name="autoFillBackground">
+    <bool>true</bool>
+   </property>
+  </widget>
   <widget class="QDockWidget" name="channelDock">
    <property name="enabled">
     <bool>true</bool>
@@ -244,10 +260,21 @@
        <property name="leftMargin">
         <number>5</number>
        </property>
-       <item row="0" column="0">
-        <widget class="QLabel" name="label_data_channels">
+       <item row="6" column="0">
+        <widget class="QPushButton" name="prj_add_flight">
          <property name="text">
-          <string>Data Channels</string>
+          <string>Add Flight</string>
+         </property>
+         <property name="icon">
+          <iconset resource="resources.qrc">
+           <normaloff>:/images/assets/flight_icon.png</normaloff>:/images/assets/flight_icon.png</iconset>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="label_prj_info">
+         <property name="text">
+          <string>Project Info:</string>
          </property>
         </widget>
        </item>
@@ -261,17 +288,17 @@
          </property>
         </widget>
        </item>
-       <item row="3" column="0">
-        <widget class="QLabel" name="label_prj_info">
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_data_channels">
          <property name="text">
-          <string>Project Info:</string>
+          <string>Data Channels</string>
+         </property>
+         <property name="buddy">
+          <cstring>selectAllChannels</cstring>
          </property>
         </widget>
        </item>
-       <item row="2" column="0" colspan="2">
-        <widget class="QListWidget" name="list_channels"/>
-       </item>
-       <item row="7" column="0" colspan="2">
+       <item row="9" column="0" colspan="2">
         <spacer name="verticalSpacer">
          <property name="orientation">
           <enum>Qt::Vertical</enum>
@@ -283,6 +310,19 @@
           </size>
          </property>
         </spacer>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_resample_key">
+         <property name="text">
+          <string>Plot Resample Value (x100ms)</string>
+         </property>
+         <property name="buddy">
+          <cstring>resample_value</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0" colspan="2">
+        <widget class="QListWidget" name="list_channels"/>
        </item>
        <item row="0" column="1">
         <widget class="QPushButton" name="selectAllChannels">
@@ -303,10 +343,22 @@
          </property>
         </widget>
        </item>
-       <item row="1" column="0">
-        <widget class="QLabel" name="label_resample_key">
-         <property name="text">
-          <string>Plot Resample Value (x100ms)</string>
+       <item row="5" column="0" colspan="2">
+        <widget class="QTreeView" name="prj_tree">
+         <property name="alternatingRowColors">
+          <bool>true</bool>
+         </property>
+         <property name="autoExpandDelay">
+          <number>1</number>
+         </property>
+         <property name="rootIsDecorated">
+          <bool>false</bool>
+         </property>
+         <property name="uniformRowHeights">
+          <bool>true</bool>
+         </property>
+         <property name="headerHidden">
+          <bool>true</bool>
          </property>
         </widget>
        </item>
@@ -332,29 +384,14 @@
          </property>
         </widget>
        </item>
-       <item row="5" column="0" colspan="2">
-        <widget class="QTreeView" name="prj_tree">
-         <property name="alternatingRowColors">
-          <bool>true</bool>
-         </property>
-         <property name="autoExpandDelay">
-          <number>1</number>
-         </property>
-         <property name="rootIsDecorated">
-          <bool>false</bool>
-         </property>
-         <property name="uniformRowHeights">
-          <bool>true</bool>
-         </property>
-         <property name="headerHidden">
-          <bool>true</bool>
-         </property>
-        </widget>
-       </item>
-       <item row="6" column="0">
-        <widget class="QPushButton" name="prj_add_flight">
+       <item row="8" column="0">
+        <widget class="QPushButton" name="prj_import_data">
          <property name="text">
-          <string>Add Flight</string>
+          <string>Import Data</string>
+         </property>
+         <property name="icon">
+          <iconset resource="resources.qrc">
+           <normaloff>:/images/assets/geoid_icon.png</normaloff>:/images/assets/geoid_icon.png</iconset>
          </property>
         </widget>
        </item>
@@ -448,24 +485,20 @@
     </layout>
    </widget>
   </widget>
-  <action name="actionGravity_Data">
-   <property name="text">
-    <string>Gravity Data</string>
-   </property>
-  </action>
-  <action name="actionGPS_Data">
-   <property name="text">
-    <string>GPS Data</string>
-   </property>
-  </action>
   <action name="actionDocumentation">
    <property name="text">
     <string>Documentation</string>
+   </property>
+   <property name="shortcut">
+    <string>F1</string>
    </property>
   </action>
   <action name="actionExit">
    <property name="text">
     <string>Exit</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Q</string>
    </property>
   </action>
   <action name="actionChannelDock">
@@ -478,6 +511,9 @@
    <property name="text">
     <string>Channels</string>
    </property>
+   <property name="shortcut">
+    <string>Alt+1</string>
+   </property>
   </action>
   <action name="actionToolDock">
    <property name="checkable">
@@ -489,24 +525,85 @@
    <property name="text">
     <string>Tools</string>
    </property>
+   <property name="shortcut">
+    <string>Alt+2</string>
+   </property>
   </action>
   <action name="action_file_new">
    <property name="text">
     <string>New Project...</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+N</string>
    </property>
   </action>
   <action name="action_file_open">
    <property name="text">
     <string>Open Project</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+O</string>
+   </property>
   </action>
   <action name="action_file_save">
    <property name="text">
     <string>Save Project</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+S</string>
+   </property>
+  </action>
+  <action name="action_add_flight">
+   <property name="text">
+    <string>Add Flight</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+F</string>
+   </property>
+  </action>
+  <action name="action_add_meter">
+   <property name="text">
+    <string>Add Meter</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+M</string>
+   </property>
+  </action>
+  <action name="action_project_info">
+   <property name="text">
+    <string>Project Info...</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+I</string>
+   </property>
+  </action>
+  <action name="action_import_data">
+   <property name="text">
+    <string>Import Data</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+O</string>
+   </property>
   </action>
  </widget>
- <resources/>
+ <tabstops>
+  <tabstop>list_channels</tabstop>
+  <tabstop>prj_tree</tabstop>
+  <tabstop>prj_add_flight</tabstop>
+  <tabstop>dataPlotTabWidget</tabstop>
+  <tabstop>clearConsole</tabstop>
+  <tabstop>resample_value</tabstop>
+  <tabstop>selectAllChannels</tabstop>
+  <tabstop>tableView</tabstop>
+  <tabstop>resetPlot_btn</tabstop>
+  <tabstop>addPlot_btn</tabstop>
+  <tabstop>clearPlot_btn</tabstop>
+  <tabstop>drawPlot_btn</tabstop>
+  <tabstop>textEdit</tabstop>
+ </tabstops>
+ <resources>
+  <include location="resources.qrc"/>
+ </resources>
  <connections>
   <connection>
    <sender>actionChannelDock</sender>

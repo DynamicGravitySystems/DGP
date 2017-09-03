@@ -48,6 +48,9 @@
        <property name="text">
         <string>Project Name:*</string>
        </property>
+       <property name="buddy">
+        <cstring>prj_name</cstring>
+       </property>
       </widget>
      </item>
      <item row="0" column="1">
@@ -64,6 +67,9 @@
       <widget class="QLabel" name="label_dir">
        <property name="text">
         <string>Project Directory:*</string>
+       </property>
+       <property name="buddy">
+        <cstring>prj_dir</cstring>
        </property>
       </widget>
      </item>
@@ -189,6 +195,9 @@
      <property name="text">
       <string>Description:</string>
      </property>
+     <property name="buddy">
+      <cstring>prj_description</cstring>
+     </property>
     </widget>
    </item>
    <item row="0" column="1" colspan="2">
@@ -221,6 +230,15 @@
    </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>prj_name</tabstop>
+  <tabstop>prj_dir</tabstop>
+  <tabstop>prj_browse</tabstop>
+  <tabstop>prj_description</tabstop>
+  <tabstop>prj_cancel</tabstop>
+  <tabstop>prj_create</tabstop>
+  <tabstop>prj_type_list</tabstop>
+ </tabstops>
  <resources/>
  <connections>
   <connection>

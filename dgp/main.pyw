@@ -4,25 +4,30 @@ import os
 import re
 import sys
 
-from PyQt5 import QtCore, QtWidgets, Qt, QtGui
+from dgp import resources_rc
+from PyQt5 import QtCore, QtWidgets, QtGui, Qt
 from PyQt5.uic import loadUiType
 
 import dgp.lib.gravity_ingestor as gi
-import dgp.lib.trajectory_ingestor as ti
 import dgp.lib.project as prj
+from dgp.ui.loader import ThreadedLoader
 from dgp.ui.plotter import GeneralPlot
 
 # Load .ui forms
 main_window, _ = loadUiType('ui/main_window.ui')
 project_dialog, _ = loadUiType('ui/project_dialog.ui')
+data_dialog, _ = loadUiType('ui/data_import_dialog.ui')
+splash_screen, _ = loadUiType('ui/splash_screen.ui')
 
 
 class MainWindow(QtWidgets.QMainWindow, main_window):
     def __init__(self, *args):
         super().__init__(*args)
+
         self.setupUi(self)  # Set up ui within this class - which is base_class defined by .ui file
-        self.setWindowIcon(QtGui.QIcon('ui/assets/DGSIcon.xpm'))
-        self.log('Initializing GUI')
+        self.statusBar().showMessage('Initializing Application', 1000)
+        self.title = 'Dynamic Gravity Processor'
+
 
         # See http://doc.qt.io/qt-5/stylesheet-examples.html#customizing-qtreeview
         self.setStyleSheet("""
@@ -82,13 +87,31 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.refocus_flag = False
         self.plot_curves = None
         self.active_plot = 0
-        self.active_project = None
+        # self.active_project = None
+        self.loader = ThreadedLoader()  # ThreadedLoader for loading large files
 
         # Call sub-initialization functions
         self.init_plot()
         self.init_slots()
         self.setWindowState(QtCore.Qt.WindowMaximized)
-        self.log('GUI Initialized')
+        self.statusBar().clearMessage()
+        self.active_project = None  # type: prj.AirborneProject
+        self.show_splash()
+        self.setWindowTitle(self.title + ' - {} [*]'.format(self.active_project.name))
+        # self.setWindowModified(True)
+        self.show()
+
+    def show_splash(self):
+        splash = SplashScreen()
+        if splash.exec_():
+            self.active_project = splash.project
+            self.update_project()
+            print("selected a project")
+        else:
+            print("Exiting program")
+            sys.exit(0)
+
+
 
     def init_plot(self):
         """Initialize plot object, allowing us to reset/clear the workspace for new data imports"""
@@ -106,9 +129,9 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.action_file_open.triggered.connect(self.open_project)
         self.action_file_save.triggered.connect(self.save_project)
 
-        # Import Menu Actions #
-        self.actionGravity_Data.triggered.connect(self.import_gravity)
-        self.actionGPS_Data.triggered.connect(self.import_gps)
+        # Project Menu Actions #
+        self.action_import_data.triggered.connect(self.import_data)
+        self.action_add_flight.triggered.connect(self.add_flight)
 
         # Plot Tool Actions #
         self.drawPlot_btn.clicked.connect(self.draw_plot)
@@ -119,6 +142,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
         # Project Control Buttons #
         self.prj_add_flight.clicked.connect(self.add_flight)
+        self.prj_import_data.clicked.connect(self.import_data)
 
 
         # Channel Panel Buttons #
@@ -200,7 +224,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             else:
                 continue
 
-    # TODO: The import functions should be defined within the project and called from here
+    # TODO: Delete this in favor of import_data
     def import_gravity(self):
         # getOpenFileName returns a tuple of (path, filter), we only need the path
         path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Import Gravity Data File",
@@ -227,19 +251,23 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
                 self.log(str(self.grav_data.describe()))
 
-    def import_gps(self):
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Import GPS Data File",
-                                                        self.import_base_path,
-                                                        "Data Files (*.csv *.dat)")
-        if path:
-            try:
-                gps_fields = ['mdy', 'hms', 'lat', 'lon', 'ell_ht', 'ortho_ht', 'num_sats', 'pdop']
-                self.gps_data = ti.import_trajectory(path, columns=gps_fields, skiprows=1)
-
-            except OSError:
-                self.log('Error importing GPS data file')
+    def import_data(self):
+        dialog = ImportData(self.active_project)
+        if dialog.exec_():
+            path, dtype, flt_id = dialog.content
+            if self.active_project is not None:
+                flight = self.active_project.get_flight(flt_id)
+                self.log("Importing {} file from {} into flight: {}".format(dtype, path, flight.uid))
             else:
-                pass
+                flight = None
+            if self.active_project is not None:
+                self.loader.load_file(path, dtype, flight, self.active_project.add_data)
+                self.loader.add_hook(self.update_project)
+            else:
+                self.log("No active project, not importing.")
+
+            # gps_fields = ['mdy', 'hms', 'lat', 'lon', 'ell_ht', 'ortho_ht', 'num_sats', 'pdop']
+            # self.gps_data = ti.import_trajectory(path, columns=gps_fields, skiprows=1)
 
     def new_project(self):
         dialog = CreateProject()
@@ -255,7 +283,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             return
 
     def open_project(self):
-        path = QtWidgets.QFileDialog.getExistingDirectory(self, "Open Project Directory")
+        path = QtWidgets.QFileDialog.getExistingDirectory(self, "Open Project Directory", os.path.abspath('..'))
         if not path:
             return
 
@@ -269,11 +297,14 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
                 return
         self.log("Project file could not be located in directory: {}".format(path))
 
-    def update_project(self):
+    def update_project(self, save=False):
+        print("Update project called")
         if self.active_project is None:
             return
         self.prj_tree.setModel(self.active_project.generate_model())
         self.prj_tree.expandAll()
+        if save:
+            self.active_project.save()
 
     def save_project(self):
         if self.active_project is None:
@@ -283,15 +314,97 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         else:
             self.log("Error saving project.")
 
-    # TODO: Add decorator that will call update_project for functions that affecr project structure
+    # TODO: Add decorator that will call update_project for functions that affect project structure
     def add_flight(self):
         if self.active_project is None:
             return
         meter = prj.AT1Meter('AT1M-Test')
         flight = prj.Flight(meter)
         self.active_project.add_flight(flight)
-        self.update_project()
+        self.update_project(save=True)
 
+
+class ImportData(QtWidgets.QDialog, data_dialog):
+    """
+
+    Rationalization:
+    This dialog will be used to import gravity and/or GPS data.
+    A drop down box will be populated with the available project flights into which the data will be associated
+    User will specify wheter the data is a gravity or gps file (TODO: maybe we can programatically determine the type)
+    User will specify file path
+        Maybe we can dynamically load the first 5 or so lines of data and display column headings, which would allow user
+        to change the headers if necesarry
+    """
+    def __init__(self, project: prj.AirborneProject=None, *args):
+        super().__init__(*args)
+        self.setupUi(self)
+
+        # Setup button actions
+        self.button_browse.clicked.connect(self.select_file)
+        self.buttonBox.accepted.connect(self.pre_accept)
+
+        # TODO: Remove this reference - use global imported icon resources
+        dgsico = Qt.QIcon(':images/assets/geoid_icon.png')
+
+        self.setWindowIcon(dgsico)
+        self.path = None
+        self.dtype = 'gravity'
+        self.flight = None
+
+        self.flight_map = {}
+        if project is not None:
+            for flight in project:
+                # TODO: Change dict index to human readable value
+                self.flight_map[flight.uid] = flight.uid
+                self.combo_flights.addItem(flight.uid)
+            for meter in project.meters:
+                self.combo_meters.addItem(meter.name)
+        else:
+            self.combo_flights.setEnabled(False)
+            self.combo_meters.setEnabled(False)
+            self.combo_flights.addItem("<None>")
+            self.combo_meters.addItem("<None>")
+
+        self.file_model = Qt.QFileSystemModel()
+        self.init_tree()
+
+    def init_tree(self):
+        self.file_model.setRootPath(os.getcwd())
+        self.file_model.setNameFilters(["*.csv", "*.dat"])
+
+        self.tree_directory.setModel(self.file_model)
+        # self.tree_directory.setRootIndex(file_model.index(os.getcwd()))
+        self.tree_directory.scrollTo(self.file_model.index(os.getcwd()))
+
+        self.tree_directory.resizeColumnToContents(0)
+        for i in range(1, 4):  # Remove size/date/type columns from view
+            self.tree_directory.hideColumn(i)
+        self.tree_directory.clicked.connect(self.select_tree_file)
+
+    def select_tree_file(self, index):
+        path = self.file_model.filePath(index)
+        # TODO: Verify extensions for selected files before setting below
+        if os.path.isfile(path):
+            self.field_path.setText(os.path.normpath(path))
+            self.path = path
+        else:
+            return
+
+    def select_file(self):
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select Data File", os.getcwd(), "Data (*.dat *.csv)")
+        if path:
+            self.path = path
+            self.field_path.setText(os.path.normpath(path))
+
+    def pre_accept(self):
+        self.dtype = {'GPS Data': 'gps', 'Gravity Data': 'gravity'}.get(self.group_radiotype.checkedButton().text(), 'gravity')
+        print(self.dtype)
+        self.flight = self.flight_map.get(self.combo_flights.currentText(), None)
+        self.accept()
+
+    @property
+    def content(self):
+        return self.path, self.dtype, self.flight
 
 
 class CreateProject(QtWidgets.QDialog, project_dialog):
@@ -308,11 +421,10 @@ class CreateProject(QtWidgets.QDialog, project_dialog):
         self.description = None
 
         # Populate the type selection list
-        dgsico = Qt.QIcon('assets/DGSIcon.xpm')
-        dgsairborne = Qt.QListWidgetItem(dgsico, 'DGS Airborne', self.prj_type_list)
+        dgsairborne = Qt.QListWidgetItem(Qt.QIcon(':images/assets/flight_icon.png'), 'DGS Airborne', self.prj_type_list)
         # dgsairborne.setSelected(True)
         self.prj_type_list.setCurrentItem(dgsairborne)
-        Qt.QListWidgetItem(dgsico, 'DGS Marine', self.prj_type_list)
+        Qt.QListWidgetItem(Qt.QIcon(':images/assets/boat_icon.png'), 'DGS Marine', self.prj_type_list)
 
     def create_project(self):
         """
@@ -356,8 +468,42 @@ class CreateProject(QtWidgets.QDialog, project_dialog):
         return self.name, self.path, self.prj_type, self.description
 
 
+class SplashScreen(QtWidgets.QDialog, splash_screen):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.setupUi(self)
+
+        self.dialog_buttons.accepted.connect(self.accept)
+        self.btn_newproject.clicked.connect(self.new_project)
+        self.btn_browse.clicked.connect(self.open_project)
+
+        self.project = None
+
+        self.show()
+
+    def new_project(self):
+        prj_dialog = CreateProject()
+        if prj_dialog.exec_():
+            name, path, prtype, desc = prj_dialog.content
+            self.project = prj.AirborneProject(path, name, desc)
+            self.project.save()
+            # self.update()  # Update recent project lists and set it to selected
+
+    def open_project(self):
+        path = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Project Directory")
+        if not path:
+            return
+
+        pattern = re.compile(r'[a-zA-Z0-9]+\.d2p')
+        files = [file.name for file in os.scandir(path) if file.is_file()]
+        for file in files:
+            if re.match(pattern, file):
+                self.project = prj.AirborneProject.load(os.path.normpath(os.path.join(path, file)))
+                return
+
+
+
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
     form = MainWindow()
-    form.show()
     sys.exit(app.exec_())

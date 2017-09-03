@@ -6,10 +6,10 @@ import pickle
 
 from pandas import HDFStore
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIcon
+from PyQt5.QtCore import QObject, pyqtSignal
 
 from .meterconfig import MeterConfig, AT1Meter
-from dgp.lib.gravity_ingestor import read_at1m
-from dgp.lib.types import location, stillreading, flightline
+from dgp.lib.types import location, stillreading, flightline, DataPacket
 
 """
 Dynamic Gravity Processor (DGP) :: project.py
@@ -45,6 +45,7 @@ class GravityProject:
         :param name: Project name
         :param description: Project description
         """
+        super().__init__()
         if os.path.exists(path):
             self.projectdir = path
         else:
@@ -55,7 +56,7 @@ class GravityProject:
         self.name = name
         self.description = description
 
-        self.datastore = os.path.join(self.projectdir, 'prjdata.h5')
+        self.hdf_path = os.path.join(self.projectdir, 'prjdata.h5')
 
         # Store MeterConfig objects in dictionary keyed by the meter name
         self.sensors = {}
@@ -110,6 +111,8 @@ class GravityProject:
         """Use python pickling to load project"""
         with open(path, 'rb') as pickled:
             project = pickle.load(pickled)
+            # Override whatever the project dir was with the directory where it was opened
+            project.projectdir = os.path.normpath(os.path.dirname(path))
         return project
 
 
@@ -180,7 +183,7 @@ class AirborneProject(GravityProject):
         self.flights = {}
 
     def get_data(self, flight: Flight):
-        with HDFStore(self.datastore) as store:
+        with HDFStore(self.hdf_path) as store:
             try:
                 gravity = store.get('gravity/{}'.format(flight.uid))
             except KeyError:
@@ -191,53 +194,54 @@ class AirborneProject(GravityProject):
                 gps = None
         return gravity, gps
 
-    def add_data(self, path, datatype: str='gravity', flight: Flight=None):
+    def add_data(self, packet: DataPacket):
         """
         Import a data file into the project
-        :param path: Relative or absolute path to datafile
-        :param datatype: type of data file: Gravity or GPS
-        :param flight: (optional) flight to associate data file with
-        :return: pandas.DataFrame
+        :param packet: DataPacket custom class containing file path, dataframe, data type and flight association
+        :return: Void
         """
-        abspath = os.path.abspath(path)
-        if os.path.exists(abspath):
-            self.data_sources[uuid.uuid4().hex] = abspath
-        else:
-            raise FileNotFoundError
+        print("Ingesting data and exporting to hdf5 store")
+        self.data_sources[uuid.uuid4().hex] = (packet.path, packet.flight.uid)
 
-        assoc_flight = self.flights.get(flight.uid, None)
+        assoc_flight = self.flights.get(packet.flight.uid, None)
 
-        if datatype.lower() == 'gravity':
-            df = read_at1m(abspath)
-
-        elif datatype.lower() == 'gps':
-            df = None
-            pass
-
-        # TODO:
-        with HDFStore(self.datastore) as store:
-            store.put('gravity/{}'.format(assoc_flight.uid), df, format='table', data_columns=True)
-        del df
+        with HDFStore(self.hdf_path) as store:
+            store.put('gravity/{}'.format(assoc_flight.uid), packet.data, format='table', data_columns=True)
+        self.save()
+        del packet
 
     def add_flight(self, flight: Flight):
         self.flights[flight.uid] = flight
 
+    def get_flight(self, flight_id):
+        flt = self.flights.get(flight_id, None)
+        print("<Project> flight found: {}".format(flt))
+        return flt
+
     def generate_model(self):
-        """Generate a Qt Model based on the project."""
+        """Generate a Qt Model based on the project structure."""
         model = QStandardItemModel()
         root = model.invisibleRootItem()
 
+        # TODO: Add these icon resources to library or something so they are not loaded every time
         dgs_ico = QIcon('ui/assets/DGSIcon.xpm')
-        flt_ico = QIcon('')
+        flt_ico = QIcon('ui/assets/flight_icon.png')
 
         prj_header = QStandardItem(dgs_ico, "{name}: {path}".format(name=self.name, path=self.projectdir))
         prj_header.setEditable(False)
-        fli_header = QStandardItem(dgs_ico, "Flights")
+        fli_header = QStandardItem(flt_ico, "Flights")
         fli_header.setEditable(False)
         # TODO: Add a human readable identifier to flights
         for uid, flight in self.flights.items():
             fli_item = QStandardItem(flt_ico, "Flight: {}".format(uid))
             fli_item.setEditable(False)
+
+            flight_data = [fpath for fpath, fuid in self.data_sources.values() if fuid == uid]
+            for file in flight_data:
+                file_item = QStandardItem("File {}".format(file))
+                file_item.setEditable(False)
+                fli_item.appendRow(file_item)
+
             for line in flight:
                 line_item = QStandardItem("Line {}:{}".format(line.start, line.end))
                 line_item.setEditable(False)
