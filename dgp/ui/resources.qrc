@@ -1,5 +1,7 @@
 <RCC>
   <qresource prefix="images">
+    <file>assets/branch-closed.png</file>
+    <file>assets/branch-open.png</file>
     <file>assets/boat_icon.png</file>
     <file>assets/dgs_icon.xpm</file>
     <file>assets/flight_icon.png</file>

@@ -62,8 +62,8 @@ class ThreadedLoader:
         self.thread.start()
 
     def add_hook(self, hook):
-        self.loader.finished.connect(hook)
-
+        if self.loader is not None:
+            self.loader.finished.connect(hook)
 
     @property
     def data(self):

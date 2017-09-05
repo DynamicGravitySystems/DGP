@@ -3,6 +3,8 @@
 import os
 import uuid
 import pickle
+import pathlib
+import logging
 
 from pandas import HDFStore
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIcon
@@ -34,22 +36,34 @@ Workflow:
 """
 
 
+def can_pickle(attribute):
+    """Helper function used by __getstate__ to determine if an attribute should be pickled."""
+    # TODO: As necessary change this to check against a list of un-pickleable types
+    if isinstance(attribute, logging.Logger):
+        return False
+    return True
+
+
 class GravityProject:
     """
     GravityProject will be the base class defining common values for both airborne
     and marine gravity survey projects.
     """
-    def __init__(self, path, name: str="Untitled Project", description: str=None):
+    def __init__(self, path: pathlib.Path, name: str="Untitled Project", description: str=None):
         """
         :param path: Project directory path - where all project files will be stored
         :param name: Project name
         :param description: Project description
         """
-        super().__init__()
-        if os.path.exists(path):
+        self.log = logging.getLogger(__name__)
+        if isinstance(path, pathlib.Path):
             self.projectdir = path
         else:
+            self.projectdir = pathlib.Path(path)
+
+        if not self.projectdir.is_dir():
             raise FileNotFoundError
+
         if not os.path.isdir(self.projectdir):
             self.projectdir, _ = os.path.split(self.projectdir)
 
@@ -61,8 +75,7 @@ class GravityProject:
         # Store MeterConfig objects in dictionary keyed by the meter name
         self.sensors = {}
 
-        # TODO: Should data_sources point to the original imported files, or more likely to the project directory?
-        self.data_sources = {}
+        self.log.debug("Gravity Project Initialized")
 
     def add_meter(self, meter: MeterConfig) -> MeterConfig:
         """Add an existing MeterConfig class to the dictionary of available meters"""
@@ -115,18 +128,51 @@ class GravityProject:
             project.projectdir = os.path.normpath(os.path.dirname(path))
         return project
 
+    def __getstate__(self):
+        """Prune any non-pickleable objects from the class __dict__"""
+        return {k: v for k, v in self.__dict__.items() if can_pickle(v)}
+
+    def __setstate__(self, state):
+        """Re-initialize a logger upon un-pickling"""
+        self.__dict__ = state
+        self.log = logging.getLogger(__name__)
+
 
 class Flight:
     """
     Define a Flight class used to record and associate data with an entire survey flight (takeoff -> landing)
     This class is iterable, yielding the flightlines named tuple objects from its lines dictionary
     """
-    def __init__(self, meter: MeterConfig, **kwargs):
+    def __init__(self, parent, name: str, meter: MeterConfig=None, **kwargs):
+        """
+        The Flight object represents a single literal survey flight, and accepts various parameters related to the
+        flight.
+        Currently a single GPS data and Gravity data file each may be assigned to a flight. In the future this
+        functionality must be expanded to handle more complex cases requiring the input of multiple data files.
+        At present a single gravity meter may be assigned to the flight. In future, as/if the project requires this
+        may be expanded to allow for a second meter to be optionally assigned.
+        :param parent: GravityProject - the Parent project item of this meter, used to retrieve linked data.
+        :param name: Str - a human readable reference name for the flight
+        :param meter: MeterConfig - a Gravity meter configuration object that will be associated with this flight.
+        :param kwargs: Optional key-word arguments may be passed to assign other attributes, e.g. date within the flight
+                date: a Datetime object specifying the date of the flight
+                uuid: a UUID string to assign to this flight (otherwise a random UUID is generated upon creation)
+        """
         # If uuid is passed use the value else assign new uuid
         # the letter 'f' is prepended to the uuid to ensure that we have a natural python name
         # as python variables cannot start with a number (this takes care of warning when storing data in pytables)
+        self.parent = parent
+        self.name = name
         self.uid = kwargs.get('uuid', 'f{}'.format(uuid.uuid4().hex))
         self.meter = meter
+        if 'date' in kwargs:
+            self.date = kwargs['date']
+
+        self.log = logging.getLogger(__name__)
+
+        # These private attributes will hold a file reference string used to retrieve data from hdf5 store.
+        self._gpsdata = None  # type: str
+        self._gravdata = None  # type: str
 
         # Known Absolute Site Reading/Location
         self.tie_value = None
@@ -142,6 +188,40 @@ class Flight:
 
         # Flight lines keyed by UUID
         self.lines = {}
+
+    @property
+    def gps(self):
+        return self.parent.get_data(self._gpsdata, 'gps')
+
+    @gps.setter
+    def gps(self, value):
+        if self._gpsdata:
+            self.log.warning('GPS Data File already exists, overwriting with new value.')
+        self._gpsdata = value
+
+    @property
+    def gps_file(self):
+        try:
+            return self.parent.data_map[self._gpsdata], self._gpsdata
+        except KeyError:
+            return None, None
+
+    @property
+    def gravity(self):
+        return self.parent.load_data(self._gravdata, 'gravity')
+
+    @gravity.setter
+    def gravity(self, value):
+        if self._gravdata:
+            self.log.warning('Gravity Data File already exists, overwriting with new value.')
+        self._gravdata = value
+
+    @property
+    def gravity_file(self):
+        try:
+            return self.parent.data_map[self._gravdata], self._gravdata
+        except KeyError:
+            return None, None
 
     def set_gravity_tie(self, gravity: float, loc: location):
         self.tie_value = gravity
@@ -168,6 +248,17 @@ class Flight:
     def __len__(self):
         return len(self.lines)
 
+    def __str__(self):
+        return "Flight: {name} UID:{uid}\nMeter:{meter}\nNum Lines:{lines}".format(
+            name=self.name, uid=self.uid, meter=self.meter.name, lines=len(self))
+
+    def __getstate__(self):
+        return {k: v for k, v in self.__dict__.items() if can_pickle(v)}
+
+    def __setstate__(self, state):
+        self.__dict__ = state
+        self.log = logging.getLogger(__name__)
+
 
 class AirborneProject(GravityProject):
     """
@@ -181,41 +272,54 @@ class AirborneProject(GravityProject):
 
         # Dictionary of Flight objects keyed by the flight uuid
         self.flights = {}
+        self.active = None  # type: Flight
+        self.log.debug("Airborne project initialized")
+        self.data_map = {}
 
-    def get_data(self, flight: Flight):
+    def set_active(self, flight_id):
+        flight = self.get_flight(flight_id)
+        self.active = flight
+
+    def load_data(self, uid: str, prefix: str):
         with HDFStore(self.hdf_path) as store:
             try:
-                gravity = store.get('gravity/{}'.format(flight.uid))
+                data = store.get('{}/{}'.format(prefix, uid))
             except KeyError:
-                gravity = None
-            try:
-                gps = store.get('gps/{}'.format(flight.uid))
-            except KeyError:
-                gps = None
-        return gravity, gps
+                return None
+            else:
+                return data
 
     def add_data(self, packet: DataPacket):
         """
-        Import a data file into the project
+        Import a DataFrame into the project
         :param packet: DataPacket custom class containing file path, dataframe, data type and flight association
         :return: Void
         """
-        print("Ingesting data and exporting to hdf5 store")
-        self.data_sources[uuid.uuid4().hex] = (packet.path, packet.flight.uid)
+        self.log.debug("Ingesting data and exporting to hdf5 store")
 
-        assoc_flight = self.flights.get(packet.flight.uid, None)
+        file_uid = 'f' + (uuid.uuid4().hex)[1:]  # Fix NaturalNameWarning by ensuring first char is letter ('f').
 
         with HDFStore(self.hdf_path) as store:
-            store.put('gravity/{}'.format(assoc_flight.uid), packet.data, format='table', data_columns=True)
-        self.save()
-        del packet
+            # Separate data into groups by data type (GPS & Gravity Data)
+            # format: 'table' pytables format enables searching/appending, fixed is more performant.
+            store.put('{}/{}'.format(packet.data_type, file_uid), packet.data, format='fixed', data_columns=True)
+            # Store a reference to the original file path
+            self.data_map[file_uid] = packet.path
+        try:
+            flight = self.flights[packet.flight.uid]
+            if packet.data_type == 'gravity':
+                flight.gravity = file_uid
+            elif packet.data_type == 'gps':
+                flight.gps = file_uid
+        except KeyError:
+            return False
 
     def add_flight(self, flight: Flight):
         self.flights[flight.uid] = flight
 
     def get_flight(self, flight_id):
         flt = self.flights.get(flight_id, None)
-        print("<Project> flight found: {}".format(flt))
+        self.log.debug("Found flight {}:{}".format(flt.name, flt.uid))
         return flt
 
     def generate_model(self):
@@ -236,11 +340,20 @@ class AirborneProject(GravityProject):
             fli_item = QStandardItem(flt_ico, "Flight: {}".format(uid))
             fli_item.setEditable(False)
 
-            flight_data = [fpath for fpath, fuid in self.data_sources.values() if fuid == uid]
-            for file in flight_data:
-                file_item = QStandardItem("File {}".format(file))
-                file_item.setEditable(False)
-                fli_item.appendRow(file_item)
+            gps_path, gps_uid = flight.gps_file
+            gps = QStandardItem("GPS UID: {}".format(gps_uid))
+            gps.setToolTip("File Path: {}".format(gps_path))
+            gps.setEditable(False)
+            gps.setData(gps_uid)  # For future use
+
+            grav_path, grav_uid = flight.gravity_file
+            grav = QStandardItem("Gravity: {}".format(grav_uid))
+            grav.setToolTip("File Path: {}".format(grav_path))
+            grav.setEditable(False)
+            grav.setData(grav_uid)  # For future use
+
+            fli_item.appendRow(gps)
+            fli_item.appendRow(grav)
 
             for line in flight:
                 line_item = QStandardItem("Line {}:{}".format(line.start, line.end))
@@ -250,6 +363,7 @@ class AirborneProject(GravityProject):
         prj_header.appendRow(fli_header)
 
         root.appendRow(prj_header)
+        self.log.debug("Tree Model generated")
         return model
 
     def __iter__(self):

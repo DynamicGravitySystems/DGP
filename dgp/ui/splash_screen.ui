@@ -85,6 +85,16 @@
        </widget>
       </item>
       <item>
+       <widget class="QLabel" name="label_error">
+        <property name="styleSheet">
+         <string notr="true">color: rgb(255, 0, 0)</string>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QDialogButtonBox" name="dialog_buttons">
         <property name="inputMethodHints">
          <set>Qt::ImhPreferUppercase</set>

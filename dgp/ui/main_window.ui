@@ -73,7 +73,7 @@
         </item>
        </layout>
       </widget>
-      <widget class="QWidget" name="consoleWidget" native="true">
+      <widget class="QFrame" name="console_container">
        <property name="minimumSize">
         <size>
          <width>0</width>
@@ -82,7 +82,7 @@
        </property>
        <layout class="QVBoxLayout" name="verticalLayout_2">
         <item>
-         <widget class="QTextEdit" name="textEdit">
+         <widget class="QTextEdit" name="text_console">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
             <horstretch>0</horstretch>
@@ -144,23 +144,73 @@
           <property name="frameShape">
            <enum>QFrame::StyledPanel</enum>
           </property>
-          <property name="readOnly">
-           <bool>true</bool>
-          </property>
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="clearConsole">
-          <property name="maximumSize">
-           <size>
-            <width>100</width>
-            <height>16777215</height>
-           </size>
-          </property>
-          <property name="text">
-           <string>Clear</string>
-          </property>
-         </widget>
+         <layout class="QGridLayout" name="gridLayout_3">
+          <item row="0" column="2">
+           <widget class="QComboBox" name="combo_console_verbosity">
+            <item>
+             <property name="text">
+              <string>Debug</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Info</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Warning</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Error</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Critical</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="0" column="0">
+           <widget class="QPushButton" name="btn_clear_console">
+            <property name="maximumSize">
+             <size>
+              <width>100</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>Clear</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="3">
+           <spacer name="horizontalSpacer">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item row="0" column="1">
+           <widget class="QLabel" name="label_logging_level">
+            <property name="text">
+             <string>Logging Level:</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
         </item>
        </layout>
       </widget>
@@ -185,7 +235,7 @@
     <addaction name="action_file_open"/>
     <addaction name="action_file_save"/>
     <addaction name="separator"/>
-    <addaction name="actionExit"/>
+    <addaction name="action_exit"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -197,8 +247,8 @@
     <property name="title">
      <string>Panels</string>
     </property>
-    <addaction name="actionChannelDock"/>
-    <addaction name="actionToolDock"/>
+    <addaction name="action_channel_dock"/>
+    <addaction name="action_tool_dock"/>
    </widget>
    <widget class="QMenu" name="menuProject">
     <property name="title">
@@ -414,75 +464,7 @@
     <number>1</number>
    </attribute>
    <widget class="QWidget" name="dockWidgetContents_2">
-    <layout class="QVBoxLayout" name="verticalLayout_5">
-     <item>
-      <widget class="QGroupBox" name="plotControlsBox">
-       <property name="minimumSize">
-        <size>
-         <width>0</width>
-         <height>70</height>
-        </size>
-       </property>
-       <property name="title">
-        <string>Plot Controls</string>
-       </property>
-       <layout class="QVBoxLayout" name="verticalLayout_6">
-        <item>
-         <widget class="QPushButton" name="resetPlot_btn">
-          <property name="maximumSize">
-           <size>
-            <width>200</width>
-            <height>16777215</height>
-           </size>
-          </property>
-          <property name="text">
-           <string>Reset</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="addPlot_btn">
-          <property name="maximumSize">
-           <size>
-            <width>200</width>
-            <height>16777215</height>
-           </size>
-          </property>
-          <property name="text">
-           <string>Add Plot</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="clearPlot_btn">
-          <property name="maximumSize">
-           <size>
-            <width>200</width>
-            <height>16777215</height>
-           </size>
-          </property>
-          <property name="text">
-           <string>Clear</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="drawPlot_btn">
-          <property name="maximumSize">
-           <size>
-            <width>200</width>
-            <height>16777215</height>
-           </size>
-          </property>
-          <property name="text">
-           <string>RePlot</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </widget>
-     </item>
-    </layout>
+    <layout class="QVBoxLayout" name="verticalLayout_5"/>
    </widget>
   </widget>
   <action name="actionDocumentation">
@@ -493,7 +475,7 @@
     <string>F1</string>
    </property>
   </action>
-  <action name="actionExit">
+  <action name="action_exit">
    <property name="text">
     <string>Exit</string>
    </property>
@@ -501,7 +483,7 @@
     <string>Ctrl+Q</string>
    </property>
   </action>
-  <action name="actionChannelDock">
+  <action name="action_channel_dock">
    <property name="checkable">
     <bool>true</bool>
    </property>
@@ -515,7 +497,7 @@
     <string>Alt+1</string>
    </property>
   </action>
-  <action name="actionToolDock">
+  <action name="action_tool_dock">
    <property name="checkable">
     <bool>true</bool>
    </property>
@@ -591,22 +573,17 @@
   <tabstop>prj_tree</tabstop>
   <tabstop>prj_add_flight</tabstop>
   <tabstop>dataPlotTabWidget</tabstop>
-  <tabstop>clearConsole</tabstop>
   <tabstop>resample_value</tabstop>
   <tabstop>selectAllChannels</tabstop>
   <tabstop>tableView</tabstop>
-  <tabstop>resetPlot_btn</tabstop>
-  <tabstop>addPlot_btn</tabstop>
-  <tabstop>clearPlot_btn</tabstop>
-  <tabstop>drawPlot_btn</tabstop>
-  <tabstop>textEdit</tabstop>
+  <tabstop>text_console</tabstop>
  </tabstops>
  <resources>
   <include location="resources.qrc"/>
  </resources>
  <connections>
   <connection>
-   <sender>actionChannelDock</sender>
+   <sender>action_channel_dock</sender>
    <signal>toggled(bool)</signal>
    <receiver>channelDock</receiver>
    <slot>setVisible(bool)</slot>
@@ -624,7 +601,7 @@
   <connection>
    <sender>channelDock</sender>
    <signal>visibilityChanged(bool)</signal>
-   <receiver>actionChannelDock</receiver>
+   <receiver>action_channel_dock</receiver>
    <slot>setChecked(bool)</slot>
    <hints>
     <hint type="sourcelabel">
@@ -638,7 +615,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>actionToolDock</sender>
+   <sender>action_tool_dock</sender>
    <signal>toggled(bool)</signal>
    <receiver>toolsDock</receiver>
    <slot>setVisible(bool)</slot>
@@ -656,7 +633,7 @@
   <connection>
    <sender>toolsDock</sender>
    <signal>visibilityChanged(bool)</signal>
-   <receiver>actionToolDock</receiver>
+   <receiver>action_tool_dock</receiver>
    <slot>setChecked(bool)</slot>
    <hints>
     <hint type="sourcelabel">
@@ -670,18 +647,18 @@
    </hints>
   </connection>
   <connection>
-   <sender>clearConsole</sender>
+   <sender>btn_clear_console</sender>
    <signal>clicked()</signal>
-   <receiver>textEdit</receiver>
+   <receiver>text_console</receiver>
    <slot>clear()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>293</x>
-     <y>974</y>
+     <x>360</x>
+     <y>1129</y>
     </hint>
     <hint type="destinationlabel">
-     <x>748</x>
-     <y>841</y>
+     <x>892</x>
+     <y>908</y>
     </hint>
    </hints>
   </connection>
