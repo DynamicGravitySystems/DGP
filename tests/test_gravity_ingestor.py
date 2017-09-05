@@ -37,9 +37,7 @@ class TestGravityIngestor(unittest.TestCase):
 
         self.assertEqual(df.gravity[4], sample_line['gravity'])
         self.assertEqual(df.long[4], sample_line['long'])
-        # self.assertTrue(df.iloc[[2]].isnull().all)
-        self.assertFalse(df.gps_time[8])
-        # print(df[['gravity', 'long', 'cross']])
+        self.assertFalse(df.gps_sync[8])
 
     def test_import_at1a_fill_nans(self):
         df = gi.read_at1a(os.path.abspath('tests/sample_gravity.csv'))
@@ -53,4 +51,3 @@ class TestGravityIngestor(unittest.TestCase):
         self.assertEqual(df.gravity[5], sample_line['gravity'])
         self.assertEqual(df.long[5], sample_line['long'])
         self.assertTrue(df.iloc[[2]].isnull().all)
-        # print(df[['gravity', 'long', 'cross']])

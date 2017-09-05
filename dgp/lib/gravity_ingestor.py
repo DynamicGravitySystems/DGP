@@ -88,22 +88,22 @@ def read_at1a(path, fill_with_nans=True):
     pandas.DataFrame
         Gravity data indexed by datetime.
     """
-    fields = ['gravity', 'long', 'cross', 'beam', 'temp', 'status', 'pressure', 'Etemp', 'GPSweek', 'GPSweekseconds']
+    fields = ['gravity', 'long', 'cross', 'beam', 'temp', 'status', 'pressure',
+              'Etemp', 'GPSweek', 'GPSweekseconds']
 
     data = []
     df = pd.read_csv(path, header=None, engine='c', na_filter=False)
     df.columns = fields
 
     # expand status field
-    status_field_names = ['clamp', 'unclamp', 'gps_sync', 'feedback', 'r1',
-                          'r2', 'ad_lock', 'rcvd', 'mode_1', 'mode_2',
-                          'plat_com', 'sens_com', 'gps_time', 'ad_sat',
-                          'long_accel', 'cross_accel', 'on_line']
+    status_field_names = ['clamp', 'unclamp', 'gps_sync', 'feedback', 'reserved1',
+                          'reserved2', 'ad_lock', 'cmd_rcvd', 'nav_mode_1', 'nav_mode_2',
+                          'plat_comm', 'sens_comm', 'gps_input', 'ad_sat',
+                          'long_sat', 'cross_sat', 'on_line']
 
     status = _extract_bits(df['status'], columns=status_field_names,
                           as_bool=True)
 
-    # df = df.append(status)
     df = pd.concat([df, status], axis=1)
     df.drop('status', axis=1, inplace=True)
 
@@ -116,7 +116,7 @@ def read_at1a(path, fill_with_nans=True):
 
     if fill_with_nans:
         # select rows where time is synced with the GPS NMEA
-        df = df.loc[df['gps_time']]
+        df = df.loc[df['gps_sync']]
 
         # fill gaps with NaNs
         interval = '100000U'
