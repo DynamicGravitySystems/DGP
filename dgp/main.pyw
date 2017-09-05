@@ -39,17 +39,27 @@ def autosave(method):
 
 
 class ConsoleHandler(logging.Handler):
+    """Custom Logging Handler allowing the specification of a custom destination e.g. a QTextEdit area."""
     def __init__(self, destination):
+        """
+        Initialize the Handler with a destination function to be called on emit().
+        Destination should take 2 parameters, however emit will fallback to passing a single parameter on exception.
+        :param destination: callable function accepting 2 parameters: (log entry, log level name)
+        """
         super().__init__()
         self.dest = destination
 
     def emit(self, record: logging.LogRecord):
+        """Emit the log record, first running it through any specified formatter."""
         entry = self.format(record)
-        self.dest(entry, record.levelname)
+        try:
+            self.dest(entry, record.levelname)
+        except TypeError:
+            self.dest(entry)
 
 
 class MainWindow(QtWidgets.QMainWindow, main_window):
-    def __init__(self, *args):
+    def __init__(self, project=None, *args):
         super().__init__(*args)
 
         self.setupUi(self)  # Set up ui within this class - which is base_class defined by .ui file
@@ -554,7 +564,7 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
             self.log.info("Settings Directory doesn't exist, creating.")
             self.settings_dir.mkdir(parents=True)
 
-        self.dialog_buttons.accepted.connect(self.pre_accept)
+        # self.dialog_buttons.accepted.connect(self.accept)
         self.btn_newproject.clicked.connect(self.new_project)
         self.btn_browse.clicked.connect(self.browse_project)
         self.list_projects.currentItemChanged.connect(self.set_selection)
@@ -564,11 +574,11 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
 
         # TODO: Move this all to a function that updates list_projects
         # TODO: Create function that loads all recent project pickles to retrieve info e.g. Name, Type for display
-        self.set_recent()
+        self.set_recent_list()
 
         self.show()
 
-    def set_recent(self):
+    def set_recent_list(self):
         """Set the 'list_projects' recent file list in the Qt Dialog"""
         if not self.recent_file.is_file():
             self.log.debug("No recent projects")
@@ -587,17 +597,18 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
                 item.setToolTip(str(path))
                 item.setData(QtCore.Qt.UserRole, path)
                 self.list_projects.addItem(item)
-        # self.remove_recent()
+        # self.remove_recents(to_remove)
 
-    def pre_accept(self):
-        """Runs some basic verification before accept()ing the dialog."""
+    def accept(self):
+        """Runs some basic verification before calling QDialog accept()."""
         if not self.project_path:
             self.label_error.setText("No valid project selected.")
             return
         else:
             self.project = prj.AirborneProject.load(self.project_path)
             self.add_recent(self.project)
-            self.accept()
+            super().accept()
+            print("Accepted")
 
     def set_selection(self, item: QtWidgets.QListWidgetItem, *args):
         """Called when a recent item is selected"""
@@ -619,6 +630,7 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
             # self.update()  # Update recent project lists and set it to selected
 
     def add_recent(self, project):
+        """Add a project to the recent projects tracking dictionary and pickle it."""
         if self.recent_file.exists():
             with self.recent_file.open('rb') as rd:
                 recent = pickle.load(rd)
@@ -630,10 +642,21 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
             pickle.dump(recent, wd)
         self.log.debug('Added project: {} to recent projects file'.format(project.name))
 
-    def remove_recent(self, name, path=None):
+    def remove_recents(self, remove: dict):
+        """
+        Remove recent projects from recent listing - checking name and path as it is possible a project may be called
+        the same as another in a different path.
+        :param remove: dict: {name: path} of recent projects to remove from listing
+        :return:
+        """
+        print("Removing recent items")
         with self.recent_file.open('r+b') as fd:
             recent = pickle.load(fd)
-            new_recent = {k: v for k, v in recent.items() if not k == name}
+            print(recent)
+            # new_recent = {k: v for k, v in recent.items() if k not in remove.keys()}
+            new_recent = {k: v for k, v in recent.items() if not remove.get(k, None) == v}
+            print(new_recent)
+
             pickle.dump(new_recent, fd)
 
     def browse_project(self):
@@ -649,7 +672,7 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
             return
 
         self.project_path = prj_file
-        self.pre_accept()  # pre_accept takes the self.project_path file and does the needful.
+        self.accept()  # pre_accept takes the self.project_path file and loads the project.
 
 
     @staticmethod
