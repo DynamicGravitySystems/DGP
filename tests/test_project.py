@@ -3,6 +3,7 @@
 import unittest
 import random
 import shutil
+from pathlib import Path
 
 from .context import dgp
 from dgp.lib.gravity_ingestor import read_at1m
@@ -47,12 +48,12 @@ class TestProject(unittest.TestCase):
         If the path exists but is a file, Project should automatically strip the leaf and use the parent path.
         """
         with self.assertRaises(FileNotFoundError):
-            project = GravityProject(path='tests/invalid_dir')
+            project = GravityProject(path=Path('tests/invalid_dir'))
 
-        project_dir = 'tests/project_test'
+        project_dir = Path('tests/project_test')
         self.todelete.append(project_dir)
 
-        os.mkdir(project_dir)
+        project_dir.mkdir(parents=True)
         project = GravityProject(path=project_dir)
         self.assertEqual(project.projectdir, project_dir)
 
@@ -61,14 +62,13 @@ class TestProject(unittest.TestCase):
         with open(notadir, 'w') as fd:
             fd.write("this is not a directory")
 
-        project = GravityProject(path=notadir)
-        self.assertEqual(project.projectdir, project_dir)
+        with self.assertRaises(FileNotFoundError):
+            project = GravityProject(path=notadir)
 
-        self.assertEqual(project.projectdir, project_dir)
 
     def test_pickle_project(self):
         # TODO: Add further complexity to testing of project pickling
-        flight = Flight(self.at1a5)
+        flight = Flight(None, 'test_flight', self.at1a5)
         flight.add_line(100, 250.5)
         self.project.add_flight(flight)
 
@@ -89,7 +89,7 @@ class TestProject(unittest.TestCase):
             pass
 
     def test_flight_iteration(self):
-        test_flight = Flight(self.at1a5)
+        test_flight = Flight(None, 'test_flight', self.at1a5)
         line0 = test_flight.add_line(100.1, 200.2)
         line1 = test_flight.add_line(210, 350.3)
         lines = [line0, line1]

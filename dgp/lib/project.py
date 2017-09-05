@@ -122,6 +122,11 @@ class GravityProject:
     @staticmethod
     def load(path):
         """Use python pickling to load project"""
+        if not isinstance(path, pathlib.Path):
+            path = pathlib.Path(path)
+        if not path.exists():
+            raise FileNotFoundError
+
         with open(path, 'rb') as pickled:
             project = pickle.load(pickled)
             # Override whatever the project dir was with the directory where it was opened

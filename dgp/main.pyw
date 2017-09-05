@@ -23,6 +23,8 @@ project_dialog, _ = loadUiType('ui/project_dialog.ui')
 data_dialog, _ = loadUiType('ui/data_import_dialog.ui')
 splash_screen, _ = loadUiType('ui/splash_screen.ui')
 
+LOG_FORMAT = logging.Formatter(fmt="%(asctime)s - %(module)s:%(funcName)s :: %(message)s", datefmt="%Y%b%d - %H:%M:%S")
+
 
 def autosave(method):
     """Decorator to call save_project for functions that alter project state."""
@@ -63,24 +65,20 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         super().__init__(*args)
 
         self.setupUi(self)  # Set up ui within this class - which is base_class defined by .ui file
-        self.statusBar().showMessage('Initializing Application', 1000)
         self.title = 'Dynamic Gravity Processor'
 
         # Setup logging
-        self.root_log = logging.getLogger()
-        self.root_log.setLevel(logging.DEBUG)
-        handler = ConsoleHandler(self.write_console)
-        self.log_fmtr = logging.Formatter(fmt="%(asctime)s - %(module)s:%(funcName)s :: %(message)s",
-                                          datefmt="%Y%b%d - %H:%M:%S")
-        handler.setFormatter(self.log_fmtr)
-        stdhandler = logging.StreamHandler(sys.stdout)
-        stdhandler.setFormatter(self.log_fmtr)
-        self.root_log.addHandler(handler)
-        self.root_log.addHandler(stdhandler)
         self.log = logging.getLogger(__name__)
+        console_handler = ConsoleHandler(self.write_console)
+        console_handler.setFormatter(LOG_FORMAT)
+        self.log.addHandler(console_handler)
+        self.log.setLevel(logging.DEBUG)
+
+        # Setup Project
+        self.project = project
+        self.update_project()
 
         # See http://doc.qt.io/qt-5/stylesheet-examples.html#customizing-qtreeview
-        # TODO: Make arrow right/down icons for expanding the tree
         self.setStyleSheet("""
             QTreeView::item {
                 
@@ -144,11 +142,6 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.init_plot()
         self.init_slots()
         self.setWindowState(QtCore.Qt.WindowMaximized)
-        self.statusBar().clearMessage()
-        self.project = None  # type: prj.AirborneProject
-        self.show_splash()
-        self.setWindowTitle(self.title + ' - {} [*]'.format(self.project.name))
-        # self.setWindowModified(True)
         self.show()
 
     def show_splash(self):
@@ -207,9 +200,8 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
     def set_logging_level(self, name: str):
         self.log.debug("Changing logging level to: {}".format(name))
         level = {'debug': logging.DEBUG, 'info': logging.INFO, 'warning': logging.WARNING, 'error': logging.ERROR,
-                     'critical': logging.CRITICAL}[name.lower()]
-
-        self.root_log.setLevel(level)
+                 'critical': logging.CRITICAL}[name.lower()]
+        self.log.setLevel(level)
 
     # TODO: Delete after testing
     def log_tree(self, index: QtCore.QModelIndex):
@@ -353,13 +345,18 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             # self.gps_data = ti.import_trajectory(path, columns=gps_fields, skiprows=1)
 
     def new_project(self):
+        new_window = True
         dialog = CreateProject()
         if dialog.exec_():
             self.log.info("Creating new project")
-            self.project = dialog.project
-            self.project.save()
-            self.log.debug(str(self.project))
-            self.update_project()
+            project = dialog.project
+            if new_window:
+                self.log.debug("Opening project in new window")
+                return MainWindow(project)
+            else:
+                self.project = project
+                self.project.save()
+                self.update_project()
         else:
             return
 
@@ -389,6 +386,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         if self.project is None:
             return
         if self.project.save():
+            self.setWindowTitle(self.title + ' - {} [*]'.format(self.project.name))
             self.setWindowModified(False)
             self.log.info("Project saved.")
         else:
@@ -556,8 +554,15 @@ class CreateProject(QtWidgets.QDialog, project_dialog):
 class SplashScreen(QtWidgets.QDialog, splash_screen):
     def __init__(self, *args):
         super().__init__(*args)
-        self.log = logging.getLogger(__name__)
+        self.log = self.setup_logging()
+        # Experimental: Add a logger that sets the label_error text
+        error_handler = ConsoleHandler(self.write_error)
+        error_handler.setFormatter(logging.Formatter('%(message)s'))
+        error_handler.setLevel(logging.ERROR)
+        self.log.addHandler(error_handler)
+
         self.setupUi(self)
+
         self.settings_dir = Path.home().joinpath('AppData\Local\DynamicGravitySystems\DGP')
         self.recent_file = self.settings_dir.joinpath('recent.dict')
         if not self.settings_dir.exists():
@@ -569,14 +574,44 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
         self.btn_browse.clicked.connect(self.browse_project)
         self.list_projects.currentItemChanged.connect(self.set_selection)
 
-        self.project_path = None
-        self.project = None
+        self.project_path = None  # type: Path
+        self.project = None  # type: prj.GravityProject
 
-        # TODO: Move this all to a function that updates list_projects
-        # TODO: Create function that loads all recent project pickles to retrieve info e.g. Name, Type for display
         self.set_recent_list()
-
         self.show()
+
+    @staticmethod
+    def setup_logging(level=logging.DEBUG):
+        root_log = logging.getLogger()
+        std_err_handler = logging.StreamHandler(sys.stderr)
+        std_err_handler.setLevel(level)
+        std_err_handler.setFormatter(LOG_FORMAT)
+        root_log.addHandler(std_err_handler)
+        return logging.getLogger(__name__)
+
+    def accept(self, project=None):
+        """Runs some basic verification before calling QDialog accept()."""
+        # Case where project object is passed to accept() (when creating new project)
+        if isinstance(project, prj.GravityProject):
+            self.log.debug("Opening new project: {}".format(project.name))
+            self.add_recent(project)
+            super().accept()
+            return MainWindow(project)
+
+        # Otherwise check if self.project_path was set to load a project
+        if not self.project_path:
+            self.log.error("No valid project selected.")
+            return
+        else:
+            try:
+                self.project = prj.AirborneProject.load(self.project_path)
+            except FileNotFoundError:
+                self.log.error("Project could not be loaded from path: {}".format(self.project_path))
+                return
+            else:
+                self.add_recent(self.project)
+                super().accept()
+                return MainWindow(self.project)
 
     def set_recent_list(self):
         """Set the 'list_projects' recent file list in the Qt Dialog"""
@@ -593,22 +628,10 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
                     self.log.warning("Recent Project: {} path not found {}".format(name, path))
                     to_remove[name] = path
                     continue
-                item = QtWidgets.QListWidgetItem(name)
+                item = QtWidgets.QListWidgetItem('{}  :: {}'.format(name, path))
                 item.setToolTip(str(path))
                 item.setData(QtCore.Qt.UserRole, path)
                 self.list_projects.addItem(item)
-        # self.remove_recents(to_remove)
-
-    def accept(self):
-        """Runs some basic verification before calling QDialog accept()."""
-        if not self.project_path:
-            self.label_error.setText("No valid project selected.")
-            return
-        else:
-            self.project = prj.AirborneProject.load(self.project_path)
-            self.add_recent(self.project)
-            super().accept()
-            print("Accepted")
 
     def set_selection(self, item: QtWidgets.QListWidgetItem, *args):
         """Called when a recent item is selected"""
@@ -621,12 +644,11 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
 
     def new_project(self):
         """Allow the user to create a new project"""
-        prj_dialog = CreateProject()
-        if prj_dialog.exec_():
-            self.project = prj_dialog.project
-            self.project.save()
-            self.add_recent(self.project)
-            self.accept()
+        dialog = CreateProject()
+        if dialog.exec_():
+            project = dialog.project
+            project.save()
+            self.accept(project)
             # self.update()  # Update recent project lists and set it to selected
 
     def add_recent(self, project):
@@ -642,6 +664,7 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
             pickle.dump(recent, wd)
         self.log.debug('Added project: {} to recent projects file'.format(project.name))
 
+    # TODO: Not working, need to open pickle separately to read/write?
     def remove_recents(self, remove: dict):
         """
         Remove recent projects from recent listing - checking name and path as it is possible a project may be called
@@ -649,7 +672,7 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
         :param remove: dict: {name: path} of recent projects to remove from listing
         :return:
         """
-        print("Removing recent items")
+        self.log.debug("Removing recent items")
         with self.recent_file.open('r+b') as fd:
             recent = pickle.load(fd)
             print(recent)
@@ -674,6 +697,8 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
         self.project_path = prj_file
         self.accept()  # pre_accept takes the self.project_path file and loads the project.
 
+    def write_error(self, msg, level=None):
+        self.label_error.setText(msg)
 
     @staticmethod
     def get_project(path: str):
@@ -689,5 +714,5 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
-    form = MainWindow()
+    form = SplashScreen()
     sys.exit(app.exec_())
