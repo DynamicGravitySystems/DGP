@@ -4,15 +4,18 @@
 Class to handle Matplotlib plotting of data to be displayed in Qt GUI
 """
 
+import logging
 from collections import namedtuple
+from typing import List
 
 from PyQt5.QtWidgets import QSizePolicy
-
 from matplotlib.backends.backend_qt5agg import (FigureCanvasQTAgg as FigureCanvas,
                                                 NavigationToolbar2QT as NavigationToolbar)
 from matplotlib.figure import Figure
 from pandas.core.series import Series
 import numpy as np
+
+from dgp.lib.types import DataCurve
 
 
 class BasePlottingCanvas(FigureCanvas):
@@ -21,6 +24,7 @@ class BasePlottingCanvas(FigureCanvas):
     to be subclassed for different plot types.
     """
     def __init__(self, parent=None, width=8, height=4, dpi=100):
+        self.log = logging.getLogger(__name__)
         self.parent = parent
         figure = Figure(figsize=(width, height), dpi=dpi)
 
@@ -114,14 +118,14 @@ class GeneralPlot(BasePlottingCanvas):
         x = np.linspace(0, 1, len(y))
         return x, y
 
-    def linear_plot2(self, axes, *series):
+    def linear_plot2(self, axes: int, *series: List[DataCurve]):
         """
         linear_plot2 is an improvement on the original function which stores plotted lines so that
         the data may be updated instead of completely redrawn - this is important when changing the
         plot sampling level and when the user has zoomed or panned the plot. By updating the existing
         line data we can keep the users perspective on the plot.
-        :param axes:
-        :param series:
+        :param int axes: Index of the axes to draw the series on
+        :param list series: List of one or more pandas Series to plot
         :return:
         """
         if not series:
@@ -129,21 +133,22 @@ class GeneralPlot(BasePlottingCanvas):
                 line.remove()
             self.lines[axes].clear()
             self.axes[axes].relim()
+            self.axes[axes].autoscale_view()
             self.draw()
             return
 
         # Prune non selected lines from plot
         remove = []
         for k, line in self.lines[axes].items():
-            if k not in [s.name for s in series]:
+            if k not in [s.channel for s in series]:
                 line.remove()
                 remove.append(k)
         for item in remove:
             self.lines[axes].pop(item)
 
-        for data in series:
-            x, y = self.linear_resample(data)
-            label = data.name
+        for curve in series:
+            x, y = self.linear_resample(curve.data)
+            label = curve.channel
             if label not in self.lines[axes].keys():
                 # Plot the data and add it to lines array
                 self.lines[axes][label], = self.axes[axes].plot(x, y, label=label)
@@ -155,12 +160,7 @@ class GeneralPlot(BasePlottingCanvas):
         self.axes[axes].relim()
         self.axes[axes].autoscale_view()
         self.draw()
-        print(self.lines)
-
-
-
-
-
+        self.log.debug("lines: {}".format(self.lines))
 
     @staticmethod
     def get_toolbar(plot, parent=None):

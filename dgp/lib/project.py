@@ -7,11 +7,12 @@ import pathlib
 import logging
 
 from pandas import HDFStore
+from PyQt5 import QtCore
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIcon
-from PyQt5.QtCore import QObject, pyqtSignal
+
 
 from .meterconfig import MeterConfig, AT1Meter
-from dgp.lib.types import location, stillreading, flightline, DataPacket
+from dgp.lib.types import Location, StillReading, FlightLine, DataPacket
 
 """
 Dynamic Gravity Processor (DGP) :: project.py
@@ -57,15 +58,12 @@ class GravityProject:
         """
         self.log = logging.getLogger(__name__)
         if isinstance(path, pathlib.Path):
-            self.projectdir = path
+            self.projectdir = path  # type: pathlib.Path
         else:
             self.projectdir = pathlib.Path(path)
 
         if not self.projectdir.is_dir():
             raise FileNotFoundError
-
-        if not os.path.isdir(self.projectdir):
-            self.projectdir, _ = os.path.split(self.projectdir)
 
         self.name = name
         self.description = description
@@ -196,7 +194,7 @@ class Flight:
 
     @property
     def gps(self):
-        return self.parent.get_data(self._gpsdata, 'gps')
+        return self.parent.load_data(self._gpsdata, 'gps')
 
     @gps.setter
     def gps(self, value):
@@ -228,20 +226,20 @@ class Flight:
         except KeyError:
             return None, None
 
-    def set_gravity_tie(self, gravity: float, loc: location):
+    def set_gravity_tie(self, gravity: float, loc: Location):
         self.tie_value = gravity
         self.tie_location = loc
 
-    def pre_still_reading(self, gravity: float, loc: location, time: float):
-        self.pre_still_reading = stillreading(gravity, loc, time)
+    def pre_still_reading(self, gravity: float, loc: Location, time: float):
+        self.pre_still_reading = StillReading(gravity, loc, time)
 
-    def post_still_reading(self, gravity: float, loc: location, time: float):
-        self.post_still_reading = stillreading(gravity, loc, time)
+    def post_still_reading(self, gravity: float, loc: Location, time: float):
+        self.post_still_reading = StillReading(gravity, loc, time)
 
     def add_line(self, start: float, end: float):
         """Add a flight line to the flight by start/stop index and sequence number"""
         uid = uuid.uuid4().hex
-        line = flightline(uid, len(self.lines), None, start, end)
+        line = FlightLine(uid, len(self.lines), None, start, end)
         self.lines[uid] = line
         return line
 
@@ -286,6 +284,12 @@ class AirborneProject(GravityProject):
         self.active = flight
 
     def load_data(self, uid: str, prefix: str):
+        """
+        Load data from a specified group (prefix) - gps or gravity, from the projects HDF5 store.
+        :param str uid: Datafile Unique Identifier
+        :param str prefix: Data type prefix [gps or gravity]
+        :return:
+        """
         with HDFStore(self.hdf_path) as store:
             try:
                 data = store.get('{}/{}'.format(prefix, uid))
@@ -344,6 +348,7 @@ class AirborneProject(GravityProject):
         for uid, flight in self.flights.items():
             fli_item = QStandardItem(flt_ico, "Flight: {}".format(uid))
             fli_item.setEditable(False)
+            fli_item.setData(flight, QtCore.Qt.UserRole)
 
             gps_path, gps_uid = flight.gps_file
             gps = QStandardItem("GPS UID: {}".format(gps_uid))

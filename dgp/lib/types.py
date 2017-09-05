@@ -11,12 +11,13 @@ types.py is a library utility module used to define custom reusable types for us
 """
 
 
-location = namedtuple('location', ['lat', 'long', 'alt'])
+Location = namedtuple('Location', ['lat', 'long', 'alt'])
 
-stillreading = namedtuple('stillreading', ['gravity', 'location', 'time'])
+StillReading = namedtuple('StillReading', ['gravity', 'location', 'time'])
 
-flightline = namedtuple('flightline', ['id', 'sequence', 'file_ref', 'start', 'end'])
+FlightLine = namedtuple('FlightLine', ['id', 'sequence', 'file_ref', 'start', 'end'])
 
+DataCurve = namedtuple('DataCurve', ['channel', 'data'])
 
 class DataPacket:
     def __init__(self, data, path, flight, data_type, *args, **kwargs):

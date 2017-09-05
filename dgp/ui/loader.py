@@ -60,6 +60,7 @@ class ThreadedLoader:
         self.thread.finished.connect(self.cleanup)
 
         self.thread.start()
+        return self.loader
 
     def add_hook(self, hook):
         if self.loader is not None:
@@ -71,7 +72,6 @@ class ThreadedLoader:
 
     def cleanup(self):
         print("Thread finished")
-        pass
 
 
 
