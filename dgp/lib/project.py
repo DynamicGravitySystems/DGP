@@ -1,6 +1,5 @@
 # coding: utf-8
 
-import os
 import uuid
 import pickle
 import pathlib
@@ -68,7 +67,8 @@ class GravityProject:
         self.name = name
         self.description = description
 
-        self.hdf_path = os.path.join(self.projectdir, 'prjdata.h5')
+        # self.hdf_path = os.path.join(self.projectdir, 'prjdata.h5')
+        self.hdf_path = self.projectdir.joinpath('prjdata.h5')
 
         # Store MeterConfig objects in dictionary keyed by the meter name
         self.sensors = {}
@@ -83,10 +83,10 @@ class GravityProject:
         else:
             raise ValueError("meter parameter is not an instance of MeterConfig")
 
-    def import_meter(self, path):
+    def import_meter(self, path: pathlib.Path):
         """Import a meter configuration from an ini file and add it to the sensors dict"""
         # TODO: Way to construct different meter types (other than AT1 meter) dynamically
-        if os.path.exists(path):
+        if path.exists():
             try:
                 meter = AT1Meter.from_ini(path)
                 self.sensors[meter.name] = meter
@@ -105,17 +105,18 @@ class GravityProject:
         else:
             return list(self.sensors.keys())
 
-    def save(self, path=None):
+    def save(self, path: pathlib.Path=None):
         """
         Export the project class as a pickled python object
         :param path: Path to save file
         :return:
         """
         if path is None:
-            path = os.path.join(self.projectdir, '{}.d2p'.format(self.name))
-        with open(path, 'wb') as f:
+            path = self.projectdir.joinpath('{}.d2p'.format(self.name))
+        if not isinstance(path, pathlib.Path):
+            path = pathlib.Path(path)
+        with path.open('wb') as f:
             pickle.dump(self, f)
-        return True
 
     @staticmethod
     def load(path):
@@ -125,10 +126,10 @@ class GravityProject:
         if not path.exists():
             raise FileNotFoundError
 
-        with open(path, 'rb') as pickled:
+        with path.open('rb') as pickled:
             project = pickle.load(pickled)
             # Override whatever the project dir was with the directory where it was opened
-            project.projectdir = os.path.normpath(os.path.dirname(path))
+            project.projectdir = path.parent
         return project
 
     def __getstate__(self):
