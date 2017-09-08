@@ -26,12 +26,14 @@ class BasePlottingCanvas(FigureCanvas):
     def __init__(self, parent=None, width=8, height=4, dpi=100):
         self.log = logging.getLogger(__name__)
         self.parent = parent
-        figure = Figure(figsize=(width, height), dpi=dpi)
+        figure = Figure(figsize=(width, height), dpi=dpi, tight_layout=True)
 
         FigureCanvas.__init__(self, figure)
         self.setParent(parent)
         FigureCanvas.setSizePolicy(self, QSizePolicy.Expanding, QSizePolicy.Expanding)
         FigureCanvas.updateGeometry(self)
+
+
 
         # self.axes = self.figure.add_subplot(111)
         self.axes = []
@@ -81,7 +83,7 @@ plotline = namedtuple('plotline', ['line', 'data'])
 class GeneralPlot(BasePlottingCanvas):
     def __init__(self, n=1, parent=None):
         BasePlottingCanvas.__init__(self, parent=parent)
-        self._resample = '100ms'
+        self._resample = '100ms'  # TODO: Add parameter for this
 
     def clear(self):
         for x in range(len(self.axes)):
