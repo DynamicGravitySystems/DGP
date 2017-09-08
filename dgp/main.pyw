@@ -6,6 +6,7 @@ import sys
 import pickle
 import logging
 import functools
+from threading import Lock
 from pathlib import Path
 
 from dgp import resources_rc
@@ -64,7 +65,7 @@ class ConsoleHandler(logging.Handler):
 
 class MainWindow(QtWidgets.QMainWindow, main_window):
     """An instance of the Main Program Window"""
-    def __init__(self, project=None, *args):
+    def __init__(self, project: prj.GravityProject=None, *args):
         super().__init__(*args)
 
         self.setupUi(self)  # Set up ui within this class - which is base_class defined by .ui file
@@ -136,39 +137,31 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
         # Initialize Variables
         self.import_base_path = os.path.join(os.getcwd(), '../tests')
-        self.refocus_flag = False  # Flag used when changing between plots, to avoid recalc_plots call
+
+        # Lock object used as simple Flag supporting the context manager protocol
+        self.refocus = Lock()
         self.current_flight = None  # type: prj.Flight
         self.flight_state = {i: {} for i in range(2)}  # TODO: Set this based on number of subplots
-        self.plot_curves = None  # Initialized in self.init_plot()
+        self.flight_data = {}  # Stores DataFrames for loaded flights
+        # self.plot_curves = None  # Initialized in self.init_plot()
         self.active_plot = 0
         self.loader = ThreadedLoader()  # reusable ThreadedLoader for loading large files
 
         # Call sub-initialization functions
-        self.init_plot()
-        self.init_slots()
+        self._init_plot()
+        self._init_slots()
         self.setWindowState(QtCore.Qt.WindowMaximized)
+        self.save_project()
         self.show()
 
-    def show_splash(self):
-        """Show the Program splash screen prompting user to load or create a project."""
-        splash = SplashScreen()
-        if splash.exec_():
-            self.project = splash.project
-            self.update_project()
-            self.log.info("Loaded project: {}".format(self.project.name))
-            print("selected a project")
-        else:
-            self.log.debug("Exiting program")
-            sys.exit(0)
-
-    def init_plot(self):
+    def _init_plot(self):
         """[Re]Initialize plot object, allowing us to reset/clear the workspace for new data imports"""
         # Initialize dictionary keyed by axes index with empty list to store curve channels
-        self.plot_curves = {x: [] for x in range(len(self.plotter))}
+        # self.plot_curves = {x: [] for x in range(len(self.plotter))}
         # self.active_plot = 0
         self.draw_plot()
 
-    def init_slots(self):
+    def _init_slots(self):
         """Initialize PyQt Signals/Slots for UI Buttons and Menus"""
 
         # File Menu Actions #
@@ -255,6 +248,19 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
     # Plot functions
     #####
 
+    def draw_plot(self) -> None:
+        """
+        Draw a linear plot in self.plotter based on the current selected flight and the current
+        selected data channels for that flight.
+        """
+        if self.current_flight is None:
+            return
+        for ax, flights in self.flight_state.items():
+            ax_plots = [DataCurve(cn, self.get_current_flight_data_channel(cn))
+                        for cn in flights.get(self.current_flight.uid, set())]
+
+            self.plotter.linear_plot2(ax, *ax_plots)
+
     def flight_changed(self, index: QtCore.QModelIndex):
         """PyQt Slot: Called upon flight selection change in the project tree view list"""
         item = self.prj_tree.model().itemFromIndex(index)  # type: QtGui.QStandardItem
@@ -279,33 +285,32 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         else:
             self.current_flight = flight
 
-        self.log.info("Clicked on a flight")
-        flt_gravity = flight.gravity
-        # TODO: Implement GPS Plotting
-        flt_gps = flight.gps
-        if flt_gravity is None:
+        if flight.uid not in self.flight_data.keys():
+            # Import data and add to dict
+            self.flight_data[flight.uid] = {'gravity': flight.gravity, 'gps': flight.gps}
+
+        if self.flight_data[flight.uid].get('gravity', None) is None:
             self.gravity_channels.clear()
             self.gravity_channels.addItem(none_item)
-            self.init_plot()
+            self._init_plot()
             return
-        grav_channels = flt_gravity.columns
+        grav_channels = self.flight_data[flight.uid]['gravity'].columns
+
         # Populate the gravity channel list with data columns
         if grav_channels is not None:
             self.gravity_channels.clear()
-            self.init_plot()
+            self._init_plot()
             self.log.debug(grav_channels)
             self.gravity_channels.addItem(gravity_header)
             for cn in grav_channels:
                 cn_widget = QtWidgets.QListWidgetItem(cn)
-                cn_widget.setData(QtCore.Qt.UserRole, DataCurve(cn, flt_gravity[cn]))
                 self.gravity_channels.addItem(cn_widget)
                 # Reapply saved channel state
                 if cn in self.flight_state[self.active_plot].get(flight.uid, set()):
                     cn_widget.setCheckState(QtCore.Qt.Checked)
                 else:
-                    self.refocus_flag = True
-                    cn_widget.setCheckState(QtCore.Qt.Unchecked)
-                    self.refocus_flag = False
+                    with self.refocus:
+                        cn_widget.setCheckState(QtCore.Qt.Unchecked)
 
     def channel_changed(self, item: QtWidgets.QListWidgetItem):
         """
@@ -314,62 +319,61 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         :param item:
         :return:
         """
-        if self.refocus_flag:  # Skips the processing if we're doing a refocus
+        # Refocus Lock is used to signal this function that channel selection events should be ignored
+        if self.refocus.locked():
             return
-        data = item.data(QtCore.Qt.UserRole)  # type: DataCurve
+
         if item.checkState() == QtCore.Qt.Checked:
             self.log.debug("Channel item selected: {} plotting on plot#: {}".format(item.text(), self.active_plot))
-            self.plot_curves[self.active_plot].append(data)
             try:
                 self.flight_state[self.active_plot][self.current_flight.uid].add(item.text())
             except KeyError:
                 self.flight_state[self.active_plot][self.current_flight.uid] = set()
                 self.flight_state[self.active_plot][self.current_flight.uid].add(item.text())
-            self.log.debug("Flight state: {}".format(self.flight_state))
+            # self.log.debug("Flight state: {}".format(self.flight_state))
         else:
-            self.log.debug("Channel item deselected: {}".format(item.text()))
+            # self.log.debug("Channel item deselected: {}".format(item.text()))
             try:
-                self.plot_curves[self.active_plot].remove(data)
+                # self.plot_curves[self.active_plot].remove(data)
                 self.flight_state[self.active_plot][self.current_flight.uid].remove(item.text())
             except ValueError:
-                self.log.debug("Data couldn't be removed from self.plot_curves (doesn't exist): {}".format(data.channel))
+                pass
 
         self.draw_plot()
 
-    def resample_rate_changed(self, value):
+    def resample_rate_changed(self, value) -> None:
         self.plotter._resample = '{}ms'.format(int(value) * 100)
         self.draw_plot()
 
-    def draw_plot(self):
-        """
-        Draw a linear plot in self.plotter given the current data in self.plot_curves
-        :return: Void
-        """
-        # self.plotter._resample = self.resample_rate()
-        for index, curves in self.plot_curves.items():
-            self.plotter.linear_plot2(index, *curves)
-        return
 
-    def set_active_plot(self, index):
+    def get_current_flight_data_channel(self, channel, data='gravity'):
+        data_set = self.flight_data[self.current_flight.uid][data]
+        if data_set is None:
+            return None
+        else:
+            return data_set.get(channel, None)
+
+    def set_active_plot(self, index) -> None:
         self.log.debug("Setting active plot to: {}".format(index))
-        self.refocus_flag = True
-        self.active_plot = index
+        with self.refocus:
+            self.active_plot = index
 
-        # Set channel checkboxes to match plot
-        checked_channels = [cn.channel for cn in self.plot_curves[index]]
-        for i in range(self.gravity_channels.count()):
-            item = self.gravity_channels.item(i)
-            if item.text() in checked_channels:
-                item.setCheckState(QtCore.Qt.Checked)
-            else:
-                item.setCheckState(QtCore.Qt.Unchecked)
-        self.refocus_flag = False
+            if self.current_flight is None:
+                return
+            # Set channel checkboxes to match plot
+            checked_channels = [cn for cn in self.flight_state[index].get(self.current_flight.uid, set())]
+            for i in range(1, self.gravity_channels.count()):  # Start at 1 to skip channel header
+                item = self.gravity_channels.item(i)
+                if item.text() in checked_channels:
+                    item.setCheckState(QtCore.Qt.Checked)
+                else:
+                    item.setCheckState(QtCore.Qt.Unchecked)
 
     #####
     # Project functions
     #####
 
-    def import_data(self):
+    def import_data(self) -> None:
         """Load data file (GPS or Gravity) using a background Thread, then hand it off to the project."""
         dialog = ImportData(self.project, self.current_flight)
         if dialog.exec_():
@@ -393,7 +397,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             # gps_fields = ['mdy', 'hms', 'lat', 'lon', 'ell_ht', 'ortho_ht', 'num_sats', 'pdop']
             # self.gps_data = ti.import_trajectory(path, columns=gps_fields, skiprows=1)
 
-    def new_project(self):
+    def new_project(self) -> QtWidgets.QMainWindow:
         new_window = True
         dialog = CreateProject()
         if dialog.exec_():
@@ -406,10 +410,9 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
                 self.project = project
                 self.project.save()
                 self.update_project()
-        else:
-            return
 
-    def open_project(self):
+    # TODO: This contains deprecated logic, revise and fix
+    def open_project(self) -> None:
         path = QtWidgets.QFileDialog.getExistingDirectory(self, "Open Project Directory", os.path.abspath('..'))
         if not path:
             return
@@ -424,14 +427,14 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
                 return
         self.log.warning("Project file could not be located in directory: {}".format(path))
 
-    def update_project(self):
+    def update_project(self) -> None:
         self.log.debug("Update project called")
         if self.project is None:
             return
         self.prj_tree.setModel(self.project.generate_model())
         self.prj_tree.expandAll()
 
-    def save_project(self):
+    def save_project(self) -> None:
         if self.project is None:
             return
         if self.project.save():
@@ -442,7 +445,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             self.log.info("Error saving project.")
 
     @autosave
-    def add_flight(self):
+    def add_flight(self) -> None:
         if self.project is None:
             return
         meter = prj.AT1Meter('AT1M-Test')
@@ -542,7 +545,7 @@ class ImportData(QtWidgets.QDialog, data_dialog):
         self.accept()
 
     @property
-    def content(self):
+    def content(self) -> (Path, ):
         return self.path, self.dtype, self.flight
 
 

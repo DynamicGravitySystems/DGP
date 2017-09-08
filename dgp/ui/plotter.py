@@ -33,8 +33,6 @@ class BasePlottingCanvas(FigureCanvas):
         FigureCanvas.setSizePolicy(self, QSizePolicy.Expanding, QSizePolicy.Expanding)
         FigureCanvas.updateGeometry(self)
 
-
-
         # self.axes = self.figure.add_subplot(111)
         self.axes = []
         self.lines = {}

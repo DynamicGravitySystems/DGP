@@ -211,6 +211,7 @@ class Flight:
 
     @property
     def gravity(self):
+        self.log.warning("Loading gravity data from file. (Expensive Operation)")
         return self.parent.load_data(self._gravdata, 'gravity')
 
     @gravity.setter
@@ -225,6 +226,9 @@ class Flight:
             return self.parent.data_map[self._gravdata], self._gravdata
         except KeyError:
             return None, None
+
+    def get_channel_data(self, channel):
+        return self.gravity[channel]
 
     def set_gravity_tie(self, gravity: float, loc: Location):
         self.tie_value = gravity
