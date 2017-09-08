@@ -2,7 +2,7 @@
 
 import unittest
 import random
-import shutil
+import tempfile
 from pathlib import Path
 
 from .context import dgp
@@ -28,19 +28,6 @@ class TestProject(unittest.TestCase):
         self.at1a5 = MeterConfig(name="AT1A-5", **self.meter_vals)
         self.project.add_meter(self.at1a5)
 
-    def tearDown(self):
-        for path in self.todelete:
-            try:
-                if not os.path.exists(path):
-                    continue
-                if os.path.isdir(path):
-                    shutil.rmtree(path)
-                else:
-                    os.remove(path)
-            except OSError as e:
-                print("Error deleting {}, {}".format(path, e))
-                continue
-
     def test_project_directory(self):
         """
         Test the handling of the directory specifications within a project
@@ -50,21 +37,16 @@ class TestProject(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             project = GravityProject(path=Path('tests/invalid_dir'))
 
-        project_dir = Path('tests/project_test')
-        self.todelete.append(project_dir)
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td)
+            project = GravityProject(path=project_dir)
+            self.assertEqual(project.projectdir, project_dir)
 
-        project_dir.mkdir(parents=True)
-        project = GravityProject(path=project_dir)
-        self.assertEqual(project.projectdir, project_dir)
-
-        notadir = os.path.join(project_dir, 'notadir')
-        self.todelete.append(notadir)
-        with open(notadir, 'w') as fd:
-            fd.write("this is not a directory")
-
-        with self.assertRaises(FileNotFoundError):
-            project = GravityProject(path=notadir)
-
+        # Test exception given a file instead of directory
+        with tempfile.NamedTemporaryFile() as tf:
+            tf.write(b"This is not a directory")
+            with self.assertRaises(NotADirectoryError):
+                project = GravityProject(path=Path(str(tf.name)))
 
     def test_pickle_project(self):
         # TODO: Add further complexity to testing of project pickling
@@ -72,21 +54,15 @@ class TestProject(unittest.TestCase):
         flight.add_line(100, 250.5)
         self.project.add_flight(flight)
 
-        save_loc = 'tests/test_project.p'
+        with tempfile.TemporaryDirectory() as td:
+            save_loc = Path(td, 'project.d2p')
+            self.project.save(save_loc)
 
-        self.project.save(save_loc)
-
-        loaded_project = AirborneProject.load(save_loc)
-        self.assertIsInstance(loaded_project, AirborneProject)
-        self.assertEqual(len(loaded_project.flights), 1)
-        self.assertEqual(loaded_project.flights[flight.uid].uid, flight.uid)
-        self.assertEqual(loaded_project.flights[flight.uid].meter.name, 'AT1A-5')
-
-        # Cleanup
-        try:
-            os.remove(save_loc)
-        except OSError:
-            pass
+            loaded_project = AirborneProject.load(save_loc)
+            self.assertIsInstance(loaded_project, AirborneProject)
+            self.assertEqual(len(loaded_project.flights), 1)
+            self.assertEqual(loaded_project.flights[flight.uid].uid, flight.uid)
+            self.assertEqual(loaded_project.flights[flight.uid].meter.name, 'AT1A-5')
 
     def test_flight_iteration(self):
         test_flight = Flight(None, 'test_flight', self.at1a5)
@@ -117,6 +93,11 @@ class TestProject(unittest.TestCase):
         grav_data, gps_data = self.project.get_data(flt)
         self.assertTrue(test_df.equals(grav_data))
         self.assertIsNone(gps_data)
+
+
+class TestFlight(unittest.TestCase):
+    def setUp(self):
+        pass
 
 
 class TestMeterconfig(unittest.TestCase):

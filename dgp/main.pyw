@@ -5,6 +5,7 @@ import re
 import sys
 import pickle
 import logging
+import datetime
 import functools
 from threading import Lock
 from pathlib import Path
@@ -25,6 +26,7 @@ main_window, _ = loadUiType('ui/main_window.ui')
 project_dialog, _ = loadUiType('ui/project_dialog.ui')
 data_dialog, _ = loadUiType('ui/data_import_dialog.ui')
 splash_screen, _ = loadUiType('ui/splash_screen.ui')
+flight_dialog, _ = loadUiType('ui/add_flight_dialog.ui')
 
 LOG_FORMAT = logging.Formatter(fmt="%(asctime)s - %(module)s:%(funcName)s :: %(message)s", datefmt="%Y%b%d - %H:%M:%S")
 
@@ -265,7 +267,6 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         """PyQt Slot: Called upon flight selection change in the project tree view list"""
         item = self.prj_tree.model().itemFromIndex(index)  # type: QtGui.QStandardItem
         flight = item.data(QtCore.Qt.UserRole)  # type: prj.Flight
-        self.log.debug("Item Data {} type: {}".format(flight, type(flight)))
         # Checks that this is a Flight object, otherwise we don't care (at this time)
         if not isinstance(flight, prj.Flight):
             return
@@ -284,6 +285,8 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             return
         else:
             self.current_flight = flight
+        self.text_info.clear()
+        self.text_info.appendPlainText(str(flight))
 
         if flight.uid not in self.flight_data.keys():
             # Import data and add to dict
@@ -345,7 +348,6 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.plotter._resample = '{}ms'.format(int(value) * 100)
         self.draw_plot()
 
-
     def get_current_flight_data_channel(self, channel, data='gravity'):
         data_set = self.flight_data[self.current_flight.uid][data]
         if data_set is None:
@@ -391,6 +393,10 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
                 ld.finished.connect(functools.partial(self.set_progress_bar, 100, progress))
                 self.current_flight = None  # TODO: Kludge fix to force user to reselect flight after data import
+
+                # cindex = self.prj_tree.currentIndex()
+                # self.prj_tree.selectionModel().select(cindex, QtCore.QItemSelectionModel.SelectCurrent)
+
             else:
                 self.log.warning("No active project, not importing.")
 
@@ -446,12 +452,16 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
     @autosave
     def add_flight(self) -> None:
+        # TODO: do I need these checks? self.project should not ever be None
         if self.project is None:
             return
-        meter = prj.AT1Meter('AT1M-Test')
-        flight = prj.Flight(self.project, 'TestFlt', meter)
-        self.project.add_flight(flight)
-        self.update_project()
+        dialog = AddFlight(self.project)
+        if dialog.exec_():
+            self.log.info("Adding flight:")
+            flight = dialog.flight
+            self.project.add_flight(flight)
+            self.update_project()
+            return
 
 
 class ImportData(QtWidgets.QDialog, data_dialog):
@@ -489,12 +499,10 @@ class ImportData(QtWidgets.QDialog, data_dialog):
         self.dtype = 'gravity'
         self.flight = flight
 
-        self.flight_map = {}
         if project is not None:
             for flight in project:
                 # TODO: Change dict index to human readable value
-                self.flight_map[flight.uid] = flight.uid
-                self.combo_flights.addItem(flight.uid)
+                self.combo_flights.addItem(flight.name, flight.uid)
                 if flight == self.flight:  # scroll to this item if it matches self.flight
                     self.combo_flights.setCurrentIndex(self.combo_flights.count() - 1)
             for meter in project.meters:
@@ -513,7 +521,6 @@ class ImportData(QtWidgets.QDialog, data_dialog):
         self.file_model.setNameFilters(["*.csv", "*.dat"])
 
         self.tree_directory.setModel(self.file_model)
-        # self.tree_directory.setRootIndex(file_model.index(os.getcwd()))
         self.tree_directory.scrollTo(self.file_model.index(os.getcwd()))
 
         self.tree_directory.resizeColumnToContents(0)
@@ -541,12 +548,36 @@ class ImportData(QtWidgets.QDialog, data_dialog):
 
     def pre_accept(self):
         self.dtype = {'GPS Data': 'gps', 'Gravity Data': 'gravity'}.get(self.group_radiotype.checkedButton().text(), 'gravity')
-        self.flight = self.flight_map.get(self.combo_flights.currentText(), None)
+        self.flight = self.combo_flights.currentData()
         self.accept()
 
     @property
-    def content(self) -> (Path, ):
+    def content(self) -> (Path, str, prj.Flight):
         return self.path, self.dtype, self.flight
+
+
+class AddFlight(QtWidgets.QDialog, flight_dialog):
+    def __init__(self, project, *args):
+        super().__init__(*args)
+        self.setupUi(self)
+        self._project = project
+        self._flight = None
+        self.combo_meter.addItems(project.meters)
+        self.date_flight.setDate(datetime.datetime.today())
+        self._uid = prj.Flight.generate_uuid()
+        self.text_uuid.setText(self._uid)
+
+    def accept(self):
+        # TODO: Change test meter to actual meter
+        qdate = self.date_flight.date()  # type: QtCore.QDate
+        date = datetime.date(qdate.year(), qdate.month(), qdate.day())
+        self._flight = prj.Flight(self._project, self.text_name.text(), self._project.get_meter(
+            self.combo_meter.currentText()), uuid=self._uid, date=date)
+        super().accept()
+
+    @property
+    def flight(self):
+        return self._flight
 
 
 class CreateProject(QtWidgets.QDialog, project_dialog):
@@ -693,6 +724,7 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
                 item.setToolTip(str(path))
                 item.setData(QtCore.Qt.UserRole, path)
                 self.list_projects.addItem(item)
+        self.list_projects.setCurrentRow(0)
 
     def set_selection(self, item: QtWidgets.QListWidgetItem, *args):
         """Called when a recent item is selected"""

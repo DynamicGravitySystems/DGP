@@ -60,9 +60,11 @@ class GravityProject:
             self.projectdir = path  # type: pathlib.Path
         else:
             self.projectdir = pathlib.Path(path)
+        if not self.projectdir.exists():
+            raise FileNotFoundError
 
         if not self.projectdir.is_dir():
-            raise FileNotFoundError
+            raise NotADirectoryError
 
         self.name = name
         self.description = description
@@ -75,6 +77,9 @@ class GravityProject:
 
         self.log.debug("Gravity Project Initialized")
 
+    def load_data(self, uid: str, prefix: str):
+        pass
+
     def add_meter(self, meter: MeterConfig) -> MeterConfig:
         """Add an existing MeterConfig class to the dictionary of available meters"""
         if isinstance(meter, MeterConfig):
@@ -82,6 +87,9 @@ class GravityProject:
             return self.sensors[meter.name]
         else:
             raise ValueError("meter parameter is not an instance of MeterConfig")
+
+    def get_meter(self, name) -> MeterConfig:
+        return self.sensors.get(name, None)
 
     def import_meter(self, path: pathlib.Path):
         """Import a meter configuration from an ini file and add it to the sensors dict"""
@@ -117,6 +125,7 @@ class GravityProject:
             path = pathlib.Path(path)
         with path.open('wb') as f:
             pickle.dump(self, f)
+        return True
 
     @staticmethod
     def load(path):
@@ -147,7 +156,7 @@ class Flight:
     Define a Flight class used to record and associate data with an entire survey flight (takeoff -> landing)
     This class is iterable, yielding the flightlines named tuple objects from its lines dictionary
     """
-    def __init__(self, parent, name: str, meter: MeterConfig=None, **kwargs):
+    def __init__(self, parent: GravityProject, name: str, meter: MeterConfig=None, **kwargs):
         """
         The Flight object represents a single literal survey flight, and accepts various parameters related to the
         flight.
@@ -167,7 +176,7 @@ class Flight:
         # as python variables cannot start with a number (this takes care of warning when storing data in pytables)
         self.parent = parent
         self.name = name
-        self.uid = kwargs.get('uuid', 'f{}'.format(uuid.uuid4().hex))
+        self.uid = kwargs.get('uuid', self.generate_uuid())
         self.meter = meter
         if 'date' in kwargs:
             self.date = kwargs['date']
@@ -248,6 +257,10 @@ class Flight:
         self.lines[uid] = line
         return line
 
+    @staticmethod
+    def generate_uuid():
+        return 'f{}'.format(uuid.uuid4().hex[1:])
+
     def __iter__(self):
         """Iterate over flight lines in the Flight instance"""
         for k, line in self.lines.items():
@@ -256,9 +269,21 @@ class Flight:
     def __len__(self):
         return len(self.lines)
 
+    def __repr__(self):
+        return "Flight({parent}, {name}, {meter})".format(parent=self.parent, name=self.name, meter=self.meter)
+
     def __str__(self):
-        return "Flight: {name} UID:{uid}\nMeter:{meter}\nNum Lines:{lines}".format(
-            name=self.name, uid=self.uid, meter=self.meter.name, lines=len(self))
+        if self.meter is not None:
+            mname = self.meter.name
+        else:
+            mname = '<None>'
+        desc = """Flight: {name}\n
+UID: {uid}
+Meter: {meter}
+# Lines: {lines}
+Data Files:
+        """.format(name=self.name, uid=self.uid, meter=mname, lines=len(self))
+        return desc
 
     def __getstate__(self):
         return {k: v for k, v in self.__dict__.items() if can_pickle(v)}
@@ -295,7 +320,7 @@ class AirborneProject(GravityProject):
         :param str prefix: Data type prefix [gps or gravity]
         :return:
         """
-        with HDFStore(self.hdf_path) as store:
+        with HDFStore(str(self.hdf_path)) as store:
             try:
                 data = store.get('{}/{}'.format(prefix, uid))
             except KeyError:
@@ -313,7 +338,7 @@ class AirborneProject(GravityProject):
 
         file_uid = 'f' + (uuid.uuid4().hex)[1:]  # Fix NaturalNameWarning by ensuring first char is letter ('f').
 
-        with HDFStore(self.hdf_path) as store:
+        with HDFStore(str(self.hdf_path)) as store:
             # Separate data into groups by data type (GPS & Gravity Data)
             # format: 'table' pytables format enables searching/appending, fixed is more performant.
             store.put('{}/{}'.format(packet.data_type, file_uid), packet.data, format='fixed', data_columns=True)
@@ -336,7 +361,7 @@ class AirborneProject(GravityProject):
         self.log.debug("Found flight {}:{}".format(flt.name, flt.uid))
         return flt
 
-    def generate_model(self):
+    def generate_model(self) -> QStandardItemModel:
         """Generate a Qt Model based on the project structure."""
         model = QStandardItemModel()
         root = model.invisibleRootItem()
@@ -351,12 +376,13 @@ class AirborneProject(GravityProject):
         fli_header.setEditable(False)
         # TODO: Add a human readable identifier to flights
         for uid, flight in self.flights.items():
-            fli_item = QStandardItem(flt_ico, "Flight: {}".format(uid))
+            fli_item = QStandardItem(flt_ico, "Flight: {}".format(flight.name))
+            fli_item.setToolTip("UUID: {}".format(uid))
             fli_item.setEditable(False)
             fli_item.setData(flight, QtCore.Qt.UserRole)
 
             gps_path, gps_uid = flight.gps_file
-            gps = QStandardItem("GPS UID: {}".format(gps_uid))
+            gps = QStandardItem("GPS: {}".format(gps_uid))
             gps.setToolTip("File Path: {}".format(gps_path))
             gps.setEditable(False)
             gps.setData(gps_uid)  # For future use

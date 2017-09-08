@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1200</width>
+    <width>1142</width>
     <height>800</height>
    </rect>
   </property>
@@ -73,144 +73,192 @@
         </item>
        </layout>
       </widget>
-      <widget class="QFrame" name="console_container">
+      <widget class="QFrame" name="bottom_frame">
        <property name="minimumSize">
         <size>
          <width>0</width>
          <height>100</height>
         </size>
        </property>
-       <layout class="QVBoxLayout" name="verticalLayout_2">
-        <item>
-         <widget class="QTextEdit" name="text_console">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="minimumSize">
+       <layout class="QHBoxLayout" name="horizontalLayout_3">
+        <item alignment="Qt::AlignLeft">
+         <widget class="QFrame" name="info_frame">
+          <property name="sizeIncrement">
            <size>
-            <width>0</width>
-            <height>100</height>
+            <width>1</width>
+            <height>0</height>
            </size>
-          </property>
-          <property name="maximumSize">
-           <size>
-            <width>5000</width>
-            <height>400</height>
-           </size>
-          </property>
-          <property name="palette">
-           <palette>
-            <active>
-             <colorrole role="Base">
-              <brush brushstyle="SolidPattern">
-               <color alpha="255">
-                <red>160</red>
-                <green>160</green>
-                <blue>160</blue>
-               </color>
-              </brush>
-             </colorrole>
-            </active>
-            <inactive>
-             <colorrole role="Base">
-              <brush brushstyle="SolidPattern">
-               <color alpha="255">
-                <red>160</red>
-                <green>160</green>
-                <blue>160</blue>
-               </color>
-              </brush>
-             </colorrole>
-            </inactive>
-            <disabled>
-             <colorrole role="Base">
-              <brush brushstyle="SolidPattern">
-               <color alpha="255">
-                <red>240</red>
-                <green>240</green>
-                <blue>240</blue>
-               </color>
-              </brush>
-             </colorrole>
-            </disabled>
-           </palette>
-          </property>
-          <property name="autoFillBackground">
-           <bool>true</bool>
           </property>
           <property name="frameShape">
            <enum>QFrame::StyledPanel</enum>
           </property>
+          <property name="frameShadow">
+           <enum>QFrame::Raised</enum>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_5">
+           <item>
+            <widget class="QPlainTextEdit" name="text_info">
+             <property name="enabled">
+              <bool>true</bool>
+             </property>
+             <property name="sizeIncrement">
+              <size>
+               <width>1</width>
+               <height>0</height>
+              </size>
+             </property>
+             <property name="readOnly">
+              <bool>true</bool>
+             </property>
+             <property name="plainText">
+              <string/>
+             </property>
+             <property name="placeholderText">
+              <string>Selection Info</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </widget>
         </item>
         <item>
-         <layout class="QGridLayout" name="gridLayout_3">
-          <item row="0" column="2">
-           <widget class="QComboBox" name="combo_console_verbosity">
-            <item>
-             <property name="text">
-              <string>Debug</string>
+         <widget class="QFrame" name="console_frame">
+          <property name="sizeIncrement">
+           <size>
+            <width>2</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="frameShape">
+           <enum>QFrame::StyledPanel</enum>
+          </property>
+          <property name="frameShadow">
+           <enum>QFrame::Raised</enum>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_2">
+           <item>
+            <widget class="QTextEdit" name="text_console">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
              </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Info</string>
+             <property name="minimumSize">
+              <size>
+               <width>0</width>
+               <height>100</height>
+              </size>
              </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Warning</string>
+             <property name="maximumSize">
+              <size>
+               <width>5000</width>
+               <height>400</height>
+              </size>
              </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Error</string>
+             <property name="palette">
+              <palette>
+               <active>
+                <colorrole role="Base">
+                 <brush brushstyle="SolidPattern">
+                  <color alpha="255">
+                   <red>160</red>
+                   <green>160</green>
+                   <blue>160</blue>
+                  </color>
+                 </brush>
+                </colorrole>
+               </active>
+               <inactive>
+                <colorrole role="Base">
+                 <brush brushstyle="SolidPattern">
+                  <color alpha="255">
+                   <red>160</red>
+                   <green>160</green>
+                   <blue>160</blue>
+                  </color>
+                 </brush>
+                </colorrole>
+               </inactive>
+               <disabled>
+                <colorrole role="Base">
+                 <brush brushstyle="SolidPattern">
+                  <color alpha="255">
+                   <red>240</red>
+                   <green>240</green>
+                   <blue>240</blue>
+                  </color>
+                 </brush>
+                </colorrole>
+               </disabled>
+              </palette>
              </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Critical</string>
+             <property name="autoFillBackground">
+              <bool>true</bool>
              </property>
-            </item>
-           </widget>
-          </item>
-          <item row="0" column="0">
-           <widget class="QPushButton" name="btn_clear_console">
-            <property name="maximumSize">
-             <size>
-              <width>100</width>
-              <height>16777215</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>Clear</string>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="3">
-           <spacer name="horizontalSpacer">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>40</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item row="0" column="1">
-           <widget class="QLabel" name="label_logging_level">
-            <property name="text">
-             <string>Logging Level:</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
+             <property name="frameShape">
+              <enum>QFrame::StyledPanel</enum>
+             </property>
+             <property name="readOnly">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <layout class="QGridLayout" name="console_btns_layout">
+             <item row="0" column="2">
+              <widget class="QComboBox" name="combo_console_verbosity">
+               <item>
+                <property name="text">
+                 <string>Debug</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Info</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Warning</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Error</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Critical</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+             <item row="0" column="0">
+              <widget class="QPushButton" name="btn_clear_console">
+               <property name="maximumSize">
+                <size>
+                 <width>100</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>Clear</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="QLabel" name="label_logging_level">
+               <property name="text">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;right&quot;&gt;Logging Level:&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </widget>
         </item>
        </layout>
       </widget>
@@ -223,7 +271,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1200</width>
+     <width>1142</width>
      <height>21</height>
     </rect>
    </property>
@@ -298,7 +346,7 @@
     <set>Qt::LeftDockWidgetArea|Qt::RightDockWidgetArea</set>
    </property>
    <property name="windowTitle">
-    <string>Channels</string>
+    <string>Project</string>
    </property>
    <attribute name="dockWidgetArea">
     <number>1</number>
@@ -530,7 +578,6 @@
   <tabstop>resample_value</tabstop>
   <tabstop>selectAllChannels</tabstop>
   <tabstop>tableView</tabstop>
-  <tabstop>text_console</tabstop>
  </tabstops>
  <resources>
   <include location="resources.qrc"/>
@@ -565,22 +612,6 @@
     <hint type="destinationlabel">
      <x>-1</x>
      <y>-1</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>btn_clear_console</sender>
-   <signal>clicked()</signal>
-   <receiver>text_console</receiver>
-   <slot>clear()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>360</x>
-     <y>1129</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>892</x>
-     <y>908</y>
     </hint>
    </hints>
   </connection>
