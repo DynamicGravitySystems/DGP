@@ -12,17 +12,12 @@ import pandas as pd
 import functools
 import datetime
 import struct
+import fnmatch
+import os
+import re
 
 from .time_utils import convert_gps_time
-
-
-def safe_float(data, none_val=np.nan):
-    if data is None:
-        return none_val
-    try:
-        return float(data)
-    except ValueError:
-        return none_val
+from .etc import interp_nans
 
 def _extract_bits(bitfield, columns=None, as_bool=False):
     """
@@ -71,7 +66,7 @@ def _extract_bits(bitfield, columns=None, as_bool=False):
     else:
         return df
 
-def read_at1a(path, fill_with_nans=True):
+def read_at1a(path, fill_with_nans=True, interp=False):
     """
     Read and parse gravity data file from DGS AT1A (Airborne) meter.
 
@@ -82,6 +77,10 @@ def read_at1a(path, fill_with_nans=True):
     ----------
     path : str
         Filesystem path to gravity data file
+    fill_with_nans : boolean, default True
+        Fills time gaps with NaNs for all fields
+    interp : boolean, default False
+        Interpolate all NaNs for fields of type numpy.number
 
     Returns
     -------
@@ -122,5 +121,133 @@ def read_at1a(path, fill_with_nans=True):
         interval = '100000U'
         index = pd.date_range(df.index[0], df.index[-1], freq=interval)
         df = df.reindex(index)
+
+    if interp:
+        numeric = df.select_dtypes(include=[np.number])
+        numeric = numeric.apply(interp_nans)
+
+        # replace columns
+        for col in numeric.columns:
+            df[col] = numeric[col]
+
+    return df
+
+def _parse_ZLS_file_name(filename):
+	# split by underscore
+	fname = [e.split('.') for e in filename.split('_')]
+
+	# split hour from day and then flatten into one tuple
+	b = [int(el) for fname_parts in fname for el in fname_parts]
+
+	# generate datetime
+	c = datetime.datetime(b[0], 1, 1) + datetime.timedelta(days=b[2]-1,
+															hours=b[1])
+	return c
+
+def _read_ZLS_format_file(filepath):
+    col_names = ['line_name', 'year', 'day', 'hour', 'minute', 'second',
+    				'sensor', 'spring_tension', 'cross_coupling',
+    				'raw_beam', 'vcc', 'al', 'ax', 've2', 'ax2', 'xacc2',
+    				'lacc2', 'xacc', 'lacc', 'par_port', 'platform_period']
+
+    col_widths = [10, 4, 3, 2, 2, 2, 8, 8, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+                    8, 6]
+
+    time_columns = ['year', 'day', 'hour', 'minute', 'second']
+
+    # read into dataframe
+    df = pd.read_fwf(filepath, widths=col_widths, names=col_names)
+
+    day_fmt = lambda x: '{:03d}'.format(x)
+    time_fmt = lambda x: '{:02d}'.format(x)
+
+    t = df['year'].map(str) + df['day'].map(day_fmt) + \
+    	df['hour'].map(time_fmt) + df['minute'].map(time_fmt) + \
+    	df['second'].map(time_fmt)
+
+    # index by datetime
+    df.index = pd.to_datetime(t, format='%Y%j%H%M%S')
+    df.drop(time_columns, axis=1, inplace=True)
+
+    return df
+
+def read_zls(dirpath, begin_time=None, end_time=None, excludes=['.*']):
+    """
+    Read and parse gravity data file from ZLS meter.
+
+    Files are segmented by hour and data is presented as ASCII in a fixed-width
+    format.
+
+    Columns:
+        line name, year, day, hour, minute, second, gravity, spring tension, \
+        cross coupling, raw beam, vcc, al, ax, ve2, ax2, xacc2, lacc2, xacc, \
+        lacc, par port, platform period
+
+    Parameters
+    ----------
+    dirpath : str
+        Filesystem path to directory containing files
+    begin_time : datetime, optional
+        Data start time if not importing from the first file in the directory
+    end_time : datetime, optional
+        Data end time if not importing to the last file in the directory
+    excludes : list
+        Files and directories to exclude from directory listing.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Gravity data indexed by datetime.
+    """
+
+    excludes = r'|'.join([fnmatch.translate(x) for x in excludes]) or r'$.'
+
+    # list files in directory
+    files = [_parse_ZLS_file_name(f) for f in os.listdir(dirpath)
+             if os.path.isfile(os.path.join(dirpath, f))
+    		 if not re.match(excludes, f)]
+
+    # sort files
+    files = sorted(files)
+
+    # validate begin and end times
+    if begin_time is None and end_time is None:
+    	begin_time = files[0]
+    	end_time = files[-1] + datetime.timedelta(hours=1)
+
+    elif begin_time is None and end_time is not None:
+    	begin_time = files[0]
+    	if end_time < begin_time or end_time > files[-1]:
+    		raise ValueError('end time ({end}) is out of bounds'
+                             .format(end=end_time))
+
+    elif begin_time is not None and end_time is None:
+    	end_time = files[-1]
+    	if begin_time > end_time or begin_time < files[0]:
+    		raise ValueError('begin time ({begin}) is out of bounds'
+                             .format(begin=begin_time))
+
+    else:
+        if begin_time > end_time:
+            raise ValueError('begin time ({begin}) is after end time ({end})'
+                             .format(begin=begin_time, end=end_time))
+
+    # filter file list based on begin and end times
+    files = filter(lambda x: (x >= begin_time and x <= end_time)
+                   or (begin_time >= x and
+                       begin_time <= x + datetime.timedelta(hours=1))
+                   or (end_time - datetime.timedelta(hours=1) <= x and
+                       end_time >= x), files)
+
+    # convert to ZLS-type file names
+    files = [dt.strftime('%Y_%H.%j') for dt in files]
+
+    df = pd.DataFrame()
+    for f in files:
+    	frame = _read_ZLS_format_file(os.path.join(dirpath, f))
+    	df = pd.concat([df, frame])
+
+    df.drop(df.index[df.index < begin_time], inplace=True)
+    df.drop(df.index[df.index > end_time], inplace=True)
 
     return df
