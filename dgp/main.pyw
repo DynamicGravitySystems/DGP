@@ -1,25 +1,25 @@
 # coding: utf-8
 
-import os
-import re
-import sys
-import pickle
-import logging
 import datetime
 import functools
-from threading import Lock
+import logging
+import os
+import pickle
+import re
+import sys
+import json
 from pathlib import Path
+from typing import Dict, Union
+from threading import Lock
 
-from dgp import resources_rc
 from PyQt5 import QtCore, QtWidgets, QtGui, Qt
-from PyQt5.QtGui import QColor, QIcon
+from PyQt5.QtGui import QColor
 from PyQt5.uic import loadUiType
 
-import dgp.lib.gravity_ingestor as gi
 import dgp.lib.project as prj
-from dgp.ui.loader import ThreadedLoader
-from dgp.ui.plotter import GeneralPlot
+from dgp.lib.plotter import GeneralPlot
 from dgp.lib.types import DataCurve
+from dgp.loader import ThreadedLoader
 
 # Load .ui forms
 main_window, _ = loadUiType('ui/main_window.ui')
@@ -29,6 +29,7 @@ splash_screen, _ = loadUiType('ui/splash_screen.ui')
 flight_dialog, _ = loadUiType('ui/add_flight_dialog.ui')
 
 LOG_FORMAT = logging.Formatter(fmt="%(asctime)s - %(module)s:%(funcName)s :: %(message)s", datefmt="%Y%b%d - %H:%M:%S")
+LOG_COLOR_MAP = {'debug': 'blue', 'info': 'yellow', 'warning': 'brown', 'error': 'red', 'critical': 'orange'}
 
 
 def autosave(method):
@@ -60,7 +61,7 @@ class ConsoleHandler(logging.Handler):
         """Emit the log record, first running it through any specified formatter."""
         entry = self.format(record)
         try:
-            self.dest(entry, record.levelname)
+            self.dest(entry, record.levelname.lower())
         except TypeError:
             self.dest(entry)
 
@@ -649,14 +650,14 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
         self.log = self.setup_logging()
         # Experimental: Add a logger that sets the label_error text
         error_handler = ConsoleHandler(self.write_error)
-        error_handler.setFormatter(logging.Formatter('%(message)s'))
-        error_handler.setLevel(logging.ERROR)
+        error_handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+        error_handler.setLevel(logging.DEBUG)
         self.log.addHandler(error_handler)
 
         self.setupUi(self)
 
         self.settings_dir = Path.home().joinpath('AppData\Local\DynamicGravitySystems\DGP')
-        self.recent_file = self.settings_dir.joinpath('recent.dict')
+        self.recent_file = self.settings_dir.joinpath('recent.json')
         if not self.settings_dir.exists():
             self.log.info("Settings Directory doesn't exist, creating.")
             self.settings_dir.mkdir(parents=True)
@@ -667,7 +668,6 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
         self.list_projects.currentItemChanged.connect(self.set_selection)
 
         self.project_path = None  # type: Path
-        self.project = None  # type: prj.GravityProject
 
         self.set_recent_list()
         self.show()
@@ -686,7 +686,8 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
         # Case where project object is passed to accept() (when creating new project)
         if isinstance(project, prj.GravityProject):
             self.log.debug("Opening new project: {}".format(project.name))
-            self.add_recent(project)
+
+            self.update_recent_files(self.recent_file, {project.name: project.projectdir})
             super().accept()
             return MainWindow(project)
 
@@ -696,42 +697,36 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
             return
         else:
             try:
-                self.project = prj.AirborneProject.load(self.project_path)
+                project = prj.AirborneProject.load(self.project_path)
             except FileNotFoundError:
                 self.log.error("Project could not be loaded from path: {}".format(self.project_path))
                 return
             else:
-                self.add_recent(self.project)
+                self.update_recent_files(self.recent_file, {project.name: project.projectdir})
                 super().accept()
-                return MainWindow(self.project)
+                return MainWindow(project)
 
-    def set_recent_list(self):
-        """Set the 'list_projects' recent file list in the Qt Dialog"""
-        if not self.recent_file.is_file():
-            self.log.debug("No recent projects")
-            none_item = QtWidgets.QListWidgetItem("No Recent Projects", self.list_projects)
-            none_item.setFlags(QtCore.Qt.NoItemFlags)
-            return
-        to_remove = {}
-        with self.recent_file.open('rb') as fd:
-            recent_dict = pickle.load(fd)  # type: dict
-            for name, path in recent_dict.items():
-                if not path.exists():
-                    self.log.warning("Recent Project: {} path not found {}".format(name, path))
-                    to_remove[name] = path
-                    continue
-                item = QtWidgets.QListWidgetItem('{}  :: {}'.format(name, path))
-                item.setToolTip(str(path))
-                item.setData(QtCore.Qt.UserRole, path)
-                self.list_projects.addItem(item)
+    def set_recent_list(self) -> None:
+        recent_files = self.get_recent_files(self.recent_file)
+        if not recent_files:
+            no_recents = QtWidgets.QListWidgetItem("No Recent Projects", self.list_projects)
+            no_recents.setFlags(QtCore.Qt.NoItemFlags)
+            return None
+
+        for name, path in recent_files.items():
+            item = QtWidgets.QListWidgetItem('{name} :: {path}'.format(name=name, path=str(path)), self.list_projects)
+            item.setData(QtCore.Qt.UserRole, path)
+            item.setToolTip(str(path.resolve()))
         self.list_projects.setCurrentRow(0)
+        return None
 
     def set_selection(self, item: QtWidgets.QListWidgetItem, *args):
         """Called when a recent item is selected"""
         content = item.text()
-        self.project_path = self.get_project(item.data(QtCore.Qt.UserRole))
+        self.project_path = self.get_project_file(item.data(QtCore.Qt.UserRole))
         if not self.project_path:
-            item.setText("{} - Project Moved or Deleted".format(content))
+            # TODO: Fix this, when user selects item multiple time the statement is re-appended
+            item.setText("{} - Project Moved or Deleted".format(item.data(QtCore.Qt.UserRole)))
 
         self.log.debug("Project path set to {}".format(self.project_path))
 
@@ -739,41 +734,10 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
         """Allow the user to create a new project"""
         dialog = CreateProject()
         if dialog.exec_():
-            project = dialog.project
+            project = dialog.project  # type: prj.AirborneProject
             project.save()
+            # self.update_recent_files(self.recent_file, {project.name: project.projectdir})
             self.accept(project)
-            # self.update()  # Update recent project lists and set it to selected
-
-    def add_recent(self, project):
-        """Add a project to the recent projects tracking dictionary and pickle it."""
-        if self.recent_file.exists():
-            with self.recent_file.open('rb') as rd:
-                recent = pickle.load(rd)
-        else:
-            recent = {}
-        recent[project.name] = Path(project.projectdir)
-
-        with self.recent_file.open('wb') as wd:
-            pickle.dump(recent, wd)
-        self.log.debug('Added project: {} to recent projects file'.format(project.name))
-
-    # TODO: Not working, need to open pickle separately to read/write?
-    def remove_recents(self, remove: dict):
-        """
-        Remove recent projects from recent listing - checking name and path as it is possible a project may be called
-        the same as another in a different path.
-        :param remove: dict: {name: path} of recent projects to remove from listing
-        :return:
-        """
-        self.log.debug("Removing recent items")
-        with self.recent_file.open('r+b') as fd:
-            recent = pickle.load(fd)
-            print(recent)
-            # new_recent = {k: v for k, v in recent.items() if k not in remove.keys()}
-            new_recent = {k: v for k, v in recent.items() if not remove.get(k, None) == v}
-            print(new_recent)
-
-            pickle.dump(new_recent, fd)
 
     def browse_project(self):
         """Allow the user to browse for a project directory and load."""
@@ -781,31 +745,81 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
         if not path:
             return
 
-        prj_file = self.get_project(path)
+        prj_file = self.get_project_file(Path(path))
         if not prj_file:
-            self.label_error.setText("Invalid project directory.")
-            self.log.warning("No valid project files found in directory: {}.".format(path))
+            self.log.error("No project files found")
             return
 
         self.project_path = prj_file
-        self.accept()  # pre_accept takes the self.project_path file and loads the project.
+        self.accept()
 
-    def write_error(self, msg, level=None):
+    def write_error(self, msg, level=None) -> None:
         self.label_error.setText(msg)
+        self.label_error.setStyleSheet('color: {}'.format(LOG_COLOR_MAP[level]))
 
     @staticmethod
-    def get_project(path: str):
+    def update_recent_files(path: Path, update: Dict[str, Path]) -> None:
+        recents = SplashScreen.get_recent_files(path)
+        recents.update(update)
+        SplashScreen.set_recent_files(recents, path)
+
+    @staticmethod
+    def get_recent_files(path: Path) -> Dict[str, Path]:
+        """
+        Ingests a JSON file specified by path, containing project_name: project_directory mappings and returns dict of
+        valid projects (conducting path checking and conversion to pathlib.Path)
+        Parameters
+        ----------
+        path : Path
+            Path object referencing JSON object containing mappings of recent projects -> project directories
+
+        Returns
+        -------
+        Dict
+            Dictionary of (str) project_name: (pathlib.Path) project_directory mappings
+            If the specified path cannot be found, an empty dictionary is returned
+
+        """
+        try:
+            with path.open('r') as fd:
+                raw_dict = json.load(fd)
+            _checked = {}
+            for name, strpath in raw_dict.items():
+                _path = Path(strpath)
+                if SplashScreen.get_project_file(_path) is not None:
+                    _checked[name] = _path
+        except FileNotFoundError:
+            return {}
+        else:
+            return _checked
+
+    @staticmethod
+    def set_recent_files(recent_files: Dict[str, Path], path: Path) -> None:
+        """
+        Take a dictionary of recent projects (project_name: project_dir) and write it out to a JSON formatted file
+        specified by path
+        Parameters
+        ----------
+        recent_files : Dict[str, Path]
+
+        path : Path
+
+        Returns
+        -------
+        None
+        """
+        serializable = {name: str(path) for name, path in recent_files.items()}
+        with path.open('w+') as fd:
+            json.dump(serializable, fd)
+
+    @staticmethod
+    def get_project_file(path: Path) -> Union[Path, None]:
         """
         Attempt to retrieve a project file (*.d2p) from the given dir path, otherwise signal failure by returning False
         :param path: str or pathlib.Path : Directory path to project
         :return: pathlib.Path : absolute path to *.d2p file if found, else False
         """
-        _path = Path(path)
-        for child in sorted(_path.glob('*.d2p')):
+        for child in sorted(path.glob('*.d2p')):
             return child.resolve()
-        return False
+        return None
 
-if __name__ == "__main__":
-    app = QtWidgets.QApplication(sys.argv)
-    form = SplashScreen()
-    sys.exit(app.exec_())
