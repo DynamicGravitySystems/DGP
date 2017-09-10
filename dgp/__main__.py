@@ -4,7 +4,7 @@ import sys
 
 from PyQt5 import QtWidgets
 
-from dgp.main import SplashScreen
+from dgp.gui.main import SplashScreen
 
 """Program Main Entry Point - Loads SplashScreen GUI"""
 if __name__ == "__main__":

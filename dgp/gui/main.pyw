@@ -2,33 +2,31 @@
 
 import datetime
 import functools
+import json
 import logging
 import os
-import pickle
-import re
 import sys
-import json
 from pathlib import Path
-from typing import Dict, Union
 from threading import Lock
+from typing import Dict, Union
 
 from PyQt5 import QtCore, QtWidgets, QtGui, Qt
 from PyQt5.QtGui import QColor
 from PyQt5.uic import loadUiType
 
 import dgp.lib.project as prj
+from dgp.gui.loader import ThreadedLoader
 from dgp.lib.plotter import GeneralPlot
 from dgp.lib.types import DataCurve
-from dgp.loader import ThreadedLoader
 
 # Load .ui forms
-main_window, _ = loadUiType('ui/main_window.ui')
-project_dialog, _ = loadUiType('ui/project_dialog.ui')
-data_dialog, _ = loadUiType('ui/data_import_dialog.ui')
-splash_screen, _ = loadUiType('ui/splash_screen.ui')
-flight_dialog, _ = loadUiType('ui/add_flight_dialog.ui')
+main_window, _ = loadUiType('gui/ui/main_window.ui')
+project_dialog, _ = loadUiType('gui/ui/project_dialog.ui')
+data_dialog, _ = loadUiType('gui/ui/data_import_dialog.ui')
+splash_screen, _ = loadUiType('gui/ui/splash_screen.ui')
+flight_dialog, _ = loadUiType('gui/ui/add_flight_dialog.ui')
 
-LOG_FORMAT = logging.Formatter(fmt="%(asctime)s - %(module)s:%(funcName)s :: %(message)s", datefmt="%Y%b%d - %H:%M:%S")
+LOG_FORMAT = logging.Formatter(fmt="%(asctime)s:%(levelname)s - %(module)s:%(funcName)s :: %(message)s", datefmt="%H:%M:%S")
 LOG_COLOR_MAP = {'debug': 'blue', 'info': 'yellow', 'warning': 'brown', 'error': 'red', 'critical': 'orange'}
 
 
@@ -83,7 +81,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
         # Setup Project
         self.project = project
-        self.update_project()
+        # self.update_project()
 
         # See http://doc.qt.io/qt-5/stylesheet-examples.html#customizing-qtreeview
         # Set Stylesheet customizations for GUI Window
@@ -150,6 +148,14 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.active_plot = 0
         self.loader = ThreadedLoader()  # reusable ThreadedLoader for loading large files
 
+        # TESTING
+        self.project_tree = ProjectTreeView(parent=self)
+        self.update_project()
+        self.scan_flights()
+        # self.data_tab_layout.addWidget(self.project_tree)
+        self.gridLayout_2.addWidget(self.project_tree, 4, 0, 1, 2)
+        # TESTING
+
         # Call sub-initialization functions
         self._init_plot()
         self._init_slots()
@@ -161,7 +167,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         """[Re]Initialize plot object, allowing us to reset/clear the workspace for new data imports"""
         # Initialize dictionary keyed by axes index with empty list to store curve channels
         # self.plot_curves = {x: [] for x in range(len(self.plotter))}
-        # self.active_plot = 0
+        self.active_plot = 0
         self.draw_plot()
 
     def _init_slots(self):
@@ -178,9 +184,10 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.action_add_flight.triggered.connect(self.add_flight)
 
         # Project Tree View Actions #
-        self.prj_tree.doubleClicked.connect(self.log_tree)
-        self.prj_tree.clicked.connect(self.flight_changed)
+        # self.prj_tree.doubleClicked.connect(self.log_tree)
+        # self.prj_tree.clicked.connect(self.flight_changed)
         # self.prj_tree.currentItemChanged(self.update_channels)
+        self.project_tree.clicked.connect(self.flight_changed)
 
         # Project Control Buttons #
         self.prj_add_flight.clicked.connect(self.add_flight)
@@ -198,6 +205,21 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
     def exit(self):
         """PyQt Slot: Exit the PyQt application by closing the main window (self)"""
         self.close()
+
+    # Experimental Context Menu
+    def create_actions(self):
+        info_action = QtWidgets.QAction('&Info')
+        info_action.triggered.connect(self.flight_info)
+        return [info_action]
+
+    def flight_info(self):
+        self.log.info("Printing info about the selected flight: {}".format(self.current_flight))
+
+    # def contextMenuEvent(self, event: QtGui.QContextMenuEvent):
+    #     actions = self.create_actions()
+    #     context_menu = QtWidgets.QMenu(self)
+    #     context_menu.addActions(actions)
+    #     context_menu.exec_(event.globalPos())
 
     # Experimental
     def set_progress_bar(self, value=100, progress=None):
@@ -230,6 +252,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
     def log_tree(self, index: QtCore.QModelIndex):
         item = self.prj_tree.model().itemFromIndex(index)  # type: QtWidgets.QListWidgetItem
         text = str(item.text())
+        return
         if text.startswith('Flight:'):
             self.log.debug("Clicked Flight object")
             _, flight_id = text.split(' ')
@@ -263,14 +286,32 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
                         for cn in flights.get(self.current_flight.uid, set())]
 
             self.plotter.linear_plot2(ax, *ax_plots)
+            # self.plotter.plot_channels(ax, *ax_plots)
+
+    def scan_flights(self):
+        """Scan flights and load data into self.flight_data"""
+        self.log.info("Rescanning and loading flight data.")
+        for flight in self.project:
+            if flight.uid not in self.flight_data:
+                self.flight_data[flight.uid] = {'gravity': flight.gravity, 'gps': flight.gps}
+            else:
+                self.flight_data[flight.uid].update({'gravity': flight.gravity, 'gps': flight.gps})
 
     def flight_changed(self, index: QtCore.QModelIndex):
         """PyQt Slot: Called upon flight selection change in the project tree view list"""
-        item = self.prj_tree.model().itemFromIndex(index)  # type: QtGui.QStandardItem
+        # item = self.prj_tree.model().itemFromIndex(index)  # type: QtGui.QStandardItem
+        item = self.project_tree.model().itemFromIndex(index)  # type: QtGui.QStandardItem
         flight = item.data(QtCore.Qt.UserRole)  # type: prj.Flight
         # Checks that this is a Flight object, otherwise we don't care (at this time)
         if not isinstance(flight, prj.Flight):
             return
+
+        if self.current_flight == flight:  # So we don't redraw on selection of same flight
+            self.log.debug("Selected Same Flight")
+            return
+        else:
+            self.current_flight = flight
+            self.log.debug("Selected New Flight")
 
         # Static Section Headers:
         none_item = QtWidgets.QListWidgetItem('<No Channels Available>')
@@ -280,31 +321,32 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         gps_header = QtWidgets.QListWidgetItem('GPS Channels:')
         gps_header.setFlags(QtCore.Qt.NoItemFlags)
 
-        # TODO: this check prevents channels from being updated when a new file is imported - if the flight the file
-        # is imported to was already selected
-        if self.current_flight == flight:  # So we don't redraw on selection of same flight
-            return
-        else:
-            self.current_flight = flight
         self.text_info.clear()
         self.text_info.appendPlainText(str(flight))
 
-        if flight.uid not in self.flight_data.keys():
-            # Import data and add to dict
-            self.flight_data[flight.uid] = {'gravity': flight.gravity, 'gps': flight.gps}
+        # if flight.uid not in self.flight_data.keys():
+        #     # Import data and add to dict
+        #     self.log.debug("Adding new flight_data entry for flight: {}".format(flight.name))
+        #     self.flight_data[flight.uid] = {'gravity': flight.gravity, 'gps': flight.gps}
 
         if self.flight_data[flight.uid].get('gravity', None) is None:
+            # new_data = flight.gravity
+            # if new_data is not None:
+            #     self.log.info("New data available")
+            #     self.flight_data[flight.uid]['gravity'] = new_data
+            # else:
             self.gravity_channels.clear()
             self.gravity_channels.addItem(none_item)
             self._init_plot()
             return
+
         grav_channels = self.flight_data[flight.uid]['gravity'].columns
 
         # Populate the gravity channel list with data columns
         if grav_channels is not None:
             self.gravity_channels.clear()
             self._init_plot()
-            self.log.debug(grav_channels)
+            # self.log.debug(grav_channels)
             self.gravity_channels.addItem(gravity_header)
             for cn in grav_channels:
                 cn_widget = QtWidgets.QListWidgetItem(cn)
@@ -315,6 +357,8 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
                 else:
                     with self.refocus:
                         cn_widget.setCheckState(QtCore.Qt.Unchecked)
+        else:
+            self.log.debug("No gravity channels available")
 
     def channel_changed(self, item: QtWidgets.QListWidgetItem):
         """
@@ -391,6 +435,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
                 ld = self.loader.load_file(path, dtype, flight, self.project.add_data)
                 ld.finished.connect(self.update_project)
                 ld.finished.connect(self.save_project)
+                ld.finished.connect(self.scan_flights)
 
                 ld.finished.connect(functools.partial(self.set_progress_bar, 100, progress))
                 self.current_flight = None  # TODO: Kludge fix to force user to reselect flight after data import
@@ -418,28 +463,29 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
                 self.project.save()
                 self.update_project()
 
-    # TODO: This contains deprecated logic, revise and fix
+    # TODO: This will eventually require a dialog to allow selection of project type
     def open_project(self) -> None:
         path = QtWidgets.QFileDialog.getExistingDirectory(self, "Open Project Directory", os.path.abspath('..'))
         if not path:
             return
 
-        pattern = re.compile(r'[a-zA-Z0-9]+\.d2p')
-        files = [file.name for file in os.scandir(path) if file.is_file()]
-        for file in files:
-            if re.match(pattern, file):
-                self.log.info("Loading project file: {}".format(file))
-                self.project = prj.AirborneProject.load(os.path.normpath(os.path.join(path, file)))
-                self.update_project()
-                return
-        self.log.warning("Project file could not be located in directory: {}".format(path))
+        prj_file = SplashScreen.get_project_file(path)
+        if prj_file is None:
+            self.log.warning("No project file's found in directory: {}".format(path))
+            return
+        self.project.save()
+        self.project = prj.AirborneProject.load(prj_file)
+        self.update_project()
+        return
 
     def update_project(self) -> None:
         self.log.debug("Update project called")
         if self.project is None:
             return
-        self.prj_tree.setModel(self.project.generate_model())
-        self.prj_tree.expandAll()
+        # self.prj_tree.setModel(self.project.generate_model())
+        # self.prj_tree.expandAll()
+        self.project_tree.setModel(self.project.generate_model())
+        self.project_tree.expandAll()
 
     def save_project(self) -> None:
         if self.project is None:
@@ -462,7 +508,43 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             flight = dialog.flight
             self.project.add_flight(flight)
             self.update_project()
+            self.scan_flights()
             return
+
+
+class ProjectTreeView(QtWidgets.QTreeView):
+    def __init__(self, model=None, parent=None):
+        super().__init__(parent=parent)
+        self.setMinimumSize(QtCore.QSize(0, 300))
+        self.setAlternatingRowColors(True)
+        self.setAutoExpandDelay(1)
+        self.setRootIsDecorated(False)
+        self.setUniformRowHeights(True)
+        self.setHeaderHidden(True)
+        self.setObjectName('project_tree')
+        self.setContextMenuPolicy(QtCore.Qt.DefaultContextMenu)
+        # self.setModel(model)
+        self.expandAll()
+
+    def contextMenuEvent(self, event: QtGui.QContextMenuEvent, *args, **kwargs):
+        context_ind = self.indexAt(event.pos())
+        context_focus = self.model().itemFromIndex(context_ind)
+        print(context_focus)
+        print(context_focus.text())
+
+        info_slot = functools.partial(self.flight_info, context_focus)
+        menu = QtWidgets.QMenu()
+        info_action = QtWidgets.QAction("Info")
+        info_action.triggered.connect(info_slot)
+        menu.addAction(info_action)
+        menu.exec_(event.globalPos())
+        event.accept()
+
+    def flight_info(self, item):
+        dialog = QtWidgets.QDialog(self)
+        dialog.setLayout(QtWidgets.QVBoxLayout())
+        dialog.exec_()
+        print("Flight info: {}".format(item.text()))
 
 
 class ImportData(QtWidgets.QDialog, data_dialog):

@@ -127,6 +127,9 @@ class GravityProject:
             pickle.dump(self, f)
         return True
 
+    def generate_model(self):
+        pass
+
     @staticmethod
     def load(path):
         """Use python pickling to load project"""
@@ -140,6 +143,9 @@ class GravityProject:
             # Override whatever the project dir was with the directory where it was opened
             project.projectdir = path.parent
         return project
+
+    def __iter__(self):
+        pass
 
     def __getstate__(self):
         """Prune any non-pickleable objects from the class __dict__"""

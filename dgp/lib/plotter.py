@@ -12,6 +12,9 @@ from PyQt5.QtWidgets import QSizePolicy
 from matplotlib.backends.backend_qt5agg import (FigureCanvasQTAgg as FigureCanvas,
                                                 NavigationToolbar2QT as NavigationToolbar)
 from matplotlib.figure import Figure
+from matplotlib.dates import DateFormatter
+from matplotlib.lines import Line2D
+
 from pandas.core.series import Series
 import numpy as np
 
@@ -44,6 +47,10 @@ class BasePlottingCanvas(FigureCanvas):
     def generate_subplots(self, rows: int):
         """Generate vertically stacked subplots for comparing data"""
         # TODO: Experimenting with generating multiple plots, work with Chris on this class
+        def set_x_formatter(axes):
+            print("Xlimit changed")
+            axes.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
+
         # Clear any current axes first
         self.axes = []
         self.lines = {x: {} for x in range(rows)}
@@ -53,6 +60,9 @@ class BasePlottingCanvas(FigureCanvas):
                 sp = self.figure.add_subplot(rows, 1, i+1)
             else:  # Share x-axis with plot 0
                 sp = self.figure.add_subplot(rows, 1, i+1, sharex=self.axes[0])
+
+            sp.grid(True)
+            sp.callbacks.connect('xlim_changed', set_x_formatter)
             self.axes.append(sp)
             i += 1
 
@@ -103,6 +113,8 @@ class GeneralPlot(BasePlottingCanvas):
     def set_focus(self, ind: int):
         """Set a colored border around the plot in focus"""
         focus = self.axes[ind]
+        # focus.relim()
+        # focus.autoscale_view(True, False, True)
         for spine in focus.spines.values():
             spine.set_color('orange')
 
@@ -112,6 +124,47 @@ class GeneralPlot(BasePlottingCanvas):
                 spine.set_color('black')
 
         self.draw()
+
+
+
+    def plot_channels(self, index: int, *channels: List[DataCurve]):
+        """
+        Musings - working on this to replace linear_plot2
+
+        save reference to lines and use the visible property to hide show after first plot?
+
+        Parameters
+        ----------
+        index
+        channels
+
+        Returns
+        -------
+
+        """
+        if not channels:
+            # self.axes[index].clear()
+            # for cn in self.axes[index].get_lines():
+            #     self.axes[index].remove(cn)
+                # cn.remove()
+            # self.axes[index].get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
+            # self.axes[index].grid(True)
+            self.axes[index].relim()
+            # self.axes[index].callbacks.connect('xlim_changed', lambda x: x.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S')))
+            self.draw_idle()
+        for cn in channels:
+            print("Plotting channel")
+            cn_name, data = cn
+            cn_line = self.axes[index].plot(data.index.to_pydatetime(), data, label=cn_name)
+            self.axes[index].get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
+            # self.axes[index].add_line(cn_line)
+
+        self.axes[index].relim()
+        # self.axes[index].autoscale_view(True, False, True)
+        # self.draw()
+
+
+
 
     def linear_resample(self, data):
         y = data.resample(self._resample).mean()
@@ -129,11 +182,13 @@ class GeneralPlot(BasePlottingCanvas):
         :return:
         """
         if not series:
+            print("No series passed to linear_plot2")
             for k, line in self.lines[axes].items():
                 line.remove()
             self.lines[axes].clear()
+            self.axes[axes].clear()  # This seems to fix bad scaling issue
             self.axes[axes].relim()
-            self.axes[axes].autoscale_view()
+            self.axes[axes].autoscale_view(True, False, True)
             self.draw()
             return
 
@@ -158,9 +213,9 @@ class GeneralPlot(BasePlottingCanvas):
 
         self.axes[axes].legend()
         self.axes[axes].relim()
-        self.axes[axes].autoscale_view()
         self.draw()
-        self.log.debug("lines: {}".format(self.lines))
+        self.axes[axes].autoscale_view(True, False, True)
+        # self.log.debug("lines: {}".format(self.lines))
 
     @staticmethod
     def get_toolbar(plot, parent=None):

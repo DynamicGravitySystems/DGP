@@ -3,7 +3,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # import dgp
 
-from dgp.ui import plotting as plots
+from dgp.gui.ui import plotting as plots
 from dgp.lib import gravity_ingestor as gi
 
 os.chdir('../tests')

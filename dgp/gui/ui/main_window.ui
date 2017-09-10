@@ -65,7 +65,11 @@
            </attribute>
            <layout class="QHBoxLayout" name="horizontalLayout_2">
             <item>
-             <widget class="QTableView" name="tableView"/>
+             <layout class="QVBoxLayout" name="data_tab_layout">
+              <item>
+               <widget class="QTableView" name="tableView"/>
+              </item>
+             </layout>
             </item>
            </layout>
           </widget>
@@ -391,35 +395,20 @@
          </property>
         </widget>
        </item>
-       <item row="4" column="0" colspan="2">
-        <widget class="QTreeView" name="prj_tree">
-         <property name="minimumSize">
-          <size>
-           <width>0</width>
-           <height>300</height>
-          </size>
-         </property>
-         <property name="alternatingRowColors">
-          <bool>true</bool>
-         </property>
-         <property name="autoExpandDelay">
-          <number>1</number>
-         </property>
-         <property name="rootIsDecorated">
-          <bool>false</bool>
-         </property>
-         <property name="uniformRowHeights">
-          <bool>true</bool>
-         </property>
-         <property name="headerHidden">
-          <bool>true</bool>
-         </property>
-        </widget>
-       </item>
        <item row="3" column="0">
         <widget class="QLabel" name="label_prj_info">
          <property name="text">
           <string>Project Tree:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_data_channels">
+         <property name="text">
+          <string>Gravity Channels</string>
+         </property>
+         <property name="buddy">
+          <cstring>selectAllChannels</cstring>
          </property>
         </widget>
        </item>
@@ -454,13 +443,13 @@
          </property>
         </widget>
        </item>
-       <item row="0" column="0">
-        <widget class="QLabel" name="label_data_channels">
-         <property name="text">
-          <string>Gravity Channels</string>
+       <item row="4" column="0">
+        <widget class="QFrame" name="frame">
+         <property name="frameShape">
+          <enum>QFrame::StyledPanel</enum>
          </property>
-         <property name="buddy">
-          <cstring>selectAllChannels</cstring>
+         <property name="frameShadow">
+          <enum>QFrame::Raised</enum>
          </property>
         </widget>
        </item>
@@ -572,12 +561,10 @@
  </widget>
  <tabstops>
   <tabstop>gravity_channels</tabstop>
-  <tabstop>prj_tree</tabstop>
   <tabstop>prj_add_flight</tabstop>
   <tabstop>dataPlotTabWidget</tabstop>
   <tabstop>resample_value</tabstop>
   <tabstop>selectAllChannels</tabstop>
-  <tabstop>tableView</tabstop>
  </tabstops>
  <resources>
   <include location="resources.qrc"/>
