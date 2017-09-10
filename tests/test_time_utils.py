@@ -2,6 +2,7 @@
 import os
 import unittest
 from datetime import datetime
+import pandas as pd
 
 from .context import dgp
 from dgp.lib import time_utils as tu
@@ -44,3 +45,23 @@ class TestTimeUtils(unittest.TestCase):
         result = 1500987698  # 2017-07-25 13:01:38+00:00
         test_res = tu.convert_gps_time(gpsweek, gpsweeksecond)
         self.assertEqual(result, test_res)
+
+    def test_datetime_to_sow(self):
+        # test single input
+        dt = datetime(2017, 9, 7, hour=13)
+        expected = (1965, 392400)
+        given = tu.datetime_to_sow(dt)
+        self.assertEqual(expected, given)
+
+        # test iterable input
+        dt_series = pd.Series([dt]*20)
+        expected_iter = [expected]*20
+        given_iter = tu.datetime_to_sow(dt_series)
+        self.assertEqual(expected_iter, given_iter)
+
+    def test_datenum_to_datetime(self):
+        pass
+        # datenum = 736945.5416667824
+        # given = tu.datenum_to_datetime(datenum)
+        # expected = datetime(2017, 9, 7, hour=13, microsecond=10000)
+        # self.assertEqual(expected, given)

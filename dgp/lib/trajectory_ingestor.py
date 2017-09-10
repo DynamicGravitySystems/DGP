@@ -13,13 +13,9 @@ import functools
 import datetime
 
 from .time_utils import leap_seconds, convert_gps_time, datenum_to_datetime
+from .etc import interp_nans
 
-def _interp_nans(y):
-    nans = np.isnan(y)
-    x = lambda z: z.nonzero()[0]
-    y[nans] = np.interp(x(nans), x(~nans), y[~nans])
-
-def import_trajectory(filepath, delim_whitespace=False, interval=0, interp=None, is_utc=False,
+def import_trajectory(filepath, delim_whitespace=False, interval=0, interp=False, is_utc=False,
                       columns=None, skiprows=None, timeformat='sow'):
     """
     import_trajectory
@@ -90,8 +86,10 @@ def import_trajectory(filepath, delim_whitespace=False, interval=0, interp=None,
     # create index
     if timeformat == 'sow':
         df.index = convert_gps_time(df['week'], df['sow'], format='datetime')
+        df.drop(['sow', 'week'], axis=1, inplace=True)
     elif timeformat == 'hms':
         df.index = pd.to_datetime(df['mdy'].str.strip() + df['hms'].str.strip(), format="%m/%d/%Y%H:%M:%S.%f")
+        df.drop(['mdy', 'hms'], axis=1, inplace=True)
     elif timeformat == 'serial':
         raise NotImplementedError
         #df.index = datenum_to_datetime(df['datenum'])
@@ -103,18 +101,22 @@ def import_trajectory(filepath, delim_whitespace=False, interval=0, interp=None,
         df.index = df.index.shift(-shift, freq='S')
 
     # set or infer the interval
+    # TO DO: Need to infer interval for both cases to know whether resample
     if interval > 0:
         offset_str = '{:d}U'.format(int(interval * 1e6))
     else:
-        # TO DO: Infer interval
         offset_str = '100000U'
 
     # fill gaps with NaNs
     new_index = pd.date_range(df.index[0], df.index[-1], freq=offset_str)
     df = df.reindex(new_index)
 
-    if interp is not None:
-        # TO DO: Interpolate only numeric column types.
-        df = df.apply(_interp_nans)
+    if interp:
+        numeric = df.select_dtypes(include=[np.number])
+        numeric = numeric.apply(interp_nans)
+
+        # replace columns
+        for col in numeric.columns:
+            df[col] = numeric[col]
 
     return df
