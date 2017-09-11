@@ -9,6 +9,9 @@ Welcome to Dynamic Gravity Processor's documentation!
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
+   
+   modules
+   dgp.lib
 
 
 
