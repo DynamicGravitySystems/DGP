@@ -2,9 +2,10 @@
 
 import sys
 
+from dgp import resources_rc
 from PyQt5 import QtWidgets
 
-from dgp.gui.main import SplashScreen
+from dgp.gui.splash import SplashScreen
 
 """Program Main Entry Point - Loads SplashScreen GUI"""
 if __name__ == "__main__":

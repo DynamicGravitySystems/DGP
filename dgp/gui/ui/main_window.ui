@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1142</width>
-    <height>800</height>
+    <width>1490</width>
+    <height>1135</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -49,27 +49,23 @@
           <property name="currentIndex">
            <number>0</number>
           </property>
-          <widget class="QWidget" name="PlotTab">
+          <widget class="QWidget" name="gravity_tab">
            <attribute name="title">
-            <string>Plot</string>
+            <string>Gravity</string>
            </attribute>
            <layout class="QVBoxLayout" name="verticalLayout_3">
             <item>
-             <layout class="QVBoxLayout" name="plotLayout"/>
+             <layout class="QVBoxLayout" name="gravity_plot_layout"/>
             </item>
            </layout>
           </widget>
-          <widget class="QWidget" name="DataTab">
+          <widget class="QWidget" name="gps_tab">
            <attribute name="title">
-            <string>Data</string>
+            <string>GPS</string>
            </attribute>
            <layout class="QHBoxLayout" name="horizontalLayout_2">
             <item>
-             <layout class="QVBoxLayout" name="data_tab_layout">
-              <item>
-               <widget class="QTableView" name="tableView"/>
-              </item>
-             </layout>
+             <layout class="QVBoxLayout" name="gps_plot_layout"/>
             </item>
            </layout>
           </widget>
@@ -275,8 +271,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1142</width>
-     <height>21</height>
+     <width>1490</width>
+     <height>38</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">

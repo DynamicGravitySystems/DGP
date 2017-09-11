@@ -6,14 +6,19 @@ Class to handle Matplotlib plotting of data to be displayed in Qt GUI
 
 import logging
 from collections import namedtuple
-from typing import List
+from typing import List, Tuple
+from threading import Lock
 
+from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QSizePolicy
+import matplotlib
 from matplotlib.backends.backend_qt5agg import (FigureCanvasQTAgg as FigureCanvas,
                                                 NavigationToolbar2QT as NavigationToolbar)
 from matplotlib.figure import Figure
+from matplotlib.axes import Axes
 from matplotlib.dates import DateFormatter
-from matplotlib.lines import Line2D
+from matplotlib.backend_bases import MouseEvent
+from matplotlib.patches import Rectangle
 
 from pandas.core.series import Series
 import numpy as np
@@ -36,35 +41,37 @@ class BasePlottingCanvas(FigureCanvas):
         FigureCanvas.setSizePolicy(self, QSizePolicy.Expanding, QSizePolicy.Expanding)
         FigureCanvas.updateGeometry(self)
 
-        # self.axes = self.figure.add_subplot(111)
-        self.axes = []
-        self.lines = {}
+        self._axes = []
 
-        # self.compute_initial_figure()
         self.figure.canvas.mpl_connect('button_press_event', self.onclick)
         self.figure.canvas.mpl_connect('button_release_event', self.onrelease)
+        self.figure.canvas.mpl_connect('motion_notify_event', self.onmotion)
 
-    def generate_subplots(self, rows: int):
+    def generate_subplots(self, rows: int) -> None:
         """Generate vertically stacked subplots for comparing data"""
         # TODO: Experimenting with generating multiple plots, work with Chris on this class
-        def set_x_formatter(axes):
-            print("Xlimit changed")
-            axes.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
+        # def set_x_formatter(axes):
+        #     print("Xlimit changed")
+        #     axes.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
 
         # Clear any current axes first
-        self.axes = []
-        self.lines = {x: {} for x in range(rows)}
-        i = 0
+        self._axes = []
         for i in range(rows):
             if i == 0:
-                sp = self.figure.add_subplot(rows, 1, i+1)
+                sp = self.figure.add_subplot(rows, 1, i+1)  # type: Axes
             else:  # Share x-axis with plot 0
-                sp = self.figure.add_subplot(rows, 1, i+1, sharex=self.axes[0])
+                sp = self.figure.add_subplot(rows, 1, i + 1, sharex=self._axes[0])  # type: Axes
 
             sp.grid(True)
-            sp.callbacks.connect('xlim_changed', set_x_formatter)
-            self.axes.append(sp)
+            sp.name = 'Axes {}'.format(i)
+            # sp.callbacks.connect('xlim_changed', set_x_formatter)
+            self._axes.append(sp)
             i += 1
+
+        self.compute_initial_figure()
+
+    def test_method(self):
+        print("This is a test")
 
     def add_subplot(self):
         pass
@@ -75,148 +82,163 @@ class BasePlottingCanvas(FigureCanvas):
     def clear(self):
         pass
 
-    def onclick(self, event):
+    def onclick(self, event: MouseEvent):
         pass
 
-    def onrelease(self, event):
+    def onrelease(self, event: MouseEvent):
+        pass
+
+    def onmotion(self, event: MouseEvent):
         pass
 
     def __len__(self):
-        return len(self.axes)
+        return len(self._axes)
 
 
 plotline = namedtuple('plotline', ['line', 'data'])
+ClickInfo = namedtuple('ClickInfo', ['partners', 'x0', 'xpos', 'ypos'])
 
 
-class GeneralPlot(BasePlottingCanvas):
+class LineGrabPlot(BasePlottingCanvas):
+    """ LineGrabPlot implements BasePlottingCanvas and provides an onclick method to select flight line segments."""
     def __init__(self, n=1, parent=None):
         BasePlottingCanvas.__init__(self, parent=parent)
-        self._resample = '100ms'  # TODO: Add parameter for this
+        self.rects = []
+        self.zooming = False
+        self.panning = False
+        self.clicked = None  # type: ClickInfo
+        self.generate_subplots(n)
+        self.plotted = False
 
     def clear(self):
-        for x in range(len(self.axes)):
-            for line in self.lines[x].values():
-                line.remove()
-            self.lines[x].clear()
+        for ax in self._axes:  # type: Axes
+            ax.cla()
+            ax.grid(True)
+            ax.callbacks.connect('xlim_changed', self._on_xlim_changed)
         self.draw()
 
-    def onclick(self, event):
-        for ax in self.axes:
-            # Set the parent GUI active_plot to the axes clicked on
-            if event.inaxes == ax:
-                idx = self.axes.index(ax)
-                self.parent.set_active_plot(idx)
-                self.set_focus(idx)  # Set the color of the focused axes
-            else:
-                continue
+    def onclick(self, event: MouseEvent):
+        # Check that the click event happened within one of the subplot axes
+        if event.inaxes not in self._axes:
+            return
 
-    def set_focus(self, ind: int):
-        """Set a colored border around the plot in focus"""
-        focus = self.axes[ind]
-        # focus.relim()
-        # focus.autoscale_view(True, False, True)
-        for spine in focus.spines.values():
-            spine.set_color('orange')
+        if self.zooming or self.panning:  # Don't do anything when zooming is enabled
+            return
 
-        unfocus = [ax for ax in self.axes if ax != focus]
-        for ax in unfocus:
-            for spine in ax.spines.values():
-                spine.set_color('black')
+        caxes = event.inaxes  # type: Axes
+        other_axes = [ax for ax in self._axes if ax != caxes]
+        # print("Current axes: {}\nOther axes obj: {}".format(repr(caxes), other_axes))
 
+        for partners in self.rects:
+            patch = partners[0]['rect']
+            if patch.get_x() <= event.xdata <= patch.get_x() + patch.get_width():
+                # Then we clicked an existing rectangle
+                print("Clicked on existing rectangle {}, with partners: {}".format(repr(patch), partners[1:]))
+                x0, _ = patch.xy
+                self.clicked = ClickInfo(partners, x0, event.xdata, event.ydata)
+
+                for attrs in partners:
+                    rect = attrs['rect']
+                    rect.set_animated(True)
+                    r_canvas = rect.figure.canvas
+                    r_axes = rect.axes  # type: Axes
+                    r_canvas.draw()
+                    attrs['bg'] = r_canvas.copy_from_bbox(r_axes.bbox)
+                return
+
+        # else: Create a new rectangle on all axes
+        print("Creating new rectangles")
+        ylim = caxes.get_ylim()  # type: Tuple
+        xlim = caxes.get_xlim()  # type: Tuple
+        width = (xlim[1] - xlim[0]) * np.float64(0.01)
+        # Get the bottom left corner of the rectangle which will be centered at the mouse click
+        x0 = event.xdata - width/2
+        y0 = ylim[0]
+        height = ylim[1] - ylim[0]
+        c_rect = Rectangle((x0, y0), width, height*2, alpha=0.1)
+
+        print("Adding rectangle to c_axes: {}".format(caxes))
+        caxes.add_patch(c_rect)
+
+        partners = [{'rect': c_rect, 'bg': None}]
+        for ax in other_axes:
+
+            print("Adding rectangle to axes: {}".format(ax))
+            x0 = event.xdata - width/2
+            ylim = ax.get_ylim()
+            y0 = ylim[0]
+            height = ylim[1] - ylim[0]
+            a_rect = Rectangle((x0, y0), width, height*2, alpha=0.1)
+            ax.add_patch(a_rect)
+            partners.append({'rect': a_rect, 'bg': None})
+
+        self.rects.append(partners)
+        self.figure.canvas.draw()
+        self.draw()
+        return
+
+    def toggle_zoom(self):
+        if self.panning:
+            self.panning = False
+        self.zooming = not self.zooming
+        print("Toggling zoom, state: {}".format(self.zooming))
+
+    def toggle_pan(self):
+        if self.zooming:
+            self.zooming = False
+        self.panning = not self.panning
+        print("Toggling pan")
+
+    def onmotion(self, event: MouseEvent):
+        if event.inaxes not in self._axes:
+            return
+        if self.clicked is not None:
+            partners, x0, xclick, yclick = self.clicked
+            dx = event.xdata - xclick
+            new_x = x0 + dx
+            for attrs in partners:
+                rect = attrs['rect']  # type: Rectangle
+                rect.set_x(new_x)
+                canvas = rect.figure.canvas
+                axes = rect.axes  # type: Axes
+                canvas.restore_region(attrs['bg'])
+                axes.draw_artist(rect)
+                canvas.blit(axes.bbox)
+
+    def onrelease(self, event: MouseEvent):
+        if self.clicked is None:
+            return  # Nothing Selected
+        partners = self.clicked.partners
+        for attrs in partners:
+            attrs['rect'].set_animated(False)
+            attrs['bg'] = None
+        self.clicked = None
         self.draw()
 
+    def plot(self, ax: Axes, xdata, ydata, **kwargs):
+        ax.plot(xdata, ydata, **kwargs)
+        ax.legend()
 
+    @staticmethod
+    def _on_xlim_changed(ax: Axes):
+        ax.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
 
-    def plot_channels(self, index: int, *channels: List[DataCurve]):
+    def get_toolbar(self, parent=None) -> QtWidgets.QToolBar:
         """
-        Musings - working on this to replace linear_plot2
-
-        save reference to lines and use the visible property to hide show after first plot?
-
+        Get a Matplotlib Toolbar for the current plot instance, and set toolbar actions (pan/zoom) specific to this plot.
         Parameters
         ----------
-        index
-        channels
+        [parent]
+            Optional Qt Parent for this object
 
         Returns
         -------
-
+        QtWidgets.QToolBar : Matplotlib Qt Toolbar used to control this plot instance
         """
-        if not channels:
-            # self.axes[index].clear()
-            # for cn in self.axes[index].get_lines():
-            #     self.axes[index].remove(cn)
-                # cn.remove()
-            # self.axes[index].get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
-            # self.axes[index].grid(True)
-            self.axes[index].relim()
-            # self.axes[index].callbacks.connect('xlim_changed', lambda x: x.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S')))
-            self.draw_idle()
-        for cn in channels:
-            print("Plotting channel")
-            cn_name, data = cn
-            cn_line = self.axes[index].plot(data.index.to_pydatetime(), data, label=cn_name)
-            self.axes[index].get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
-            # self.axes[index].add_line(cn_line)
+        toolbar = NavigationToolbar(self, parent=parent)
+        toolbar.actions()[4].triggered.connect(self.toggle_pan)
+        toolbar.actions()[5].triggered.connect(self.toggle_zoom)
+        return toolbar
 
-        self.axes[index].relim()
-        # self.axes[index].autoscale_view(True, False, True)
-        # self.draw()
-
-
-
-
-    def linear_resample(self, data):
-        y = data.resample(self._resample).mean()
-        x = np.linspace(0, 1, len(y))
-        return x, y
-
-    def linear_plot2(self, axes: int, *series: List[DataCurve]):
-        """
-        linear_plot2 is an improvement on the original function which stores plotted lines so that
-        the data may be updated instead of completely redrawn - this is important when changing the
-        plot sampling level and when the user has zoomed or panned the plot. By updating the existing
-        line data we can keep the users perspective on the plot.
-        :param int axes: Index of the axes to draw the series on
-        :param list series: List of one or more pandas Series to plot
-        :return:
-        """
-        if not series:
-            print("No series passed to linear_plot2")
-            for k, line in self.lines[axes].items():
-                line.remove()
-            self.lines[axes].clear()
-            self.axes[axes].clear()  # This seems to fix bad scaling issue
-            self.axes[axes].relim()
-            self.axes[axes].autoscale_view(True, False, True)
-            self.draw()
-            return
-
-        # Prune non selected lines from plot
-        remove = []
-        for k, line in self.lines[axes].items():
-            if k not in [s.channel for s in series]:
-                line.remove()
-                remove.append(k)
-        for item in remove:
-            self.lines[axes].pop(item)
-
-        for curve in series:
-            x, y = self.linear_resample(curve.data)
-            label = curve.channel
-            if label not in self.lines[axes].keys():
-                # Plot the data and add it to lines array
-                self.lines[axes][label], = self.axes[axes].plot(x, y, label=label)
-            else:
-                # Update the data
-                self.lines[axes][label].set_data(x, y)
-
-        self.axes[axes].legend()
-        self.axes[axes].relim()
-        self.draw()
-        self.axes[axes].autoscale_view(True, False, True)
-        # self.log.debug("lines: {}".format(self.lines))
-
-    @staticmethod
-    def get_toolbar(plot, parent=None):
-        return NavigationToolbar(plot, parent=parent)
+    def __getitem__(self, item):
+        return self._axes[item]
