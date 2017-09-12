@@ -14,7 +14,7 @@ from PyQt5.uic import loadUiType
 import dgp.lib.project as prj
 
 
-data_dialog, _ = loadUiType('gui/ui/data_import_dialog.ui')
+data_dialog, _ = loadUiType('dgp/gui/ui/data_import_dialog.ui')
 
 
 class ImportData(QtWidgets.QDialog, data_dialog):
@@ -109,7 +109,7 @@ class ImportData(QtWidgets.QDialog, data_dialog):
         return self.path, self.dtype, self.flight
 
 
-flight_dialog, _ = loadUiType('gui/ui/add_flight_dialog.ui')
+flight_dialog, _ = loadUiType('dgp/gui/ui/add_flight_dialog.ui')
 
 
 class AddFlight(QtWidgets.QDialog, flight_dialog):
@@ -136,7 +136,7 @@ class AddFlight(QtWidgets.QDialog, flight_dialog):
         return self._flight
 
 
-project_dialog, _ = loadUiType('gui/ui/project_dialog.ui')
+project_dialog, _ = loadUiType('dgp/gui/ui/project_dialog.ui')
 
 
 class CreateProject(QtWidgets.QDialog, project_dialog):

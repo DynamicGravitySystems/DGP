@@ -15,7 +15,7 @@ from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, LOG_COLOR_MAP, get_project
 from dgp.gui.dialogs import CreateProject
 import dgp.lib.project as prj
 
-splash_screen, _ = loadUiType('gui/ui/splash_screen.ui')
+splash_screen, _ = loadUiType('dgp/gui/ui/splash_screen.ui')
 
 
 class SplashScreen(QtWidgets.QDialog, splash_screen):

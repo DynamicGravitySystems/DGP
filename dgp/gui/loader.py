@@ -5,7 +5,7 @@ from pandas import DataFrame
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot, QThread
 
 from dgp.lib.types import DataPacket
-from dgp.lib.gravity_ingestor import read_at1m
+from dgp.lib.gravity_ingestor import read_at1a
 from dgp.lib.trajectory_ingestor import import_trajectory
 
 
@@ -20,7 +20,7 @@ class FileLoader(QObject):
         self.data = None
         self._type = dtype.lower()
         self.flight = flight
-        self.type_map = {'gravity': read_at1m, 'gps': import_trajectory}
+        self.type_map = {'gravity': read_at1a, 'gps': import_trajectory}
 
     @pyqtSlot()
     def run(self):

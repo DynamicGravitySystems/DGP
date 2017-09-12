@@ -18,7 +18,7 @@ from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, get_project_file
 from dgp.gui.dialogs import ImportData, AddFlight, CreateProject
 
 # Load .ui form
-main_window, _ = loadUiType('gui/ui/main_window.ui')
+main_window, _ = loadUiType('dgp/gui/ui/main_window.ui')
 
 
 def autosave(method):
