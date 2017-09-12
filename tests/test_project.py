@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 
 from .context import dgp
-from dgp.lib.gravity_ingestor import read_at1m
+from dgp.lib.gravity_ingestor import read_at1a
 from dgp.lib.project import *
 from dgp.lib.meterconfig import *
 
