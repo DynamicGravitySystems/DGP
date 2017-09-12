@@ -13,7 +13,7 @@ from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIcon
 from PyQt5.QtCore import QModelIndex
 
 
-from .meterconfig import MeterConfig, AT1Meter
+from dgp.lib.meterconfig import MeterConfig, AT1Meter
 from dgp.lib.types import Location, StillReading, FlightLine, DataPacket
 
 """
