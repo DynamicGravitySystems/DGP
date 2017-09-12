@@ -57,28 +57,35 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
 
     def accept(self, project=None):
         """Runs some basic verification before calling QDialog accept()."""
+
         # Case where project object is passed to accept() (when creating new project)
         if isinstance(project, prj.GravityProject):
             self.log.debug("Opening new project: {}".format(project.name))
-
-            self.update_recent_files(self.recent_file, {project.name: project.projectdir})
-            super().accept()
-            return MainWindow(project)
-
-        # Otherwise check if self.project_path was set to load a project
-        if not self.project_path:
+        elif not self.project_path:
             self.log.error("No valid project selected.")
-            return
         else:
             try:
                 project = prj.AirborneProject.load(self.project_path)
             except FileNotFoundError:
                 self.log.error("Project could not be loaded from path: {}".format(self.project_path))
                 return
-            else:
-                self.update_recent_files(self.recent_file, {project.name: project.projectdir})
-                super().accept()
-                return MainWindow(project)
+
+        self.update_recent_files(self.recent_file, {project.name: project.projectdir})
+        # Show a progress dialog for loading the project (as we generate plots upon load)
+        progress = QtWidgets.QProgressDialog("Loading Project", "Cancel", 0, len(project), self)
+        progress.setWindowFlags(QtCore.Qt.Dialog | QtCore.Qt.FramelessWindowHint | QtCore.Qt.CustomizeWindowHint)
+        progress.setModal(True)
+        progress.setMinimumDuration(0)
+        progress.setCancelButton(None)  # Remove the cancel button. Possibly add a slot that has load() check and cancel
+        progress.setValue(1)  # Set an initial value to show the dialog
+
+        main_window = MainWindow(project)
+        main_window.status.connect(progress.setLabelText)
+        main_window.progress.connect(progress.setValue)
+        main_window.load()
+        progress.close()  # This isn't necessary if the min/max is set correctly, but just in case.
+        super().accept()
+        return main_window
 
     def set_recent_list(self) -> None:
         recent_files = self.get_recent_files(self.recent_file)
@@ -96,7 +103,6 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
 
     def set_selection(self, item: QtWidgets.QListWidgetItem, *args):
         """Called when a recent item is selected"""
-        content = item.text()
         self.project_path = get_project_file(item.data(QtCore.Qt.UserRole))
         if not self.project_path:
             # TODO: Fix this, when user selects item multiple time the statement is re-appended

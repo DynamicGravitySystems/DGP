@@ -272,7 +272,7 @@
      <x>0</x>
      <y>0</y>
      <width>1490</width>
-     <height>38</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -358,29 +358,7 @@
        <property name="leftMargin">
         <number>5</number>
        </property>
-       <item row="2" column="0" colspan="2">
-        <widget class="QListWidget" name="gravity_channels"/>
-       </item>
-       <item row="0" column="1">
-        <widget class="QPushButton" name="selectAllChannels">
-         <property name="minimumSize">
-          <size>
-           <width>50</width>
-           <height>0</height>
-          </size>
-         </property>
-         <property name="maximumSize">
-          <size>
-           <width>100</width>
-           <height>16777215</height>
-          </size>
-         </property>
-         <property name="text">
-          <string>Select All</string>
-         </property>
-        </widget>
-       </item>
-       <item row="6" column="0">
+       <item row="3" column="0">
         <widget class="QPushButton" name="prj_import_data">
          <property name="text">
           <string>Import Data</string>
@@ -391,34 +369,14 @@
          </property>
         </widget>
        </item>
-       <item row="3" column="0">
+       <item row="0" column="0">
         <widget class="QLabel" name="label_prj_info">
          <property name="text">
           <string>Project Tree:</string>
          </property>
         </widget>
        </item>
-       <item row="0" column="0">
-        <widget class="QLabel" name="label_data_channels">
-         <property name="text">
-          <string>Gravity Channels</string>
-         </property>
-         <property name="buddy">
-          <cstring>selectAllChannels</cstring>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="1">
-        <widget class="QSpinBox" name="resample_value">
-         <property name="minimum">
-          <number>1</number>
-         </property>
-         <property name="maximum">
-          <number>5</number>
-         </property>
-        </widget>
-       </item>
-       <item row="5" column="0">
+       <item row="2" column="0">
         <widget class="QPushButton" name="prj_add_flight">
          <property name="text">
           <string>Add Flight</string>
@@ -430,16 +388,6 @@
         </widget>
        </item>
        <item row="1" column="0">
-        <widget class="QLabel" name="label_resample_key">
-         <property name="text">
-          <string>Plot Resample Value (x100ms)</string>
-         </property>
-         <property name="buddy">
-          <cstring>resample_value</cstring>
-         </property>
-        </widget>
-       </item>
-       <item row="4" column="0">
         <widget class="QFrame" name="frame">
          <property name="frameShape">
           <enum>QFrame::StyledPanel</enum>
@@ -556,11 +504,8 @@
   </action>
  </widget>
  <tabstops>
-  <tabstop>gravity_channels</tabstop>
   <tabstop>prj_add_flight</tabstop>
   <tabstop>dataPlotTabWidget</tabstop>
-  <tabstop>resample_value</tabstop>
-  <tabstop>selectAllChannels</tabstop>
  </tabstops>
  <resources>
   <include location="resources.qrc"/>

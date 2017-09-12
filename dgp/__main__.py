@@ -1,14 +1,15 @@
 # coding: utf-8
 
 import sys
+import time
 
 from dgp import resources_rc
-from PyQt5 import QtWidgets
+from PyQt5.QtWidgets import QApplication, QSplashScreen
 
-from dgp.gui.splash import SplashScreen
+from dgp.gui import SplashScreen
 
 """Program Main Entry Point - Loads SplashScreen GUI"""
 if __name__ == "__main__":
-    app = QtWidgets.QApplication(sys.argv)
+    app = QApplication(sys.argv)
     form = SplashScreen()
     sys.exit(app.exec_())

@@ -3,22 +3,21 @@
 import functools
 import logging
 import os
-from typing import Tuple, List
-from threading import Lock
+from typing import Tuple, List, Dict
 
-from pandas import Series
+from pandas import Series, DataFrame
 from PyQt5 import QtCore, QtWidgets, QtGui
+from PyQt5.QtCore import pyqtSignal, pyqtBoundSignal
 from PyQt5.QtGui import QColor
 from PyQt5.uic import loadUiType
 
 import dgp.lib.project as prj
 from dgp.gui.loader import ThreadedLoader
 from dgp.lib.plotter import LineGrabPlot
-from dgp.lib.types import DataCurve
 from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, get_project_file
 from dgp.gui.dialogs import ImportData, AddFlight, CreateProject
 
-# Load .ui forms
+# Load .ui form
 main_window, _ = loadUiType('gui/ui/main_window.ui')
 
 
@@ -38,6 +37,11 @@ def autosave(method):
 
 class MainWindow(QtWidgets.QMainWindow, main_window):
     """An instance of the Main Program Window"""
+
+    # Define signals to allow updating of loading progress
+    status = pyqtSignal(str)  # type: pyqtBoundSignal
+    progress = pyqtSignal(int)  # type: pyqtBoundSignal
+
     def __init__(self, project: prj.GravityProject=None, *args):
         super().__init__(*args)
 
@@ -102,44 +106,39 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         # Initialize plotter canvas
         self.gravity_stack = QtWidgets.QStackedWidget()
         self.gravity_plot_layout.addWidget(self.gravity_stack)
-        # self.plotter = LineGrabPlot(2, parent=self)
-        # self.plotter.generate_subplots(2)  # TODO: Allow dynamic specification
-
-        # gravity_tab is a widget
-        # self.mpl_toolbar = self.plotter.get_toolbar()  # type: QtWidgets.QToolBar
-        # self.mpl_toolbar.actions()[4].triggered.connect(self.plotter.toggle_pan)
-        # self.mpl_toolbar.actions()[5].triggered.connect(self.plotter.toggle_zoom)
-        # self.gravity_plot_layout.addWidget(self.plotter)
-        # self.gravity_plot_layout.addWidget(self.mpl_toolbar)
 
         # Initialize Variables
         # TODO: Change this to use pathlib.Path
         self.import_base_path = os.path.join(os.getcwd(), '../tests')
 
         # Lock object used as simple Flag supporting the context manager protocol
-        self.refocus = Lock()
         self.current_flight = None  # type: prj.Flight
-        self.flight_state = {i: {} for i in range(2)}  # TODO: Set this based on number of subplots
         self.flight_data = {}  # Stores DataFrames for loaded flights
         self.flight_plots = {}  # Stores plotter objects for flights
         # self.plot_curves = None  # Initialized in self.init_plot()
-        self.active_plot = 0
         self.loader = ThreadedLoader()  # reusable ThreadedLoader for loading large files
 
         # TESTING
         self.project_tree = ProjectTreeView(parent=self)
-        self.update_project()
         self.scan_flights()
         # self.data_tab_layout.addWidget(self.project_tree)
-        self.gridLayout_2.addWidget(self.project_tree, 4, 0, 1, 2)
+        self.gridLayout_2.addWidget(self.project_tree, 1, 0, 1, 2)
         # TESTING
 
-        # Call sub-initialization functions
+    def load(self):
         self._init_plots()
         self._init_slots()
+        self.update_project(signal_flight=True)
         self.setWindowState(QtCore.Qt.WindowMaximized)
         self.save_project()
         self.show()
+        try:
+            self.progress.disconnect()
+            self.status.disconnect()
+        except TypeError:
+            # This will happen if there are no slots connected
+            pass
+
 
     def _init_plots(self) -> None:
         """
@@ -150,13 +149,14 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         -------
         None
         """
+        self.progress.emit(0)
         if self.project is None:
             return
-        for flight in self.project:  # type: prj.Flight
+        for i, flight in enumerate(self.project):  # type: prj.Flight
+            if flight.uid in self.flight_plots:
+                continue
             vlayout = QtWidgets.QVBoxLayout()
-            f_plot = LineGrabPlot(2)
-            # TODO: Call function to plot default data (i.e. gravity + long/cross) here
-            self.log.debug("Initialized Flight Plot: {}".format(f_plot))
+            f_plot = LineGrabPlot(2, title=flight.name)
             toolbar = f_plot.get_toolbar()
             widget = QtWidgets.QWidget()
             vlayout.addWidget(f_plot)
@@ -164,6 +164,14 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             widget.setLayout(vlayout)
             self.flight_plots[flight.uid] = f_plot, widget
             self.gravity_stack.addWidget(widget)
+            gravity = self.flight_data[flight.uid].get('gravity')
+            if gravity is not None:
+                # self.plot_gravity(f_plot, (gravity['gravity'], [gravity['long'], gravity['cross']]))
+                self.plot_gravity2(f_plot, gravity, {0: 'gravity', 1: ['long', 'cross']})
+            self.log.debug("Initialized Flight Plot: {}".format(f_plot))
+            self.status.emit('Flight Plot {} Initialized'.format(flight.name))
+            self.progress.emit(i+1)
+            # TODO: Add hook here to update status message on a splash screen when loading
 
     def _init_slots(self):
         """Initialize PyQt Signals/Slots for UI Buttons and Menus"""
@@ -192,7 +200,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         # self.selectAllChannels.clicked.connect(self.set_channel_state)
 
         # self.gravity_channels.itemChanged.connect(self.channel_changed)
-        self.resample_value.valueChanged[int].connect(self.resample_rate_changed)
+        # self.resample_value.valueChanged[int].connect(self.resample_rate_changed)
 
         # Console Window Actions #
         self.combo_console_verbosity.currentIndexChanged[str].connect(self.set_logging_level)
@@ -289,6 +297,8 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
         """
         qitem = self.project_tree.model().itemFromIndex(index)  # type: QtGui.QStandardItem
+        if qitem is None:
+            return
         qitem_data = qitem.data(QtCore.Qt.UserRole)
 
         if not isinstance(qitem_data, prj.Flight):
@@ -309,10 +319,13 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
         # Check if there is a plot for this flight already
         if self.flight_plots.get(flight.uid, None) is not None:
+            self.log.debug("Already have a plot for this flight: {}".format(flight.name))
+            curr_plot, stack_widget = self.flight_plots[flight.uid]  # type: LineGrabPlot
+            self.gravity_stack.setCurrentWidget(stack_widget)
             pass
 
-        grav_data = self.flight_data[flight.uid]['gravity']
-        gps_data = self.flight_data[flight.uid]['gps']
+        grav_data = self.flight_data[flight.uid].get('gravity', None)
+        gps_data = self.flight_data[flight.uid].get('gps', None)
 
         # TODO: Move this (and gps plot) into separate functions
         # so we can call this on app startup to pre-plot everything
@@ -321,12 +334,11 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             gravity = grav_data['gravity']  # type: Series
             long = grav_data['long']
             cross = grav_data['cross']
-            curr_plot, stack_widget = self.flight_plots[flight.uid]  # type: LineGrabPlot
-            self.gravity_stack.setCurrentWidget(stack_widget)
             # Experimental - so that we only have to draw the plot once, then we switch between
             if not curr_plot.plotted:
                 self.log.debug("Plotting gravity channel in subplot 0")
-                self.plot_gravity(curr_plot, (gravity, [long, cross]))
+                # self.plot_gravity(curr_plot, (gravity, [long, cross]))
+                self.plot_gravity2(curr_plot, grav_data, {0: 'gravity', 1: ['long', 'cross']})
             self.log.debug("Already plotted, switching widget stack")
 
         if gps_data is not None:
@@ -346,62 +358,18 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         plot.draw()
         plot.plotted = True
 
-    def channel_changed(self, item: QtWidgets.QListWidgetItem):
-        """
-        PyQt Slot:
-        Channel selection has changed, update the plot_curves list for the active plot by adding or removing a series
-        :param item:
-        :return:
-        """
-        # Refocus Lock is used to signal this function that channel selection events should be ignored
-        if self.refocus.locked():
-            return
-
-        if item.checkState() == QtCore.Qt.Checked:
-            self.log.debug("Channel item selected: {} plotting on plot#: {}".format(item.text(), self.active_plot))
-            try:
-                self.flight_state[self.active_plot][self.current_flight.uid].add(item.text())
-            except KeyError:
-                self.flight_state[self.active_plot][self.current_flight.uid] = set()
-                self.flight_state[self.active_plot][self.current_flight.uid].add(item.text())
-            # self.log.debug("Flight state: {}".format(self.flight_state))
-        else:
-            # self.log.debug("Channel item deselected: {}".format(item.text()))
-            try:
-                # self.plot_curves[self.active_plot].remove(data)
-                self.flight_state[self.active_plot][self.current_flight.uid].remove(item.text())
-            except ValueError:
-                pass
-
-        self.draw_plot()
-
-    def resample_rate_changed(self, value) -> None:
-        return
-        # self.plotter._resample = '{}ms'.format(int(value) * 100)
-        # self.draw_plot()
-
-    def get_current_flight_data_channel(self, channel, data='gravity'):
-        data_set = self.flight_data[self.current_flight.uid][data]
-        if data_set is None:
-            return None
-        else:
-            return data_set.get(channel, None)
-
-    def set_active_plot(self, index) -> None:
-        self.log.debug("Setting active plot to: {}".format(index))
-        with self.refocus:
-            self.active_plot = index
-
-            if self.current_flight is None:
-                return
-            # Set channel checkboxes to match plot
-            checked_channels = [cn for cn in self.flight_state[index].get(self.current_flight.uid, set())]
-            for i in range(1, self.gravity_channels.count()):  # Start at 1 to skip channel header
-                item = self.gravity_channels.item(i)
-                if item.text() in checked_channels:
-                    item.setCheckState(QtCore.Qt.Checked)
-                else:
-                    item.setCheckState(QtCore.Qt.Unchecked)
+    def plot_gravity2(self, plot: LineGrabPlot, data: DataFrame, fields: Dict):
+        plot.clear()
+        for index in fields:
+            if isinstance(fields[index], str):
+                series = data.get(fields[index])  # type: Series
+                plot.plot(plot[index], series.index, series.values, label=series.name)
+                continue
+            for field in fields[index]:
+                series = data.get(field)  # type: Series
+                plot.plot(plot[index], series.index, series.values, label=series.name)
+        plot.draw()
+        plot.plotted = True
 
     #####
     # Project functions
@@ -420,10 +388,9 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             if self.project is not None:
                 progress = self.set_progress_bar(25)
                 ld = self.loader.load_file(path, dtype, flight, self.project.add_data)
-                ld.finished.connect(self.update_project)
+                ld.finished.connect(functools.partial(self.update_project, signal_flight=True))
                 ld.finished.connect(self.save_project)
                 ld.finished.connect(self.scan_flights)
-
                 ld.finished.connect(functools.partial(self.set_progress_bar, 100, progress))
                 self.current_flight = None  # TODO: Kludge fix to force user to reselect flight after data import
 
@@ -465,14 +432,18 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.update_project()
         return
 
-    def update_project(self) -> None:
+    def update_project(self, signal_flight=False) -> None:
         self.log.debug("Update project called")
         if self.project is None:
             return
         # self.prj_tree.setModel(self.project.generate_model())
         # self.prj_tree.expandAll()
-        self.project_tree.setModel(self.project.generate_model())
+        model, index = self.project.generate_model()
+        self.project_tree.setModel(model)
         self.project_tree.expandAll()
+        self.project_tree.setCurrentIndex(index)
+        if signal_flight:
+            self.flight_changed(index)
 
     def save_project(self) -> None:
         if self.project is None:
@@ -496,6 +467,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             self.project.add_flight(flight)
             self.update_project()
             self.scan_flights()
+            self._init_plots()
             return
 
 
@@ -528,10 +500,14 @@ class ProjectTreeView(QtWidgets.QTreeView):
         event.accept()
 
     def flight_info(self, item):
-        dialog = QtWidgets.QDialog(self)
-        dialog.setLayout(QtWidgets.QVBoxLayout())
-        dialog.exec_()
-        print("Flight info: {}".format(item.text()))
+        data = item.getData(QtCore.Qt.UserRole)
+        if isinstance(data, prj.Flight):
+            dialog = QtWidgets.QDialog(self)
+            dialog.setLayout(QtWidgets.QVBoxLayout())
+            dialog.exec_()
+            print("Flight info: {}".format(item.text()))
+        else:
+            print("Info event: Not a flight")
 
 
 

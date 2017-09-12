@@ -7,11 +7,9 @@ Class to handle Matplotlib plotting of data to be displayed in Qt GUI
 import logging
 from collections import namedtuple
 from typing import List, Tuple
-from threading import Lock
 
 from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QSizePolicy
-import matplotlib
 from matplotlib.backends.backend_qt5agg import (FigureCanvasQTAgg as FigureCanvas,
                                                 NavigationToolbar2QT as NavigationToolbar)
 from matplotlib.figure import Figure
@@ -20,10 +18,7 @@ from matplotlib.dates import DateFormatter
 from matplotlib.backend_bases import MouseEvent
 from matplotlib.patches import Rectangle
 
-from pandas.core.series import Series
 import numpy as np
-
-from dgp.lib.types import DataCurve
 
 
 class BasePlottingCanvas(FigureCanvas):
@@ -34,9 +29,9 @@ class BasePlottingCanvas(FigureCanvas):
     def __init__(self, parent=None, width=8, height=4, dpi=100):
         self.log = logging.getLogger(__name__)
         self.parent = parent
-        figure = Figure(figsize=(width, height), dpi=dpi, tight_layout=True)
+        fig = Figure(figsize=(width, height), dpi=dpi, tight_layout=True)
+        FigureCanvas.__init__(self, fig)
 
-        FigureCanvas.__init__(self, figure)
         self.setParent(parent)
         FigureCanvas.setSizePolicy(self, QSizePolicy.Expanding, QSizePolicy.Expanding)
         FigureCanvas.updateGeometry(self)
@@ -70,9 +65,6 @@ class BasePlottingCanvas(FigureCanvas):
 
         self.compute_initial_figure()
 
-    def test_method(self):
-        print("This is a test")
-
     def add_subplot(self):
         pass
 
@@ -95,13 +87,12 @@ class BasePlottingCanvas(FigureCanvas):
         return len(self._axes)
 
 
-plotline = namedtuple('plotline', ['line', 'data'])
 ClickInfo = namedtuple('ClickInfo', ['partners', 'x0', 'xpos', 'ypos'])
 
 
 class LineGrabPlot(BasePlottingCanvas):
     """ LineGrabPlot implements BasePlottingCanvas and provides an onclick method to select flight line segments."""
-    def __init__(self, n=1, parent=None):
+    def __init__(self, n=1, parent=None, title=None):
         BasePlottingCanvas.__init__(self, parent=parent)
         self.rects = []
         self.zooming = False
@@ -109,6 +100,8 @@ class LineGrabPlot(BasePlottingCanvas):
         self.clicked = None  # type: ClickInfo
         self.generate_subplots(n)
         self.plotted = False
+        if title:
+            self.figure.suptitle(title, y=1)
 
     def clear(self):
         for ax in self._axes:  # type: Axes
@@ -118,11 +111,11 @@ class LineGrabPlot(BasePlottingCanvas):
         self.draw()
 
     def onclick(self, event: MouseEvent):
-        # Check that the click event happened within one of the subplot axes
-        if event.inaxes not in self._axes:
+        if self.zooming or self.panning:  # Don't do anything when zooming is enabled
             return
 
-        if self.zooming or self.panning:  # Don't do anything when zooming is enabled
+        # Check that the click event happened within one of the subplot axes
+        if event.inaxes not in self._axes:
             return
 
         caxes = event.inaxes  # type: Axes

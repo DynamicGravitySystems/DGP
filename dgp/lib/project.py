@@ -1,13 +1,16 @@
 # coding: utf-8
 
+import os
 import uuid
 import pickle
 import pathlib
 import logging
+from typing import Tuple
 
 from pandas import HDFStore
 from PyQt5 import QtCore
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIcon
+from PyQt5.QtCore import QModelIndex
 
 
 from .meterconfig import MeterConfig, AT1Meter
@@ -342,7 +345,7 @@ class AirborneProject(GravityProject):
         """
         self.log.debug("Ingesting data and exporting to hdf5 store")
 
-        file_uid = 'f' + (uuid.uuid4().hex)[1:]  # Fix NaturalNameWarning by ensuring first char is letter ('f').
+        file_uid = 'f' + uuid.uuid4().hex[1:]  # Fixes NaturalNameWarning by ensuring first char is letter ('f').
 
         with HDFStore(str(self.hdf_path)) as store:
             # Separate data into groups by data type (GPS & Gravity Data)
@@ -367,7 +370,7 @@ class AirborneProject(GravityProject):
         self.log.debug("Found flight {}:{}".format(flt.name, flt.uid))
         return flt
 
-    def generate_model(self) -> QStandardItemModel:
+    def generate_model(self) -> Tuple[QStandardItemModel, QModelIndex]:
         """Generate a Qt Model based on the project structure."""
         model = QStandardItemModel()
         root = model.invisibleRootItem()
@@ -381,8 +384,11 @@ class AirborneProject(GravityProject):
         fli_header = QStandardItem(flt_ico, "Flights")
         fli_header.setEditable(False)
         # TODO: Add a human readable identifier to flights
+        first_flight = None
         for uid, flight in self.flights.items():
             fli_item = QStandardItem(flt_ico, "Flight: {}".format(flight.name))
+            if first_flight is None:
+                first_flight = fli_item
             fli_item.setToolTip("UUID: {}".format(uid))
             fli_item.setEditable(False)
             fli_item.setData(flight, QtCore.Qt.UserRole)
@@ -394,7 +400,11 @@ class AirborneProject(GravityProject):
             gps.setData(gps_uid)  # For future use
 
             grav_path, grav_uid = flight.gravity_file
-            grav = QStandardItem("Gravity: {}".format(grav_uid))
+            if grav_path is not None:
+                _, grav_fname = os.path.split(grav_path)
+            else:
+                grav_fname = '<None>'
+            grav = QStandardItem("Gravity: {}".format(grav_fname))
             grav.setToolTip("File Path: {}".format(grav_path))
             grav.setEditable(False)
             grav.setData(grav_uid)  # For future use
@@ -411,7 +421,8 @@ class AirborneProject(GravityProject):
 
         root.appendRow(prj_header)
         self.log.debug("Tree Model generated")
-        return model
+        first_index = model.indexFromItem(first_flight)
+        return model, first_index
 
     def __iter__(self):
         for uid, flight in self.flights.items():
