@@ -2,5 +2,7 @@
 *.pyc
 *.pyo
 __pycache__/
-*.coverage
+scratch/
+*.pdf
 venv/
+*.coverage
