@@ -12,7 +12,7 @@ from PyQt5.QtGui import QColor
 from PyQt5.uic import loadUiType
 
 import dgp.lib.project as prj
-from dgp.gui.loader import ThreadedLoader
+from dgp.gui.loader import LoadFile
 from dgp.lib.plotter import LineGrabPlot
 from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, get_project_file
 from dgp.gui.dialogs import ImportData, AddFlight, CreateProject
@@ -116,7 +116,6 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.flight_data = {}  # Stores DataFrames for loaded flights
         self.flight_plots = {}  # Stores plotter objects for flights
         # self.plot_curves = None  # Initialized in self.init_plot()
-        self.loader = ThreadedLoader()  # reusable ThreadedLoader for loading large files
 
         # TESTING
         self.project_tree = ProjectTreeView(parent=self)
@@ -386,17 +385,14 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             else:
                 flight = None
             if self.project is not None:
-                progress = self.set_progress_bar(25)
-                ld = self.loader.load_file(path, dtype, flight, self.project.add_data)
-                ld.finished.connect(functools.partial(self.update_project, signal_flight=True))
-                ld.finished.connect(self.save_project)
-                ld.finished.connect(self.scan_flights)
-                ld.finished.connect(functools.partial(self.set_progress_bar, 100, progress))
-                self.current_flight = None  # TODO: Kludge fix to force user to reselect flight after data import
-
-                # cindex = self.prj_tree.currentIndex()
-                # self.prj_tree.selectionModel().select(cindex, QtCore.QItemSelectionModel.SelectCurrent)
-
+                self.log.debug("Importing file using new thread method")
+                ld2 = LoadFile(path, 'gravity', flight, self)
+                ld2.data.connect(self.project.add_data)
+                ld2.loaded.connect(functools.partial(self.update_project, signal_flight=True))
+                ld2.loaded.connect(self.save_project)
+                ld2.loaded.connect(self.scan_flights)
+                self.current_flight = None
+                ld2.start()
             else:
                 self.log.warning("No active project, not importing.")
 
@@ -439,6 +435,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         # self.prj_tree.setModel(self.project.generate_model())
         # self.prj_tree.expandAll()
         model, index = self.project.generate_model()
+        # self.project_tree.refresh(index)
         self.project_tree.setModel(model)
         self.project_tree.expandAll()
         self.project_tree.setCurrentIndex(index)
@@ -472,7 +469,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
 
 class ProjectTreeView(QtWidgets.QTreeView):
-    def __init__(self, model=None, parent=None):
+    def __init__(self, model=None, project=None, parent=None):
         super().__init__(parent=parent)
         self.setMinimumSize(QtCore.QSize(0, 300))
         self.setAlternatingRowColors(True)
@@ -482,8 +479,19 @@ class ProjectTreeView(QtWidgets.QTreeView):
         self.setHeaderHidden(True)
         self.setObjectName('project_tree')
         self.setContextMenuPolicy(QtCore.Qt.DefaultContextMenu)
+        self.refresh()
         # self.setModel(model)
+        # self.expandAll()
+
+    def refresh(self, curr_index=None):
+        """Regenerate model and set current selection to curr_index"""
+        # self.generate_airborne_model()
+        if curr_index is not None:
+            self.setCurrentIndex(curr_index)
         self.expandAll()
+
+    def generate_airborne_model(self):
+        pass
 
     def contextMenuEvent(self, event: QtGui.QContextMenuEvent, *args, **kwargs):
         context_ind = self.indexAt(event.pos())
