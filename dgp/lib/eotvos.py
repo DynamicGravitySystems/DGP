@@ -1,10 +1,11 @@
 # coding: utf-8
+# This file is part of DynamicGravityProcessor (https://github.com/DynamicGravitySystems/DGP). License is Apache v2
 
 import numpy as np
 from numpy import array
 
 
-def derivative(y: array, datarate, n=None):
+def derivative(y: array, datarate, edge_order=None):
     """
     Based on Matlab function 'd' Created by Sandra Martinka, August 2001
     Function to numerically estimate the nth time derivative of y
@@ -13,18 +14,18 @@ def derivative(y: array, datarate, n=None):
 
     :param y: Array input
     :param datarate: Scalar data sampling rate in Hz
-    :param n: nth time derivative 1, 2 or None. If None return tuple of first and second order time derivatives
+    :param edge_order: nth time derivative 1, 2 or None. If None return tuple of first and second order time derivatives
     :return: nth time derivative of y
     """
-    if n is None:
+    if edge_order is None:
         d1 = derivative(y, 1, datarate)
         d2 = derivative(y, 2, datarate)
         return d1, d2
 
-    if n == 1:
+    if edge_order == 1:
         dy = (y[3:] - y[1:-2]) * (datarate / 2)
         return dy
-    elif n == 2:
+    elif edge_order == 2:
         dy = ((y[1:-2] - 2 * y[2:-1]) + y[3:]) * (np.power(datarate, 2))
         return dy
     else:
@@ -32,24 +33,38 @@ def derivative(y: array, datarate, n=None):
 
 
 # TODO: Need sample input to test
-def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, a=None, ecc=None, derivation_func=derivative):
+def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, a=None, ecc=None, derivation_func=np.gradient):
     """
+    calc_eotvos: Calculate Eotvos Gravity Corrections
+
     Based on Matlab function 'calc_eotvos_full Created by Sandra Preaux, NGS, NOAA August 24, 2009
 
-    Usage:
+    References
+    ----------
+    Harlan 1968, "Eotvos Corrections for Airborne Gravimetry" JGR 73,n14
 
+    Parameters
+    ----------
+    lat : Array
+        Array of geodetic latitude in decimal degrees
+    lon : Array
+        Array of longitude in decimal degrees
+    ht : Array
+        Array of ellipsoidal height in meters
+    datarate : Float (Scalar)
+        Scalar data rate in Hz
+    a : Float (Scalar)
+        Scalar semi-major axis of ellipsoid in meters
+    ecc : Float (Scalar)
+        Scalar eccentricity of ellipsoid
+    derivation_func : Callable (Array, Scalar, Int)
+        Callable function used to calculate first and second order time derivatives.
 
-    References:
-        Harlan 1968, "Eotvos Corrections for Airborne Gravimetry" JGR 73,n14
-
-    :param lat: Array geodetic latitude in decimal degrees
-    :param lon: Array longitude in decimal degrees
-    :param ht: ellipsoidal height in meters
-    :param datarate: Scalar data rate in Hz
-    :param a: Scalar semi-major axis of ellipsoid in meters
-    :param ecc: Scalar eccentricity of ellipsoid
-    :return: Tuple Eotvos values in mgals
-        (rdoubledot, angular acceleration of the ref frame, coriolis, centrifugal, centrifugal acceleration of earth)
+    Returns
+    -------
+    6-Tuple (Array, ...)
+        Eotvos values in mgals
+        Tuple(E: Array, rdoubledot, angular acc of ref frame, coriolis, centrifugal, centrifugal acc of earth)
     """
 
     # Constants
@@ -64,9 +79,12 @@ def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, a=None, ecc=
     rad_lat = np.deg2rad(lat)
     rad_lon = np.deg2rad(lon)
 
-    dlat, ddlat = derivative(rad_lat, datarate)
-    dlon, ddlon = derivative(rad_lon, datarate)
-    dht, ddht = derivative(ht, datarate)
+    dlat = derivative(rad_lat, datarate, edge_order=1)
+    ddlat = derivative(rad_lat, datarate, edge_order=2)
+    dlon = derivative(rad_lon, datarate, edge_order=1)
+    ddlon = derivative(rad_lon, datarate, edge_order=2)
+    dht = derivative(ht, datarate, edge_order=1)
+    ddht = derivative(ht, datarate, edge_order=2)
 
     # Calculate sin(lat), cos(lat), sin(2*lat), and cos(2*lat)
     # Beware MATLAB uses an array index starting with one (1), whereas python uses zero indexed arrays
@@ -78,7 +96,7 @@ def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, a=None, ecc=
     # Calculate the r' and its derivatives
     r_prime = a * (1-ecc * sin_lat * sin_lat)
     dr_prime = a * dlat * ecc * sin_2lat
-    #  ddrp=-a.*ddlat.*ecc.*sin2lat-2.0.*a.*dlat.*dlat.*ecc.*cos2lat;
+    # matlab: ddrp=-a.*ddlat.*ecc.*sin2lat-2.0.*a.*dlat.*dlat.*ecc.*cos2lat;
     ddr_prime = -a * ddlat * ecc * sin_2lat - 2.0 * a * dlat * dlat * ecc * cos_2lat
 
     # Calculate the deviation from the normal and its derivatives
@@ -136,10 +154,10 @@ def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, a=None, ecc=
         np.zeros(sin_lat.shape),
         -We * sin_lat
     ])
-    we_x_re = np.cross(we, re)
-    wexwexre = np.cross(we, we_x_re)
-    we_x_r = np.cross(we, r)
-    wexwexr = np.cross(we, we_x_r)
+    wexre = np.cross(we, re)
+    wexwexre = np.cross(we, wexre)
+    wexr = np.cross(we, r)
+    wexwexr = np.cross(we, wexr)
 
     # Calculate total acceleration for the aircraft
     acc = r2dot + w2_x_rdot + wdot_x_r + wxwxr
@@ -147,8 +165,8 @@ def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, a=None, ecc=
     # Eotvos correction is the vertical component of the total acceleration of
     # the aircraft - the centrifugal acceleration of the earth, converted to mgal
     E = (acc[3, :] - wexwexr[3, :]) * mps2mgal
-    # TODO: Pad the start/end due to loss during derivative computation
+    # TODO: Pad the start/end due to loss during derivative computation (not necessary using np.gradient)
 
-    # Final Return 5-Tuple
+    # Return Eotvos corrections
     eotvos = E, r2dot, w2_x_rdot, wdot_x_r, wxwxr, wexwexr
     return eotvos
