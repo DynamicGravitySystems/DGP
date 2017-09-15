@@ -23,10 +23,10 @@ def derivative(y: array, datarate, edge_order=None):
         return d1, d2
 
     if edge_order == 1:
-        dy = (y[3:] - y[1:-2]) * (datarate / 2)
+        dy = (y[2:] - y[0:-2]) * (datarate / 2)
         return dy
     elif edge_order == 2:
-        dy = ((y[1:-2] - 2 * y[2:-1]) + y[3:]) * (np.power(datarate, 2))
+        dy = ((y[0:-2] - 2 * y[1:-1]) + y[2:]) * (np.power(datarate, 2))
         return dy
     else:
         return ValueError('Invalid value for parameter n {1 or 2}')
@@ -66,6 +66,10 @@ def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, a=None, ecc=
         Eotvos values in mgals
         Tuple(E: Array, rdoubledot, angular acc of ref frame, coriolis, centrifugal, centrifugal acc of earth)
     """
+    if derivation_func is not np.gradient:
+        bounds = slice(1, -1)
+    else:
+        bounds = slice(None, None, None)
 
     # Constants
     # TODO: Allow a and ecc to be specified in kwargs
@@ -79,23 +83,23 @@ def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, a=None, ecc=
     rad_lat = np.deg2rad(lat)
     rad_lon = np.deg2rad(lon)
 
-    dlat = derivative(rad_lat, datarate, edge_order=1)
-    ddlat = derivative(rad_lat, datarate, edge_order=2)
-    dlon = derivative(rad_lon, datarate, edge_order=1)
-    ddlon = derivative(rad_lon, datarate, edge_order=2)
-    dht = derivative(ht, datarate, edge_order=1)
-    ddht = derivative(ht, datarate, edge_order=2)
+    dlat = derivation_func(rad_lat, datarate, edge_order=1)
+    ddlat = derivation_func(rad_lat, datarate, edge_order=2)
+    dlon = derivation_func(rad_lon, datarate, edge_order=1)
+    ddlon = derivation_func(rad_lon, datarate, edge_order=2)
+    dht = derivation_func(ht, datarate, edge_order=1)
+    ddht = derivation_func(ht, datarate, edge_order=2)
 
     # Calculate sin(lat), cos(lat), sin(2*lat), and cos(2*lat)
     # Beware MATLAB uses an array index starting with one (1), whereas python uses zero indexed arrays
-    sin_lat = np.sin(rad_lat[1:-1])
-    cos_lat = np.cos(rad_lat[1:-1])
-    sin_2lat = np.sin(2 * rad_lat[1:-1])
-    cos_2lat = np.cos(2 * rad_lat[1:-1])
+    sin_lat = np.sin(rad_lat[bounds])
+    cos_lat = np.cos(rad_lat[bounds])
+    sin_2lat = np.sin(2.0 * rad_lat[bounds])
+    cos_2lat = np.cos(2.0 * rad_lat[bounds])
 
     # Calculate the r' and its derivatives
-    r_prime = a * (1-ecc * sin_lat * sin_lat)
-    dr_prime = a * dlat * ecc * sin_2lat
+    r_prime = a * (1.0-ecc * sin_lat * sin_lat)
+    dr_prime = -a * dlat * ecc * sin_2lat
     # matlab: ddrp=-a.*ddlat.*ecc.*sin2lat-2.0.*a.*dlat.*dlat.*ecc.*cos2lat;
     ddr_prime = -a * ddlat * ecc * sin_2lat - 2.0 * a * dlat * dlat * ecc * cos_2lat
 
@@ -107,13 +111,14 @@ def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, a=None, ecc=
     # Calculate r and its derivatives
     r = array([
         -r_prime * np.sin(D),
-        np.zeros(r_prime.shape),
-        -r_prime * np.cos(D)-ht[1:-1]
+        np.zeros(r_prime.size),
+        -r_prime * np.cos(D)-ht[bounds]
     ])
+    # rdot=[(-drp.*sin(D)-rp.*dD.*cos(D));zeros(size(rp));(-drp.*cos(D)+rp.*dD.*sin(D)-dht)];
     rdot = array([
-        -dr_prime * np.sin(D) - r_prime * dD * np.cos(D),
-        np.zeros(r_prime.shape),
-        -dr_prime * np.cos(D) + r_prime * dD * np.sin(D) - dht
+        (-dr_prime * np.sin(D) - r_prime * dD * np.cos(D)),
+        np.zeros(r_prime.size),
+        (-dr_prime * np.cos(D) + r_prime * dD * np.sin(D) - dht)
     ])
     # ci=(-ddrp.*sin(D)-2.0.*drp.*dD.*cos(D)-rp.*(ddD.*cos(D)-dD.*dD.*sin(D)));
     ci = (-ddr_prime * np.sin(D) - 2.0 * dr_prime * dD * np.cos(D) - r_prime *
@@ -123,7 +128,7 @@ def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, a=None, ecc=
           (ddD * np.sin(D) + dD * dD * np.cos(D)) - ddht)
     r2dot = array([
         ci,
-        np.zeros(ci.shape),
+        np.zeros(ci.size),
         ck
     ])
 
@@ -131,22 +136,22 @@ def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, a=None, ecc=
     w = array([
         (dlon + We) * cos_lat,
         -dlat,
-        -(dlon + We) * sin_lat
+        (-(dlon + We)) * sin_lat
     ])
     wdot = array([
         dlon * cos_lat - (dlon + We) * dlat * sin_lat,
         -ddlat,
         (-ddlon * sin_lat - (dlon + We) * dlat * cos_lat)
     ])
-    w2_x_rdot = np.cross(2.0 * w, rdot)
-    wdot_x_r = np.cross(wdot, r)
-    w_x_r = np.cross(w, r)
-    wxwxr = np.cross(w, w_x_r)
+    w2_x_rdot = np.cross(2.0 * w, rdot, axis=0)
+    wdot_x_r = np.cross(wdot, r, axis=0)
+    w_x_r = np.cross(w, r, axis=0)
+    wxwxr = np.cross(w, w_x_r, axis=0)
 
-    # Calculate wexwexre (that is the centrifugal acceleration due to the earth
+    # Calculate wexwexre (which is the centrifugal acceleration due to the earth)
     re = array([
         -r_prime * np.sin(D),
-        np.zeros(r_prime.shape),
+        np.zeros(r_prime.size),
         -r_prime * np.cos(D)
     ])
     we = array([
@@ -154,19 +159,20 @@ def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, a=None, ecc=
         np.zeros(sin_lat.shape),
         -We * sin_lat
     ])
-    wexre = np.cross(we, re)
-    wexwexre = np.cross(we, wexre)
-    wexr = np.cross(we, r)
-    wexwexr = np.cross(we, wexr)
+    wexre = np.cross(we, re, axis=0)
+    wexwexre = np.cross(we, wexre, axis=0)
+    wexr = np.cross(we, r, axis=0)
+    wexwexr = np.cross(we, wexr, axis=0)
 
     # Calculate total acceleration for the aircraft
     acc = r2dot + w2_x_rdot + wdot_x_r + wxwxr
 
     # Eotvos correction is the vertical component of the total acceleration of
     # the aircraft - the centrifugal acceleration of the earth, converted to mgal
-    E = (acc[3, :] - wexwexr[3, :]) * mps2mgal
+    E = (acc[2] - wexwexr[2]) * mps2mgal
+    if derivation_func is not np.gradient:
+        E = np.pad(E, (1, 1), 'edge')
     # TODO: Pad the start/end due to loss during derivative computation (not necessary using np.gradient)
 
     # Return Eotvos corrections
-    eotvos = E, r2dot, w2_x_rdot, wdot_x_r, wxwxr, wexwexr
-    return eotvos
+    return E, r2dot, w2_x_rdot, wdot_x_r, wxwxr, wexwexr

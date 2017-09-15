@@ -16,26 +16,39 @@ class TestEotvos(unittest.TestCase):
     def setUp(self):
         pass
 
+    @unittest.skip("Not implemented.")
     def test_derivative(self):
-        pass
+        """Test derivation function against table of values calculated in MATLAB"""
+        dlat = []
+        ddlat = []
+        dlon = []
+        ddlon = []
+        dht = []
+        ddht = []
+        # with sample_dir.joinpath('result_derivative.csv').open() as fd:
+        #     reader = csv.DictReader(fd)
+        #     dlat = list(map(lambda line: dlat.append(line['dlat']), reader))
 
     def test_eotvos(self):
         """Test Eotvos function against corrections generated with MATLAB program."""
-        gps_fields = ['mdy', 'hms', 'lat', 'long', 'ell_ht', 'ortho_ht', 'num_stats', 'pdop']
-        data = ti.import_trajectory('tests/sample_data/sample_eotvos_trajectory.csv', columns=gps_fields, skiprows=1,
+        # Ensure gps_fields are ordered correctly relative to test file
+        gps_fields = ['mdy', 'hms', 'lat', 'long', 'ortho_ht', 'ell_ht', 'num_stats', 'pdop']
+        data = ti.import_trajectory('tests/sample_data/input_eotvos.txt', columns=gps_fields, skiprows=1,
                                     timeformat='hms')
 
         result_eotvos = []
         with sample_dir.joinpath('result_eotvos.csv').open() as fd:
             test_data = csv.DictReader(fd)
+            # print(test_data.fieldnames)
             for line in test_data:
-                result_eotvos.append(line['eotvos'])
+                result_eotvos.append(float(line['Eotvos_full']))
+        lat = data['lat'].values
+        lon = data['long'].values
+        ht = data['ell_ht'].values
+        rate = 10
 
-        lat = data['lat']
-        lon = data['long']
-        ht = data['ell_ht']
-        rate = 0.1
-
-        eotvos_a, r2dot, w2xrdot, wdotxr, wxwxr, wexwexr = eotvos.calc_eotvos(lat, lon, ht, rate)
+        eotvos_a, r2dot, w2xrdot, wdotxr, wxwxr, wexwexr = eotvos.calc_eotvos(lat, lon, ht, rate,
+                                                                              derivation_func=eotvos.derivative)
         for i, value in enumerate(eotvos_a):
-            self.assertEqual(value, test_data['eotvos'][i])
+            # TODO: Increase accuracy of function, the last test calculated value in our test data is -0.00094 ~= 0.0
+            self.assertAlmostEqual(value, result_eotvos[i], places=2)
