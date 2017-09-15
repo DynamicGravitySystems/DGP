@@ -32,7 +32,7 @@ def derivative(y: array, datarate, n=None):
 
 
 # TODO: Need sample input to test
-def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, a=None, ecc=None):
+def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, a=None, ecc=None, derivation_func=derivative):
     """
     Based on Matlab function 'calc_eotvos_full Created by Sandra Preaux, NGS, NOAA August 24, 2009
 
@@ -78,7 +78,8 @@ def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, a=None, ecc=
     # Calculate the r' and its derivatives
     r_prime = a * (1-ecc * sin_lat * sin_lat)
     dr_prime = a * dlat * ecc * sin_2lat
-    ddr_prime = None
+    #  ddrp=-a.*ddlat.*ecc.*sin2lat-2.0.*a.*dlat.*dlat.*ecc.*cos2lat;
+    ddr_prime = -a * ddlat * ecc * sin_2lat - 2.0 * a * dlat * dlat * ecc * cos_2lat
 
     # Calculate the deviation from the normal and its derivatives
     D = np.arctan(ecc * sin_2lat)
@@ -145,10 +146,9 @@ def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, a=None, ecc=
 
     # Eotvos correction is the vertical component of the total acceleration of
     # the aircraft - the centrifugal acceleration of the earth, converted to mgal
-    E = (acc[3,:] - wexwexr[3,:]) * mps2mgal
+    E = (acc[3, :] - wexwexr[3, :]) * mps2mgal
     # TODO: Pad the start/end due to loss during derivative computation
-    return E
 
     # Final Return 5-Tuple
-    eotvos = (r2dot, w2_x_rdot, wdot_x_r, wxwxr, wexwexr)
+    eotvos = E, r2dot, w2_x_rdot, wdot_x_r, wxwxr, wexwexr
     return eotvos
