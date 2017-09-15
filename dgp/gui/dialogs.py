@@ -43,15 +43,16 @@ class ImportData(QtWidgets.QDialog, data_dialog):
 
         # Setup button actions
         self.button_browse.clicked.connect(self.browse_file)
-        self.buttonBox.accepted.connect(self.pre_accept)
+        self.buttonBox.accepted.connect(self.accept)
 
         dgsico = Qt.QIcon(':images/assets/geoid_icon.png')
 
         self.setWindowIcon(dgsico)
         self.path = None
-        self.dtype = 'gravity'
+        self.dtype = None
         self.flight = flight
 
+        # TODO: Remove project check, it cannot be None
         if project is not None:
             for flight in project:
                 # TODO: Change dict index to human readable value
@@ -99,10 +100,14 @@ class ImportData(QtWidgets.QDialog, data_dialog):
             self.tree_directory.scrollTo(self.file_model.index(str(self.path.resolve())))
             self.tree_directory.setCurrentIndex(index)
 
-    def pre_accept(self):
-        self.dtype = {'GPS Data': 'gps', 'Gravity Data': 'gravity'}.get(self.group_radiotype.checkedButton().text(), 'gravity')
+    def accept(self):
+        # '&' is used to set text hints in the GUI
+        self.dtype = {'G&PS Data': 'gps', '&Gravity Data': 'gravity'}.get(self.group_radiotype.checkedButton().text(),
+                                                                          'gravity')
         self.flight = self.combo_flights.currentData()
-        self.accept()
+        if self.path is None:
+            return
+        super().accept()
 
     @property
     def content(self) -> (Path, str, prj.Flight):

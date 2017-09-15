@@ -370,6 +370,7 @@ class AirborneProject(GravityProject):
         self.log.debug("Found flight {}:{}".format(flt.name, flt.uid))
         return flt
 
+    # TODO: Migrate this to the ProjectTreeView class in main.py
     def generate_model(self) -> Tuple[QStandardItemModel, QModelIndex]:
         """Generate a Qt Model based on the project structure."""
         model = QStandardItemModel()
@@ -394,8 +395,12 @@ class AirborneProject(GravityProject):
             fli_item.setData(flight, QtCore.Qt.UserRole)
 
             gps_path, gps_uid = flight.gps_file
-            gps = QStandardItem("GPS: {}".format(gps_uid))
-            gps.setToolTip("File Path: {}".format(gps_path))
+            if gps_path is not None:
+                _, gps_fname = os.path.split(gps_path)
+            else:
+                gps_fname = '<None>'
+            gps = QStandardItem("GPS: {}".format(gps_fname))
+            gps.setToolTip("File Path: {}".format(gps_uid))
             gps.setEditable(False)
             gps.setData(gps_uid)  # For future use
 

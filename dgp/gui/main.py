@@ -12,6 +12,7 @@ from PyQt5.QtGui import QColor
 from PyQt5.uic import loadUiType
 
 import dgp.lib.project as prj
+import dgp.lib.trajectory_ingestor as ti
 from dgp.gui.loader import LoadFile
 from dgp.lib.plotter import LineGrabPlot
 from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, get_project_file
@@ -138,7 +139,6 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             # This will happen if there are no slots connected
             pass
 
-
     def _init_plots(self) -> None:
         """
         Initialize plots for flight objects in project.
@@ -165,12 +165,10 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             self.gravity_stack.addWidget(widget)
             gravity = self.flight_data[flight.uid].get('gravity')
             if gravity is not None:
-                # self.plot_gravity(f_plot, (gravity['gravity'], [gravity['long'], gravity['cross']]))
-                self.plot_gravity2(f_plot, gravity, {0: 'gravity', 1: ['long', 'cross']})
+                self.plot_gravity(f_plot, gravity, {0: 'gravity', 1: ['long', 'cross']})
             self.log.debug("Initialized Flight Plot: {}".format(f_plot))
             self.status.emit('Flight Plot {} Initialized'.format(flight.name))
             self.progress.emit(i+1)
-            # TODO: Add hook here to update status message on a splash screen when loading
 
     def _init_slots(self):
         """Initialize PyQt Signals/Slots for UI Buttons and Menus"""
@@ -329,35 +327,16 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         # TODO: Move this (and gps plot) into separate functions
         # so we can call this on app startup to pre-plot everything
         if grav_data is not None:
-            # Data series for plotting
-            gravity = grav_data['gravity']  # type: Series
-            long = grav_data['long']
-            cross = grav_data['cross']
-            # Experimental - so that we only have to draw the plot once, then we switch between
             if not curr_plot.plotted:
                 self.log.debug("Plotting gravity channel in subplot 0")
-                # self.plot_gravity(curr_plot, (gravity, [long, cross]))
-                self.plot_gravity2(curr_plot, grav_data, {0: 'gravity', 1: ['long', 'cross']})
+                self.plot_gravity(curr_plot, grav_data, {0: 'gravity', 1: ['long', 'cross']})
             self.log.debug("Already plotted, switching widget stack")
 
         if gps_data is not None:
-            pass
+            self.log.debug("Flight has GPS Data")
 
     @staticmethod
-    def plot_gravity(plot: LineGrabPlot, data: Tuple):
-        # TODO: Change this to accept a dataframe for data, and a tuple of [fields] to plot in respective subplot
-        plot.clear()
-        for i, series in enumerate(data):
-            if not isinstance(series, List):
-                plot.plot(plot[i], series.index, series.values, label=series.name)
-            else:
-                for line in series:
-                    plot.plot(plot[i], line.index, line.values, label=line.name)
-
-        plot.draw()
-        plot.plotted = True
-
-    def plot_gravity2(self, plot: LineGrabPlot, data: DataFrame, fields: Dict):
+    def plot_gravity(plot: LineGrabPlot, data: DataFrame, fields: Dict):
         plot.clear()
         for index in fields:
             if isinstance(fields[index], str):
@@ -370,6 +349,9 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         plot.draw()
         plot.plotted = True
 
+    def plot_gps(self):
+        pass
+
     #####
     # Project functions
     #####
@@ -379,22 +361,18 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         dialog = ImportData(self.project, self.current_flight)
         if dialog.exec_():
             path, dtype, flt_id = dialog.content
-            if self.project is not None:
-                flight = self.project.get_flight(flt_id)
-                self.log.info("Importing {} file from {} into flight: {}".format(dtype, path, flight.uid))
-            else:
-                flight = None
-            if self.project is not None:
-                self.log.debug("Importing file using new thread method")
-                ld2 = LoadFile(path, 'gravity', flight, self)
-                ld2.data.connect(self.project.add_data)
-                ld2.loaded.connect(functools.partial(self.update_project, signal_flight=True))
-                ld2.loaded.connect(self.save_project)
-                ld2.loaded.connect(self.scan_flights)
-                self.current_flight = None
-                ld2.start()
-            else:
-                self.log.warning("No active project, not importing.")
+            flight = self.project.get_flight(flt_id)
+            self.log.critical("Data Type is: {}".format(dtype))
+            self.log.info("Importing {} file from {} into flight: {}".format(dtype, path, flight.uid))
+
+            self.log.debug("Importing file using new thread method")
+            ld2 = LoadFile(path, dtype, flight, self)
+            ld2.data.connect(self.project.add_data)
+            ld2.loaded.connect(functools.partial(self.update_project, signal_flight=True))
+            ld2.loaded.connect(self.save_project)
+            ld2.loaded.connect(self.scan_flights)
+            self.current_flight = None
+            ld2.start()
 
             # gps_fields = ['mdy', 'hms', 'lat', 'lon', 'ell_ht', 'ortho_ht', 'num_sats', 'pdop']
             # self.gps_data = ti.import_trajectory(path, columns=gps_fields, skiprows=1)

@@ -23,7 +23,11 @@ class LoadFile(QThread):
         self._functor = {'gravity': read_at1a, 'gps': import_trajectory}.get(datatype, None)
 
     def run(self):
-        df = self._functor(self._path)
+        if self._dtype == 'gps':
+            fields = ['mdy', 'hms', 'lat', 'long', 'ell_ht', 'ortho_ht', 'num_sats', 'pdop']
+            df = self._functor(self._path, columns=fields, skiprows=1, timeformat='hms')
+        else:
+            df = self._functor(self._path)
         data = DataPacket(df, self._path, self._flight, self._dtype)
         self.data.emit(data)
         self.loaded.emit()
