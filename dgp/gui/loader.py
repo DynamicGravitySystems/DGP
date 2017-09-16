@@ -28,6 +28,6 @@ class LoadFile(QThread):
             df = self._functor(self._path, columns=fields, skiprows=1, timeformat='hms')
         else:
             df = self._functor(self._path)
-        data = DataPacket(df, self._path, self._flight, self._dtype)
+        data = DataPacket(df, self._path, self._dtype)
         self.data.emit(data)
         self.loaded.emit()

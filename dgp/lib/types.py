@@ -19,9 +19,4 @@ FlightLine = namedtuple('FlightLine', ['id', 'sequence', 'file_ref', 'start', 'e
 
 DataCurve = namedtuple('DataCurve', ['channel', 'data'])
 
-class DataPacket:
-    def __init__(self, data, path, flight, data_type, *args, **kwargs):
-        self.data = data
-        self.path = path
-        self.flight = flight
-        self.data_type = data_type
+DataPacket = namedtuple('DataPacket', ['data', 'path', 'dtype'])

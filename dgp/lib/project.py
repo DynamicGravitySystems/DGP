@@ -52,11 +52,20 @@ class GravityProject:
     GravityProject will be the base class defining common values for both airborne
     and marine gravity survey projects.
     """
+    version = 0.1  # Used for future pickling compatability
+
     def __init__(self, path: pathlib.Path, name: str="Untitled Project", description: str=None):
         """
-        :param path: Project directory path - where all project files will be stored
-        :param name: Project name
-        :param description: Project description
+        Initializes a new GravityProject project class
+
+        Parameters
+        ----------
+        path : pathlib.Path
+            Directory which will be used to store project configuration and data files.
+        name : str
+            Human readable name to call this project.
+        description : str
+            Short description for this project.
         """
         self.log = logging.getLogger(__name__)
         if isinstance(path, pathlib.Path):
@@ -118,9 +127,20 @@ class GravityProject:
 
     def save(self, path: pathlib.Path=None):
         """
-        Export the project class as a pickled python object
-        :param path: Path to save file
-        :return:
+        Saves the project by pickling the project class and saving to a file specified by path.
+
+        Parameters
+        ----------
+        path : pathlib.Path, optional
+            Optional path object to manually specify the save location for the project class object. By default if no
+            path is passed to the save function, the project will be saved in the projectdir directory in a file named
+            for the project name, with extension .d2p
+
+        Returns
+        -------
+        bool
+            True if successful
+
         """
         if path is None:
             path = self.projectdir.joinpath('{}.d2p'.format(self.name))
@@ -134,8 +154,26 @@ class GravityProject:
         pass
 
     @staticmethod
-    def load(path):
-        """Use python pickling to load project"""
+    def load(path: pathlib.Path):
+        """
+        Loads an existing project by unpickling a previously pickled project class from a file specified by path.
+
+        Parameters
+        ----------
+        path : pathlib.Path
+            Path object referencing the binary file containing a pickled class object e.g. Path(project.d2p).
+
+        Returns
+        -------
+        GravityProject
+            Unpickled GravityProject (or descendant) object.
+
+        Raises
+        ------
+        FileNotFoundError
+            If path does not exist.
+
+        """
         if not isinstance(path, pathlib.Path):
             path = pathlib.Path(path)
         if not path.exists():
@@ -151,12 +189,33 @@ class GravityProject:
         pass
 
     def __getstate__(self):
-        """Prune any non-pickleable objects from the class __dict__"""
+        """
+        Used by the python pickle.dump method to determine if a class __dict__ member is 'pickleable'
+
+        Returns
+        -------
+        dict
+            Dictionary of self.__dict__ items that have been filtered using the can_pickle() function.
+        """
         return {k: v for k, v in self.__dict__.items() if can_pickle(v)}
 
-    def __setstate__(self, state):
-        """Re-initialize a logger upon un-pickling"""
-        self.__dict__ = state
+    def __setstate__(self, state) -> None:
+        """
+        Used to adjust state of the class upon loading using pickle.load. This is used to reinitialize class
+        attributes that could not be pickled (filtered out using __getstate__).
+        In future this method may be used to ensure backwards compatibility with older version project classes that
+        are loaded using a newer software/project version.
+
+        Parameters
+        ----------
+        state
+            Input state passed by the pickle.load function
+
+        Returns
+        -------
+        None
+        """
+        self.__dict__.update(state)
         self.log = logging.getLogger(__name__)
 
 
@@ -167,18 +226,31 @@ class Flight:
     """
     def __init__(self, parent: GravityProject, name: str, meter: MeterConfig=None, **kwargs):
         """
-        The Flight object represents a single literal survey flight, and accepts various parameters related to the
-        flight.
-        Currently a single GPS data and Gravity data file each may be assigned to a flight. In the future this
-        functionality must be expanded to handle more complex cases requiring the input of multiple data files.
-        At present a single gravity meter may be assigned to the flight. In future, as/if the project requires this
-        may be expanded to allow for a second meter to be optionally assigned.
-        :param parent: GravityProject - the Parent project item of this meter, used to retrieve linked data.
-        :param name: Str - a human readable reference name for the flight
-        :param meter: MeterConfig - a Gravity meter configuration object that will be associated with this flight.
-        :param kwargs: Optional key-word arguments may be passed to assign other attributes, e.g. date within the flight
-                date: a Datetime object specifying the date of the flight
-                uuid: a UUID string to assign to this flight (otherwise a random UUID is generated upon creation)
+        The Flight object represents a single literal survey flight (Takeoff -> Landing) and stores various
+        parameters and configurations related to the flight.
+        The Flight class provides an easy interface to retrieve GPS and Gravity data which has been associated with it
+        in the project class.
+        Currently a Flight tracks a single GPS and single Gravity data file, if a second file is subsequently imported
+        the reference to the old file will be overwritten.
+        In future we plan on expanding the functionality so that multiple data files might be assigned to a flight, with
+        various operations (comparison, merge, join) able to be performed on them.
+
+        Parameters
+        ----------
+        parent : GravityProject
+            Parent project class which this flight belongs to. This is essential as the project stores the references
+            to all data files which the flight may rely upon.
+        name : str
+            Human-readable reference name for this flight.
+        meter : MeterConfig
+            Gravity Meter configuration to assign to this flight.
+        kwargs
+            Arbitrary keyword arguments.
+            uuid : uuid.uuid
+                Unique identifier to assign to this flight, else a uuid will be generated upon creation using the
+                uuid.uuid4() method.
+            date : datetime.date
+                Datetime object to  assign to this flight.
         """
         # If uuid is passed use the value else assign new uuid
         # the letter 'f' is prepended to the uuid to ensure that we have a natural python name
@@ -204,9 +276,6 @@ class Flight:
         self.post_still_reading = None
 
         self.flight_timeshift = 0
-
-        # Flight data files
-        self.data = {}
 
         # Flight lines keyed by UUID
         self.lines = {}
@@ -249,16 +318,6 @@ class Flight:
     def get_channel_data(self, channel):
         return self.gravity[channel]
 
-    def set_gravity_tie(self, gravity: float, loc: Location):
-        self.tie_value = gravity
-        self.tie_location = loc
-
-    def pre_still_reading(self, gravity: float, loc: Location, time: float):
-        self.pre_still_reading = StillReading(gravity, loc, time)
-
-    def post_still_reading(self, gravity: float, loc: Location, time: float):
-        self.post_still_reading = StillReading(gravity, loc, time)
-
     def add_line(self, start: float, end: float):
         """Add a flight line to the flight by start/stop index and sequence number"""
         uid = uuid.uuid4().hex
@@ -268,10 +327,27 @@ class Flight:
 
     @staticmethod
     def generate_uuid():
+        """
+        Generates a Universally Unique ID (UUID) using the uuid.uuid4() method, and replaces the first hex digit with
+        'f' to ensure the UUID conforms to python's Natural Name convention, simply meaning that the name does not start
+        with a number, as this raises warnings when using the UUID as a key in a Pandas dataframe or when exporting data
+        to an HDF5 store.
+
+        Returns
+        -------
+        str
+            32 digit hexadecimal string unique identifier where str[0] == 'f'
+        """
         return 'f{}'.format(uuid.uuid4().hex[1:])
 
     def __iter__(self):
-        """Iterate over flight lines in the Flight instance"""
+        """
+        Implement class iteration, allowing iteration through FlightLines in this Flight
+        Yields
+        -------
+        FlightLine : NamedTuple
+            Next FlightLine in Flight.lines
+        """
         for k, line in self.lines.items():
             yield line
 
@@ -324,10 +400,19 @@ class AirborneProject(GravityProject):
 
     def load_data(self, uid: str, prefix: str):
         """
-        Load data from a specified group (prefix) - gps or gravity, from the projects HDF5 store.
-        :param str uid: Datafile Unique Identifier
-        :param str prefix: Data type prefix [gps or gravity]
-        :return:
+        Load data from the project HDFStore (HDF5 format datafile) by prefix and uid.
+
+        Parameters
+        ----------
+        uid : str
+            32 digit hexadecimal unique identifier for the file to load.
+        prefix : str
+            Data type prefix, 'gps' or 'gravity' specifying the HDF5 group to retrieve the file from.
+
+        Returns
+        -------
+        DataFrame
+            Pandas DataFrame retrieved from HDFStore
         """
         with HDFStore(str(self.hdf_path)) as store:
             try:
@@ -337,7 +422,28 @@ class AirborneProject(GravityProject):
             else:
                 return data
 
-    def add_data(self, packet: DataPacket):
+    def add_data(self, packet: DataPacket, flight_uid: str):
+        """
+        Add a DataPacket to the project.
+        The DataPacket is simply a container for a pandas.DataFrame object, containing some additional meta-data that is
+        used by the project and interface.
+        Upon adding a DataPacket, the DataFrame is assigned a UUID and together with the data type, is exported to the
+        projects' HDFStore into a group specified by data type i.e.
+            HDFStore.put('data_type/uuid', packet.data)
+        The data can then be retrieved later from its respective group using its UUID.
+        The UUID is then stored in the Flight class's data variable for the respective data_type.
+
+        Parameters
+        ----------
+        packet : DataPacket(data, path, dtype)
+
+        flight_uid : str
+
+
+        Returns
+        -------
+
+        """
         """
         Import a DataFrame into the project
         :param packet: DataPacket custom class containing file path, dataframe, data type and flight association
@@ -350,14 +456,14 @@ class AirborneProject(GravityProject):
         with HDFStore(str(self.hdf_path)) as store:
             # Separate data into groups by data type (GPS & Gravity Data)
             # format: 'table' pytables format enables searching/appending, fixed is more performant.
-            store.put('{}/{}'.format(packet.data_type, file_uid), packet.data, format='fixed', data_columns=True)
+            store.put('{}/{}'.format(packet.dtype, file_uid), packet.data, format='fixed', data_columns=True)
             # Store a reference to the original file path
             self.data_map[file_uid] = packet.path
         try:
-            flight = self.flights[packet.flight.uid]
-            if packet.data_type == 'gravity':
+            flight = self.flights[flight_uid]
+            if packet.dtype == 'gravity':
                 flight.gravity = file_uid
-            elif packet.data_type == 'gps':
+            elif packet.dtype == 'gps':
                 flight.gps = file_uid
         except KeyError:
             return False
