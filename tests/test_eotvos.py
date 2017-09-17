@@ -16,7 +16,7 @@ class TestEotvos(unittest.TestCase):
     def setUp(self):
         pass
 
-    @unittest.skip("Not implemented.")
+    @unittest.skip("test_derivative not implemented.")
     def test_derivative(self):
         """Test derivation function against table of values calculated in MATLAB"""
         dlat = []
@@ -47,8 +47,7 @@ class TestEotvos(unittest.TestCase):
         ht = data['ell_ht'].values
         rate = 10
 
-        eotvos_a, r2dot, w2xrdot, wdotxr, wxwxr, wexwexr = eotvos.calc_eotvos(lat, lon, ht, rate,
-                                                                              derivation_func=eotvos.derivative)
+        eotvos_a = eotvos.calc_eotvos(lat, lon, ht, rate, derivation_func=eotvos.derivative)
         for i, value in enumerate(eotvos_a):
             # TODO: Increase accuracy of function, the last test calculated value in our test data is -0.00094 ~= 0.0
             self.assertAlmostEqual(value, result_eotvos[i], places=2)

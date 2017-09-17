@@ -1,5 +1,6 @@
 # coding: utf-8
-# This file is part of DynamicGravityProcessor (https://github.com/DynamicGravitySystems/DGP). License is Apache v2
+# This file is part of DynamicGravityProcessor (https://github.com/DynamicGravitySystems/DGP).
+# License is Apache v2
 
 import numpy as np
 from numpy import array
@@ -32,8 +33,8 @@ def derivative(y: array, datarate, edge_order=None):
         return ValueError('Invalid value for parameter n {1 or 2}')
 
 
-# TODO: Need sample input to test
-def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, a=None, ecc=None, derivation_func=np.gradient):
+def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, derivation_func=np.gradient,
+                **kwargs):
     """
     calc_eotvos: Calculate Eotvos Gravity Corrections
 
@@ -53,12 +54,13 @@ def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, a=None, ecc=
         Array of ellipsoidal height in meters
     datarate : Float (Scalar)
         Scalar data rate in Hz
-    a : Float (Scalar)
-        Scalar semi-major axis of ellipsoid in meters
-    ecc : Float (Scalar)
-        Scalar eccentricity of ellipsoid
     derivation_func : Callable (Array, Scalar, Int)
         Callable function used to calculate first and second order time derivatives.
+    kwargs
+        a : float
+            Specify semi-major axis
+        ecc : float
+            Eccentricity
 
     Returns
     -------
@@ -66,66 +68,68 @@ def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, a=None, ecc=
         Eotvos values in mgals
         Tuple(E: Array, rdoubledot, angular acc of ref frame, coriolis, centrifugal, centrifugal acc of earth)
     """
+
+    # eotvos.derivative function trims the ends of the input by 1, so we need to apply bound to
+    # some arrays
     if derivation_func is not np.gradient:
         bounds = slice(1, -1)
     else:
         bounds = slice(None, None, None)
 
     # Constants
-    # TODO: Allow a and ecc to be specified in kwargs
-    a = 6378137.0  # Default semi-major axis
+    # a = 6378137.0  # Default semi-major axis
+    a = kwargs.get('a', 6378137.0)  # Default semi-major axis
     b = 6356752.3142  # Default semi-minor axis
-    ecc = (a - b) / a  # Eccentricity (eq 5 Harlan)
+    ecc = kwargs.get('ecc', (a - b) / a)  # Eccentricity
+
     We = 0.00007292115  # sidereal rotation rate, radians/sec
     mps2mgal = 100000  # m/s/s to mgal
 
     # Convert lat/lon in degrees to radians
-    rad_lat = np.deg2rad(lat)
-    rad_lon = np.deg2rad(lon)
+    lat = np.deg2rad(lat)
+    lon = np.deg2rad(lon)
 
-    dlat = derivation_func(rad_lat, datarate, edge_order=1)
-    ddlat = derivation_func(rad_lat, datarate, edge_order=2)
-    dlon = derivation_func(rad_lon, datarate, edge_order=1)
-    ddlon = derivation_func(rad_lon, datarate, edge_order=2)
+    dlat = derivation_func(lat, datarate, edge_order=1)
+    ddlat = derivation_func(lat, datarate, edge_order=2)
+    dlon = derivation_func(lon, datarate, edge_order=1)
+    ddlon = derivation_func(lon, datarate, edge_order=2)
     dht = derivation_func(ht, datarate, edge_order=1)
     ddht = derivation_func(ht, datarate, edge_order=2)
 
     # Calculate sin(lat), cos(lat), sin(2*lat), and cos(2*lat)
-    # Beware MATLAB uses an array index starting with one (1), whereas python uses zero indexed arrays
-    sin_lat = np.sin(rad_lat[bounds])
-    cos_lat = np.cos(rad_lat[bounds])
-    sin_2lat = np.sin(2.0 * rad_lat[bounds])
-    cos_2lat = np.cos(2.0 * rad_lat[bounds])
+    sin_lat = np.sin(lat[bounds])
+    cos_lat = np.cos(lat[bounds])
+    sin_2lat = np.sin(2.0 * lat[bounds])
+    cos_2lat = np.cos(2.0 * lat[bounds])
 
     # Calculate the r' and its derivatives
     r_prime = a * (1.0-ecc * sin_lat * sin_lat)
     dr_prime = -a * dlat * ecc * sin_2lat
-    # matlab: ddrp=-a.*ddlat.*ecc.*sin2lat-2.0.*a.*dlat.*dlat.*ecc.*cos2lat;
     ddr_prime = -a * ddlat * ecc * sin_2lat - 2.0 * a * dlat * dlat * ecc * cos_2lat
 
     # Calculate the deviation from the normal and its derivatives
     D = np.arctan(ecc * sin_2lat)
     dD = 2.0 * dlat * ecc * cos_2lat
     ddD = 2.0 * ddlat * ecc * cos_2lat - 4.0 * dlat * dlat * ecc * sin_2lat
+    # Calculate this value once (used many times)
+    sinD = np.sin(D)
+    cosD = np.cos(D)
 
     # Calculate r and its derivatives
     r = array([
-        -r_prime * np.sin(D),
+        -r_prime * sinD,
         np.zeros(r_prime.size),
-        -r_prime * np.cos(D)-ht[bounds]
+        -r_prime * cosD-ht[bounds]
     ])
-    # rdot=[(-drp.*sin(D)-rp.*dD.*cos(D));zeros(size(rp));(-drp.*cos(D)+rp.*dD.*sin(D)-dht)];
     rdot = array([
-        (-dr_prime * np.sin(D) - r_prime * dD * np.cos(D)),
+        (-dr_prime * sinD - r_prime * dD * cosD),
         np.zeros(r_prime.size),
-        (-dr_prime * np.cos(D) + r_prime * dD * np.sin(D) - dht)
+        (-dr_prime * cosD + r_prime * dD * sinD - dht)
     ])
-    # ci=(-ddrp.*sin(D)-2.0.*drp.*dD.*cos(D)-rp.*(ddD.*cos(D)-dD.*dD.*sin(D)));
-    ci = (-ddr_prime * np.sin(D) - 2.0 * dr_prime * dD * np.cos(D) - r_prime *
-          (ddD * np.cos(D) - dD * dD * np.sin(D)))
-    # ck = (-ddrp. * cos(D) + 2.0. * drp. * dD. * sin(D) + rp. * (ddD. * sin(D) + dD. * dD. * cos(D)) - ddht);
-    ck = (-ddr_prime * np.cos(D) + 2.0 * dr_prime * dD * np.sin(D) + r_prime *
-          (ddD * np.sin(D) + dD * dD * np.cos(D)) - ddht)
+    ci = (-ddr_prime * np.sin(D) - 2.0 * dr_prime * dD * cosD - r_prime *
+          (ddD * cosD - dD * dD * sinD))
+    ck = (-ddr_prime * np.cos(D) + 2.0 * dr_prime * dD * sinD + r_prime *
+          (ddD * sinD + dD * dD * cosD) - ddht)
     r2dot = array([
         ci,
         np.zeros(ci.size),
@@ -149,18 +153,19 @@ def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, a=None, ecc=
     wxwxr = np.cross(w, w_x_r, axis=0)
 
     # Calculate wexwexre (which is the centrifugal acceleration due to the earth)
-    re = array([
-        -r_prime * np.sin(D),
-        np.zeros(r_prime.size),
-        -r_prime * np.cos(D)
-    ])
+    # not currently used:
+    # re = array([
+    #     -r_prime * sinD,
+    #     np.zeros(r_prime.size),
+    #     -r_prime * cosD
+    # ])
     we = array([
         We * cos_lat,
         np.zeros(sin_lat.shape),
         -We * sin_lat
     ])
-    wexre = np.cross(we, re, axis=0)
-    wexwexre = np.cross(we, wexre, axis=0)
+    # wexre = np.cross(we, re, axis=0)  # not currently used
+    # wexwexre = np.cross(we, wexre, axis=0)  # not currently used
     wexr = np.cross(we, r, axis=0)
     wexwexr = np.cross(we, wexr, axis=0)
 
@@ -172,7 +177,7 @@ def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, a=None, ecc=
     E = (acc[2] - wexwexr[2]) * mps2mgal
     if derivation_func is not np.gradient:
         E = np.pad(E, (1, 1), 'edge')
-    # TODO: Pad the start/end due to loss during derivative computation (not necessary using np.gradient)
 
     # Return Eotvos corrections
-    return E, r2dot, w2_x_rdot, wdot_x_r, wxwxr, wexwexr
+    return E
+    # return E, r2dot, w2_x_rdot, wdot_x_r, wxwxr, wexwexr
