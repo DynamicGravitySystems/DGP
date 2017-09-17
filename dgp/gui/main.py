@@ -8,7 +8,7 @@ from typing import Tuple, List, Dict
 from pandas import Series, DataFrame
 from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5.QtCore import pyqtSignal, pyqtBoundSignal
-from PyQt5.QtGui import QColor
+from PyQt5.QtGui import QColor, QStandardItemModel, QStandardItem, QIcon
 from PyQt5.uic import loadUiType
 
 import dgp.lib.project as prj
@@ -58,7 +58,6 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
         # Setup Project
         self.project = project
-        # self.update_project()
 
         # See http://doc.qt.io/qt-5/stylesheet-examples.html#customizing-qtreeview
         # Set Stylesheet customizations for GUI Window
@@ -112,15 +111,13 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         # TODO: Change this to use pathlib.Path
         self.import_base_path = os.path.join(os.getcwd(), '../tests')
 
-        # Lock object used as simple Flag supporting the context manager protocol
         self.current_flight = None  # type: prj.Flight
-        self.flight_data = {}  # Stores DataFrames for loaded flights
+        self.current_flight_index = QtCore.QModelIndex()  # type: QtCore.QModelIndex
+        self.tree_index = None  # type: QtCore.QModelIndex
         self.flight_plots = {}  # Stores plotter objects for flights
-        # self.plot_curves = None  # Initialized in self.init_plot()
 
         # TESTING
-        self.project_tree = ProjectTreeView(parent=self)
-        self.scan_flights()
+        self.project_tree = ProjectTreeView(parent=self, project=self.project)
         # self.data_tab_layout.addWidget(self.project_tree)
         self.gridLayout_2.addWidget(self.project_tree, 1, 0, 1, 2)
         # TESTING
@@ -128,15 +125,15 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
     def load(self):
         self._init_plots()
         self._init_slots()
-        self.update_project(signal_flight=True)
+        # self.update_project(signal_flight=True)
+        self.project_tree.refresh()
         self.setWindowState(QtCore.Qt.WindowMaximized)
         self.save_project()
         self.show()
         try:
             self.progress.disconnect()
             self.status.disconnect()
-        except TypeError:
-            # This will happen if there are no slots connected
+        except TypeError:  # This will happen if there are no slots connected
             pass
 
     def _init_plots(self) -> None:
@@ -151,24 +148,34 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.progress.emit(0)
         if self.project is None:
             return
-        for i, flight in enumerate(self.project):  # type: prj.Flight
+        for i, flight in enumerate(self.project):  # type: int, prj.Flight
             if flight.uid in self.flight_plots:
                 continue
-            vlayout = QtWidgets.QVBoxLayout()
-            f_plot = LineGrabPlot(2, title=flight.name)
-            toolbar = f_plot.get_toolbar()
-            widget = QtWidgets.QWidget()
-            vlayout.addWidget(f_plot)
-            vlayout.addWidget(toolbar)
-            widget.setLayout(vlayout)
-            self.flight_plots[flight.uid] = f_plot, widget
+
+            plot, widget = self._new_plot_widget(flight.name, rows=2)
+
+            self.flight_plots[flight.uid] = plot, widget
             self.gravity_stack.addWidget(widget)
-            gravity = self.flight_data[flight.uid].get('gravity')
+            gravity = flight.gravity
             if gravity is not None:
-                self.plot_gravity(f_plot, gravity, {0: 'gravity', 1: ['long', 'cross']})
-            self.log.debug("Initialized Flight Plot: {}".format(f_plot))
+                self.plot_gravity(plot, gravity, {0: 'gravity', 1: ['long', 'cross']})
+            self.log.debug("Initialized Flight Plot: {}".format(plot))
             self.status.emit('Flight Plot {} Initialized'.format(flight.name))
             self.progress.emit(i+1)
+
+    @staticmethod
+    def _new_plot_widget(title, rows=2):
+        plot = LineGrabPlot(rows, title=title)
+        plot_toolbar = plot.get_toolbar()
+
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(plot)
+        layout.addWidget(plot_toolbar)
+
+        widget = QtWidgets.QWidget()
+        widget.setLayout(layout)
+
+        return plot, widget
 
     def _init_slots(self):
         """Initialize PyQt Signals/Slots for UI Buttons and Menus"""
@@ -185,8 +192,6 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
         # Project Tree View Actions #
         # self.prj_tree.doubleClicked.connect(self.log_tree)
-        # self.prj_tree.clicked.connect(self.flight_changed)
-        # self.prj_tree.currentItemChanged(self.update_channels)
         self.project_tree.clicked.connect(self.flight_changed)
 
         # Project Control Buttons #
@@ -237,7 +242,8 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
     def write_console(self, text, level):
         """PyQt Slot: Log a message to the GUI console"""
         log_color = {'DEBUG': QColor('Blue'), 'INFO': QColor('Green'), 'WARNING': QColor('Red'),
-                     'ERROR': QColor('Pink'), 'CRITICAL': QColor('Orange')}.get(level, QColor('Black'))
+                     'ERROR': QColor('Pink'), 'CRITICAL': QColor(
+                'Orange')}.get(level.upper(), QColor('Black'))
 
         self.text_console.setTextColor(log_color)
         self.text_console.append(str(text))
@@ -269,20 +275,17 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
     # Plot functions
     #####
 
-    def scan_flights(self):
-        """Scan flights and load data into self.flight_data"""
-        self.log.info("Rescanning and loading flight data.")
-        for flight in self.project:
-            if flight.uid not in self.flight_data:
-                self.flight_data[flight.uid] = {'gravity': flight.gravity, 'gps': flight.gps}
-            else:
-                self.flight_data[flight.uid].update({'gravity': flight.gravity, 'gps': flight.gps})
-
     def flight_changed(self, index: QtCore.QModelIndex) -> None:
         """
         PyQt Slot called upon change in flight selection using the Project Tree View.
         When a new flight is selected we want to plot the gravity channel in subplot 0, with cross and long in subplot 1
         GPS data will be plotted in the GPS tab on its own plot.
+
+        Logic:
+        If item @ index is not a Flight object Then return
+        If current_flight == item.data() @ index, Then return
+
+
         Parameters
         ----------
         index : QtCore.QModelIndex
@@ -293,13 +296,14 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         None
 
         """
+        self.tree_index = index
         qitem = self.project_tree.model().itemFromIndex(index)  # type: QtGui.QStandardItem
         if qitem is None:
             return
         qitem_data = qitem.data(QtCore.Qt.UserRole)
 
         if not isinstance(qitem_data, prj.Flight):
-            # Return as we're not interested in handling non-flight selections at this time
+            # Return as we're not interested in handling non-flight selections
             return None
         else:
             flight = qitem_data  # type: prj.Flight
@@ -316,24 +320,26 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
         # Check if there is a plot for this flight already
         if self.flight_plots.get(flight.uid, None) is not None:
-            self.log.debug("Already have a plot for this flight: {}".format(flight.name))
             curr_plot, stack_widget = self.flight_plots[flight.uid]  # type: LineGrabPlot
+            self.log.info("Switching widget stack")
             self.gravity_stack.setCurrentWidget(stack_widget)
-            pass
-
-        grav_data = self.flight_data[flight.uid].get('gravity', None)
-        gps_data = self.flight_data[flight.uid].get('gps', None)
+        else:
+            self.log.error("No plot for this flight found.")
+            return
 
         # TODO: Move this (and gps plot) into separate functions
         # so we can call this on app startup to pre-plot everything
-        if grav_data is not None:
+        if flight.gravity is not None:
             if not curr_plot.plotted:
-                self.log.debug("Plotting gravity channel in subplot 0")
-                self.plot_gravity(curr_plot, grav_data, {0: 'gravity', 1: ['long', 'cross']})
-            self.log.debug("Already plotted, switching widget stack")
+                self.plot_gravity(curr_plot, flight.gravity, {0: 'gravity', 1: ['long', 'cross']})
 
-        if gps_data is not None:
+        if flight.gps is not None:
             self.log.debug("Flight has GPS Data")
+
+    def redraw(self, flt_id: str):
+        plot, _ = self.flight_plots[flt_id]
+        flt = self.project.get_flight(flt_id)  # type: prj.Flight
+        self.plot_gravity(plot, flt.gravity, {0: 'gravity', 1: ['long', 'cross']})
 
     @staticmethod
     def plot_gravity(plot: LineGrabPlot, data: DataFrame, fields: Dict):
@@ -357,22 +363,26 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
     #####
 
     def import_data(self) -> None:
-        """Load data file (GPS or Gravity) using a background Thread, then hand it off to the project."""
+        """Load data file (GPS or Gravity) using a background Thread, then hand
+        it off to the project."""
         dialog = ImportData(self.project, self.current_flight)
         if dialog.exec_():
             path, dtype, flt_id = dialog.content
             flight = self.project.get_flight(flt_id)
-            self.log.critical("Data Type is: {}".format(dtype))
+            plot, _ = self.flight_plots[flt_id]
+            plot.plotted = False
             self.log.info("Importing {} file from {} into flight: {}".format(dtype, path, flight.uid))
 
-            self.log.debug("Importing file using new thread method")
-            ld2 = LoadFile(path, dtype, flight, self)
-            ld2.data.connect(self.project.add_data)
-            ld2.loaded.connect(functools.partial(self.update_project, signal_flight=True))
-            ld2.loaded.connect(self.save_project)
-            ld2.loaded.connect(self.scan_flights)
-            self.current_flight = None
-            ld2.start()
+            loader = LoadFile(path, dtype, flight, self)
+            add_data = functools.partial(self.project.add_data, flight_uid=flight.uid)
+
+            loader.data.connect(add_data)
+            loader.loaded.connect(functools.partial(self.project_tree.refresh,
+                                                    curr_flightid=flt_id))
+            loader.loaded.connect(functools.partial(self.redraw, flt_id))
+            loader.loaded.connect(self.save_project)
+
+            loader.start()
 
             # gps_fields = ['mdy', 'hms', 'lat', 'lon', 'ell_ht', 'ortho_ht', 'num_sats', 'pdop']
             # self.gps_data = ti.import_trajectory(path, columns=gps_fields, skiprows=1)
@@ -391,7 +401,8 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
                 self.project.save()
                 self.update_project()
 
-    # TODO: This will eventually require a dialog to allow selection of project type
+    # TODO: This will eventually require a dialog to allow selection of project type, or
+    # a metadata file in the project directory specifying type info
     def open_project(self) -> None:
         path = QtWidgets.QFileDialog.getExistingDirectory(self, "Open Project Directory", os.path.abspath('..'))
         if not path:
@@ -401,24 +412,10 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         if prj_file is None:
             self.log.warning("No project file's found in directory: {}".format(path))
             return
-        self.project.save()
+        self.save_project()
         self.project = prj.AirborneProject.load(prj_file)
         self.update_project()
         return
-
-    def update_project(self, signal_flight=False) -> None:
-        self.log.debug("Update project called")
-        if self.project is None:
-            return
-        # self.prj_tree.setModel(self.project.generate_model())
-        # self.prj_tree.expandAll()
-        model, index = self.project.generate_model()
-        # self.project_tree.refresh(index)
-        self.project_tree.setModel(model)
-        self.project_tree.expandAll()
-        self.project_tree.setCurrentIndex(index)
-        if signal_flight:
-            self.flight_changed(index)
 
     def save_project(self) -> None:
         if self.project is None:
@@ -432,23 +429,27 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
     @autosave
     def add_flight(self) -> None:
-        # TODO: do I need these checks? self.project should not ever be None
-        if self.project is None:
-            return
         dialog = AddFlight(self.project)
         if dialog.exec_():
             self.log.info("Adding flight:")
             flight = dialog.flight
             self.project.add_flight(flight)
-            self.update_project()
-            self.scan_flights()
-            self._init_plots()
+            plot, widget = self._new_plot_widget(flight.name, rows=2)
+            self.gravity_stack.addWidget(widget)
+            self.flight_plots[flight.uid] = plot, widget
+            self.project_tree.refresh(curr_flightid=flight.uid)
             return
 
 
 class ProjectTreeView(QtWidgets.QTreeView):
-    def __init__(self, model=None, project=None, parent=None):
+    def __init__(self, project=None, parent=None):
         super().__init__(parent=parent)
+
+        self._project = project
+        # Dict indexes to store [flight_uid] = QItemIndex
+        self._indexes = {}
+        self.log = logging.getLogger(__name__)
+
         self.setMinimumSize(QtCore.QSize(0, 300))
         self.setAlternatingRowColors(True)
         self.setAutoExpandDelay(1)
@@ -461,15 +462,84 @@ class ProjectTreeView(QtWidgets.QTreeView):
         # self.setModel(model)
         # self.expandAll()
 
-    def refresh(self, curr_index=None):
+    def refresh(self, curr_index=None, curr_flightid=None):
         """Regenerate model and set current selection to curr_index"""
-        # self.generate_airborne_model()
+        model, index = self.generate_airborne_model(self._project)
+        self.setModel(model)
         if curr_index is not None:
-            self.setCurrentIndex(curr_index)
+            index = curr_index
+        elif curr_flightid is not None:
+            index = self._indexes[curr_flightid]
+
+        self.setCurrentIndex(index)
+        self.clicked.emit(index)
         self.expandAll()
 
-    def generate_airborne_model(self):
-        pass
+    def generate_airborne_model(self, project: prj.GravityProject):
+        """Generate a Qt Model based on the project structure."""
+        model = QStandardItemModel()
+        root = model.invisibleRootItem()
+
+        flight_items = {}  # Used to find indexes after creation
+
+        dgs_ico = QIcon(':images/assets/dgs_icon.xpm')
+        flt_ico = QIcon(':images/assets/flight_icon.png')
+
+        prj_header = QStandardItem(dgs_ico,
+                                   "{name}: {path}".format(name=project.name,
+                                                           path=project.projectdir))
+        prj_header.setEditable(False)
+        fli_header = QStandardItem(flt_ico, "Flights")
+        fli_header.setEditable(False)
+        first_flight = None
+        for uid, flight in project.flights.items():
+            fli_item = QStandardItem(flt_ico, "Flight: {}".format(flight.name))
+            flight_items[flight.uid] = fli_item
+            if first_flight is None:
+                first_flight = fli_item
+            fli_item.setToolTip("UUID: {}".format(uid))
+            fli_item.setEditable(False)
+            fli_item.setData(flight, QtCore.Qt.UserRole)
+
+            gps_path, gps_uid = flight.gps_file
+            if gps_path is not None:
+                _, gps_fname = os.path.split(gps_path)
+            else:
+                gps_fname = '<None>'
+            gps = QStandardItem("GPS: {}".format(gps_fname))
+            gps.setToolTip("File Path: {}".format(gps_uid))
+            gps.setEditable(False)
+            gps.setData(gps_uid)  # For future use
+
+            grav_path, grav_uid = flight.gravity_file
+            if grav_path is not None:
+                _, grav_fname = os.path.split(grav_path)
+            else:
+                grav_fname = '<None>'
+            grav = QStandardItem("Gravity: {}".format(grav_fname))
+            grav.setToolTip("File Path: {}".format(grav_path))
+            grav.setEditable(False)
+            grav.setData(grav_uid)  # For future use
+
+            fli_item.appendRow(gps)
+            fli_item.appendRow(grav)
+
+            for line in flight:
+                line_item = QStandardItem("Line {}:{}".format(line.start, line.end))
+                line_item.setEditable(False)
+                fli_item.appendRow(line_item)
+            fli_header.appendRow(fli_item)
+        prj_header.appendRow(fli_header)
+
+        root.appendRow(prj_header)
+        self.log.debug("Tree Model generated")
+        first_index = model.indexFromItem(first_flight)
+
+        # for uid, item in flight_items.items():
+        #     self._indexes[uid] = model.indexFromItem(item)
+        self._indexes = {uid: model.indexFromItem(item) for uid, item in flight_items.items()}
+
+        return model, first_index
 
     def contextMenuEvent(self, event: QtGui.QContextMenuEvent, *args, **kwargs):
         context_ind = self.indexAt(event.pos())

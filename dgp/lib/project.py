@@ -5,13 +5,8 @@ import uuid
 import pickle
 import pathlib
 import logging
-from typing import Tuple
 
-from pandas import HDFStore
-from PyQt5 import QtCore
-from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIcon
-from PyQt5.QtCore import QModelIndex
-
+from pandas import HDFStore, DataFrame
 
 from dgp.lib.meterconfig import MeterConfig, AT1Meter
 from dgp.lib.types import Location, StillReading, FlightLine, DataPacket
@@ -43,6 +38,8 @@ def can_pickle(attribute):
     """Helper function used by __getstate__ to determine if an attribute should be pickled."""
     # TODO: As necessary change this to check against a list of un-pickleable types
     if isinstance(attribute, logging.Logger):
+        return False
+    if isinstance(attribute, DataFrame):
         return False
     return True
 
@@ -90,7 +87,30 @@ class GravityProject:
         self.log.debug("Gravity Project Initialized")
 
     def load_data(self, uid: str, prefix: str):
-        pass
+        """
+        Load data from the project HDFStore (HDF5 format datafile) by prefix and uid.
+
+        Parameters
+        ----------
+        uid : str
+            32 digit hexadecimal unique identifier for the file to load.
+        prefix : str
+            Data type prefix, 'gps' or 'gravity' specifying the HDF5 group to retrieve the file from.
+
+        Returns
+        -------
+        DataFrame
+            Pandas DataFrame retrieved from HDFStore
+        """
+        self.log.info("Loading data <{}>/{} from HDFStore".format(prefix, uid))
+        with HDFStore(str(self.hdf_path)) as store:
+            try:
+                data = store.get('{}/{}'.format(prefix, uid))
+            except KeyError:
+                self.log.warning("No data exists for key: {}".format(uid))
+                return None
+            else:
+                return data
 
     def add_meter(self, meter: MeterConfig) -> MeterConfig:
         """Add an existing MeterConfig class to the dictionary of available meters"""
@@ -149,9 +169,6 @@ class GravityProject:
         with path.open('wb') as f:
             pickle.dump(self, f)
         return True
-
-    def generate_model(self):
-        pass
 
     @staticmethod
     def load(path: pathlib.Path):
@@ -265,8 +282,11 @@ class Flight:
         self.log = logging.getLogger(__name__)
 
         # These private attributes will hold a file reference string used to retrieve data from hdf5 store.
-        self._gpsdata = None  # type: str
-        self._gravdata = None  # type: str
+        self._gpsdata_uid = None  # type: str
+        self._gravdata_uid = None  # type: str
+
+        self._gpsdata = None  # type: DataFrame
+        self._gravdata = None  # type: DataFrame
 
         # Known Absolute Site Reading/Location
         self.tie_value = None
@@ -282,36 +302,55 @@ class Flight:
 
     @property
     def gps(self):
-        return self.parent.load_data(self._gpsdata, 'gps')
+        if self._gpsdata_uid is None:
+            return
+        if self._gpsdata is None:
+            self.log.warning("Loading gps data from HDFStore.")
+            self._gpsdata = self.parent.load_data(self._gpsdata_uid, 'gps')
+        return self._gpsdata
 
     @gps.setter
     def gps(self, value):
-        if self._gpsdata:
+        if self._gpsdata_uid:
             self.log.warning('GPS Data File already exists, overwriting with new value.')
-        self._gpsdata = value
+        self._gpsdata_uid = value
 
     @property
     def gps_file(self):
         try:
-            return self.parent.data_map[self._gpsdata], self._gpsdata
+            return self.parent.data_map[self._gpsdata_uid], self._gpsdata_uid
         except KeyError:
             return None, None
 
     @property
     def gravity(self):
-        self.log.warning("Loading gravity data from file. (Expensive Operation)")
-        return self.parent.load_data(self._gravdata, 'gravity')
+        """
+        Property accessor for Gravity data. This accessor will cache loaded
+        gravity data in an instance variable so that subsequent lookups do
+        not require an I/O operation.
+        Returns
+        -------
+        DataFrame
+            pandas DataFrame containing Gravity Data
+        """
+        if self._gravdata_uid is None:
+            return
+        if self._gravdata is None:
+            self.log.warning("Loading gravity data from HDFStore.")
+            self._gravdata = self.parent.load_data(self._gravdata_uid,
+                                                   'gravity')
+        return self._gravdata
 
     @gravity.setter
     def gravity(self, value):
-        if self._gravdata:
+        if self._gravdata_uid:
             self.log.warning('Gravity Data File already exists, overwriting with new value.')
-        self._gravdata = value
+        self._gravdata_uid = value
 
     @property
     def gravity_file(self):
         try:
-            return self.parent.data_map[self._gravdata], self._gravdata
+            return self.parent.data_map[self._gravdata_uid], self._gravdata_uid
         except KeyError:
             return None, None
 
@@ -374,8 +413,10 @@ Data Files:
         return {k: v for k, v in self.__dict__.items() if can_pickle(v)}
 
     def __setstate__(self, state):
-        self.__dict__ = state
+        self.__dict__.update(state)
         self.log = logging.getLogger(__name__)
+        self._gravdata = None
+        self._gpsdata = None
 
 
 class AirborneProject(GravityProject):
@@ -397,30 +438,6 @@ class AirborneProject(GravityProject):
     def set_active(self, flight_id):
         flight = self.get_flight(flight_id)
         self.active = flight
-
-    def load_data(self, uid: str, prefix: str):
-        """
-        Load data from the project HDFStore (HDF5 format datafile) by prefix and uid.
-
-        Parameters
-        ----------
-        uid : str
-            32 digit hexadecimal unique identifier for the file to load.
-        prefix : str
-            Data type prefix, 'gps' or 'gravity' specifying the HDF5 group to retrieve the file from.
-
-        Returns
-        -------
-        DataFrame
-            Pandas DataFrame retrieved from HDFStore
-        """
-        with HDFStore(str(self.hdf_path)) as store:
-            try:
-                data = store.get('{}/{}'.format(prefix, uid))
-            except KeyError:
-                return None
-            else:
-                return data
 
     def add_data(self, packet: DataPacket, flight_uid: str):
         """
@@ -475,65 +492,6 @@ class AirborneProject(GravityProject):
         flt = self.flights.get(flight_id, None)
         self.log.debug("Found flight {}:{}".format(flt.name, flt.uid))
         return flt
-
-    # TODO: Migrate this to the ProjectTreeView class in main.py
-    def generate_model(self) -> Tuple[QStandardItemModel, QModelIndex]:
-        """Generate a Qt Model based on the project structure."""
-        model = QStandardItemModel()
-        root = model.invisibleRootItem()
-
-        # TODO: Add these icon resources to library or something so they are not loaded every time
-        dgs_ico = QIcon('ui/assets/DGSIcon.xpm')
-        flt_ico = QIcon('ui/assets/flight_icon.png')
-
-        prj_header = QStandardItem(dgs_ico, "{name}: {path}".format(name=self.name, path=self.projectdir))
-        prj_header.setEditable(False)
-        fli_header = QStandardItem(flt_ico, "Flights")
-        fli_header.setEditable(False)
-        # TODO: Add a human readable identifier to flights
-        first_flight = None
-        for uid, flight in self.flights.items():
-            fli_item = QStandardItem(flt_ico, "Flight: {}".format(flight.name))
-            if first_flight is None:
-                first_flight = fli_item
-            fli_item.setToolTip("UUID: {}".format(uid))
-            fli_item.setEditable(False)
-            fli_item.setData(flight, QtCore.Qt.UserRole)
-
-            gps_path, gps_uid = flight.gps_file
-            if gps_path is not None:
-                _, gps_fname = os.path.split(gps_path)
-            else:
-                gps_fname = '<None>'
-            gps = QStandardItem("GPS: {}".format(gps_fname))
-            gps.setToolTip("File Path: {}".format(gps_uid))
-            gps.setEditable(False)
-            gps.setData(gps_uid)  # For future use
-
-            grav_path, grav_uid = flight.gravity_file
-            if grav_path is not None:
-                _, grav_fname = os.path.split(grav_path)
-            else:
-                grav_fname = '<None>'
-            grav = QStandardItem("Gravity: {}".format(grav_fname))
-            grav.setToolTip("File Path: {}".format(grav_path))
-            grav.setEditable(False)
-            grav.setData(grav_uid)  # For future use
-
-            fli_item.appendRow(gps)
-            fli_item.appendRow(grav)
-
-            for line in flight:
-                line_item = QStandardItem("Line {}:{}".format(line.start, line.end))
-                line_item.setEditable(False)
-                fli_item.appendRow(line_item)
-            fli_header.appendRow(fli_item)
-        prj_header.appendRow(fli_header)
-
-        root.appendRow(prj_header)
-        self.log.debug("Tree Model generated")
-        first_index = model.indexFromItem(first_flight)
-        return model, first_index
 
     def __iter__(self):
         for uid, flight in self.flights.items():
