@@ -16,7 +16,7 @@ import dgp.lib.trajectory_ingestor as ti
 from dgp.gui.loader import LoadFile
 from dgp.lib.plotter import LineGrabPlot
 from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, get_project_file
-from dgp.gui.dialogs import ImportData, AddFlight, CreateProject
+from dgp.gui.dialogs import ImportData, AddFlight, CreateProject, InfoDialog, InfoModel
 
 # Load .ui form
 main_window, _ = loadUiType('dgp/gui/ui/main_window.ui')
@@ -116,11 +116,9 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.tree_index = None  # type: QtCore.QModelIndex
         self.flight_plots = {}  # Stores plotter objects for flights
 
-        # TESTING
         self.project_tree = ProjectTreeView(parent=self, project=self.project)
-        # self.data_tab_layout.addWidget(self.project_tree)
-        self.gridLayout_2.addWidget(self.project_tree, 1, 0, 1, 2)
-        # TESTING
+        self.project_tree.setMinimumWidth(290)
+        self.project_dock_grid.addWidget(self.project_tree, 0, 0, 1, 2)
 
     def load(self):
         self._init_plots()
@@ -475,7 +473,7 @@ class ProjectTreeView(QtWidgets.QTreeView):
         self.clicked.emit(index)
         self.expandAll()
 
-    def generate_airborne_model(self, project: prj.GravityProject):
+    def generate_airborne_model(self, project: prj.AirborneProject):
         """Generate a Qt Model based on the project structure."""
         model = QStandardItemModel()
         root = model.invisibleRootItem()
@@ -488,6 +486,7 @@ class ProjectTreeView(QtWidgets.QTreeView):
         prj_header = QStandardItem(dgs_ico,
                                    "{name}: {path}".format(name=project.name,
                                                            path=project.projectdir))
+        prj_header.setData(project, QtCore.Qt.UserRole)
         prj_header.setEditable(False)
         fli_header = QStandardItem(flt_ico, "Flights")
         fli_header.setEditable(False)
@@ -531,6 +530,12 @@ class ProjectTreeView(QtWidgets.QTreeView):
             fli_header.appendRow(fli_item)
         prj_header.appendRow(fli_header)
 
+        meter_header = QStandardItem("Meters")
+        for meter in project.meters:  # type: prj.AT1Meter
+            meter_item = QStandardItem("{}".format(meter.name))
+            meter_header.appendRow(meter_item)
+        prj_header.appendRow(meter_header)
+
         root.appendRow(prj_header)
         self.log.debug("Tree Model generated")
         first_index = model.indexFromItem(first_flight)
@@ -556,14 +561,10 @@ class ProjectTreeView(QtWidgets.QTreeView):
         event.accept()
 
     def flight_info(self, item):
-        data = item.getData(QtCore.Qt.UserRole)
-        if isinstance(data, prj.Flight):
-            dialog = QtWidgets.QDialog(self)
-            dialog.setLayout(QtWidgets.QVBoxLayout())
-            dialog.exec_()
-            print("Flight info: {}".format(item.text()))
-        else:
-            print("Info event: Not a flight")
-
-
-
+        data = item.data(QtCore.Qt.UserRole)
+        if not (isinstance(data, prj.Flight) or isinstance(data, prj.GravityProject)):
+            return
+        model = InfoModel()
+        model.set_object(data)
+        dialog = InfoDialog(model, parent=self)
+        dialog.exec_()

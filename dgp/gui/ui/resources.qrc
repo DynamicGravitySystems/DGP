@@ -1,5 +1,9 @@
 <RCC>
   <qresource prefix="images">
+    <file>assets/meter_config.png</file>
+    <file>assets/folder_open.png</file>
+    <file>assets/new_project.png</file>
+    <file>assets/save_project.png</file>
     <file>assets/branch-closed.png</file>
     <file>assets/branch-open.png</file>
     <file>assets/boat_icon.png</file>

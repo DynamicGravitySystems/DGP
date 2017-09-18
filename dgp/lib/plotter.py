@@ -91,7 +91,10 @@ ClickInfo = namedtuple('ClickInfo', ['partners', 'x0', 'xpos', 'ypos'])
 
 
 class LineGrabPlot(BasePlottingCanvas):
-    """ LineGrabPlot implements BasePlottingCanvas and provides an onclick method to select flight line segments."""
+    """
+    LineGrabPlot implements BasePlottingCanvas and provides an onclick method to select flight
+    line segments.
+    """
     def __init__(self, n=1, parent=None, title=None):
         BasePlottingCanvas.__init__(self, parent=parent)
         self.rects = []
@@ -107,11 +110,12 @@ class LineGrabPlot(BasePlottingCanvas):
         for ax in self._axes:  # type: Axes
             ax.cla()
             ax.grid(True)
+            # Reconnect the xlim_changed callback after clearing
             ax.callbacks.connect('xlim_changed', self._on_xlim_changed)
         self.draw()
 
     def onclick(self, event: MouseEvent):
-        if self.zooming or self.panning:  # Don't do anything when zooming is enabled
+        if self.zooming or self.panning:  # Don't do anything when zooming/panning is enabled
             return
 
         # Check that the click event happened within one of the subplot axes
@@ -126,7 +130,6 @@ class LineGrabPlot(BasePlottingCanvas):
             patch = partners[0]['rect']
             if patch.get_x() <= event.xdata <= patch.get_x() + patch.get_width():
                 # Then we clicked an existing rectangle
-                print("Clicked on existing rectangle {}, with partners: {}".format(repr(patch), partners[1:]))
                 x0, _ = patch.xy
                 self.clicked = ClickInfo(partners, x0, event.xdata, event.ydata)
 
@@ -140,7 +143,6 @@ class LineGrabPlot(BasePlottingCanvas):
                 return
 
         # else: Create a new rectangle on all axes
-        print("Creating new rectangles")
         ylim = caxes.get_ylim()  # type: Tuple
         xlim = caxes.get_xlim()  # type: Tuple
         width = (xlim[1] - xlim[0]) * np.float64(0.01)
@@ -150,13 +152,10 @@ class LineGrabPlot(BasePlottingCanvas):
         height = ylim[1] - ylim[0]
         c_rect = Rectangle((x0, y0), width, height*2, alpha=0.1)
 
-        print("Adding rectangle to c_axes: {}".format(caxes))
         caxes.add_patch(c_rect)
 
         partners = [{'rect': c_rect, 'bg': None}]
         for ax in other_axes:
-
-            print("Adding rectangle to axes: {}".format(ax))
             x0 = event.xdata - width/2
             ylim = ax.get_ylim()
             y0 = ylim[0]
@@ -167,20 +166,18 @@ class LineGrabPlot(BasePlottingCanvas):
 
         self.rects.append(partners)
         self.figure.canvas.draw()
-        self.draw()
+        # self.draw()
         return
 
     def toggle_zoom(self):
         if self.panning:
             self.panning = False
         self.zooming = not self.zooming
-        print("Toggling zoom, state: {}".format(self.zooming))
 
     def toggle_pan(self):
         if self.zooming:
             self.zooming = False
         self.panning = not self.panning
-        print("Toggling pan")
 
     def onmotion(self, event: MouseEvent):
         if event.inaxes not in self._axes:
@@ -203,10 +200,13 @@ class LineGrabPlot(BasePlottingCanvas):
             return  # Nothing Selected
         partners = self.clicked.partners
         for attrs in partners:
-            attrs['rect'].set_animated(False)
+            rect = attrs['rect']
+            rect.set_animated(False)
+            rect.axes.draw_artist(rect)
             attrs['bg'] = None
+
         self.clicked = None
-        self.draw()
+        # self.draw()
 
     def plot(self, ax: Axes, xdata, ydata, **kwargs):
         ax.plot(xdata, ydata, **kwargs)

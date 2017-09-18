@@ -82,7 +82,7 @@ class GravityProject:
         self.hdf_path = self.projectdir.joinpath('prjdata.h5')
 
         # Store MeterConfig objects in dictionary keyed by the meter name
-        self.sensors = {}
+        self._sensors = {}
 
         self.log.debug("Gravity Project Initialized")
 
@@ -115,13 +115,13 @@ class GravityProject:
     def add_meter(self, meter: MeterConfig) -> MeterConfig:
         """Add an existing MeterConfig class to the dictionary of available meters"""
         if isinstance(meter, MeterConfig):
-            self.sensors[meter.name] = meter
-            return self.sensors[meter.name]
+            self._sensors[meter.name] = meter
+            return self._sensors[meter.name]
         else:
             raise ValueError("meter parameter is not an instance of MeterConfig")
 
-    def get_meter(self, name) -> MeterConfig:
-        return self.sensors.get(name, None)
+    def get_meter(self, name):
+        return self._sensors.get(name, None)
 
     def import_meter(self, path: pathlib.Path):
         """Import a meter configuration from an ini file and add it to the sensors dict"""
@@ -129,21 +129,19 @@ class GravityProject:
         if path.exists():
             try:
                 meter = AT1Meter.from_ini(path)
-                self.sensors[meter.name] = meter
+                self._sensors[meter.name] = meter
             except ValueError:
                 raise ValueError("Meter .ini file could not be imported, check format.")
             else:
-                return self.sensors[meter.name]
+                return self._sensors[meter.name]
         else:
             raise OSError("Path {} doesn't exist.".format(path))
 
     @property
     def meters(self):
         """Return list of meter names assigned to this project."""
-        if not self.sensors:
-            return []
-        else:
-            return list(self.sensors.keys())
+        for meter in self._sensors.values():
+            yield meter
 
     def save(self, path: pathlib.Path=None):
         """
@@ -277,6 +275,7 @@ class Flight:
         self.uid = kwargs.get('uuid', self.generate_uuid())
         self.meter = meter
         if 'date' in kwargs:
+            print("Setting date to: {}".format(kwargs['date']))
             self.date = kwargs['date']
 
         self.log = logging.getLogger(__name__)
@@ -394,7 +393,8 @@ class Flight:
         return len(self.lines)
 
     def __repr__(self):
-        return "Flight({parent}, {name}, {meter})".format(parent=self.parent, name=self.name, meter=self.meter)
+        return "<Flight {parent}, {name}, {meter}>".format(parent=self.parent, name=self.name,
+                                                           meter=self.meter)
 
     def __str__(self):
         if self.meter is not None:

@@ -15,6 +15,9 @@ import dgp.lib.project as prj
 
 
 data_dialog, _ = loadUiType('dgp/gui/ui/data_import_dialog.ui')
+flight_dialog, _ = loadUiType('dgp/gui/ui/add_flight_dialog.ui')
+project_dialog, _ = loadUiType('dgp/gui/ui/project_dialog.ui')
+info_dialog, _ = loadUiType('dgp/gui/ui/info_dialog.ui')
 
 
 class ImportData(QtWidgets.QDialog, data_dialog):
@@ -52,20 +55,13 @@ class ImportData(QtWidgets.QDialog, data_dialog):
         self.dtype = None
         self.flight = flight
 
-        # TODO: Remove project check, it cannot be None
-        if project is not None:
-            for flight in project:
-                # TODO: Change dict index to human readable value
-                self.combo_flights.addItem(flight.name, flight.uid)
-                if flight == self.flight:  # scroll to this item if it matches self.flight
-                    self.combo_flights.setCurrentIndex(self.combo_flights.count() - 1)
-            for meter in project.meters:
-                self.combo_meters.addItem(meter.name)
-        else:
-            self.combo_flights.setEnabled(False)
-            self.combo_meters.setEnabled(False)
-            self.combo_flights.addItem("<None>")
-            self.combo_meters.addItem("<None>")
+        for flight in project:
+            # TODO: Change dict index to human readable value
+            self.combo_flights.addItem(flight.name, flight.uid)
+            if flight == self.flight:  # scroll to this item if it matches self.flight
+                self.combo_flights.setCurrentIndex(self.combo_flights.count() - 1)
+        for meter in project.meters:
+            self.combo_meters.addItem(meter.name)
 
         self.file_model = Qt.QFileSystemModel()
         self.init_tree()
@@ -114,9 +110,6 @@ class ImportData(QtWidgets.QDialog, data_dialog):
         return self.path, self.dtype, self.flight
 
 
-flight_dialog, _ = loadUiType('dgp/gui/ui/add_flight_dialog.ui')
-
-
 class AddFlight(QtWidgets.QDialog, flight_dialog):
     def __init__(self, project, *args):
         super().__init__(*args)
@@ -129,7 +122,6 @@ class AddFlight(QtWidgets.QDialog, flight_dialog):
         self.text_uuid.setText(self._uid)
 
     def accept(self):
-        # TODO: Change test meter to actual meter
         qdate = self.date_flight.date()  # type: QtCore.QDate
         date = datetime.date(qdate.year(), qdate.month(), qdate.day())
         self._flight = prj.Flight(self._project, self.text_name.text(), self._project.get_meter(
@@ -139,9 +131,6 @@ class AddFlight(QtWidgets.QDialog, flight_dialog):
     @property
     def flight(self):
         return self._flight
-
-
-project_dialog, _ = loadUiType('dgp/gui/ui/project_dialog.ui')
 
 
 class CreateProject(QtWidgets.QDialog, project_dialog):
@@ -205,3 +194,55 @@ class CreateProject(QtWidgets.QDialog, project_dialog):
     @property
     def project(self):
         return self._project
+
+
+class InfoDialog(QtWidgets.QDialog, info_dialog):
+    def __init__(self, model, parent=None, **kwargs):
+        super().__init__(parent=parent, **kwargs)
+        self.setupUi(self)
+        self.setModel(model)
+
+    def setModel(self, model):
+        table = self.table_info  # type: QtWidgets.QTableView
+        table.setModel(model)
+        table.resizeColumnsToContents()
+        width = 50
+        for col_idx in range(table.colorCount()):
+            width += table.columnWidth(col_idx)
+        self.resize(width, self.height())
+
+
+class InfoModel(QtCore.QAbstractTableModel):
+    """Simple table model of key: value pairs."""
+    def __init__(self, parent=None):
+        super().__init__(parent=parent)
+        # A list of 2-tuples (key: value pairs) which will be the table rows
+        self._data = []
+
+    def set_object(self, obj):
+        """Populates the model with key, value pairs from the passed objects' __dict__"""
+        for key, value in obj.__dict__.items():
+            self.add_row(key, value)
+
+    def add_row(self, key, value):
+        self._data.append((str(key), repr(value)))
+
+    # Required implementations of super class (for a basic, non-editable table)
+
+    def rowCount(self, parent=None, *args, **kwargs):
+        return len(self._data)
+
+    def columnCount(self, parent=None, *args, **kwargs):
+        return 2
+
+    def data(self, index: QtCore.QModelIndex, role=None):
+        if role == QtCore.Qt.DisplayRole:
+            return self._data[index.row()][index.column()]
+        return QtCore.QVariant()
+
+    def flags(self, index: QtCore.QModelIndex):
+        return QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
+
+    def headerData(self, section, orientation, role=None):
+        if role == QtCore.Qt.DisplayRole and orientation == QtCore.Qt.Horizontal:
+            return ['Key', 'Value'][section]
