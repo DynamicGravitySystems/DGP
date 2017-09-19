@@ -1,6 +1,7 @@
 # coding: utf-8
 
 import os
+import logging
 import functools
 import datetime
 import pathlib
@@ -11,6 +12,7 @@ from PyQt5.uic import loadUiType
 
 import dgp.lib.project as prj
 from dgp.gui.models import TableModel
+from dgp.gui.utils import ConsoleHandler, LOG_COLOR_MAP
 
 
 data_dialog, _ = loadUiType('dgp/gui/ui/data_import_dialog.ui')
@@ -165,8 +167,17 @@ class CreateProject(QtWidgets.QDialog, project_dialog):
     def __init__(self, *args):
         super().__init__(*args)
         self.setupUi(self)
+
+        # TODO: Abstract this to a base dialog class so that it can be easily implemented in all dialogs
+        self.log = logging.getLogger(__name__)
+        error_handler = ConsoleHandler(self.write_error)
+        error_handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+        error_handler.setLevel(logging.DEBUG)
+        self.log.addHandler(error_handler)
+
         self.prj_create.clicked.connect(self.create_project)
         self.prj_browse.clicked.connect(self.select_dir)
+        self.prj_desktop.clicked.connect(self._select_desktop)
 
         self._project = None
 
@@ -176,6 +187,10 @@ class CreateProject(QtWidgets.QDialog, project_dialog):
         self.prj_type_list.setCurrentItem(dgs_airborne)
         dgs_marine = Qt.QListWidgetItem(Qt.QIcon(':images/assets/boat_icon.png'), 'DGS Marine', self.prj_type_list)
         dgs_marine.setData(QtCore.Qt.UserRole, 'dgs_marine')
+
+    def write_error(self, msg, level=None) -> None:
+        self.label_required.setText(msg)
+        self.label_required.setStyleSheet('color: {}'.format(LOG_COLOR_MAP[level]))
 
     def create_project(self):
         """
@@ -193,11 +208,10 @@ class CreateProject(QtWidgets.QDialog, project_dialog):
             else:
                 self.__getattribute__(required_fields[attr]).setStyleSheet('color: black')
 
-        if not os.path.isdir(self.prj_dir.text()):
+        if not pathlib.Path(self.prj_dir.text()).exists():
             invalid_input = True
             self.label_dir.setStyleSheet('color: red')
-            self.label_required.setText("Invalid Directory")
-            self.label_required.setStyleSheet('color: red')
+            self.log.error("Invalid Directory")
 
         if invalid_input:
             return
@@ -210,10 +224,14 @@ class CreateProject(QtWidgets.QDialog, project_dialog):
             self._project = prj.AirborneProject(path, name,
                                                 self.prj_description.toPlainText().rstrip())
         else:
-            self.label_required.setText('Invalid project type (Not Implemented)')
+            self.log.error("Invalid Project Type (Not Implemented)")
             return
 
         self.accept()
+
+    def _select_desktop(self):
+        path = pathlib.Path().home().joinpath('Desktop')
+        self.prj_dir.setText(str(path))
 
     def select_dir(self):
         path = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Project Parent Directory")

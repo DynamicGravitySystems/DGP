@@ -24,7 +24,7 @@ class LoadFile(QThread):
 
     def run(self):
         if self._dtype == 'gps':
-            fields = ['mdy', 'hms', 'lat', 'long', 'ell_ht', 'ortho_ht', 'num_sats', 'pdop']
+            fields = ['mdy', 'hms', 'lat', 'long', 'ortho_ht', 'ell_ht', 'num_sats', 'pdop']
             df = self._functor(self._path, columns=fields, skiprows=1, timeformat='hms')
         else:
             df = self._functor(self._path)

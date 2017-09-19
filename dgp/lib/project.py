@@ -6,10 +6,11 @@ import pickle
 import pathlib
 import logging
 
-from pandas import HDFStore, DataFrame
+from pandas import HDFStore, DataFrame, Series
 
 from dgp.lib.meterconfig import MeterConfig, AT1Meter
 from dgp.lib.types import Location, StillReading, FlightLine, DataPacket
+import dgp.lib.eotvos as eov
 
 """
 Dynamic Gravity Processor (DGP) :: project.py
@@ -354,6 +355,23 @@ class Flight:
             return self.parent.data_map[self._gravdata_uid], self._gravdata_uid
         except KeyError:
             return None, None
+
+    @property
+    def eotvos(self):
+        if self.gps is None:
+            return None
+        gps_data = self.gps
+        # WARNING: It is vital to use the .values of the pandas Series, otherwise the eotvos func
+        # does not work properly for some reason
+        # TODO: Find out why that is ^
+        index = gps_data['lat'].index
+        lat = gps_data['lat'].values
+        lon = gps_data['long'].values
+        ht = gps_data['ell_ht'].values
+        rate = 10
+        ev_corr = eov.calc_eotvos(lat, lon, ht, rate)
+        ev_frame = DataFrame(ev_corr, index=index, columns=['eotvos'])
+        return ev_frame
 
     def get_channel_data(self, channel):
         return self.gravity[channel]
