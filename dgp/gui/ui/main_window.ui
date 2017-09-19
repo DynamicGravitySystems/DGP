@@ -49,7 +49,7 @@
           </size>
          </property>
          <property name="currentIndex">
-          <number>0</number>
+          <number>1</number>
          </property>
          <widget class="QWidget" name="gravity_tab">
           <attribute name="title">
@@ -644,6 +644,22 @@
     <hint type="destinationlabel">
      <x>744</x>
      <y>990</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>info_dock</sender>
+   <signal>visibilityChanged(bool)</signal>
+   <receiver>action_info_dock</receiver>
+   <slot>setChecked(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>744</x>
+     <y>973</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
     </hint>
    </hints>
   </connection>

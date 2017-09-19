@@ -29,5 +29,6 @@ class LoadFile(QThread):
         else:
             df = self._functor(self._path)
         data = DataPacket(df, self._path, self._dtype)
+        self.progress.emit(1)
         self.data.emit(data)
         self.loaded.emit()

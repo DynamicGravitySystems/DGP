@@ -131,6 +131,8 @@ class AddFlight(QtWidgets.QDialog, flight_dialog):
     def accept(self):
         qdate = self.date_flight.date()  # type: QtCore.QDate
         date = datetime.date(qdate.year(), qdate.month(), qdate.day())
+        self._grav_path = self.path_gravity.text()
+        self._gps_path = self.path_gps.text()
         self._flight = prj.Flight(self._project, self.text_name.text(), self._project.get_meter(
             self.combo_meter.currentText()), uuid=self._uid, date=date)
         print(self.params_model.updates)
@@ -138,7 +140,7 @@ class AddFlight(QtWidgets.QDialog, flight_dialog):
 
     def browse(self, field):
         path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select Data File", os.getcwd(),
-                                                        "Data (*.dat *.csv)")
+                                                        "Data (*.dat *.csv *.txt)")
         if path:
             field.setText(path)
 
@@ -148,13 +150,13 @@ class AddFlight(QtWidgets.QDialog, flight_dialog):
 
     @property
     def gps(self):
-        if self._gps_path is not None:
+        if self._gps_path is not None and len(self._gps_path) > 0:
             return pathlib.Path(self._gps_path)
         return None
 
     @property
     def gravity(self):
-        if self._grav_path is not None:
+        if self._grav_path is not None and len(self._grav_path) > 0:
             return pathlib.Path(self._grav_path)
         return None
 
@@ -229,6 +231,7 @@ class InfoDialog(QtWidgets.QDialog, info_dialog):
         self.setupUi(self)
         self._model = model
         self.setModel(self._model)
+        self.updates = None
 
     def setModel(self, model):
         table = self.table_info  # type: QtWidgets.QTableView

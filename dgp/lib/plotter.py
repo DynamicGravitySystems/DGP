@@ -5,6 +5,7 @@ Class to handle Matplotlib plotting of data to be displayed in Qt GUI
 """
 
 import logging
+import datetime
 from collections import namedtuple
 from typing import List, Tuple
 
@@ -14,11 +15,12 @@ from matplotlib.backends.backend_qt5agg import (FigureCanvasQTAgg as FigureCanva
                                                 NavigationToolbar2QT as NavigationToolbar)
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
-from matplotlib.dates import DateFormatter
+from matplotlib.dates import DateFormatter, num2date
 from matplotlib.backend_bases import MouseEvent
 from matplotlib.patches import Rectangle
-
+from pandas import Series
 import numpy as np
+
 
 
 class BasePlottingCanvas(FigureCanvas):
@@ -95,7 +97,7 @@ class LineGrabPlot(BasePlottingCanvas):
     LineGrabPlot implements BasePlottingCanvas and provides an onclick method to select flight
     line segments.
     """
-    def __init__(self, n=1, parent=None, title=None):
+    def __init__(self, n=1, title=None, parent=None):
         BasePlottingCanvas.__init__(self, parent=parent)
         self.rects = []
         self.zooming = False
@@ -103,10 +105,15 @@ class LineGrabPlot(BasePlottingCanvas):
         self.clicked = None  # type: ClickInfo
         self.generate_subplots(n)
         self.plotted = False
+        self.timespan = datetime.timedelta(0)
+        self.resample = slice(None, None, 20)
+        self._lines = {}
         if title:
             self.figure.suptitle(title, y=1)
 
     def clear(self):
+        self._lines = {}
+        self.resample = slice(None, None, 20)
         for ax in self._axes:  # type: Axes
             ax.cla()
             ax.grid(True)
@@ -155,6 +162,7 @@ class LineGrabPlot(BasePlottingCanvas):
         c_rect = Rectangle((x0, y0), width, height*2, alpha=0.1)
 
         caxes.add_patch(c_rect)
+        caxes.draw_artist(caxes.patch)
 
         partners = [{'rect': c_rect, 'bg': None}]
         for ax in other_axes:
@@ -164,11 +172,11 @@ class LineGrabPlot(BasePlottingCanvas):
             height = ylim[1] - ylim[0]
             a_rect = Rectangle((x0, y0), width, height*2, alpha=0.1)
             ax.add_patch(a_rect)
+            ax.draw_artist(ax.patch)
             partners.append({'rect': a_rect, 'bg': None})
 
         self.rects.append(partners)
         self.figure.canvas.draw()
-        # self.draw()
         return
 
     def toggle_zoom(self):
@@ -211,12 +219,73 @@ class LineGrabPlot(BasePlottingCanvas):
         # self.draw()
 
     def plot(self, ax: Axes, xdata, ydata, **kwargs):
-        ax.plot(xdata, ydata, **kwargs)
+        if self._lines.get(id(ax), None) is None:
+            self._lines[id(ax)] = []
+        line = ax.plot(xdata, ydata, **kwargs)
+        self._lines[id(ax)].append((line, xdata, ydata))
+        self.timespan = self._timespan(*ax.get_xlim())
+        ax.legend()
+
+    def plot2(self, ax: Axes, series: Series):
+        if self._lines.get(id(ax), None) is None:
+            self._lines[id(ax)] = []
+        sample_series = series[self.resample]
+        line = ax.plot(sample_series.index, sample_series.values, label=sample_series.name)
+        self._lines[id(ax)].append((line, series))
+        self.timespan = self._timespan(*ax.get_xlim())
         ax.legend()
 
     @staticmethod
-    def _on_xlim_changed(ax: Axes):
-        ax.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
+    def _timespan(x0, x1):
+        return num2date(x1) - num2date(x0)
+
+    def _on_xlim_changed(self, changed: Axes):
+        """
+        When the xlim changes (width of the graph), we want to apply a decimation algorithm to the
+        dataset to speed up the visual performance of the graph. So when the graph is zoomed out
+        we will plot only one in 20 data points, and as the graph is zoomed we will lower the decimation
+        factor to zero.
+        Parameters
+        ----------
+        changed
+
+        Returns
+        -------
+
+        """
+        # print("Xlim changed for ax: {}".format(ax))
+        # TODO: Probably move this logic into its own function(s)
+        delta = self._timespan(*changed.get_xlim())
+        if self.timespan:
+            ratio = delta/self.timespan * 100
+        else:
+            ratio = 100
+
+        if 50 < ratio:
+            resample = slice(None, None, 20)
+        elif 10 < ratio <= 50:
+            resample = slice(None, None, 10)
+        else:
+            resample = slice(None, None, None)
+        if resample == self.resample:
+            return
+
+        self.resample = resample
+
+        for ax in self._axes:
+            if self._lines.get(id(ax), None) is not None:
+                # print(self._lines[id(ax)])
+                for line, series in self._lines[id(ax)]:
+                    print("xshape: {}".format(series.shape))
+                    r_series = series[self.resample]
+                    print("Resample shape: {}".format(r_series.shape))
+                    line[0].set_ydata(r_series.values)
+                    line[0].set_xdata(r_series.index)
+                    ax.draw_artist(line[0])
+                    print("Resampling to: {}".format(self.resample))
+            ax.relim()
+        self.figure.canvas.draw()
+        # ax.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
 
     def get_toolbar(self, parent=None) -> QtWidgets.QToolBar:
         """

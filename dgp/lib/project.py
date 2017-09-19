@@ -312,6 +312,7 @@ class Flight:
     def gps(self, value):
         if self._gpsdata_uid:
             self.log.warning('GPS Data File already exists, overwriting with new value.')
+            self._gpsdata = None
         self._gpsdata_uid = value
 
     @property
@@ -344,6 +345,7 @@ class Flight:
     def gravity(self, value):
         if self._gravdata_uid:
             self.log.warning('Gravity Data File already exists, overwriting with new value.')
+            self._gravdata = None
         self._gravdata_uid = value
 
     @property

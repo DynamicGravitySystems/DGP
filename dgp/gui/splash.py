@@ -56,7 +56,7 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
         return logging.getLogger(__name__)
 
     def accept(self, project=None):
-        """Runs some basic verification before calling QDialog accept()."""
+        """Runs some basic verification before calling super(QDialog).accept()."""
 
         # Case where project object is passed to accept() (when creating new project)
         if isinstance(project, prj.GravityProject):

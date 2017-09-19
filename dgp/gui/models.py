@@ -13,9 +13,8 @@ class TableModel(QtCore.QAbstractTableModel):
         # TODO: Allow specification of which columns are editable
         # List of column headers
         self._cols = columns
-        self._editable = editable
-        # A list of 2-tuples (key: value pairs) which will be the table rows
         self._rows = []
+        self._editable = editable
         self._updates = {}
 
     def set_object(self, obj):
@@ -25,6 +24,12 @@ class TableModel(QtCore.QAbstractTableModel):
 
     def append(self, *args):
         """Add a new row of data to the table, trimming input array to length of columns."""
+        if not isinstance(args, list):
+            args = list(args)
+        while len(args) < len(self._cols):
+            # Pad the end
+            args.append(None)
+
         self._rows.append(args[:len(self._cols)])
         return True
 
@@ -55,7 +60,8 @@ class TableModel(QtCore.QAbstractTableModel):
 
     def flags(self, index: QtCore.QModelIndex):
         flags = QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
-        if index.column() in self._editable:  # Allow the values column to be edited
+
+        if self._editable is not None and index.column() in self._editable:  # Allow the values column to be edited
             flags = flags | QtCore.Qt.ItemIsEditable
         return flags
 
@@ -69,12 +75,7 @@ class TableModel(QtCore.QAbstractTableModel):
         """Basic implementation of editable model. This doesn't propagate the changes to the underlying
         object upon which the model was based though (yet)"""
         if index.isValid() and role == QtCore.Qt.ItemIsEditable:
-            old_data = self._rows[index.row()]
-            print("Setting value of item at {}:{} to {}".format(index.row(), index.column(), value))
-            new_data = old_data[0], str(value)
-            self._rows[index.row()] = new_data
-            self._updates[self._rows[index.row()][0]] = self._rows[index.row()][index.column()]
-
+            self._rows[index.row()][index.column()] = value
             self.dataChanged.emit(index, index)
             return True
         else:

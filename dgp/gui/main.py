@@ -107,6 +107,8 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         # Initialize plotter canvas
         self.gravity_stack = QtWidgets.QStackedWidget()
         self.gravity_plot_layout.addWidget(self.gravity_stack)
+        self.gps_stack = QtWidgets.QStackedWidget()
+        self.gps_plot_layout.addWidget(self.gps_stack)
 
         # Initialize Variables
         # TODO: Change this to use pathlib.Path
@@ -151,7 +153,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             if flight.uid in self.flight_plots:
                 continue
 
-            plot, widget = self._new_plot_widget(flight.name, rows=2)
+            plot, widget = self._new_plot_widget(flight.name, rows=3)
 
             self.flight_plots[flight.uid] = plot, widget
             self.gravity_stack.addWidget(widget)
@@ -240,35 +242,13 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
     def write_console(self, text, level):
         """PyQt Slot: Log a message to the GUI console"""
-        log_color = {'DEBUG': QColor('Blue'), 'INFO': QColor('Green'), 'WARNING': QColor('Red'),
+        log_color = {'DEBUG': QColor('DarkBlue'), 'INFO': QColor('Green'), 'WARNING': QColor('Red'),
                      'ERROR': QColor('Pink'), 'CRITICAL': QColor(
                 'Orange')}.get(level.upper(), QColor('Black'))
 
         self.text_console.setTextColor(log_color)
         self.text_console.append(str(text))
         self.text_console.verticalScrollBar().setValue(self.text_console.verticalScrollBar().maximum())
-
-    # TODO: Delete after testing
-    def log_tree(self, index: QtCore.QModelIndex):
-        item = self.prj_tree.model().itemFromIndex(index)  # type: QtWidgets.QListWidgetItem
-        text = str(item.text())
-        return
-        # if text.startswith('Flight:'):
-        #     self.log.debug("Clicked Flight object")
-        #     _, flight_id = text.split(' ')
-        #     flight = self.project.get_flight(flight_id)  # type: prj.Flight
-        #     self.log.debug(flight)
-        #     grav_data = flight.gravity
-        #
-        #     if grav_data is not None:
-        #         self.log.debug(grav_data.describe())
-        #     else:
-        #         self.log.debug("No grav data")
-        #
-        # self.log.debug(text)
-        #
-        # self.log.debug(item.toolTip())
-        # print(dir(item))
 
     #####
     # Plot functions
@@ -319,7 +299,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
         # Check if there is a plot for this flight already
         if self.flight_plots.get(flight.uid, None) is not None:
-            curr_plot, stack_widget = self.flight_plots[flight.uid]  # type: LineGrabPlot
+            grav_plot, stack_widget = self.flight_plots[flight.uid]  # type: LineGrabPlot
             self.log.info("Switching widget stack")
             self.gravity_stack.setCurrentWidget(stack_widget)
         else:
@@ -329,8 +309,8 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         # TODO: Move this (and gps plot) into separate functions
         # so we can call this on app startup to pre-plot everything
         if flight.gravity is not None:
-            if not curr_plot.plotted:
-                self.plot_gravity(curr_plot, flight.gravity, {0: 'gravity', 1: ['long', 'cross']})
+            if not grav_plot.plotted:
+                self.plot_gravity(grav_plot, flight.gravity, {0: 'gravity', 1: ['long', 'cross']})
 
         if flight.gps is not None:
             self.log.debug("Flight has GPS Data")
@@ -346,29 +326,47 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         for index in fields:
             if isinstance(fields[index], str):
                 series = data.get(fields[index])  # type: Series
-                plot.plot(plot[index], series.index, series.values, label=series.name)
+                # plot.plot(plot[index], series.index, series.values, label=series.name)
+                plot.plot2(plot[index], series)
                 continue
             for field in fields[index]:
                 series = data.get(field)  # type: Series
-                plot.plot(plot[index], series.index, series.values, label=series.name)
+                # plot.plot(plot[index], series.index, series.values, label=series.name)
+                plot.plot2(plot[index], series)
         plot.draw()
         plot.plotted = True
 
-    def plot_gps(self):
+    @staticmethod
+    def plot_gps(plot: LineGrabPlot, data: DataFrame, fields: Dict):
         pass
 
+    def progress_dialog(self, title, min=0, max=1):
+        prg = QtWidgets.QProgressDialog(title, "Cancel", min, max, self)
+        prg.setModal(True)
+        prg.setMinimumDuration(0)
+        prg.setCancelButton(None)
+        prg.setValue(0)
+        return prg
+
     def import_data(self, path: pathlib.Path, dtype: str, flight: prj.Flight):
+        self.log.info("Importing <{dtype}> from: Path({path}) into <Flight({name})>".format(dtype=dtype, path=str(path),
+                                                                                            name=flight.name))
+        if path is None:
+            return False
         loader = LoadFile(path, dtype, flight.uid, self)
 
         # Curry functions to execute on thread completion.
         add_data = functools.partial(self.project.add_data, flight_uid=flight.uid)
         tree_refresh = functools.partial(self.project_tree.refresh, curr_flightid=flight.uid)
         redraw_flt = functools.partial(self.redraw, flight.uid)
+        prog = self.progress_dialog("Loading", 0, 0)
 
         loader.data.connect(add_data)
+        loader.progress.connect(prog.setValue)
         loader.loaded.connect(tree_refresh)
         loader.loaded.connect(redraw_flt)
         loader.loaded.connect(self.save_project)
+        loader.loaded.connect(prog.close)
         loader.start()
 
     #####
@@ -426,9 +424,9 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             self.project.add_flight(flight)
 
             if dialog.gravity:
-                pass
+                self.import_data(dialog.gravity, 'gravity', flight)
             if dialog.gps:
-                pass
+                self.import_data(dialog.gps, 'gps', flight)
 
             plot, widget = self._new_plot_widget(flight.name, rows=2)
             self.gravity_stack.addWidget(widget)
@@ -570,7 +568,7 @@ class ProjectTreeView(QtWidgets.QTreeView):
         data = item.data(QtCore.Qt.UserRole)
         if not (isinstance(data, prj.Flight) or isinstance(data, prj.GravityProject)):
             return
-        model = TableModel(['Key', 'Blargl'])
+        model = TableModel(['Key', 'Value'])
         model.set_object(data)
         dialog = InfoDialog(model, parent=self)
         dialog.exec_()
