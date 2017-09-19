@@ -1,8 +1,9 @@
 # coding: utf-8
 
+import os
+import pathlib
 import functools
 import logging
-import os
 from typing import Tuple, List, Dict
 
 from pandas import Series, DataFrame
@@ -12,11 +13,11 @@ from PyQt5.QtGui import QColor, QStandardItemModel, QStandardItem, QIcon
 from PyQt5.uic import loadUiType
 
 import dgp.lib.project as prj
-import dgp.lib.trajectory_ingestor as ti
 from dgp.gui.loader import LoadFile
 from dgp.lib.plotter import LineGrabPlot
 from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, get_project_file
-from dgp.gui.dialogs import ImportData, AddFlight, CreateProject, InfoDialog, InfoModel
+from dgp.gui.dialogs import ImportData, AddFlight, CreateProject, InfoDialog
+from dgp.gui.models import TableModel
 
 # Load .ui form
 main_window, _ = loadUiType('dgp/gui/ui/main_window.ui')
@@ -180,21 +181,21 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
         # File Menu Actions #
         self.action_exit.triggered.connect(self.exit)
-        self.action_file_new.triggered.connect(self.new_project)
-        self.action_file_open.triggered.connect(self.open_project)
+        self.action_file_new.triggered.connect(self.new_project_dialog)
+        self.action_file_open.triggered.connect(self.open_project_dialog)
         self.action_file_save.triggered.connect(self.save_project)
 
         # Project Menu Actions #
-        self.action_import_data.triggered.connect(self.import_data)
-        self.action_add_flight.triggered.connect(self.add_flight)
+        self.action_import_data.triggered.connect(self.import_data_dialog)
+        self.action_add_flight.triggered.connect(self.add_flight_dialog)
 
         # Project Tree View Actions #
         # self.prj_tree.doubleClicked.connect(self.log_tree)
         self.project_tree.clicked.connect(self.flight_changed)
 
         # Project Control Buttons #
-        self.prj_add_flight.clicked.connect(self.add_flight)
-        self.prj_import_data.clicked.connect(self.import_data)
+        self.prj_add_flight.clicked.connect(self.add_flight_dialog)
+        self.prj_import_data.clicked.connect(self.import_data_dialog)
 
         # Channel Panel Buttons #
         # self.selectAllChannels.clicked.connect(self.set_channel_state)
@@ -356,11 +357,25 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
     def plot_gps(self):
         pass
 
+    def import_data(self, path: pathlib.Path, dtype: str, flight: prj.Flight):
+        loader = LoadFile(path, dtype, flight.uid, self)
+
+        # Curry functions to execute on thread completion.
+        add_data = functools.partial(self.project.add_data, flight_uid=flight.uid)
+        tree_refresh = functools.partial(self.project_tree.refresh, curr_flightid=flight.uid)
+        redraw_flt = functools.partial(self.redraw, flight.uid)
+
+        loader.data.connect(add_data)
+        loader.loaded.connect(tree_refresh)
+        loader.loaded.connect(redraw_flt)
+        loader.loaded.connect(self.save_project)
+        loader.start()
+
     #####
-    # Project functions
+    # Project dialog functions
     #####
 
-    def import_data(self) -> None:
+    def import_data_dialog(self) -> None:
         """Load data file (GPS or Gravity) using a background Thread, then hand
         it off to the project."""
         dialog = ImportData(self.project, self.current_flight)
@@ -370,22 +385,9 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             plot, _ = self.flight_plots[flt_id]
             plot.plotted = False
             self.log.info("Importing {} file from {} into flight: {}".format(dtype, path, flight.uid))
+            self.import_data(path, dtype, flight)
 
-            loader = LoadFile(path, dtype, flight, self)
-            add_data = functools.partial(self.project.add_data, flight_uid=flight.uid)
-
-            loader.data.connect(add_data)
-            loader.loaded.connect(functools.partial(self.project_tree.refresh,
-                                                    curr_flightid=flt_id))
-            loader.loaded.connect(functools.partial(self.redraw, flt_id))
-            loader.loaded.connect(self.save_project)
-
-            loader.start()
-
-            # gps_fields = ['mdy', 'hms', 'lat', 'lon', 'ell_ht', 'ortho_ht', 'num_sats', 'pdop']
-            # self.gps_data = ti.import_trajectory(path, columns=gps_fields, skiprows=1)
-
-    def new_project(self) -> QtWidgets.QMainWindow:
+    def new_project_dialog(self) -> QtWidgets.QMainWindow:
         new_window = True
         dialog = CreateProject()
         if dialog.exec_():
@@ -401,7 +403,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
     # TODO: This will eventually require a dialog to allow selection of project type, or
     # a metadata file in the project directory specifying type info
-    def open_project(self) -> None:
+    def open_project_dialog(self) -> None:
         path = QtWidgets.QFileDialog.getExistingDirectory(self, "Open Project Directory", os.path.abspath('..'))
         if not path:
             return
@@ -415,6 +417,25 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.update_project()
         return
 
+    @autosave
+    def add_flight_dialog(self) -> None:
+        dialog = AddFlight(self.project)
+        if dialog.exec_():
+            self.log.info("Adding flight:")
+            flight = dialog.flight
+            self.project.add_flight(flight)
+
+            if dialog.gravity:
+                pass
+            if dialog.gps:
+                pass
+
+            plot, widget = self._new_plot_widget(flight.name, rows=2)
+            self.gravity_stack.addWidget(widget)
+            self.flight_plots[flight.uid] = plot, widget
+            self.project_tree.refresh(curr_flightid=flight.uid)
+            return
+
     def save_project(self) -> None:
         if self.project is None:
             return
@@ -424,19 +445,6 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             self.log.info("Project saved.")
         else:
             self.log.info("Error saving project.")
-
-    @autosave
-    def add_flight(self) -> None:
-        dialog = AddFlight(self.project)
-        if dialog.exec_():
-            self.log.info("Adding flight:")
-            flight = dialog.flight
-            self.project.add_flight(flight)
-            plot, widget = self._new_plot_widget(flight.name, rows=2)
-            self.gravity_stack.addWidget(widget)
-            self.flight_plots[flight.uid] = plot, widget
-            self.project_tree.refresh(curr_flightid=flight.uid)
-            return
 
 
 class ProjectTreeView(QtWidgets.QTreeView):
@@ -549,8 +557,6 @@ class ProjectTreeView(QtWidgets.QTreeView):
     def contextMenuEvent(self, event: QtGui.QContextMenuEvent, *args, **kwargs):
         context_ind = self.indexAt(event.pos())
         context_focus = self.model().itemFromIndex(context_ind)
-        print(context_focus)
-        print(context_focus.text())
 
         info_slot = functools.partial(self.flight_info, context_focus)
         menu = QtWidgets.QMenu()
@@ -564,7 +570,8 @@ class ProjectTreeView(QtWidgets.QTreeView):
         data = item.data(QtCore.Qt.UserRole)
         if not (isinstance(data, prj.Flight) or isinstance(data, prj.GravityProject)):
             return
-        model = InfoModel()
+        model = TableModel(['Key', 'Blargl'])
         model.set_object(data)
         dialog = InfoDialog(model, parent=self)
         dialog.exec_()
+        print(dialog.updates)

@@ -1,18 +1,16 @@
 # coding: utf-8
 
 import os
-import sys
-import json
-import logging
 import functools
 import datetime
-from pathlib import Path
+import pathlib
 from typing import Dict, Union
 
 from PyQt5 import Qt, QtWidgets, QtCore
 from PyQt5.uic import loadUiType
 
 import dgp.lib.project as prj
+from dgp.gui.models import TableModel
 
 
 data_dialog, _ = loadUiType('dgp/gui/ui/data_import_dialog.ui')
@@ -23,7 +21,6 @@ info_dialog, _ = loadUiType('dgp/gui/ui/info_dialog.ui')
 
 class ImportData(QtWidgets.QDialog, data_dialog):
     """
-
     Rationalization:
     This dialog will be used to import gravity and/or GPS data.
     A drop down box will be populated with the available project flights into which the data will be associated
@@ -80,7 +77,7 @@ class ImportData(QtWidgets.QDialog, data_dialog):
         self.tree_directory.clicked.connect(self.select_tree_file)
 
     def select_tree_file(self, index):
-        path = Path(self.file_model.filePath(index))
+        path = pathlib.Path(self.file_model.filePath(index))
         # TODO: Verify extensions for selected files before setting below
         if path.is_file():
             self.field_path.setText(os.path.normpath(path))  # TODO: Change this to use pathlib function
@@ -91,7 +88,7 @@ class ImportData(QtWidgets.QDialog, data_dialog):
     def browse_file(self):
         path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select Data File", os.getcwd(), "Data (*.dat *.csv)")
         if path:
-            self.path = Path(path)
+            self.path = pathlib.Path(path)
             self.field_path.setText(self.path.name)
             index = self.file_model.index(str(self.path.resolve()))
             self.tree_directory.scrollTo(self.file_model.index(str(self.path.resolve())))
@@ -107,7 +104,7 @@ class ImportData(QtWidgets.QDialog, data_dialog):
         super().accept()
 
     @property
-    def content(self) -> (Path, str, prj.Flight):
+    def content(self) -> (pathlib.Path, str, prj.Flight):
         return self.path, self.dtype, self.flight
 
 
@@ -117,6 +114,8 @@ class AddFlight(QtWidgets.QDialog, flight_dialog):
         self.setupUi(self)
         self._project = project
         self._flight = None
+        self._grav_path = None
+        self._gps_path = None
         self.combo_meter.addItems(project.meters)
         self.browse_gravity.clicked.connect(functools.partial(self.browse, field=self.path_gravity))
         self.browse_gps.clicked.connect(functools.partial(self.browse, field=self.path_gps))
@@ -124,22 +123,40 @@ class AddFlight(QtWidgets.QDialog, flight_dialog):
         self._uid = prj.Flight.generate_uuid()
         self.text_uuid.setText(self._uid)
 
+        self.params_model = TableModel(['Key', 'Start Value', 'End Value'], editable=[1, 2])
+        self.params_model.append('Tie Location')
+        self.params_model.append('Tie Reading')
+        self.flight_params.setModel(self.params_model)
+
     def accept(self):
         qdate = self.date_flight.date()  # type: QtCore.QDate
         date = datetime.date(qdate.year(), qdate.month(), qdate.day())
         self._flight = prj.Flight(self._project, self.text_name.text(), self._project.get_meter(
             self.combo_meter.currentText()), uuid=self._uid, date=date)
+        print(self.params_model.updates)
         super().accept()
 
     def browse(self, field):
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select Data File", os.getcwd(), "Data (*.dat *.csv)")
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select Data File", os.getcwd(),
+                                                        "Data (*.dat *.csv)")
         if path:
             field.setText(path)
-
 
     @property
     def flight(self):
         return self._flight
+
+    @property
+    def gps(self):
+        if self._gps_path is not None:
+            return pathlib.Path(self._gps_path)
+        return None
+
+    @property
+    def gravity(self):
+        if self._grav_path is not None:
+            return pathlib.Path(self._grav_path)
+        return None
 
 
 class CreateProject(QtWidgets.QDialog, project_dialog):
@@ -185,10 +202,11 @@ class CreateProject(QtWidgets.QDialog, project_dialog):
 
         if self.prj_type_list.currentItem().data(QtCore.Qt.UserRole) == 'dgs_airborne':
             name = str(self.prj_name.text()).rstrip()
-            path = Path(self.prj_dir.text()).joinpath(name)
+            path = pathlib.Path(self.prj_dir.text()).joinpath(name)
             if not path.exists():
                 path.mkdir(parents=True)
-            self._project = prj.AirborneProject(path, name, self.prj_description.toPlainText().rstrip())
+            self._project = prj.AirborneProject(path, name,
+                                                self.prj_description.toPlainText().rstrip())
         else:
             self.label_required.setText('Invalid project type (Not Implemented)')
             return
@@ -209,7 +227,8 @@ class InfoDialog(QtWidgets.QDialog, info_dialog):
     def __init__(self, model, parent=None, **kwargs):
         super().__init__(parent=parent, **kwargs)
         self.setupUi(self)
-        self.setModel(model)
+        self._model = model
+        self.setModel(self._model)
 
     def setModel(self, model):
         table = self.table_info  # type: QtWidgets.QTableView
@@ -220,56 +239,6 @@ class InfoDialog(QtWidgets.QDialog, info_dialog):
             width += table.columnWidth(col_idx)
         self.resize(width, self.height())
 
-
-class InfoModel(QtCore.QAbstractTableModel):
-    """Simple table model of key: value pairs."""
-    def __init__(self, parent=None):
-        super().__init__(parent=parent)
-        # A list of 2-tuples (key: value pairs) which will be the table rows
-        self._data = []
-
-    def set_object(self, obj):
-        """Populates the model with key, value pairs from the passed objects' __dict__"""
-        for key, value in obj.__dict__.items():
-            self.add_row(key, value)
-
-    def add_row(self, key, value):
-        self._data.append((str(key), repr(value)))
-
-    # Required implementations of super class (for a basic, non-editable table)
-
-    def rowCount(self, parent=None, *args, **kwargs):
-        return len(self._data)
-
-    def columnCount(self, parent=None, *args, **kwargs):
-        return 2
-
-    def data(self, index: QtCore.QModelIndex, role=None):
-        if role == QtCore.Qt.DisplayRole:
-            return self._data[index.row()][index.column()]
-        return QtCore.QVariant()
-
-    def flags(self, index: QtCore.QModelIndex):
-        flags = QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
-        if index.column() == 1:  # Allow the values column to be edited
-            flags = flags | QtCore.Qt.ItemIsEditable
-        return flags
-
-    def headerData(self, section, orientation, role=None):
-        if role == QtCore.Qt.DisplayRole and orientation == QtCore.Qt.Horizontal:
-            return ['Key', 'Value'][section]
-
-    # Required implementations of super class for editable table
-
-    def setData(self, index: QtCore.QModelIndex, value: QtCore.QVariant, role=None):
-        """Basic implementation of editable model. This doesn't propogate the changes to the underlying
-        object upon which the model was based though (yet)"""
-        if index.isValid() and role == QtCore.Qt.ItemIsEditable:
-            old_data = self._data[index.row()]
-            print("Setting value of item at {}:{} to {}".format(index.row(), index.column(), value))
-            new_data = old_data[0], str(value)
-            self._data[index.row()] = new_data
-            self.dataChanged.emit(index, index)
-            return True
-        else:
-            return False
+    def accept(self):
+        self.updates = self._model.updates
+        super().accept()
