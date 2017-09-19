@@ -4,6 +4,7 @@ import os
 import sys
 import json
 import logging
+import functools
 import datetime
 from pathlib import Path
 from typing import Dict, Union
@@ -117,6 +118,8 @@ class AddFlight(QtWidgets.QDialog, flight_dialog):
         self._project = project
         self._flight = None
         self.combo_meter.addItems(project.meters)
+        self.browse_gravity.clicked.connect(functools.partial(self.browse, field=self.path_gravity))
+        self.browse_gps.clicked.connect(functools.partial(self.browse, field=self.path_gps))
         self.date_flight.setDate(datetime.datetime.today())
         self._uid = prj.Flight.generate_uuid()
         self.text_uuid.setText(self._uid)
@@ -127,6 +130,12 @@ class AddFlight(QtWidgets.QDialog, flight_dialog):
         self._flight = prj.Flight(self._project, self.text_name.text(), self._project.get_meter(
             self.combo_meter.currentText()), uuid=self._uid, date=date)
         super().accept()
+
+    def browse(self, field):
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select Data File", os.getcwd(), "Data (*.dat *.csv)")
+        if path:
+            field.setText(path)
+
 
     @property
     def flight(self):
@@ -241,8 +250,26 @@ class InfoModel(QtCore.QAbstractTableModel):
         return QtCore.QVariant()
 
     def flags(self, index: QtCore.QModelIndex):
-        return QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
+        flags = QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
+        if index.column() == 1:  # Allow the values column to be edited
+            flags = flags | QtCore.Qt.ItemIsEditable
+        return flags
 
     def headerData(self, section, orientation, role=None):
         if role == QtCore.Qt.DisplayRole and orientation == QtCore.Qt.Horizontal:
             return ['Key', 'Value'][section]
+
+    # Required implementations of super class for editable table
+
+    def setData(self, index: QtCore.QModelIndex, value: QtCore.QVariant, role=None):
+        """Basic implementation of editable model. This doesn't propogate the changes to the underlying
+        object upon which the model was based though (yet)"""
+        if index.isValid() and role == QtCore.Qt.ItemIsEditable:
+            old_data = self._data[index.row()]
+            print("Setting value of item at {}:{} to {}".format(index.row(), index.column(), value))
+            new_data = old_data[0], str(value)
+            self._data[index.row()] = new_data
+            self.dataChanged.emit(index, index)
+            return True
+        else:
+            return False

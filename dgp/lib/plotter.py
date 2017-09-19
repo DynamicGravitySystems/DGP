@@ -121,6 +121,8 @@ class LineGrabPlot(BasePlottingCanvas):
         # Check that the click event happened within one of the subplot axes
         if event.inaxes not in self._axes:
             return
+        print("Xdata: {}".format(event.xdata))
+        self.log.info("Xdata: {}".format(event.xdata))
 
         caxes = event.inaxes  # type: Axes
         other_axes = [ax for ax in self._axes if ax != caxes]
