@@ -33,11 +33,11 @@ class TestEotvos(unittest.TestCase):
         """Test Eotvos function against corrections generated with MATLAB program."""
         # Ensure gps_fields are ordered correctly relative to test file
         gps_fields = ['mdy', 'hms', 'lat', 'long', 'ortho_ht', 'ell_ht', 'num_stats', 'pdop']
-        data = ti.import_trajectory('tests/sample_data/input_eotvos.txt', columns=gps_fields, skiprows=1,
+        data = ti.import_trajectory('tests/sample_data/eotvos_short_input.txt', columns=gps_fields, skiprows=1,
                                     timeformat='hms')
 
         result_eotvos = []
-        with sample_dir.joinpath('result_eotvos.csv').open() as fd:
+        with sample_dir.joinpath('eotvos_short_result.csv').open() as fd:
             test_data = csv.DictReader(fd)
             # print(test_data.fieldnames)
             for line in test_data:
@@ -47,8 +47,10 @@ class TestEotvos(unittest.TestCase):
         ht = data['ell_ht'].values
         rate = 10
 
-        eotvos_a, r2dot, w2xrdot, wdotxr, wxwxr, wexwexr = eotvos.calc_eotvos(lat, lon, ht, rate,
-                                                                              derivation_func=eotvos.derivative)
+        eotvos_a, *_ = eotvos.calc_eotvos(lat, lon, ht, rate, derivation_func=eotvos.derivative)
         for i, value in enumerate(eotvos_a):
-            # TODO: Increase accuracy of function, the last test calculated value in our test data is -0.00094 ~= 0.0
-            self.assertAlmostEqual(value, result_eotvos[i], places=2)
+            try:
+                self.assertAlmostEqual(value, result_eotvos[i], places=2)
+            except AssertionError:
+                print("Invalid assertion at data line: {}".format(i))
+                raise AssertionError
