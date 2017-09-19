@@ -123,8 +123,25 @@
            <height>16777215</height>
           </size>
          </property>
+         <property name="toolTip">
+          <string>Browse</string>
+         </property>
          <property name="text">
           <string>...</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="prj_desktop">
+         <property name="toolTip">
+          <string>Select Desktop Folder</string>
+         </property>
+         <property name="text">
+          <string/>
+         </property>
+         <property name="icon">
+          <iconset resource="resources.qrc">
+           <normaloff>:/images/assets/folder_open.png</normaloff>:/images/assets/folder_open.png</iconset>
          </property>
         </widget>
        </item>
@@ -257,7 +274,9 @@
   <tabstop>prj_create</tabstop>
   <tabstop>prj_type_list</tabstop>
  </tabstops>
- <resources/>
+ <resources>
+  <include location="resources.qrc"/>
+ </resources>
  <connections>
   <connection>
    <sender>prj_cancel</sender>

@@ -48,6 +48,7 @@ class TestEotvos(unittest.TestCase):
         rate = 10
 
         eotvos_a = eotvos.calc_eotvos(lat, lon, ht, rate, derivation_func=eotvos.derivative)
+        print(type(eotvos_a))
         for i, value in enumerate(eotvos_a):
             try:
                 self.assertAlmostEqual(value, result_eotvos[i], places=2)

@@ -147,6 +147,8 @@ def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, derivation_f
         -ddlat,
         (-ddlon * sin_lat - (dlon + We) * dlat * cos_lat)
     ])
+    print("Shape w: {}".format(w.shape))
+    print("Shape rdot: {}".format(rdot.shape))
     w2_x_rdot = np.cross(2.0 * w, rdot, axis=0)
     wdot_x_r = np.cross(wdot, r, axis=0)
     w_x_r = np.cross(w, r, axis=0)
@@ -176,6 +178,7 @@ def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, derivation_f
     # the aircraft - the centrifugal acceleration of the earth, converted to mgal
     E = (acc[2] - wexwexr[2]) * mps2mgal
     if derivation_func is not np.gradient:
+        print("Padding correction")
         E = np.pad(E, (1, 1), 'edge')
 
     # Return Eotvos corrections

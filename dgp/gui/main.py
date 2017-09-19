@@ -159,7 +159,11 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             self.gravity_stack.addWidget(widget)
             gravity = flight.gravity
             if gravity is not None:
-                self.plot_gravity(plot, gravity, {0: 'gravity', 1: ['long', 'cross']})
+                self.plot_time_series(plot, gravity, {0: 'gravity', 1: ['long', 'cross']})
+
+            # if flight.eotvos is not None:
+            #     self.plot_time_series(plot, flight.eotvos, {2: 'eotvos'})
+
             self.log.debug("Initialized Flight Plot: {}".format(plot))
             self.status.emit('Flight Plot {} Initialized'.format(flight.name))
             self.progress.emit(i+1)
@@ -310,7 +314,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         # so we can call this on app startup to pre-plot everything
         if flight.gravity is not None:
             if not grav_plot.plotted:
-                self.plot_gravity(grav_plot, flight.gravity, {0: 'gravity', 1: ['long', 'cross']})
+                self.plot_time_series(grav_plot, flight.gravity, {0: 'gravity', 1: ['long', 'cross']})
 
         if flight.gps is not None:
             self.log.debug("Flight has GPS Data")
@@ -318,35 +322,33 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
     def redraw(self, flt_id: str):
         plot, _ = self.flight_plots[flt_id]
         flt = self.project.get_flight(flt_id)  # type: prj.Flight
-        self.plot_gravity(plot, flt.gravity, {0: 'gravity', 1: ['long', 'cross']})
+        if flt.gravity is not None:
+            self.plot_time_series(plot, flt.gravity, {0: 'gravity', 1: ['long', 'cross']})
+        # if flt.gps is not None:
+        #     self.plot_time_series(plot, flt.eotvos, {2: 'eotvos'})
 
     @staticmethod
-    def plot_gravity(plot: LineGrabPlot, data: DataFrame, fields: Dict):
+    def plot_time_series(plot: LineGrabPlot, data: DataFrame, fields: Dict):
         plot.clear()
         for index in fields:
             if isinstance(fields[index], str):
                 series = data.get(fields[index])  # type: Series
-                # plot.plot(plot[index], series.index, series.values, label=series.name)
                 plot.plot2(plot[index], series)
                 continue
             for field in fields[index]:
                 series = data.get(field)  # type: Series
-                # plot.plot(plot[index], series.index, series.values, label=series.name)
                 plot.plot2(plot[index], series)
         plot.draw()
         plot.plotted = True
 
-    @staticmethod
-    def plot_gps(plot: LineGrabPlot, data: DataFrame, fields: Dict):
-        pass
-
     def progress_dialog(self, title, min=0, max=1):
-        prg = QtWidgets.QProgressDialog(title, "Cancel", min, max, self)
-        prg.setModal(True)
-        prg.setMinimumDuration(0)
-        prg.setCancelButton(None)
-        prg.setValue(0)
-        return prg
+        dialog = QtWidgets.QProgressDialog(title, "Cancel", min, max, self)
+        dialog.setWindowTitle("Loading...")
+        dialog.setModal(True)
+        dialog.setMinimumDuration(0)
+        dialog.setCancelButton(None)
+        dialog.setValue(0)
+        return dialog
 
     def import_data(self, path: pathlib.Path, dtype: str, flight: prj.Flight):
         self.log.info("Importing <{dtype}> from: Path({path}) into <Flight({name})>".format(dtype=dtype, path=str(path),
@@ -428,7 +430,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             if dialog.gps:
                 self.import_data(dialog.gps, 'gps', flight)
 
-            plot, widget = self._new_plot_widget(flight.name, rows=2)
+            plot, widget = self._new_plot_widget(flight.name, rows=3)
             self.gravity_stack.addWidget(widget)
             self.flight_plots[flight.uid] = plot, widget
             self.project_tree.refresh(curr_flightid=flight.uid)
