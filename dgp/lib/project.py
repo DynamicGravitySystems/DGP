@@ -361,14 +361,17 @@ class Flight:
         if self.gps is None:
             return None
         gps_data = self.gps
-        lat = gps_data['lat']
-        lon = gps_data['long']
-        ht = gps_data['ell_ht']
+        # WARNING: It is vital to use the .values of the pandas Series, otherwise the eotvos func
+        # does not work properly for some reason
+        # TODO: Find out why that is ^
+        index = gps_data['lat'].index
+        lat = gps_data['lat'].values
+        lon = gps_data['long'].values
+        ht = gps_data['ell_ht'].values
         rate = 10
-        ev_corr = eov.calc_eotvos(lat, lon, ht, rate, eov.derivative)
-        # ev_series = Series(ev_corr, index=lat.index, name='eotvos')
-        # return ev_series
-        return ev_corr
+        ev_corr = eov.calc_eotvos(lat, lon, ht, rate)
+        ev_frame = DataFrame(ev_corr, index=index, columns=['eotvos'])
+        return ev_frame
 
     def get_channel_data(self, channel):
         return self.gravity[channel]

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .context import dgp
 from dgp.lib.gravity_ingestor import read_at1a
+from dgp.lib.trajectory_ingestor import import_trajectory
 from dgp.lib.project import *
 from dgp.lib.meterconfig import *
 
@@ -96,7 +97,32 @@ class TestProject(unittest.TestCase):
 
 class TestFlight(unittest.TestCase):
     def setUp(self):
-        pass
+        self._trj_data_path = 'tests/sample_data/eotvos_short_input.txt'
+
+
+    def test_flight_gps(self):
+        td = tempfile.TemporaryDirectory()
+        hdf_temp = Path(str(td.name)).joinpath('hdf5.h5')
+        prj = AirborneProject(Path(str(td.name)), 'test')
+        prj.hdf_path = hdf_temp
+        flight = Flight(prj, 'testflt')
+        prj.add_flight(flight)
+        self.assertEqual(len(prj.flights), 1)
+        gps_fields = ['mdy', 'hms', 'lat', 'long', 'ortho_ht', 'ell_ht', 'num_stats', 'pdop']
+        traj_data =import_trajectory(self._trj_data_path, columns=gps_fields, skiprows=1,
+                                     timeformat='hms')
+        dp = DataPacket(traj_data, self._trj_data_path, 'gps')
+
+        prj.add_data(dp, flight.uid)
+        print(flight.gps_file)
+        self.assertTrue(flight.gps is not None)
+        self.assertTrue(flight.eotvos is not None)
+        # TODO: Line by line comparison of eotvos data from flight
+
+        try:
+            td.cleanup()
+        except OSError:
+            print("error")
 
 
 class TestMeterconfig(unittest.TestCase):
