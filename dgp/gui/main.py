@@ -161,8 +161,9 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             if gravity is not None:
                 self.plot_time_series(plot, gravity, {0: 'gravity', 1: ['long', 'cross']})
 
-            # if flight.eotvos is not None:
-            #     self.plot_time_series(plot, flight.eotvos, {2: 'eotvos'})
+            if flight.eotvos is not None:
+                print(flight.eotvos.columns)
+                self.plot_time_series(plot, flight.eotvos, {2: 'eotvos'})
 
             self.log.debug("Initialized Flight Plot: {}".format(plot))
             self.status.emit('Flight Plot {} Initialized'.format(flight.name))
@@ -324,8 +325,8 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         flt = self.project.get_flight(flt_id)  # type: prj.Flight
         if flt.gravity is not None:
             self.plot_time_series(plot, flt.gravity, {0: 'gravity', 1: ['long', 'cross']})
-        # if flt.gps is not None:
-        #     self.plot_time_series(plot, flt.eotvos, {2: 'eotvos'})
+        if flt.gps is not None:
+            self.plot_time_series(plot, flt.eotvos, {2: 'eotvos'})
 
     def plot_flight_main(self, plot: LineGrabPlot, flight: prj.Flight) -> None:
         """

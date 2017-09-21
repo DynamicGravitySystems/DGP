@@ -33,7 +33,7 @@ def derivative(y: array, datarate, edge_order=None):
         return ValueError('Invalid value for parameter n {1 or 2}')
 
 
-def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, derivation_func=np.gradient,
+def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, derivation_func=derivative,
                 **kwargs):
     """
     calc_eotvos: Calculate Eotvos Gravity Corrections
@@ -126,9 +126,9 @@ def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, derivation_f
         np.zeros(r_prime.size),
         (-dr_prime * cosD + r_prime * dD * sinD - dht)
     ])
-    ci = (-ddr_prime * np.sin(D) - 2.0 * dr_prime * dD * cosD - r_prime *
+    ci = (-ddr_prime * sinD - 2.0 * dr_prime * dD * cosD - r_prime *
           (ddD * cosD - dD * dD * sinD))
-    ck = (-ddr_prime * np.cos(D) + 2.0 * dr_prime * dD * sinD + r_prime *
+    ck = (-ddr_prime * cosD + 2.0 * dr_prime * dD * sinD + r_prime *
           (ddD * sinD + dD * dD * cosD) - ddht)
     r2dot = array([
         ci,
@@ -147,8 +147,6 @@ def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, derivation_f
         -ddlat,
         (-ddlon * sin_lat - (dlon + We) * dlat * cos_lat)
     ])
-    print("Shape w: {}".format(w.shape))
-    print("Shape rdot: {}".format(rdot.shape))
     w2_x_rdot = np.cross(2.0 * w, rdot, axis=0)
     wdot_x_r = np.cross(wdot, r, axis=0)
     w_x_r = np.cross(w, r, axis=0)
@@ -178,7 +176,6 @@ def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, derivation_f
     # the aircraft - the centrifugal acceleration of the earth, converted to mgal
     E = (acc[2] - wexwexr[2]) * mps2mgal
     if derivation_func is not np.gradient:
-        print("Padding correction")
         E = np.pad(E, (1, 1), 'edge')
 
     # Return Eotvos corrections
