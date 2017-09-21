@@ -22,7 +22,6 @@ from pandas import Series
 import numpy as np
 
 
-
 class BasePlottingCanvas(FigureCanvas):
     """
     BasePlottingCanvas sets up the basic Qt Canvas parameters, and is designed
@@ -60,7 +59,8 @@ class BasePlottingCanvas(FigureCanvas):
                 sp = self.figure.add_subplot(rows, 1, i + 1, sharex=self._axes[0])  # type: Axes
 
             sp.grid(True)
-            sp.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
+            # sp.xaxis_date()
+            # sp.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
             sp.name = 'Axes {}'.format(i)
             # sp.callbacks.connect('xlim_changed', set_x_formatter)
             self._axes.append(sp)
@@ -123,6 +123,7 @@ class LineGrabPlot(BasePlottingCanvas):
             ax.cla()
             ax.grid(True)
             # Reconnect the xlim_changed callback after clearing
+            ax.xaxis_date()
             ax.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
             ax.callbacks.connect('xlim_changed', self._on_xlim_changed)
         self.draw()
@@ -232,6 +233,8 @@ class LineGrabPlot(BasePlottingCanvas):
         ax.legend()
 
     def plot2(self, ax: Axes, series: Series):
+        # ax.xaxis_date()
+        ax.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
         if self._lines.get(id(ax), None) is None:
             self._lines[id(ax)] = []
         sample_series = series[self.resample]

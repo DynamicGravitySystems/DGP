@@ -5,20 +5,25 @@ import logging
 import functools
 import datetime
 import pathlib
-from typing import Dict, Union
+from typing import Dict, Union, List
 
 from PyQt5 import Qt, QtWidgets, QtCore
 from PyQt5.uic import loadUiType
 
 import dgp.lib.project as prj
-from dgp.gui.models import TableModel
+from dgp.gui.models import TableModel, SelectionDelegate
 from dgp.gui.utils import ConsoleHandler, LOG_COLOR_MAP
 
 
 data_dialog, _ = loadUiType('dgp/gui/ui/data_import_dialog.ui')
+advanced_import, _ = loadUiType('dgp/gui/ui/advanced_data_import.ui')
 flight_dialog, _ = loadUiType('dgp/gui/ui/add_flight_dialog.ui')
 project_dialog, _ = loadUiType('dgp/gui/ui/project_dialog.ui')
 info_dialog, _ = loadUiType('dgp/gui/ui/info_dialog.ui')
+
+
+class BaseDialog(QtWidgets.QDialog):
+    pass
 
 
 class ImportData(QtWidgets.QDialog, data_dialog):
@@ -108,6 +113,96 @@ class ImportData(QtWidgets.QDialog, data_dialog):
     @property
     def content(self) -> (pathlib.Path, str, prj.Flight):
         return self.path, self.dtype, self.flight
+
+
+class AdvancedImport(QtWidgets.QDialog, advanced_import):
+    def __init__(self, project, flight, parent=None):
+        """
+
+        Parameters
+        ----------
+        project : GravityProject
+            Parent project
+        flight : Flight
+            Currently selected flight when Import button was clicked
+        parent : QWidget
+            Parent Widget
+        """
+        super().__init__(parent=parent)
+        self.setupUi(self)
+        self._preview_limit = 3
+        self._project = project
+        self._path = None
+        self._flight = flight
+
+        for flt in project:
+            self.combo_flights.addItem(flt.name, flt)
+            if flt == self._flight:  # scroll to this item if it matches self.flight
+                self.combo_flights.setCurrentIndex(self.combo_flights.count() - 1)
+
+        # Signals/Slots
+        self.line_path.textChanged.connect(self._preview)
+        self.btn_browse.clicked.connect(self.browse_file)
+        self.btn_setcols.clicked.connect(self._capture)
+        self.btn_reload.clicked.connect(functools.partial(self._preview, self._path))
+
+    @property
+    def content(self) -> (str, str, List, prj.Flight):
+        return self._path, self._dtype(), self._capture(), self._flight
+
+    def accept(self) -> None:
+        self._flight = self.combo_flights.currentData()
+        super().accept()
+        return
+
+    def _capture(self) -> Union[None, List]:
+        table = self.table_preview  # type: QtWidgets.QTableView
+        model = table.model()  # type: TableModel
+        if model is None:
+            return None
+        print("Row 0 {}".format(model.get_row(0)))
+        fields = model.get_row(0)
+        return fields
+
+    def _dtype(self):
+        return {'GPS': 'gps', 'Gravity': 'gravity'}.get(self.group_dtype.checkedButton().text().replace('&', ''),
+                                                        'gravity')
+
+    def _preview(self, path: str):
+        path = pathlib.Path(path)
+        if not path.exists():
+            print("Path doesn't exist")
+            return
+        lines = []
+        with path.open('r') as fd:
+            for i, line in enumerate(fd):
+                cells = line.split(',')
+                lines.append(cells)
+                if i >= self._preview_limit:
+                    break
+
+        dtype = self._dtype()
+        if dtype == 'gravity':
+            fields = ['gravity', 'long', 'cross', 'beam', 'temp', 'status', 'pressure',
+                      'Etemp', 'GPSweek', 'GPSweekseconds']
+        elif dtype == 'gps':
+            fields = ['mdy', 'hms', 'lat', 'long', 'ell_ht', 'ortho_ht', 'num_sats', 'pdop']
+        else:
+            return
+        delegate = SelectionDelegate(fields)
+        model = TableModel(fields, editheader=True)
+        model.append(*fields)
+        for line in lines:
+            model.append(*line)
+        self.table_preview.setModel(model)
+        self.table_preview.setItemDelegate(delegate)
+
+    def browse_file(self):
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select Data File", os.getcwd(),
+                                                        "Data (*.dat *.csv *.txt)")
+        if path:
+            self.line_path.setText(str(path))
+            self._path = path
 
 
 class AddFlight(QtWidgets.QDialog, flight_dialog):
