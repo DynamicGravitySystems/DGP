@@ -327,6 +327,32 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         # if flt.gps is not None:
         #     self.plot_time_series(plot, flt.eotvos, {2: 'eotvos'})
 
+    def plot_flight_main(self, plot: LineGrabPlot, flight: prj.Flight) -> None:
+        """
+        Plot a flight on the main plot area as a time series, displaying gravity, long/cross and eotvos
+        By default, expects a plot with 3 subplots accesible via getattr notation.
+        Gravity channel will be plotted on subplot 0
+        Long and Cross channels will be plotted on subplot 1
+        Eotvos Correction channel will be plotted on subplot 2
+        Parameters
+        ----------
+        plot : LineGrabPlot
+            LineGrabPlot object used to draw the plot on
+        flight : prj.Flight
+            Flight object with related Gravity and GPS properties to plot
+
+        Returns
+        -------
+        None
+        """
+        grav_series = flight.gravity
+        eotvos_series = flight.eotvos
+        plot.plot2(plot[0], grav_series['gravity'])
+        plot.plot2(plot[1], grav_series['cross'])
+        plot.plot2(plot[1], grav_series['long'])
+        plot.plot2(plot[2], eotvos_series)
+        plot.draw()
+
     @staticmethod
     def plot_time_series(plot: LineGrabPlot, data: DataFrame, fields: Dict):
         plot.clear()
