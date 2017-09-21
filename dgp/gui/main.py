@@ -126,7 +126,6 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
     def load(self):
         self._init_plots()
         self._init_slots()
-        # self.update_project(signal_flight=True)
         self.project_tree.refresh()
         self.setWindowState(QtCore.Qt.WindowMaximized)
         self.save_project()
@@ -157,13 +156,9 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
             self.flight_plots[flight.uid] = plot, widget
             self.gravity_stack.addWidget(widget)
-            gravity = flight.gravity
-            if gravity is not None:
-                self.plot_time_series(plot, gravity, {0: 'gravity', 1: ['long', 'cross']})
-
-            if flight.eotvos is not None:
-                print(flight.eotvos.columns)
-                self.plot_time_series(plot, flight.eotvos, {2: 'eotvos'})
+            # gravity = flight.gravity
+            self.log.debug("Plotting using plot_flight_main method")
+            self.plot_flight_main(plot, flight)
 
             self.log.debug("Initialized Flight Plot: {}".format(plot))
             self.status.emit('Flight Plot {} Initialized'.format(flight.name))
@@ -225,17 +220,6 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
     def flight_info(self):
         self.log.info("Printing info about the selected flight: {}".format(self.current_flight))
-
-    # Experimental
-    def set_progress_bar(self, value=100, progress=None):
-        if progress is None:
-            progress = QtWidgets.QProgressBar()
-            progress.setValue(value)
-            self.statusBar().addWidget(progress)
-        else:
-            progress.setValue(value)
-
-        return progress
 
     def set_logging_level(self, name: str):
         """PyQt Slot: Changes logging level to passed string logging level name."""
@@ -311,22 +295,26 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             self.log.error("No plot for this flight found.")
             return
 
-        # TODO: Move this (and gps plot) into separate functions
-        # so we can call this on app startup to pre-plot everything
-        if flight.gravity is not None:
-            if not grav_plot.plotted:
-                self.plot_time_series(grav_plot, flight.gravity, {0: 'gravity', 1: ['long', 'cross']})
+        if not grav_plot.plotted:
+            self.plot_flight_main(grav_plot, flight)
+        return
 
-        if flight.gps is not None:
-            self.log.debug("Flight has GPS Data")
+    def redraw(self, flt_id: str) -> None:
+        """
+        Redraw the main flight plot (gravity, cross/long, eotvos) for the specific flight.
 
-    def redraw(self, flt_id: str):
+        Parameters
+        ----------
+        flt_id : str
+            Flight uuid of flight to replot.
+
+        Returns
+        -------
+        None
+        """
         plot, _ = self.flight_plots[flt_id]
         flt = self.project.get_flight(flt_id)  # type: prj.Flight
-        if flt.gravity is not None:
-            self.plot_time_series(plot, flt.gravity, {0: 'gravity', 1: ['long', 'cross']})
-        if flt.gps is not None:
-            self.plot_time_series(plot, flt.eotvos, {2: 'eotvos'})
+        self.plot_flight_main(plot, flt)
 
     def plot_flight_main(self, plot: LineGrabPlot, flight: prj.Flight) -> None:
         """
@@ -335,6 +323,8 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         Gravity channel will be plotted on subplot 0
         Long and Cross channels will be plotted on subplot 1
         Eotvos Correction channel will be plotted on subplot 2
+        After plotting, call the plot.draw() to set plot.plotted to true, and draw the figure.
+
         Parameters
         ----------
         plot : LineGrabPlot
@@ -348,10 +338,12 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         """
         grav_series = flight.gravity
         eotvos_series = flight.eotvos
-        plot.plot2(plot[0], grav_series['gravity'])
-        plot.plot2(plot[1], grav_series['cross'])
-        plot.plot2(plot[1], grav_series['long'])
-        plot.plot2(plot[2], eotvos_series)
+        if grav_series is not None:
+            plot.plot2(plot[0], grav_series['gravity'])
+            plot.plot2(plot[1], grav_series['cross'])
+            plot.plot2(plot[1], grav_series['long'])
+        if eotvos_series is not None:
+            plot.plot2(plot[2], eotvos_series['eotvos'])
         plot.draw()
 
     @staticmethod
@@ -582,16 +574,25 @@ class ProjectTreeView(QtWidgets.QTreeView):
         return model, first_index
 
     def contextMenuEvent(self, event: QtGui.QContextMenuEvent, *args, **kwargs):
-        context_ind = self.indexAt(event.pos())
+        context_ind = self.indexAt(event.pos())  # get the index of the item under the click event
         context_focus = self.model().itemFromIndex(context_ind)
 
         info_slot = functools.partial(self.flight_info, context_focus)
+        plot_slot = functools.partial(self.flight_plot, context_focus)
         menu = QtWidgets.QMenu()
         info_action = QtWidgets.QAction("Info")
         info_action.triggered.connect(info_slot)
+        plot_action = QtWidgets.QAction("Plot in new window")
+        plot_action.triggered.connect(plot_slot)
+
         menu.addAction(info_action)
+        menu.addAction(plot_action)
         menu.exec_(event.globalPos())
         event.accept()
+
+    def flight_plot(self, item):
+        print("Opening new plot for item")
+        pass
 
     def flight_info(self, item):
         data = item.data(QtCore.Qt.UserRole)

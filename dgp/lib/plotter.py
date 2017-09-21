@@ -60,6 +60,7 @@ class BasePlottingCanvas(FigureCanvas):
                 sp = self.figure.add_subplot(rows, 1, i + 1, sharex=self._axes[0])  # type: Axes
 
             sp.grid(True)
+            sp.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
             sp.name = 'Axes {}'.format(i)
             # sp.callbacks.connect('xlim_changed', set_x_formatter)
             self._axes.append(sp)
@@ -111,6 +112,10 @@ class LineGrabPlot(BasePlottingCanvas):
         if title:
             self.figure.suptitle(title, y=1)
 
+    def draw(self):
+        self.plotted = True
+        super().draw()
+
     def clear(self):
         self._lines = {}
         self.resample = slice(None, None, 20)
@@ -118,6 +123,7 @@ class LineGrabPlot(BasePlottingCanvas):
             ax.cla()
             ax.grid(True)
             # Reconnect the xlim_changed callback after clearing
+            ax.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
             ax.callbacks.connect('xlim_changed', self._on_xlim_changed)
         self.draw()
 
@@ -128,7 +134,6 @@ class LineGrabPlot(BasePlottingCanvas):
         # Check that the click event happened within one of the subplot axes
         if event.inaxes not in self._axes:
             return
-        print("Xdata: {}".format(event.xdata))
         self.log.info("Xdata: {}".format(event.xdata))
 
         caxes = event.inaxes  # type: Axes
@@ -284,8 +289,8 @@ class LineGrabPlot(BasePlottingCanvas):
                     ax.draw_artist(line[0])
                     print("Resampling to: {}".format(self.resample))
             ax.relim()
+            ax.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
         self.figure.canvas.draw()
-        # ax.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
 
     def get_toolbar(self, parent=None) -> QtWidgets.QToolBar:
         """
