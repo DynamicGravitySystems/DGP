@@ -13,6 +13,7 @@ from PyQt5.uic import loadUiType
 import dgp.lib.project as prj
 from dgp.gui.models import TableModel
 from dgp.gui.utils import ConsoleHandler, LOG_COLOR_MAP
+from dgp.lib.etc import gen_uuid
 
 
 data_dialog, _ = loadUiType('dgp/gui/ui/data_import_dialog.ui')
@@ -55,7 +56,7 @@ class ImportData(QtWidgets.QDialog, data_dialog):
         self.dtype = None
         self.flight = flight
 
-        for flight in project:
+        for flight in project.flights:
             # TODO: Change dict index to human readable value
             self.combo_flights.addItem(flight.name, flight.uid)
             if flight == self.flight:  # scroll to this item if it matches self.flight
@@ -122,7 +123,7 @@ class AddFlight(QtWidgets.QDialog, flight_dialog):
         self.browse_gravity.clicked.connect(functools.partial(self.browse, field=self.path_gravity))
         self.browse_gps.clicked.connect(functools.partial(self.browse, field=self.path_gps))
         self.date_flight.setDate(datetime.datetime.today())
-        self._uid = prj.Flight.generate_uuid()
+        self._uid = gen_uuid('f')
         self.text_uuid.setText(self._uid)
 
         self.params_model = TableModel(['Key', 'Start Value', 'End Value'], editable=[1, 2])

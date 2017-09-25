@@ -1,15 +1,16 @@
 # coding: utf-8
 
-import os
 import uuid
 import pickle
 import pathlib
 import logging
+from typing import Union, Type
 
 from pandas import HDFStore, DataFrame, Series
 
 from dgp.lib.meterconfig import MeterConfig, AT1Meter
-from dgp.lib.types import Location, StillReading, FlightLine, DataPacket
+from dgp.lib.etc import gen_uuid
+from dgp.lib.types import Location, StillReading, FlightLine, TreeItem
 import dgp.lib.eotvos as eov
 
 """
@@ -34,13 +35,22 @@ Workflow:
 
 """
 
+# QT ItemDataRoles
+DisplayRole = 0
+DecorationRole = 1
+ToolTipRole = 3
+StatusTipRole = 4
+UserRole = 256
+
 
 def can_pickle(attribute):
     """Helper function used by __getstate__ to determine if an attribute should be pickled."""
     # TODO: As necessary change this to check against a list of un-pickleable types
-    if isinstance(attribute, logging.Logger):
-        return False
-    if isinstance(attribute, DataFrame):
+    no_pickle = [logging.Logger, DataFrame]
+    for invalid in no_pickle:
+        if isinstance(attribute, invalid):
+            return False
+    if attribute.__class__.__name__ == 'ProjectModel':
         return False
     return True
 
@@ -202,7 +212,7 @@ class GravityProject:
         return project
 
     def __iter__(self):
-        pass
+        raise NotImplementedError("Abstract definition, not implemented.")
 
     def __getstate__(self):
         """
@@ -235,7 +245,7 @@ class GravityProject:
         self.log = logging.getLogger(__name__)
 
 
-class Flight:
+class Flight(TreeItem):
     """
     Define a Flight class used to record and associate data with an entire survey flight (takeoff -> landing)
     This class is iterable, yielding the flightlines named tuple objects from its lines dictionary
@@ -270,10 +280,11 @@ class Flight:
         """
         # If uuid is passed use the value else assign new uuid
         # the letter 'f' is prepended to the uuid to ensure that we have a natural python name
-        # as python variables cannot start with a number (this takes care of warning when storing data in pytables)
-        self.parent = parent
+        # as python variables cannot start with a number
+        self._parent = parent
         self.name = name
-        self.uid = kwargs.get('uuid', self.generate_uuid())
+        self._uid = kwargs.get('uuid', gen_uuid('f'))
+        self._icon = ':images/assets/flight_icon.png'
         self.meter = meter
         if 'date' in kwargs:
             print("Setting date to: {}".format(kwargs['date']))
@@ -281,7 +292,7 @@ class Flight:
 
         self.log = logging.getLogger(__name__)
 
-        # These private attributes will hold a file reference string used to retrieve data from hdf5 store.
+        # These attributes will hold a file reference string used to retrieve data from hdf5 store.
         self._gpsdata_uid = None  # type: str
         self._gravdata_uid = None  # type: str
 
@@ -297,8 +308,36 @@ class Flight:
 
         self.flight_timeshift = 0
 
+        # TODO: Flight lines will need to become a Container<FlightLine>
         # Flight lines keyed by UUID
-        self.lines = {}
+        self.lines = Container(ctype=FlightLine, parent=self, name='Flight Lines')
+
+    @property
+    def uid(self):
+        return self._uid
+
+    @property
+    def parent(self):
+        return self._parent
+
+    @parent.setter
+    def parent(self, value):
+        self._parent = value
+
+    def data(self, role=None):
+        if role == UserRole:
+            return self
+        if role == ToolTipRole:
+            return repr(self)
+        if role == DecorationRole:
+            return self._icon
+        return self.name
+
+    @property
+    def children(self):
+        """Yield appropriate child objects for display in project Tree View"""
+        for child in [self.lines, self._gpsdata_uid, self._gravdata_uid]:
+            yield child
 
     @property
     def gps(self):
@@ -376,27 +415,12 @@ class Flight:
     def get_channel_data(self, channel):
         return self.gravity[channel]
 
-    def add_line(self, start: float, end: float):
+    def add_line(self, start: float, stop: float):
         """Add a flight line to the flight by start/stop index and sequence number"""
-        uid = uuid.uuid4().hex
-        line = FlightLine(uid, len(self.lines), None, start, end)
-        self.lines[uid] = line
+        # line = FlightLine(len(self.lines), None, start, end, self)
+        line = FlightLine(start, stop, len(self.lines), None, self)
+        self.lines.add_child(line)
         return line
-
-    @staticmethod
-    def generate_uuid():
-        """
-        Generates a Universally Unique ID (UUID) using the uuid.uuid4() method, and replaces the first hex digit with
-        'f' to ensure the UUID conforms to python's Natural Name convention, simply meaning that the name does not start
-        with a number, as this raises warnings when using the UUID as a key in a Pandas dataframe or when exporting data
-        to an HDF5 store.
-
-        Returns
-        -------
-        str
-            32 digit hexadecimal string unique identifier where str[0] == 'f'
-        """
-        return 'f{}'.format(uuid.uuid4().hex[1:])
 
     def __iter__(self):
         """
@@ -406,28 +430,19 @@ class Flight:
         FlightLine : NamedTuple
             Next FlightLine in Flight.lines
         """
-        for k, line in self.lines.items():
+        for line in self.lines:
             yield line
 
     def __len__(self):
         return len(self.lines)
 
     def __repr__(self):
-        return "<Flight {parent}, {name}, {meter}>".format(parent=self.parent, name=self.name,
-                                                           meter=self.meter)
+        return "{cls}({parent}, {name}, {meter})".format(cls=type(self).__name__,
+                                                         parent=self.parent, name=self.name,
+                                                         meter=self.meter)
 
     def __str__(self):
-        if self.meter is not None:
-            mname = self.meter.name
-        else:
-            mname = '<None>'
-        desc = """Flight: {name}\n
-UID: {uid}
-Meter: {meter}
-# Lines: {lines}
-Data Files:
-        """.format(name=self.name, uid=self.uid, meter=mname, lines=len(self))
-        return desc
+        return "Flight: {}".format(self.name)
 
     def __getstate__(self):
         return {k: v for k, v in self.__dict__.items() if can_pickle(v)}
@@ -439,88 +454,246 @@ Data Files:
         self._gpsdata = None
 
 
-class AirborneProject(GravityProject):
+class Container(TreeItem):
+    ctypes = {Flight, MeterConfig, FlightLine}
+
+    def __init__(self, ctype, parent, *args, **kwargs):
+        """
+        Defines a generic container designed for use with models.ProjectModel, implementing the
+        required functions to display and contain child objects.
+        When used/displayed by a TreeView the default behavior is to display the ctype.__name__
+        and a tooltip stating "Container for <name> type objects".
+
+        The Container contains only objects of type ctype, or those derived from it. Attempting
+        to add a child of a different type will simply fail, with the add_child method returning
+        False.
+        Parameters
+        ----------
+        ctype : Class
+            The object type this container will contain as children, permitted classes are:
+            Flight
+            FlightLine
+            MeterConfig
+        parent
+            Parent object, e.g. Gravity[Airborne]Project, Flight etc. The container will set the
+            'parent' attribute of any children added to the container to this value.
+        args : [List<ctype>]
+            Optional child objects to add to the Container at instantiation
+        kwargs
+            Optional key-word arguments. Recognized values:
+            str name : override the default name of this container (which is _ctype.__name__)
+        """
+        assert ctype in Container.ctypes
+        # assert parent is not None
+        self._uid = gen_uuid('c')
+        self._parent = parent
+        self._ctype = ctype
+        self._name = kwargs.get('name', self._ctype.__name__)
+        self._children = {}
+        for arg in args:
+            self.add_child(arg)
+
+    @property
+    def parent(self):
+        return self._parent
+
+    @parent.setter
+    def parent(self, value):
+        self._parent = value
+
+    @property
+    def ctype(self):
+        return self._ctype
+
+    @property
+    def uid(self):
+        return self._uid
+
+    @property
+    def name(self):
+        return self._name.lower()
+
+    @property
+    def children(self):
+        for flight in self._children:
+            yield self._children[flight]
+
+    def data(self, role=None):
+        if role == ToolTipRole:
+            return "Container for {} type objects.".format(self._name)
+        return self._name
+
+    def child(self, uid):
+        return self._children[uid]
+
+    def add_child(self, child) -> bool:
+        """
+        Add a child object to the container.
+        The child object must be an instance of the ctype of the container, otherwise it will be rejected.
+        Parameters
+        ----------
+        child
+            Child object of compatible type <ctype> for this container.
+        Returns
+        -------
+        bool:
+            True if add is sucessful
+            False if add fails (e.g. child is not a valid type for this container)
+        """
+        if not isinstance(child, self._ctype):
+            return False
+        if child.uid in self._children:
+            print("child already exists in container, skipping insert")
+            return True
+        try:
+            child.parent = self._parent
+        except AttributeError:
+            # Can't reassign tuple attribute (may change FlightLine to class in future)
+            pass
+        self._children[child.uid] = child
+        return True
+
+    def remove_child(self, child) -> bool:
+        """
+        Remove a child object from the container.
+        Children are deleted by the uid key, no other comparison is executed.
+        Parameters
+        ----------
+        child
+
+        Returns
+        -------
+        bool:
+            True on sucessful deletion of child
+            False if child.uid could not be retrieved and deleted
+        """
+        try:
+            del self._children[child.uid]
+            print("Deleted obj uid: {} from container children".format(child.uid))
+            return True
+        except KeyError:
+            return False
+
+    def __iter__(self):
+        for child in self._children.values():
+            yield child
+
+    def __len__(self):
+        return len(self._children)
+
+    def __str__(self):
+        return self._name
+
+
+class AirborneProject(GravityProject, TreeItem):
     """
     A subclass of the base GravityProject, AirborneProject will define an Airborne survey
     project with parameters unique to airborne operations, and defining flight lines etc.
 
     This class is iterable, yielding the Flight objects contained within its flights dictionary
     """
-    def __init__(self, path, name, description=None):
+    def __init__(self, path: pathlib.Path, name, description=None, parent=None):
         super().__init__(path, name, description)
 
+        self._parent = parent
         # Dictionary of Flight objects keyed by the flight uuid
-        self.flights = {}
-        self.active = None  # type: Flight
+        self._children = {'flights': Container(ctype=Flight, parent=self),
+                          'meters': Container(ctype=MeterConfig, parent=self)}
         self.log.debug("Airborne project initialized")
         self.data_map = {}
 
-    def set_active(self, flight_id):
-        flight = self.get_flight(flight_id)
-        self.active = flight
+    @property
+    def parent(self):
+        return self._parent
 
-    def add_data(self, packet: DataPacket, flight_uid: str):
+    @parent.setter
+    def parent(self, value):
+        self._parent = value
+
+    @property
+    def children(self):
+        for child in self._children:
+            yield self._children[child]
+
+    @property
+    def uid(self):
+        return
+
+    def data(self, role=None):
+        return "{} :: <{}>".format(self.name, self.projectdir.resolve())
+
+    # TODO: Move this into the GravityProject base class?
+    # Although we use flight_uid here, this could be abstracted however.
+    def add_data(self, df: DataFrame, path: pathlib.Path, dtype: str, flight_uid: str):
         """
-        Add a DataPacket to the project.
-        The DataPacket is simply a container for a pandas.DataFrame object, containing some additional meta-data that is
-        used by the project and interface.
-        Upon adding a DataPacket, the DataFrame is assigned a UUID and together with the data type, is exported to the
-        projects' HDFStore into a group specified by data type i.e.
+        Add an imported DataFrame to a specific Flight in the project.
+        Upon adding a DataFrame a UUID is assigned, and together with the data type it is exported
+        to the project HDFStore into a group specified by data type i.e.
             HDFStore.put('data_type/uuid', packet.data)
-        The data can then be retrieved later from its respective group using its UUID.
+        The data can then be retrieved from its respective dtype group using the UUID.
         The UUID is then stored in the Flight class's data variable for the respective data_type.
 
         Parameters
         ----------
-        packet : DataPacket(data, path, dtype)
-
+        df : DataFrame
+            Pandas DataFrame containing file data.
+        path : pathlib.Path
+            Original path to data file as a pathlib.Path object.
+        dtype : str
+            The data type of the data (df) being added, either gravity or gps.
         flight_uid : str
-
+            UUID of the Flight the added data will be assigned/associated with.
 
         Returns
         -------
-
-        """
-        """
-        Import a DataFrame into the project
-        :param packet: DataPacket custom class containing file path, dataframe, data type and flight association
-        :return: Void
+        bool
+            True on success, False on failure
+            Causes of failure:
+                flight_uid does not exist in self.flights.keys
         """
         self.log.debug("Ingesting data and exporting to hdf5 store")
 
-        file_uid = 'f' + uuid.uuid4().hex[1:]  # Fixes NaturalNameWarning by ensuring first char is letter ('f').
+        # Fixes NaturalNameWarning by ensuring first char is letter ('f').
+        file_uid = 'f' + uuid.uuid4().hex[1:]
 
         with HDFStore(str(self.hdf_path)) as store:
             # Separate data into groups by data type (GPS & Gravity Data)
             # format: 'table' pytables format enables searching/appending, fixed is more performant.
-            store.put('{}/{}'.format(packet.dtype, file_uid), packet.data, format='fixed', data_columns=True)
+            store.put('{}/{}'.format(dtype, file_uid), df, format='fixed', data_columns=True)
             # Store a reference to the original file path
-            self.data_map[file_uid] = packet.path
+            self.data_map[file_uid] = path
         try:
-            flight = self.flights[flight_uid]
-            if packet.dtype == 'gravity':
+            flight = self.get_flight(flight_uid)
+            if dtype == 'gravity':
                 flight.gravity = file_uid
-            elif packet.dtype == 'gps':
+            elif dtype == 'gps':
                 flight.gps = file_uid
+            return True
         except KeyError:
             return False
 
-    def add_flight(self, flight: Flight):
-        self.flights[flight.uid] = flight
+    def add_flight(self, flight: Flight) -> None:
+        self._children['flights'].add_child(flight)
+        if self.parent is not None:
+            self.parent.update('add', flight)
 
-    def get_flight(self, flight_id):
-        flt = self.flights.get(flight_id, None)
-        self.log.debug("Found flight {}:{}".format(flt.name, flt.uid))
-        return flt
+    def get_flight(self, uid):
+        flight = self._children['flights'].child(uid)
+        return flight
 
-    def __iter__(self):
-        for uid, flight in self.flights.items():
+    @property
+    def flights(self):
+        for flight in self._children['flights'].children:
             yield flight
 
+    def __iter__(self):
+        return (i for i in self._children.items())
+
     def __len__(self):
-        return len(self.flights)
+        count = 0
+        for child in self._children:
+            count += len(child)
+        return count
 
     def __str__(self):
-        return "Project: {name}\nPath: {path}\nDescription: {desc}".format(name=self.name,
-                                                                           path=self.projectdir,
-                                                                           desc=self.description)
+        return "AirborneProject: {}".format(self.name)

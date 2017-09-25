@@ -60,7 +60,7 @@ class BasePlottingCanvas(FigureCanvas):
                 sp = self.figure.add_subplot(rows, 1, i + 1, sharex=self._axes[0])  # type: Axes
 
             sp.grid(True)
-            sp.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
+            # sp.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
             sp.name = 'Axes {}'.format(i)
             # sp.callbacks.connect('xlim_changed', set_x_formatter)
             self._axes.append(sp)
@@ -223,21 +223,22 @@ class LineGrabPlot(BasePlottingCanvas):
         self.clicked = None
         # self.draw()
 
-    def plot(self, ax: Axes, xdata, ydata, **kwargs):
-        if self._lines.get(id(ax), None) is None:
-            self._lines[id(ax)] = []
-        line = ax.plot(xdata, ydata, **kwargs)
-        self._lines[id(ax)].append((line, xdata, ydata))
-        self.timespan = self._timespan(*ax.get_xlim())
-        ax.legend()
-
     def plot2(self, ax: Axes, series: Series):
         if self._lines.get(id(ax), None) is None:
             self._lines[id(ax)] = []
-        sample_series = series[self.resample]
+        if len(series) > 10000:
+            sample_series = series[self.resample]
+        else:
+            # Don't resample small series
+            sample_series = series
         line = ax.plot(sample_series.index, sample_series.values, label=sample_series.name)
+        ax.xaxis.set_major_formatter(DateFormatter('%H:%M:%S'))
+
+        ax.relim()
+        ax.autoscale_view()
         self._lines[id(ax)].append((line, series))
         self.timespan = self._timespan(*ax.get_xlim())
+        print("Timespan: {}".format(self.timespan))
         ax.legend()
 
     @staticmethod

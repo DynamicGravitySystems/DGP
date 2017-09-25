@@ -17,7 +17,7 @@ from dgp.gui.loader import LoadFile
 from dgp.lib.plotter import LineGrabPlot
 from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, get_project_file
 from dgp.gui.dialogs import ImportData, AddFlight, CreateProject, InfoDialog
-from dgp.gui.models import TableModel
+from dgp.gui.models import TableModel, ProjectModel
 
 # Load .ui form
 main_window, _ = loadUiType('dgp/gui/ui/main_window.ui')
@@ -59,6 +59,8 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
         # Setup Project
         self.project = project
+        # Experimental: use the _model to affect changes to the project.
+        self._model = ProjectModel(project)
 
         # See http://doc.qt.io/qt-5/stylesheet-examples.html#customizing-qtreeview
         # Set Stylesheet customizations for GUI Window
@@ -126,7 +128,8 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
     def load(self):
         self._init_plots()
         self._init_slots()
-        self.project_tree.refresh()
+        # self.update_project(signal_flight=True)
+        # self.project_tree.refresh()
         self.setWindowState(QtCore.Qt.WindowMaximized)
         self.save_project()
         self.show()
@@ -146,9 +149,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         None
         """
         self.progress.emit(0)
-        if self.project is None:
-            return
-        for i, flight in enumerate(self.project):  # type: int, prj.Flight
+        for i, flight in enumerate(self.project.flights):  # type: int, prj.Flight
             if flight.uid in self.flight_plots:
                 continue
 
@@ -265,7 +266,8 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
         """
         self.tree_index = index
-        qitem = self.project_tree.model().itemFromIndex(index)  # type: QtGui.QStandardItem
+        # qitem = self.project_tree.model().itemFromIndex(index)  # type: QtGui.QStandardItem
+        qitem = index.internalPointer()
         if qitem is None:
             return
         qitem_data = qitem.data(QtCore.Qt.UserRole)
@@ -378,13 +380,13 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
         # Curry functions to execute on thread completion.
         add_data = functools.partial(self.project.add_data, flight_uid=flight.uid)
-        tree_refresh = functools.partial(self.project_tree.refresh, curr_flightid=flight.uid)
+        # tree_refresh = functools.partial(self.project_tree.refresh, curr_flightid=flight.uid)
         redraw_flt = functools.partial(self.redraw, flight.uid)
         prog = self.progress_dialog("Loading", 0, 0)
 
         loader.data.connect(add_data)
         loader.progress.connect(prog.setValue)
-        loader.loaded.connect(tree_refresh)
+        # loader.loaded.connect(tree_refresh)
         loader.loaded.connect(redraw_flt)
         loader.loaded.connect(self.save_project)
         loader.loaded.connect(prog.close)
@@ -452,7 +454,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             plot, widget = self._new_plot_widget(flight.name, rows=3)
             self.gravity_stack.addWidget(widget)
             self.flight_plots[flight.uid] = plot, widget
-            self.project_tree.refresh(curr_flightid=flight.uid)
+            # self.project_tree.refresh(curr_flightid=flight.uid)
             return
 
     def save_project(self) -> None:
@@ -480,24 +482,27 @@ class ProjectTreeView(QtWidgets.QTreeView):
         self.setAutoExpandDelay(1)
         self.setRootIsDecorated(False)
         self.setUniformRowHeights(True)
-        self.setHeaderHidden(True)
+        # self.setHeaderHidden(True)
         self.setObjectName('project_tree')
         self.setContextMenuPolicy(QtCore.Qt.DefaultContextMenu)
-        self.refresh()
-        # self.setModel(model)
-        # self.expandAll()
+        self._init_model()
 
-    def refresh(self, curr_index=None, curr_flightid=None):
-        """Regenerate model and set current selection to curr_index"""
-        model, index = self.generate_airborne_model(self._project)
+    def _init_model(self):
+        model = ProjectModel(self._project)
+        model.rowsAboutToBeInserted.connect(self.begin_insert)
+        model.rowsInserted.connect(self.end_insert)
         self.setModel(model)
-        if curr_index is not None:
-            index = curr_index
-        elif curr_flightid is not None:
-            index = self._indexes[curr_flightid]
+        self.expandAll()
 
-        self.setCurrentIndex(index)
-        self.clicked.emit(index)
+    def begin_insert(self, index, start, end):
+        print("Inserting rows: {}, {}".format(start, end))
+
+    def end_insert(self, index, start, end):
+        print("Finixhed inserting rows, running update")
+        # index is parent index
+        model = self.model()
+        uindex = model.index(row=start-1, parent=index)
+        self.update(uindex)
         self.expandAll()
 
     def generate_airborne_model(self, project: prj.AirborneProject):
