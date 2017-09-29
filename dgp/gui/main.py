@@ -16,7 +16,7 @@ import dgp.lib.project as prj
 from dgp.gui.loader import LoadFile
 from dgp.lib.plotter import LineGrabPlot
 from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, get_project_file
-from dgp.gui.dialogs import ImportData, AddFlight, CreateProject, InfoDialog
+from dgp.gui.dialogs import ImportData, AddFlight, CreateProject, InfoDialog, AdvancedImport
 from dgp.gui.models import TableModel, ProjectModel
 
 # Load .ui form
@@ -231,7 +231,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.log.setLevel(level)
 
     def write_console(self, text, level):
-        """PyQt Slot: Log a message to the GUI console"""
+        """PyQt Slot: Logs a message to the GUI console"""
         log_color = {'DEBUG': QColor('DarkBlue'), 'INFO': QColor('Green'), 'WARNING': QColor('Red'),
                      'ERROR': QColor('Pink'), 'CRITICAL': QColor(
                 'Orange')}.get(level.upper(), QColor('Black'))
@@ -371,12 +371,12 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         dialog.setValue(0)
         return dialog
 
-    def import_data(self, path: pathlib.Path, dtype: str, flight: prj.Flight):
+    def import_data(self, path: pathlib.Path, dtype: str, flight: prj.Flight, fields=None):
         self.log.info("Importing <{dtype}> from: Path({path}) into <Flight({name})>".format(dtype=dtype, path=str(path),
                                                                                             name=flight.name))
         if path is None:
             return False
-        loader = LoadFile(path, dtype, flight.uid, self)
+        loader = LoadFile(path, dtype, flight.uid, fields=fields, parent=self)
 
         # Curry functions to execute on thread completion.
         add_data = functools.partial(self.project.add_data, flight_uid=flight.uid)
@@ -399,12 +399,21 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
     def import_data_dialog(self) -> None:
         """Load data file (GPS or Gravity) using a background Thread, then hand
         it off to the project."""
+        dialog = AdvancedImport(self.project, self.current_flight)
+        if dialog.exec_():
+            path, dtype, fields, flight = dialog.content
+            # print("path: {}  type: {}\nfields: {}\nflight: {}".format(path, dtype, fields, flight))
+            self.import_data(path, dtype, flight, fields=fields)
+            return
+
+        return
+        # Old dialog:
         dialog = ImportData(self.project, self.current_flight)
         if dialog.exec_():
             path, dtype, flt_id = dialog.content
             flight = self.project.get_flight(flt_id)
-            plot, _ = self.flight_plots[flt_id]
-            plot.plotted = False
+            # plot, _ = self.flight_plots[flt_id]
+            # plot.plotted = False
             self.log.info("Importing {} file from {} into flight: {}".format(dtype, path, flight.uid))
             self.import_data(path, dtype, flight)
 

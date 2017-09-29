@@ -19,6 +19,7 @@ import re
 from .time_utils import convert_gps_time
 from .etc import interp_nans
 
+
 def _extract_bits(bitfield, columns=None, as_bool=False):
     """
     Function that extracts bitfield values from integers.
@@ -43,6 +44,7 @@ def _extract_bits(bitfield, columns=None, as_bool=False):
     pandas.DataFrame
 
     """
+
     def _unpack_bits(n):
         x = np.array(struct.unpack('4B', struct.pack('>I', n)), dtype=np.uint8)
         return np.flip(np.unpackbits(x), axis=0)
@@ -66,7 +68,8 @@ def _extract_bits(bitfield, columns=None, as_bool=False):
     else:
         return df
 
-def read_at1a(path, fill_with_nans=True, interp=False):
+
+def read_at1a(path, fields=None, fill_with_nans=True, interp=False):
     """
     Read and parse gravity data file from DGS AT1A (Airborne) meter.
 
@@ -77,6 +80,9 @@ def read_at1a(path, fill_with_nans=True, interp=False):
     ----------
     path : str
         Filesystem path to gravity data file
+    fields: List
+        Optional List of fields to specify when importing the data, otherwise defaults are assumed
+        This can be used if the data file has fields in an abnormal order
     fill_with_nans : boolean, default True
         Fills time gaps with NaNs for all fields
     interp : boolean, default False
@@ -87,10 +93,10 @@ def read_at1a(path, fill_with_nans=True, interp=False):
     pandas.DataFrame
         Gravity data indexed by datetime.
     """
-    fields = ['gravity', 'long', 'cross', 'beam', 'temp', 'status', 'pressure',
-              'Etemp', 'GPSweek', 'GPSweekseconds']
+    if fields is None:
+        fields = ['gravity', 'long', 'cross', 'beam', 'temp', 'status', 'pressure', 'Etemp', 'GPSweek',
+                  'GPSweekseconds']
 
-    data = []
     df = pd.read_csv(path, header=None, engine='c', na_filter=False)
     df.columns = fields
 
@@ -101,7 +107,7 @@ def read_at1a(path, fill_with_nans=True, interp=False):
                           'long_sat', 'cross_sat', 'on_line']
 
     status = _extract_bits(df['status'], columns=status_field_names,
-                          as_bool=True)
+                           as_bool=True)
 
     df = pd.concat([df, status], axis=1)
     df.drop('status', axis=1, inplace=True)
@@ -132,26 +138,28 @@ def read_at1a(path, fill_with_nans=True, interp=False):
 
     return df
 
+
 def _parse_ZLS_file_name(filename):
-	# split by underscore
-	fname = [e.split('.') for e in filename.split('_')]
+    # split by underscore
+    fname = [e.split('.') for e in filename.split('_')]
 
-	# split hour from day and then flatten into one tuple
-	b = [int(el) for fname_parts in fname for el in fname_parts]
+    # split hour from day and then flatten into one tuple
+    b = [int(el) for fname_parts in fname for el in fname_parts]
 
-	# generate datetime
-	c = datetime.datetime(b[0], 1, 1) + datetime.timedelta(days=b[2]-1,
-															hours=b[1])
-	return c
+    # generate datetime
+    c = datetime.datetime(b[0], 1, 1) + datetime.timedelta(days=b[2] - 1,
+                                                           hours=b[1])
+    return c
+
 
 def _read_ZLS_format_file(filepath):
     col_names = ['line_name', 'year', 'day', 'hour', 'minute', 'second',
-    				'sensor', 'spring_tension', 'cross_coupling',
-    				'raw_beam', 'vcc', 'al', 'ax', 've2', 'ax2', 'xacc2',
-    				'lacc2', 'xacc', 'lacc', 'par_port', 'platform_period']
+                 'sensor', 'spring_tension', 'cross_coupling',
+                 'raw_beam', 'vcc', 'al', 'ax', 've2', 'ax2', 'xacc2',
+                 'lacc2', 'xacc', 'lacc', 'par_port', 'platform_period']
 
     col_widths = [10, 4, 3, 2, 2, 2, 8, 8, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
-                    8, 6]
+                  8, 6]
 
     time_columns = ['year', 'day', 'hour', 'minute', 'second']
 
@@ -162,14 +170,15 @@ def _read_ZLS_format_file(filepath):
     time_fmt = lambda x: '{:02d}'.format(x)
 
     t = df['year'].map(str) + df['day'].map(day_fmt) + \
-    	df['hour'].map(time_fmt) + df['minute'].map(time_fmt) + \
-    	df['second'].map(time_fmt)
+        df['hour'].map(time_fmt) + df['minute'].map(time_fmt) + \
+        df['second'].map(time_fmt)
 
     # index by datetime
     df.index = pd.to_datetime(t, format='%Y%j%H%M%S')
     df.drop(time_columns, axis=1, inplace=True)
 
     return df
+
 
 def read_zls(dirpath, begin_time=None, end_time=None, excludes=['.*']):
     """
@@ -205,26 +214,26 @@ def read_zls(dirpath, begin_time=None, end_time=None, excludes=['.*']):
     # list files in directory
     files = [_parse_ZLS_file_name(f) for f in os.listdir(dirpath)
              if os.path.isfile(os.path.join(dirpath, f))
-    		 if not re.match(excludes, f)]
+             if not re.match(excludes, f)]
 
     # sort files
     files = sorted(files)
 
     # validate begin and end times
     if begin_time is None and end_time is None:
-    	begin_time = files[0]
-    	end_time = files[-1] + datetime.timedelta(hours=1)
+        begin_time = files[0]
+        end_time = files[-1] + datetime.timedelta(hours=1)
 
     elif begin_time is None and end_time is not None:
-    	begin_time = files[0]
-    	if end_time < begin_time or end_time > files[-1]:
-    		raise ValueError('end time ({end}) is out of bounds'
+        begin_time = files[0]
+        if end_time < begin_time or end_time > files[-1]:
+            raise ValueError('end time ({end}) is out of bounds'
                              .format(end=end_time))
 
     elif begin_time is not None and end_time is None:
-    	end_time = files[-1]
-    	if begin_time > end_time or begin_time < files[0]:
-    		raise ValueError('begin time ({begin}) is out of bounds'
+        end_time = files[-1]
+        if begin_time > end_time or begin_time < files[0]:
+            raise ValueError('begin time ({begin}) is out of bounds'
                              .format(begin=begin_time))
 
     else:
@@ -234,20 +243,23 @@ def read_zls(dirpath, begin_time=None, end_time=None, excludes=['.*']):
 
     # filter file list based on begin and end times
     files = filter(lambda x: (x >= begin_time and x <= end_time)
-                   or (begin_time >= x and
-                       begin_time <= x + datetime.timedelta(hours=1))
-                   or (end_time - datetime.timedelta(hours=1) <= x and
-                       end_time >= x), files)
+                             or (begin_time >= x and
+                                 begin_time <= x + datetime.timedelta(hours=1))
+                             or (end_time - datetime.timedelta(hours=1) <= x and
+                                 end_time >= x), files)
 
     # convert to ZLS-type file names
     files = [dt.strftime('%Y_%H.%j') for dt in files]
 
     df = pd.DataFrame()
     for f in files:
-    	frame = _read_ZLS_format_file(os.path.join(dirpath, f))
-    	df = pd.concat([df, frame])
+        frame = _read_ZLS_format_file(os.path.join(dirpath, f))
+        df = pd.concat([df, frame])
 
     df.drop(df.index[df.index < begin_time], inplace=True)
     df.drop(df.index[df.index > end_time], inplace=True)
 
     return df
+
+
+FUNCTION_MAP = {'at1a': read_at1a, 'zls': read_zls}

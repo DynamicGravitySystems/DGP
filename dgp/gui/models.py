@@ -4,7 +4,8 @@
 
 from typing import List, Union
 
-from PyQt5 import QtCore
+from PyQt5 import QtCore, QtWidgets, Qt
+from PyQt5.Qt import QWidget, QModelIndex, QAbstractItemModel
 from PyQt5.QtCore import QModelIndex, QVariant, Qt
 from PyQt5.QtGui import QIcon
 
@@ -15,13 +16,14 @@ from dgp.lib.project import Container, AirborneProject, Flight, MeterConfig
 class TableModel(QtCore.QAbstractTableModel):
     """Simple table model of key: value pairs."""
 
-    def __init__(self, columns, editable=None, parent=None):
+    def __init__(self, columns, editable=None, editheader=False, parent=None):
         super().__init__(parent=parent)
         # TODO: Allow specification of which columns are editable
         # List of column headers
         self._cols = columns
         self._rows = []
         self._editable = editable
+        self._editheader = editheader
         self._updates = {}
 
     def set_object(self, obj):
@@ -39,6 +41,13 @@ class TableModel(QtCore.QAbstractTableModel):
 
         self._rows.append(args[:len(self._cols)])
         return True
+
+    def get_row(self, row: int):
+        try:
+            return self._rows[row]
+        except IndexError:
+            print("Invalid row index")
+            return None
 
     @property
     def updates(self):
@@ -58,7 +67,7 @@ class TableModel(QtCore.QAbstractTableModel):
         return len(self._cols)
 
     def data(self, index: QModelIndex, role=None):
-        if role == QtCore.Qt.DisplayRole:
+        if role == QtCore.Qt.DisplayRole or role == QtCore.Qt.EditRole:
             try:
                 return self._rows[index.row()][index.column()]
             except IndexError:
@@ -67,9 +76,9 @@ class TableModel(QtCore.QAbstractTableModel):
 
     def flags(self, index: QModelIndex):
         flags = QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
-
-        # Allow the values column to be edited
-        if self._editable is not None and index.column() in self._editable:
+        if index.row() == 0 and self._editheader:
+            flags = flags | QtCore.Qt.ItemIsEditable
+        elif self._editable is not None and index.column() in self._editable:  # Allow the values column to be edited
             flags = flags | QtCore.Qt.ItemIsEditable
         return flags
 
@@ -379,4 +388,45 @@ class ProjectModel(QtCore.QAbstractItemModel):
         # Unpickling encounters an error here (RecursionError)
     # def __getattr__(self, item):
     #     return getattr(self._project, item, None)
+
+
+class SelectionDelegate(Qt.QStyledItemDelegate):
+    def __init__(self, choices, parent=None):
+        super().__init__(parent=parent)
+        self._choices = choices
+
+    def createEditor(self, parent: QWidget, option: QStyleOptionViewItem, index: QModelIndex) -> QWidget:
+        """Creates the editor widget to display in the view"""
+        editor = QComboBox(parent)
+        editor.setFrame(False)
+        for choice in sorted(self._choices):
+            editor.addItem(choice)
+        return editor
+
+    def setEditorData(self, editor: QWidget, index: QModelIndex) -> None:
+        """Set the value displayed in the editor widget based on the model data at the index"""
+        combobox = editor  # type: QComboBox
+        value = str(index.model().data(index, QtCore.Qt.EditRole))
+        index = combobox.findText(value)  # returns -1 if value not found
+        if index != -1:
+            combobox.setCurrentIndex(index)
+        else:
+            combobox.addItem(value)
+            combobox.setCurrentIndex(combobox.count() - 1)
+
+    def setModelData(self, editor: QWidget, model: QAbstractItemModel, index: QModelIndex) -> None:
+        combobox = editor  # type: QComboBox
+        value = str(combobox.currentText())
+        row = index.row()
+        for c in range(model.columnCount()):
+            mindex = model.index(row, c)
+            data = str(model.data(mindex, QtCore.Qt.DisplayRole))
+            if data == value:
+                model.setData(mindex, '<Unassigned>', QtCore.Qt.EditRole)
+        model.setData(index, value, QtCore.Qt.EditRole)
+
+    def updateEditorGeometry(self, editor: QWidget, option: QStyleOptionViewItem, index: QModelIndex) -> None:
+        editor.setGeometry(option.rect)
+
+
 

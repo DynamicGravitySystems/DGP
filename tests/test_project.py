@@ -99,7 +99,6 @@ class TestFlight(unittest.TestCase):
     def setUp(self):
         self._trj_data_path = 'tests/sample_data/eotvos_short_input.txt'
 
-
     def test_flight_gps(self):
         td = tempfile.TemporaryDirectory()
         hdf_temp = Path(str(td.name)).joinpath('hdf5.h5')

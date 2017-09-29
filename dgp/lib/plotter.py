@@ -22,7 +22,6 @@ from pandas import Series
 import numpy as np
 
 
-
 class BasePlottingCanvas(FigureCanvas):
     """
     BasePlottingCanvas sets up the basic Qt Canvas parameters, and is designed
@@ -60,6 +59,7 @@ class BasePlottingCanvas(FigureCanvas):
                 sp = self.figure.add_subplot(rows, 1, i + 1, sharex=self._axes[0])  # type: Axes
 
             sp.grid(True)
+            # sp.xaxis_date()
             # sp.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
             sp.name = 'Axes {}'.format(i)
             # sp.callbacks.connect('xlim_changed', set_x_formatter)
@@ -238,7 +238,7 @@ class LineGrabPlot(BasePlottingCanvas):
         ax.autoscale_view()
         self._lines[id(ax)].append((line, series))
         self.timespan = self._timespan(*ax.get_xlim())
-        print("Timespan: {}".format(self.timespan))
+        # print("Timespan: {}".format(self.timespan))
         ax.legend()
 
     @staticmethod
