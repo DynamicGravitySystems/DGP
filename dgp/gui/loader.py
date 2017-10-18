@@ -19,6 +19,7 @@ class LoadFile(QThread):
 
     def __init__(self, path: pathlib.Path, datatype: str, flight_id: str, fields: List=None, parent=None, **kwargs):
         super().__init__(parent)
+        # TODO: Add type checking to path, ensure it is a pathlib.Path (not str) as the pyqtSignal expects a Path
         self._path = path
         self._dtype = datatype
         self._flight = flight_id
@@ -30,10 +31,9 @@ class LoadFile(QThread):
             df = self._load_gps()
         else:
             df = self._load_gravity()
-        # TODO: Get rid of DataPacket, find way to embed metadata in DataFrame
         self.progress.emit(1)
         # self.data.emit(data)
-        self.data.emit(df, self._path, self._dtype)
+        self.data.emit(df, pathlib.Path(self._path), self._dtype)
         self.loaded.emit()
 
     def _load_gps(self):

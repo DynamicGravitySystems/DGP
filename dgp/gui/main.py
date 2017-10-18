@@ -338,6 +338,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         -------
         None
         """
+        plot.clear()
         grav_series = flight.gravity
         eotvos_series = flight.eotvos
         if grav_series is not None:

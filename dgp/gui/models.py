@@ -4,10 +4,11 @@
 
 from typing import List, Union
 
-from PyQt5 import QtCore, QtWidgets, Qt
+from PyQt5 import Qt, QtCore
 from PyQt5.Qt import QWidget, QModelIndex, QAbstractItemModel
-from PyQt5.QtCore import QModelIndex, QVariant, Qt
+from PyQt5.QtCore import QModelIndex, QVariant
 from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import QComboBox
 
 from dgp.lib.types import TreeItem
 from dgp.lib.project import Container, AirborneProject, Flight, MeterConfig
@@ -389,13 +390,13 @@ class ProjectModel(QtCore.QAbstractItemModel):
     # def __getattr__(self, item):
     #     return getattr(self._project, item, None)
 
-
+# QStyledItemDelegate
 class SelectionDelegate(Qt.QStyledItemDelegate):
     def __init__(self, choices, parent=None):
         super().__init__(parent=parent)
         self._choices = choices
 
-    def createEditor(self, parent: QWidget, option: QStyleOptionViewItem, index: QModelIndex) -> QWidget:
+    def createEditor(self, parent: QWidget, option: Qt.QStyleOptionViewItem, index: QModelIndex) -> QWidget:
         """Creates the editor widget to display in the view"""
         editor = QComboBox(parent)
         editor.setFrame(False)
@@ -425,7 +426,7 @@ class SelectionDelegate(Qt.QStyledItemDelegate):
                 model.setData(mindex, '<Unassigned>', QtCore.Qt.EditRole)
         model.setData(index, value, QtCore.Qt.EditRole)
 
-    def updateEditorGeometry(self, editor: QWidget, option: QStyleOptionViewItem, index: QModelIndex) -> None:
+    def updateEditorGeometry(self, editor: QWidget, option: Qt.QStyleOptionViewItem, index: QModelIndex) -> None:
         editor.setGeometry(option.rect)
 
 

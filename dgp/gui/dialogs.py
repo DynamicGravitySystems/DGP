@@ -136,7 +136,7 @@ class AdvancedImport(QtWidgets.QDialog, advanced_import):
         self._path = None
         self._flight = flight
 
-        for flt in project:
+        for flt in project.flights:
             self.combo_flights.addItem(flt.name, flt)
             if flt == self._flight:  # scroll to this item if it matches self.flight
                 self.combo_flights.setCurrentIndex(self.combo_flights.count() - 1)

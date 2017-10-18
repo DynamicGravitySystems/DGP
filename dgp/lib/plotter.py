@@ -119,12 +119,15 @@ class LineGrabPlot(BasePlottingCanvas):
     def clear(self):
         self._lines = {}
         self.resample = slice(None, None, 20)
+        self.draw()
         for ax in self._axes:  # type: Axes
-            ax.cla()
-            ax.grid(True)
+            for line in ax.lines[:]:
+                ax.lines.remove(line)
+            # ax.cla()
+            # ax.grid(True)
             # Reconnect the xlim_changed callback after clearing
-            ax.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
-            ax.callbacks.connect('xlim_changed', self._on_xlim_changed)
+            # ax.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
+            # ax.callbacks.connect('xlim_changed', self._on_xlim_changed)
         self.draw()
 
     def onclick(self, event: MouseEvent):
