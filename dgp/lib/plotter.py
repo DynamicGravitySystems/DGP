@@ -4,13 +4,17 @@
 Class to handle Matplotlib plotting of data to be displayed in Qt GUI
 """
 
+from dgp.lib.etc import gen_uuid
+
 import logging
 import datetime
 from collections import namedtuple
 from typing import List, Tuple
 
 from PyQt5 import QtWidgets
-from PyQt5.QtWidgets import QSizePolicy
+from PyQt5.QtWidgets import QSizePolicy, QMenu, QAction
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtGui import QCursor
 from matplotlib.backends.backend_qt5agg import (FigureCanvasQTAgg as FigureCanvas,
                                                 NavigationToolbar2QT as NavigationToolbar)
 from matplotlib.figure import Figure
@@ -90,15 +94,18 @@ class BasePlottingCanvas(FigureCanvas):
         return len(self._axes)
 
 
-ClickInfo = namedtuple('ClickInfo', ['partners', 'x0', 'xpos', 'ypos'])
-
+ClickInfo = namedtuple('ClickInfo', ['partners', 'x0', 'width', 'xpos', 'ypos'])
+LineUpdate = namedtuple('LineUpdate', ['flight_id', 'uid', 'start', 'stop', 'label'])
 
 class LineGrabPlot(BasePlottingCanvas):
     """
     LineGrabPlot implements BasePlottingCanvas and provides an onclick method to select flight
     line segments.
     """
-    def __init__(self, n=1, title=None, parent=None):
+
+    line_changed = pyqtSignal(LineUpdate)
+
+    def __init__(self, n=1, fid=None, title=None, parent=None):
         BasePlottingCanvas.__init__(self, parent=parent)
         self.rects = []
         self.zooming = False
@@ -109,8 +116,21 @@ class LineGrabPlot(BasePlottingCanvas):
         self.timespan = datetime.timedelta(0)
         self.resample = slice(None, None, 20)
         self._lines = {}
+        self._flight_id = fid
+
         if title:
             self.figure.suptitle(title, y=1)
+
+        # internal flags
+        self._stretching = None
+        self._is_near_edge = False
+
+        # create context menu
+        self._pop_menu = QMenu(self)
+        self._pop_menu.addAction(QAction('Remove', self, triggered=self._remove_patch))
+
+    def _remove_patch(self):
+        pass
 
     def draw(self):
         self.plotted = True
@@ -143,49 +163,73 @@ class LineGrabPlot(BasePlottingCanvas):
         other_axes = [ax for ax in self._axes if ax != caxes]
         # print("Current axes: {}\nOther axes obj: {}".format(repr(caxes), other_axes))
 
-        for partners in self.rects:
-            patch = partners[0]['rect']
-            if patch.get_x() <= event.xdata <= patch.get_x() + patch.get_width():
-                # Then we clicked an existing rectangle
-                x0, _ = patch.xy
-                self.clicked = ClickInfo(partners, x0, event.xdata, event.ydata)
+        if event.button == 3:
+        # Right click
+            for partners in self.rects:
+                patch = partners[0]['rect']
+                if patch.get_x() <= event.xdata <= patch.get_x() + patch.get_width():
+                    cursor = QCursor()
+                    self._pop_menu.popup(cursor.pos())
+            return
 
-                for attrs in partners:
-                    rect = attrs['rect']
-                    rect.set_animated(True)
-                    r_canvas = rect.figure.canvas
-                    r_axes = rect.axes  # type: Axes
-                    r_canvas.draw()
-                    attrs['bg'] = r_canvas.copy_from_bbox(r_axes.bbox)
-                return
+        else:
+        # Left click
+            for partners in self.rects:
+                patch = partners[0]['rect']
+                if patch.get_x() <= event.xdata <= patch.get_x() + patch.get_width():
+                    # Then we clicked an existing rectangle
+                    x0, _ = patch.xy
+                    width = patch.get_width()
+                    self.clicked = ClickInfo(partners, x0, width, event.xdata, event.ydata)
+                    self._stretching = self._is_near_edge
 
-        # else: Create a new rectangle on all axes
-        ylim = caxes.get_ylim()  # type: Tuple
-        xlim = caxes.get_xlim()  # type: Tuple
-        width = (xlim[1] - xlim[0]) * np.float64(0.01)
-        # Get the bottom left corner of the rectangle which will be centered at the mouse click
-        x0 = event.xdata - width/2
-        y0 = ylim[0]
-        height = ylim[1] - ylim[0]
-        c_rect = Rectangle((x0, y0), width, height*2, alpha=0.1)
+                    for attrs in partners:
+                        rect = attrs['rect']
+                        rect.set_animated(True)
+                        r_canvas = rect.figure.canvas
+                        r_axes = rect.axes  # type: Axes
+                        r_canvas.draw()
+                        attrs['bg'] = r_canvas.copy_from_bbox(r_axes.bbox)
+                    return
 
-        caxes.add_patch(c_rect)
-        caxes.draw_artist(caxes.patch)
-
-        partners = [{'rect': c_rect, 'bg': None}]
-        for ax in other_axes:
-            x0 = event.xdata - width/2
-            ylim = ax.get_ylim()
+            # else: Create a new rectangle on all axes
+            ylim = caxes.get_ylim()  # type: Tuple
+            xlim = caxes.get_xlim()  # type: Tuple
+            width = (xlim[1] - xlim[0]) * np.float64(0.05)
+            # Get the bottom left corner of the rectangle which will be centered at the mouse click
+            x0 = event.xdata - width / 2
             y0 = ylim[0]
             height = ylim[1] - ylim[0]
-            a_rect = Rectangle((x0, y0), width, height*2, alpha=0.1)
-            ax.add_patch(a_rect)
-            ax.draw_artist(ax.patch)
-            partners.append({'rect': a_rect, 'bg': None})
+            c_rect = Rectangle((x0, y0), width, height*2, alpha=0.1)
 
-        self.rects.append(partners)
-        self.figure.canvas.draw()
-        return
+            caxes.add_patch(c_rect)
+            caxes.draw_artist(caxes.patch)
+
+            uid = gen_uuid('ln')
+            left = num2date(c_rect.get_x())
+            right = num2date(c_rect.get_x() + c_rect.get_width())
+            partners = [{'uid': uid, 'rect': c_rect, 'bg': None, 'left': left, 'right': right, 'label': None}]
+            for ax in other_axes:
+                x0 = event.xdata - width / 2
+                ylim = ax.get_ylim()
+                y0 = ylim[0]
+                height = ylim[1] - ylim[0]
+                a_rect = Rectangle((x0, y0), width, height * 2, alpha=0.1)
+                ax.add_patch(a_rect)
+                ax.draw_artist(ax.patch)
+                left = num2date(a_rect.get_x())
+                right = num2date(a_rect.get_x() + a_rect.get_width())
+                partners.append({'uid': uid, 'rect': a_rect, 'bg': None, 'left': left,
+                                 'right': right, 'label': None})
+
+            self.rects.append(partners)
+
+            if self._flight_id is not None:
+                self.line_changed.emit(LineUpdate(self._flight_id, uid, left, right, None))
+
+            self.figure.canvas.draw()
+
+            return
 
     def toggle_zoom(self):
         if self.panning:
@@ -197,34 +241,101 @@ class LineGrabPlot(BasePlottingCanvas):
             self.zooming = False
         self.panning = not self.panning
 
+    def _move_rect(self, event):
+        partners, x0, width, xclick, yclick = self.clicked
+
+        dx = event.xdata - xclick
+        for attr in partners:
+            rect = attr['rect']
+
+            if self._stretching is not None:
+                if self._stretching == 'left':
+                    if width - dx > 0:
+                        rect.set_x(x0 + dx)
+                        rect.set_width(width - dx)
+                elif self._stretching == 'right':
+                    if width + dx > 0:
+                        rect.set_width(width + dx)
+            else:
+                rect.set_x(x0 + dx)
+
+            canvas = rect.figure.canvas
+            axes = rect.axes
+            canvas.restore_region(attr['bg'])
+            axes.draw_artist(rect)
+            canvas.blit(axes.bbox)
+
+    def _near_edge(self, event, prox=0.0005):
+        for partners in self.rects:
+            attr = partners[0]
+            rect = attr['rect']
+
+            axes = rect.axes
+            canvas = rect.figure.canvas
+
+            left = rect.get_x()
+            right = left + rect.get_width()
+
+            if (event.xdata > left and event.xdata < left + prox):
+                for p in partners:
+                    p['rect'].set_edgecolor('red')
+                    p['rect'].set_linewidth(3)
+                event.canvas.draw()
+                return 'left'
+
+            elif (event.xdata < right and event.xdata > right - prox):
+                for p in partners:
+                    p['rect'].set_edgecolor('red')
+                    p['rect'].set_linewidth(3)
+                event.canvas.draw()
+                return 'right'
+
+            else:
+                if rect.get_linewidth() != 1.0 and self._stretching is None:
+                    for p in partners:
+                        p['rect'].set_edgecolor(None)
+                        p['rect'].set_linewidth(None)
+                    event.canvas.draw()
+
+        return None
+
     def onmotion(self, event: MouseEvent):
         if event.inaxes not in self._axes:
             return
+
         if self.clicked is not None:
-            partners, x0, xclick, yclick = self.clicked
-            dx = event.xdata - xclick
-            new_x = x0 + dx
-            for attrs in partners:
-                rect = attrs['rect']  # type: Rectangle
-                rect.set_x(new_x)
-                canvas = rect.figure.canvas
-                axes = rect.axes  # type: Axes
-                canvas.restore_region(attrs['bg'])
-                axes.draw_artist(rect)
-                canvas.blit(axes.bbox)
+            self._move_rect(event)
+        else:
+            self._is_near_edge = self._near_edge(event)
 
     def onrelease(self, event: MouseEvent):
         if self.clicked is None:
             return  # Nothing Selected
+
         partners = self.clicked.partners
         for attrs in partners:
             rect = attrs['rect']
             rect.set_animated(False)
             rect.axes.draw_artist(rect)
             attrs['bg'] = None
+            # attrs['left'] = num2date(rect.get_x())
+            # attrs['right'] = num2date(rect.get_x() + rect.get_width())
+
+        uid = partners[0]['uid']
+        first_rect = partners[0]['rect']
+        start = num2date(first_rect.get_x())
+        stop = num2date(first_rect.get_x() + first_rect.get_width())
+        label = partners[0]['label']
+
+        if self._flight_id is not None:
+            self.line_changed.emit(LineUpdate(self._flight_id, uid, start, stop, label))
 
         self.clicked = None
-        # self.draw()
+
+        if self._stretching is not None:
+            self._stretching = None
+
+        self.figure.canvas.draw()
 
     def plot2(self, ax: Axes, series: Series):
         if self._lines.get(id(ax), None) is None:

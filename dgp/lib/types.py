@@ -88,4 +88,3 @@ class FlightLine(TreeItem):
 
     def __str__(self):
         return 'Line({start},{stop})'.format(start=self.start, stop=self.stop)
-

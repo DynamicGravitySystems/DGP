@@ -5,6 +5,7 @@ import pickle
 import pathlib
 import logging
 from typing import Union, Type
+from datetime import datetime
 
 from pandas import HDFStore, DataFrame, Series
 
@@ -415,10 +416,10 @@ class Flight(TreeItem):
     def get_channel_data(self, channel):
         return self.gravity[channel]
 
-    def add_line(self, start: float, stop: float):
+    def add_line(self, start: datetime, stop: datetime):
         """Add a flight line to the flight by start/stop index and sequence number"""
         # line = FlightLine(len(self.lines), None, start, end, self)
-        line = FlightLine(start, stop, len(self.lines), None, self)
+        line = FlightLine(start, stop, len(self.lines) + 1, None, self)
         self.lines.add_child(line)
         return line
 
@@ -442,7 +443,7 @@ class Flight(TreeItem):
                                                          meter=self.meter)
 
     def __str__(self):
-        return "Flight: {}".format(self.name)
+        return "Flight: {name}".format(name=self.name)
 
     def __getstate__(self):
         return {k: v for k, v in self.__dict__.items() if can_pickle(v)}
@@ -659,7 +660,7 @@ class AirborneProject(GravityProject, TreeItem):
         with HDFStore(str(self.hdf_path)) as store:
             # Separate data into groups by data type (GPS & Gravity Data)
             # format: 'table' pytables format enables searching/appending, fixed is more performant.
-            store.put('{}/{}'.format(dtype, file_uid), df, format='fixed', data_columns=True)
+            store.put('{typ}/{uid}'.format(typ=dtype, uid=file_uid), df, format='fixed', data_columns=True)
             # Store a reference to the original file path
             self.data_map[file_uid] = path
         try:

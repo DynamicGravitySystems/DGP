@@ -14,7 +14,7 @@ from PyQt5.uic import loadUiType
 
 import dgp.lib.project as prj
 from dgp.gui.loader import LoadFile
-from dgp.lib.plotter import LineGrabPlot
+from dgp.lib.plotter import LineGrabPlot, LineUpdate
 from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, get_project_file
 from dgp.gui.dialogs import ImportData, AddFlight, CreateProject, InfoDialog, AdvancedImport
 from dgp.gui.models import TableModel, ProjectModel
@@ -66,7 +66,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         # Set Stylesheet customizations for GUI Window
         self.setStyleSheet("""
             QTreeView::item {
-                
+
             }
             QTreeView::branch:has-siblings:adjoins-them {
                 /*border: 1px solid black; */
@@ -153,7 +153,9 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             if flight.uid in self.flight_plots:
                 continue
 
-            plot, widget = self._new_plot_widget(flight.name, rows=3)
+            plot, widget = self._new_plot_widget(flight, rows=3)
+            # TO DO: Need to disconnect these at some point?
+            plot.line_changed.connect(self._on_added_line)
 
             self.flight_plots[flight.uid] = plot, widget
             self.gravity_stack.addWidget(widget)
@@ -165,9 +167,19 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             self.status.emit('Flight Plot {} Initialized'.format(flight.name))
             self.progress.emit(i+1)
 
+    def _on_added_line(self, info):
+        for flight in self.project.flights:
+            if info.flight_id == flight.uid:
+                flight.add_line(info.start, info.stop)
+                self.log.debug("Added line: start={start}, stop={stop}, "
+                               "label={label}"
+                               .format(start=info.start,
+                                       stop=info.stop,
+                                       label=info.label))
+
     @staticmethod
-    def _new_plot_widget(title, rows=2):
-        plot = LineGrabPlot(rows, title=title)
+    def _new_plot_widget(flight, rows=2):
+        plot = LineGrabPlot(rows, fid=flight.uid, title=flight.name)
         plot_toolbar = plot.get_toolbar()
 
         layout = QtWidgets.QVBoxLayout()
