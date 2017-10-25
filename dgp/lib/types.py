@@ -57,8 +57,12 @@ class TreeItem(ABC):
 
 
 class FlightLine(TreeItem):
-    def __init__(self, start, stop, sequence, file_ref, parent=None):
-        self._uid = gen_uuid('ln')
+    def __init__(self, start, stop, sequence, file_ref, uid=None, parent=None):
+        if uid is None:
+            self._uid = gen_uuid('ln')
+        else:
+            self._uid = uid
+            
         self.start = start
         self.stop = stop
         self._file = file_ref  # UUID of source file for this line

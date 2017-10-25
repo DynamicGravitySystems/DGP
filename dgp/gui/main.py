@@ -170,12 +170,24 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
     def _on_added_line(self, info):
         for flight in self.project.flights:
             if info.flight_id == flight.uid:
-                flight.add_line(info.start, info.stop)
-                self.log.debug("Added line: start={start}, stop={stop}, "
-                               "label={label}"
-                               .format(start=info.start,
-                                       stop=info.stop,
-                                       label=info.label))
+                print(flight.lines)
+                if info.uid in flight.lines:
+                    line = flight.lines[info.uid]
+                    line.start = info.start
+                    line.stop = info.stop
+                    line.label = info.label
+                    self.log.debug("Changed line: start={start}, stop={stop}, "
+                                   "label={label}"
+                                   .format(start=info.start,
+                                           stop=info.stop,
+                                           label=info.label))
+                else:
+                    flight.add_line(info.start, info.stop, uid=info.uid)
+                    self.log.debug("Added line: start={start}, stop={stop}, "
+                                   "label={label}"
+                                   .format(start=info.start,
+                                           stop=info.stop,
+                                           label=info.label))
 
     @staticmethod
     def _new_plot_widget(flight, rows=2):

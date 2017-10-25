@@ -416,10 +416,10 @@ class Flight(TreeItem):
     def get_channel_data(self, channel):
         return self.gravity[channel]
 
-    def add_line(self, start: datetime, stop: datetime):
+    def add_line(self, start: datetime, stop: datetime, uid=None):
         """Add a flight line to the flight by start/stop index and sequence number"""
         # line = FlightLine(len(self.lines), None, start, end, self)
-        line = FlightLine(start, stop, len(self.lines) + 1, None, self)
+        line = FlightLine(start, stop, len(self.lines) + 1, None, uid=uid, parent=self)
         self.lines.add_child(line)
         return line
 
@@ -554,6 +554,12 @@ class Container(TreeItem):
         self._children[child.uid] = child
         return True
 
+    def __getitem__(self, key):
+        return self._children[key]
+
+    def __contains__(self, key):
+        return key in self._children
+
     def remove_child(self, child) -> bool:
         """
         Remove a child object from the container.
@@ -583,7 +589,8 @@ class Container(TreeItem):
         return len(self._children)
 
     def __str__(self):
-        return self._name
+        # return self._name
+        return str(self._children)
 
 
 class AirborneProject(GravityProject, TreeItem):
