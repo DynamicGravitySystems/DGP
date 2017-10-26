@@ -485,7 +485,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             if dialog.gps:
                 self.import_data(dialog.gps, 'gps', flight)
 
-            plot, widget = self._new_plot_widget(flight.name, rows=3)
+            plot, widget = self._new_plot_widget(flight, rows=3)
             self.gravity_stack.addWidget(widget)
             self.flight_plots[flight.uid] = plot, widget
             # self.project_tree.refresh(curr_flightid=flight.uid)
