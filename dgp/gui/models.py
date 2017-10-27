@@ -10,7 +10,7 @@ from PyQt5.QtCore import QModelIndex, QVariant
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QComboBox
 
-from dgp.lib.types import TreeItem
+from dgp.lib.types import TreeItem, FlightLine
 from dgp.lib.project import Container, AirborneProject, Flight, MeterConfig
 
 
@@ -153,6 +153,38 @@ class ProjectItem:
         """Return the underlying class wrapped by this ProjectItem i.e. Flight"""
         return self._object
 
+    @property
+    def uid(self) -> Union[str, None]:
+        """Return the UID of the internal object if it has one, else None"""
+        if not self._hasdata:
+            return None
+        return self.object.uid
+
+    def search(self, uid) -> Union['ProjectItem', None]:
+        """
+        Search for an object by UID:
+        If this object is the target then return self.object,
+        else recursively search children for a match
+        Parameters
+        ----------
+        uid : str
+            Object Unique Identifier to search for
+
+        Returns
+        -------
+        Union[ProjectItem, None]:
+            Returns the Item if found, otherwise None
+        """
+        if self.uid == uid:
+            return self
+
+        for child in self._children:
+            result = child.search(uid)
+            if result is not None:
+                return result
+
+        return None
+
     def append_child(self, child) -> bool:
         """
         Appends a child object to this ProjectItem. If the passed child is already an instance of ProjectItem, the
@@ -169,7 +201,7 @@ class ProjectItem:
             True on success
         Raises
         ------
-        TBD Exception on error
+        TODO: Exception on error
         """
         if not isinstance(child, ProjectItem):
             self._children.append(ProjectItem(child, self))
@@ -222,6 +254,9 @@ class ProjectItem:
     def column_count():
         return 1
 
+    def index(self):
+        return self._parent.indexof(self)
+
     def data(self, role=None):
         # Allow the object to handle data display for certain roles
         if role in [QtCore.Qt.ToolTipRole, QtCore.Qt.DisplayRole, QtCore.Qt.UserRole]:
@@ -258,22 +293,19 @@ class ProjectItem:
 class ProjectModel(QtCore.QAbstractItemModel):
     def __init__(self, project, parent=None):
         super().__init__(parent=parent)
+        # This will recursively populate the Model as ProjectItem will inspect and create children as necessary
         self._root_item = ProjectItem(project)
         self._project = project
         self._project.parent = self
-        # Example of what the project structure/tree-view should look like
-        # TODO: Will the structure contain actual objects (flights, meters etc) or str reprs
-        # The ProjectItem data() method could retrieve a representation, and allow for powerful
-        # data manipulations perhaps.
-        # self.setup_model(project)
 
-    def update(self, action, obj):
+    def update(self, action, obj, uid=None):
+        # TODO: Use this function to delegate add/remove methods based on obj type (i.e. child, or sub-children)
         if action.lower() == 'add':
-            self.add_child(obj)
+            self.add_child(obj, uid)
         elif action.lower() == 'remove':
-            self.remove_child(obj)
+            self.remove_child(obj, uid)
 
-    def add_child(self, item: Union[Flight, MeterConfig]):
+    def add_child(self, item, uid=None):
         """
         Method to add a generic item of type Flight or MeterConfig to the project and model.
         In future add ability to add sub-children, e.g. FlightLines (although possibly in
@@ -282,7 +314,8 @@ class ProjectModel(QtCore.QAbstractItemModel):
         ----------
         item : Union[Flight, MeterConfig]
             Project Flights/Meters child object to add.
-
+        uid : str
+            Parent UID to which child will be added
         Returns
         -------
         bool:
@@ -295,6 +328,20 @@ class ProjectModel(QtCore.QAbstractItemModel):
             Raised if item is not an instance of a recognized type, currently Flight or MeterConfig
 
         """
+        # If uid is provided, search for it and add the item (we won't check here for type correctness)
+        if uid is not None:
+            parent = self._root_item.search(uid)
+            print("Model adding child to: ", parent)
+            if parent is not None:
+                if isinstance(parent.object, Container):
+                    parent.object.add_child(item)
+                # self.beginInsertRows()
+                parent.append_child(item)
+                self.layoutChanged.emit()
+                return True
+            return False
+
+        # Otherwise, try to infer the correct parent based on the type of the item
         for child in self._root_item.children:  # type: ProjectItem
             c_obj = child.object  # type: Container
             if isinstance(c_obj, Container) and issubclass(item.__class__, c_obj.ctype):
@@ -309,7 +356,7 @@ class ProjectModel(QtCore.QAbstractItemModel):
         print("No match on contianer for object: {}".format(item))
         return False
 
-    def remove_child(self, item):
+    def remove_child(self, item, uid=None):
         for wrapper in self._root_item.children:  # type: ProjectItem
             # Get the internal object representation (within the ProjectItem)
             c_obj = wrapper.object  # type: Container
@@ -322,10 +369,6 @@ class ProjectModel(QtCore.QAbstractItemModel):
                 self.endRemoveRows()
                 return True
         return False
-
-    def setup_model(self, base):
-        for item in base.children:
-            self._root_item.append_child(ProjectItem(item, self._root_item))
 
     def data(self, index: QModelIndex, role: int=None):
         if not index.isValid():
@@ -389,6 +432,7 @@ class ProjectModel(QtCore.QAbstractItemModel):
         # Unpickling encounters an error here (RecursionError)
     # def __getattr__(self, item):
     #     return getattr(self._project, item, None)
+
 
 # QStyledItemDelegate
 class SelectionDelegate(Qt.QStyledItemDelegate):

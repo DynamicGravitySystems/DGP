@@ -309,8 +309,6 @@ class Flight(TreeItem):
 
         self.flight_timeshift = 0
 
-        # TODO: Flight lines will need to become a Container<FlightLine>
-        # Flight lines keyed by UUID
         self.lines = Container(ctype=FlightLine, parent=self, name='Flight Lines')
 
     @property
@@ -419,8 +417,11 @@ class Flight(TreeItem):
     def add_line(self, start: datetime, stop: datetime, uid=None):
         """Add a flight line to the flight by start/stop index and sequence number"""
         # line = FlightLine(len(self.lines), None, start, end, self)
+        self.log.debug("Adding line to LineContainer of flight: {}".format(self.name))
+        print("Adding line to LineContainer of flight: {}".format(self.name))
         line = FlightLine(start, stop, len(self.lines) + 1, None, uid=uid, parent=self)
         self.lines.add_child(line)
+        self.parent.update('add', line, self.lines.uid)
         return line
 
     def __iter__(self):
@@ -524,6 +525,8 @@ class Container(TreeItem):
             return "Container for {} type objects.".format(self._name)
         return self._name
 
+    # TODO: Implement recursive search function to locate child/object by UID in the tree.
+
     def child(self, uid):
         return self._children[uid]
 
@@ -544,7 +547,7 @@ class Container(TreeItem):
         if not isinstance(child, self._ctype):
             return False
         if child.uid in self._children:
-            print("child already exists in container, skipping insert")
+            print("child {} already exists in container, skipping insert".format(child))
             return True
         try:
             child.parent = self._parent
@@ -680,10 +683,17 @@ class AirborneProject(GravityProject, TreeItem):
         except KeyError:
             return False
 
-    def add_flight(self, flight: Flight) -> None:
-        self._children['flights'].add_child(flight)
+    def update(self, action: str, item, uid=None) -> bool:
         if self.parent is not None:
-            self.parent.update('add', flight)
+            print("Calling update on parent model with params: {} {} {}".format(action, item, uid))
+            self.parent.update(action, item, uid)
+            return True
+        return False
+
+    def add_flight(self, flight: Flight) -> None:
+        flight.parent = self
+        self._children['flights'].add_child(flight)
+        self.update('add', flight)
 
     def get_flight(self, uid):
         flight = self._children['flights'].child(uid)

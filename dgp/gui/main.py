@@ -170,7 +170,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
     def _on_added_line(self, info):
         for flight in self.project.flights:
             if info.flight_id == flight.uid:
-                print(flight.lines)
+                print("Flight lines: ", flight.lines)
                 if info.uid in flight.lines:
                     line = flight.lines[info.uid]
                     line.start = info.start
@@ -183,9 +183,10 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
                                            label=info.label))
                 else:
                     flight.add_line(info.start, info.stop, uid=info.uid)
-                    self.log.debug("Added line: start={start}, stop={stop}, "
+                    self.log.debug("Added line to flight {flt}: start={start}, stop={stop}, "
                                    "label={label}"
-                                   .format(start=info.start,
+                                   .format(flt=flight.name,
+                                           start=info.start,
                                            stop=info.stop,
                                            label=info.label))
 
@@ -486,6 +487,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
                 self.import_data(dialog.gps, 'gps', flight)
 
             plot, widget = self._new_plot_widget(flight, rows=3)
+            plot.line_changed.connect(self._on_added_line)
             self.gravity_stack.addWidget(widget)
             self.flight_plots[flight.uid] = plot, widget
             # self.project_tree.refresh(curr_flightid=flight.uid)
@@ -522,6 +524,7 @@ class ProjectTreeView(QtWidgets.QTreeView):
         self._init_model()
 
     def _init_model(self):
+        """Initialize a new-style ProjectModel from models.py"""
         model = ProjectModel(self._project)
         model.rowsAboutToBeInserted.connect(self.begin_insert)
         model.rowsInserted.connect(self.end_insert)
@@ -541,6 +544,7 @@ class ProjectTreeView(QtWidgets.QTreeView):
 
     def generate_airborne_model(self, project: prj.AirborneProject):
         """Generate a Qt Model based on the project structure."""
+        raise DeprecationWarning
         model = QStandardItemModel()
         root = model.invisibleRootItem()
 
