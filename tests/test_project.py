@@ -51,7 +51,7 @@ class TestProject(unittest.TestCase):
 
     def test_pickle_project(self):
         # TODO: Add further complexity to testing of project pickling
-        flight = Flight(None, 'test_flight', self.at1a5)
+        flight = Flight(self.project, 'test_flight', self.at1a5)
         flight.add_line(100, 250.5)
         self.project.add_flight(flight)
 
@@ -66,7 +66,7 @@ class TestProject(unittest.TestCase):
             self.assertEqual(loaded_project.get_flight(flight.uid).meter.name, 'AT1A-5')
 
     def test_flight_iteration(self):
-        test_flight = Flight(None, 'test_flight', self.at1a5)
+        test_flight = Flight(self.project, 'test_flight', self.at1a5)
         line0 = test_flight.add_line(100.1, 200.2)
         line1 = test_flight.add_line(210, 350.3)
         lines = [line0, line1]
