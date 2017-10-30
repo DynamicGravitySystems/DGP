@@ -19,7 +19,7 @@ from matplotlib.backends.backend_qt5agg import (FigureCanvasQTAgg as FigureCanva
                                                 NavigationToolbar2QT as NavigationToolbar)
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
-from matplotlib.dates import DateFormatter, num2date
+from matplotlib.dates import DateFormatter, num2date, date2num
 from matplotlib.backend_bases import MouseEvent
 from matplotlib.patches import Rectangle
 from pandas import Series
@@ -97,6 +97,7 @@ class BasePlottingCanvas(FigureCanvas):
 ClickInfo = namedtuple('ClickInfo', ['partners', 'x0', 'width', 'xpos', 'ypos'])
 LineUpdate = namedtuple('LineUpdate', ['flight_id', 'uid', 'start', 'stop', 'label'])
 
+
 class LineGrabPlot(BasePlottingCanvas):
     """
     LineGrabPlot implements BasePlottingCanvas and provides an onclick method to select flight
@@ -150,6 +151,46 @@ class LineGrabPlot(BasePlottingCanvas):
             # ax.callbacks.connect('xlim_changed', self._on_xlim_changed)
         self.draw()
 
+    # TODO: Clean this up, allow direct passing of FlightLine Objects
+    # Also convert this/test this to be used in onclick to create lines
+    def draw_patch(self, start, stop, uid):
+        caxes = self._axes[0]
+        ylim = caxes.get_ylim()  # type: Tuple
+        xstart = date2num(start)
+        xstop = date2num(stop)
+        # print("Xstart: {}, Xend: {}".format(xstart, xstop))
+        width = xstop - xstart
+        height = ylim[1] - ylim[0]
+        # print("Adding patch at {}:{} height: {} width: {}".format(start, stop, height, width))
+        c_rect = Rectangle((xstart, ylim[0]), width, height*2, alpha=0.2)
+
+        caxes.add_patch(c_rect)
+        caxes.draw_artist(caxes.patch)
+
+        # uid = gen_uuid('ln')
+        left = num2date(c_rect.get_x())
+        right = num2date(c_rect.get_x() + c_rect.get_width())
+        partners = [{'uid': uid, 'rect': c_rect, 'bg': None, 'left': left, 'right': right, 'label': None}]
+
+        for ax in self._axes:
+            if ax == caxes:
+                continue
+            ylim = ax.get_ylim()
+            height = ylim[1] - ylim[0]
+            a_rect = Rectangle((xstart, ylim[0]), width, height * 2, alpha=0.1)
+            ax.add_patch(a_rect)
+            ax.draw_artist(ax.patch)
+            left = num2date(a_rect.get_x())
+            right = num2date(a_rect.get_x() + a_rect.get_width())
+            partners.append({'uid': uid, 'rect': a_rect, 'bg': None, 'left': left,
+                             'right': right, 'label': None})
+
+        self.rects.append(partners)
+
+        self.figure.canvas.draw()
+        self.draw()
+        return
+
     def onclick(self, event: MouseEvent):
         if self.zooming or self.panning:  # Don't do anything when zooming/panning is enabled
             return
@@ -164,7 +205,7 @@ class LineGrabPlot(BasePlottingCanvas):
         # print("Current axes: {}\nOther axes obj: {}".format(repr(caxes), other_axes))
 
         if event.button == 3:
-        # Right click
+            # Right click
             for partners in self.rects:
                 patch = partners[0]['rect']
                 if patch.get_x() <= event.xdata <= patch.get_x() + patch.get_width():
@@ -173,7 +214,7 @@ class LineGrabPlot(BasePlottingCanvas):
             return
 
         else:
-        # Left click
+            # Left click
             for partners in self.rects:
                 patch = partners[0]['rect']
                 if patch.get_x() <= event.xdata <= patch.get_x() + patch.get_width():
@@ -193,15 +234,19 @@ class LineGrabPlot(BasePlottingCanvas):
                     return
 
             # else: Create a new rectangle on all axes
+            # TODO: Use the new draw_patch function to do this (some modifications required)
             ylim = caxes.get_ylim()  # type: Tuple
             xlim = caxes.get_xlim()  # type: Tuple
             width = (xlim[1] - xlim[0]) * np.float64(0.05)
+            # print("Width 5%: ", width)
             # Get the bottom left corner of the rectangle which will be centered at the mouse click
             x0 = event.xdata - width / 2
             y0 = ylim[0]
             height = ylim[1] - ylim[0]
             c_rect = Rectangle((x0, y0), width, height*2, alpha=0.1)
 
+            # Experimental replacement:
+            # self.draw_patch(num2date(x0), num2date(x0+width), uid=gen_uuid('ln'))
             caxes.add_patch(c_rect)
             caxes.draw_artist(caxes.patch)
 

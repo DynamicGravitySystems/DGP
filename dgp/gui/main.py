@@ -14,6 +14,7 @@ from PyQt5.uic import loadUiType
 
 import dgp.lib.project as prj
 from dgp.gui.loader import LoadFile
+from dgp.lib.types import FlightLine
 from dgp.lib.plotter import LineGrabPlot, LineUpdate
 from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, get_project_file
 from dgp.gui.dialogs import ImportData, AddFlight, CreateProject, InfoDialog, AdvancedImport
@@ -155,7 +156,6 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
             plot, widget = self._new_plot_widget(flight, rows=3)
             # TO DO: Need to disconnect these at some point?
-            plot.line_changed.connect(self._on_added_line)
 
             self.flight_plots[flight.uid] = plot, widget
             self.gravity_stack.addWidget(widget)
@@ -163,6 +163,8 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             self.log.debug("Plotting using plot_flight_main method")
             self.plot_flight_main(plot, flight)
 
+            # Don't connect this until after self.plot_flight_main or it will trigger on initial draw
+            plot.line_changed.connect(self._on_added_line)
             self.log.debug("Initialized Flight Plot: {}".format(plot))
             self.status.emit('Flight Plot {} Initialized'.format(flight.name))
             self.progress.emit(i+1)
@@ -339,6 +341,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         -------
         None
         """
+        self.log.warning("Redrawing plot")
         plot, _ = self.flight_plots[flt_id]
         flt = self.project.get_flight(flt_id)  # type: prj.Flight
         self.plot_flight_main(plot, flt)
@@ -372,6 +375,8 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             plot.plot2(plot[1], grav_series['long'])
         if eotvos_series is not None:
             plot.plot2(plot[2], eotvos_series['eotvos'])
+        for line in flight.lines:
+            plot.draw_patch(line.start, line.stop, line.uid)
         plot.draw()
 
     @staticmethod
