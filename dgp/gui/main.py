@@ -164,25 +164,33 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             self.plot_flight_main(plot, flight)
 
             # Don't connect this until after self.plot_flight_main or it will trigger on initial draw
-            plot.line_changed.connect(self._on_added_line)
+            plot.line_changed.connect(self._on_modified_line)
             self.log.debug("Initialized Flight Plot: {}".format(plot))
             self.status.emit('Flight Plot {} Initialized'.format(flight.name))
             self.progress.emit(i+1)
 
-    def _on_added_line(self, info):
+    def _on_modified_line(self, info):
         for flight in self.project.flights:
             if info.flight_id == flight.uid:
-                print("Flight lines: ", flight.lines)
+
                 if info.uid in flight.lines:
-                    line = flight.lines[info.uid]
-                    line.start = info.start
-                    line.stop = info.stop
-                    line.label = info.label
-                    self.log.debug("Changed line: start={start}, stop={stop}, "
-                                   "label={label}"
-                                   .format(start=info.start,
-                                           stop=info.stop,
-                                           label=info.label))
+                    if info.action == 'modify':
+                        line = flight.lines[info.uid]
+                        line.start = info.start
+                        line.stop = info.stop
+                        line.label = info.label
+                        self.log.debug("Modified line: start={start}, "
+                                       "stop={stop}, label={label}"
+                                       .format(start=info.start,
+                                               stop=info.stop,
+                                               label=info.label))
+                    elif info.action == 'remove':
+                        flight.remove_line(info.uid)
+                        self.log.debug("Removed line: start={start}, "
+                                       "stop={stop}, label={label}"
+                                       .format(start=info.start,
+                                               stop=info.stop,
+                                               label=info.label))
                 else:
                     flight.add_line(info.start, info.stop, uid=info.uid)
                     self.log.debug("Added line to flight {flt}: start={start}, stop={stop}, "
@@ -492,7 +500,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
                 self.import_data(dialog.gps, 'gps', flight)
 
             plot, widget = self._new_plot_widget(flight, rows=3)
-            plot.line_changed.connect(self._on_added_line)
+            plot.line_changed.connect(self._on_modified_line)
             self.gravity_stack.addWidget(widget)
             self.flight_plots[flight.uid] = plot, widget
             # self.project_tree.refresh(curr_flightid=flight.uid)

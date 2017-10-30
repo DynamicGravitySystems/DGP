@@ -24,6 +24,7 @@ from matplotlib.backend_bases import MouseEvent
 from matplotlib.patches import Rectangle
 from pandas import Series
 import numpy as np
+from functools import partial
 
 
 class BasePlottingCanvas(FigureCanvas):
@@ -95,7 +96,7 @@ class BasePlottingCanvas(FigureCanvas):
 
 
 ClickInfo = namedtuple('ClickInfo', ['partners', 'x0', 'width', 'xpos', 'ypos'])
-LineUpdate = namedtuple('LineUpdate', ['flight_id', 'uid', 'start', 'stop', 'label'])
+LineUpdate = namedtuple('LineUpdate', ['flight_id', 'action', 'uid', 'start', 'stop', 'label'])
 
 
 class LineGrabPlot(BasePlottingCanvas):
@@ -122,16 +123,32 @@ class LineGrabPlot(BasePlottingCanvas):
         if title:
             self.figure.suptitle(title, y=1)
 
-        # internal flags
         self._stretching = None
         self._is_near_edge = False
+        self._selected_patch = None
 
         # create context menu
         self._pop_menu = QMenu(self)
-        self._pop_menu.addAction(QAction('Remove', self, triggered=self._remove_patch))
+        self._pop_menu.addAction(QAction('Remove', self,
+            triggered=self._remove_patch))
 
-    def _remove_patch(self):
-        pass
+    def _remove_patch(self, partners):
+        if self._selected_patch is not None:
+            partners = self._selected_patch
+
+            uid = partners[0]['uid']
+            start = partners[0]['left']
+            stop = partners[0]['right']
+
+            # remove patches
+            while partners:
+                patch_group = partners.pop()
+                patch_group['rect'].remove()
+            self.rects.remove(partners)
+            self.draw()
+            self.line_changed.emit(LineUpdate(flight_id=self._flight_id,
+                action='remove', uid=uid, start=start, stop=stop, label=None))
+            self._selected_patch = None
 
     def draw(self):
         self.plotted = True
@@ -192,6 +209,8 @@ class LineGrabPlot(BasePlottingCanvas):
         return
 
     def onclick(self, event: MouseEvent):
+        # TO DO: What happens when a patch is added before a new plot is added?
+
         if self.zooming or self.panning:  # Don't do anything when zooming/panning is enabled
             return
 
@@ -210,6 +229,7 @@ class LineGrabPlot(BasePlottingCanvas):
                 patch = partners[0]['rect']
                 if patch.get_x() <= event.xdata <= patch.get_x() + patch.get_width():
                     cursor = QCursor()
+                    self._selected_patch = partners
                     self._pop_menu.popup(cursor.pos())
             return
 
@@ -270,7 +290,8 @@ class LineGrabPlot(BasePlottingCanvas):
             self.rects.append(partners)
 
             if self._flight_id is not None:
-                self.line_changed.emit(LineUpdate(self._flight_id, uid, left, right, None))
+                self.line_changed.emit(LineUpdate(flight_id=self._flight_id,
+                    action='add', uid=uid, start=left, stop=right, label=None))
 
             self.figure.canvas.draw()
 
@@ -354,7 +375,10 @@ class LineGrabPlot(BasePlottingCanvas):
             self._is_near_edge = self._near_edge(event)
 
     def onrelease(self, event: MouseEvent):
+
         if self.clicked is None:
+            if self._selected_patch is not None:
+                self._selected_patch = None
             return  # Nothing Selected
 
         partners = self.clicked.partners
@@ -373,7 +397,8 @@ class LineGrabPlot(BasePlottingCanvas):
         label = partners[0]['label']
 
         if self._flight_id is not None:
-            self.line_changed.emit(LineUpdate(self._flight_id, uid, start, stop, label))
+            self.line_changed.emit(LineUpdate(flight_id=self._flight_id,
+                action='modify', uid=uid, start=start, stop=stop, label=label))
 
         self.clicked = None
 

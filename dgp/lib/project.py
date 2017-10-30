@@ -424,6 +424,10 @@ class Flight(TreeItem):
         self.parent.update('add', line, self.lines.uid)
         return line
 
+    def remove_line(self, uid):
+        """ Remove a flight line """
+        return self.lines.remove_child(self.lines[uid])
+
     def __iter__(self):
         """
         Implement class iteration, allowing iteration through FlightLines in this Flight
