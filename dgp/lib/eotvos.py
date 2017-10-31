@@ -33,7 +33,7 @@ def derivative(y: array, datarate, edge_order=None):
         return ValueError('Invalid value for parameter n {1 or 2}')
 
 
-def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, derivation_func=np.gradient,
+def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, derivation_func=derivative,
                 **kwargs):
     """
     calc_eotvos: Calculate Eotvos Gravity Corrections
@@ -126,9 +126,9 @@ def calc_eotvos(lat: array, lon: array, ht: array, datarate: float, derivation_f
         np.zeros(r_prime.size),
         (-dr_prime * cosD + r_prime * dD * sinD - dht)
     ])
-    ci = (-ddr_prime * np.sin(D) - 2.0 * dr_prime * dD * cosD - r_prime *
+    ci = (-ddr_prime * sinD - 2.0 * dr_prime * dD * cosD - r_prime *
           (ddD * cosD - dD * dD * sinD))
-    ck = (-ddr_prime * np.cos(D) + 2.0 * dr_prime * dD * sinD + r_prime *
+    ck = (-ddr_prime * cosD + 2.0 * dr_prime * dD * sinD + r_prime *
           (ddD * sinD + dD * dD * cosD) - ddht)
     r2dot = array([
         ci,

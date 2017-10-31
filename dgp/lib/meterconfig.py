@@ -1,7 +1,10 @@
 # coding: utf-8
 
 import os
+import uuid
 import configparser
+
+from dgp.lib.types import TreeItem
 
 """
 Dynamic Gravity Processor (DGP) :: meterconfig.py
@@ -15,22 +18,43 @@ is associated with a particular project/flight.
 """
 
 
-class MeterConfig:
+class MeterConfig(TreeItem):
     """
     MeterConfig will contain the configuration of a specific gravity meter, giving the
-    surveyer an easy way to specify the use of different meters on different flight lines.
+    surveyor an easy way to specify the use of different meters on different flight lines.
     Initially dealing only with DGS AT1[A/M] meter types, need to add logic to handle other meters later.
     """
-    def __init__(self, name, meter_type='AT1', **config):
-        # TODO: Consider other meter types, what to do about different config values etc.
 
+    def __init__(self, name, meter_type='AT1', parent=None, **config):
+        # TODO: Consider other meter types, what to do about different config values etc.
+        self._uid = 'm{}'.format(uuid.uuid4().hex[1:])
+        self._parent = parent
         self.name = name
         self.type = meter_type
         self.config = {k.lower(): v for k, v in config.items()}
 
+    @property
+    def parent(self):
+        return self._parent
+
+    @parent.setter
+    def parent(self, value):
+        self._parent = value
+
     @staticmethod
     def from_ini(path):
         raise NotImplementedError
+
+    @property
+    def uid(self):
+        return self._uid
+
+    @property
+    def children(self):
+        return []
+
+    def data(self, role=None):
+        return "{} <{}>".format(self.name, self.type)
 
     def __getitem__(self, item):
         """Allow getting of configuration values using container type syntax e.g. value = MeterConfig['key']"""
@@ -48,6 +72,9 @@ class MeterConfig:
 
     def __len__(self):
         return len(self.config)
+
+    def __str__(self):
+        return "Meter {}".format(self.name)
 
 
 class AT1Meter(MeterConfig):

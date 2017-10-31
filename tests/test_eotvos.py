@@ -39,7 +39,6 @@ class TestEotvos(unittest.TestCase):
         result_eotvos = []
         with sample_dir.joinpath('eotvos_short_result.csv').open() as fd:
             test_data = csv.DictReader(fd)
-            # print(test_data.fieldnames)
             for line in test_data:
                 result_eotvos.append(float(line['Eotvos_full']))
         lat = data['lat'].values
@@ -48,6 +47,10 @@ class TestEotvos(unittest.TestCase):
         rate = 10
 
         eotvos_a = eotvos.calc_eotvos(lat, lon, ht, rate, derivation_func=eotvos.derivative)
+        # eotvos_b = eotvos.calc_eotvos(lat, lon, ht, rate, derivation_func=np.gradient)
+        # print(eotvos_a)
+        # print(eotvos_b)
+
         for i, value in enumerate(eotvos_a):
             try:
                 self.assertAlmostEqual(value, result_eotvos[i], places=2)

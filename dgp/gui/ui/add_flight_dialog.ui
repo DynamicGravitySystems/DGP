@@ -6,14 +6,14 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>400</width>
-    <height>400</height>
+    <width>650</width>
+    <height>650</height>
    </rect>
   </property>
   <property name="maximumSize">
    <size>
-    <width>450</width>
-    <height>450</height>
+    <width>10000</width>
+    <height>10000</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -77,60 +77,6 @@
    <item row="2" column="1">
     <widget class="QComboBox" name="combo_meter"/>
    </item>
-   <item row="6" column="0">
-    <widget class="QLabel" name="label_flight_param">
-     <property name="text">
-      <string>Flight Parameters</string>
-     </property>
-     <property name="buddy">
-      <cstring>table_flight_param</cstring>
-     </property>
-    </widget>
-   </item>
-   <item row="7" column="0" colspan="2">
-    <widget class="QTableWidget" name="table_flight_param">
-     <row>
-      <property name="text">
-       <string>Tie Value</string>
-      </property>
-     </row>
-     <row>
-      <property name="text">
-       <string>Tie Location</string>
-      </property>
-     </row>
-     <row>
-      <property name="text">
-       <string>Still Reading</string>
-      </property>
-     </row>
-     <column>
-      <property name="text">
-       <string>Pre Reading</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Post Reading</string>
-      </property>
-     </column>
-     <item row="0" column="0">
-      <property name="text">
-       <string/>
-      </property>
-      <property name="toolTip">
-       <string>Known Gravity Tie Value (mGal)</string>
-      </property>
-     </item>
-    </widget>
-   </item>
-   <item row="8" column="0">
-    <widget class="QDialogButtonBox" name="buttons_dialog">
-     <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-     </property>
-    </widget>
-   </item>
    <item row="3" column="0">
     <widget class="QLabel" name="label_uuid">
      <property name="text">
@@ -148,15 +94,8 @@
      </property>
     </widget>
    </item>
-   <item row="8" column="1">
-    <widget class="QLabel" name="label_message">
-     <property name="text">
-      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;right&quot;&gt;*required fields&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-     </property>
-    </widget>
-   </item>
    <item row="4" column="0">
-    <widget class="QLabel" name="label">
+    <widget class="QLabel" name="label_gravity">
      <property name="text">
       <string>Gravity Data</string>
      </property>
@@ -166,17 +105,48 @@
     </widget>
    </item>
    <item row="4" column="1">
-    <layout class="QHBoxLayout" name="horizontalLayout">
+    <layout class="QHBoxLayout" name="gravity_layout">
      <item>
-      <widget class="QLineEdit" name="path_gravity"/>
+      <widget class="QLineEdit" name="path_gravity">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+         <horstretch>2</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="baseSize">
+        <size>
+         <width>200</width>
+         <height>0</height>
+        </size>
+       </property>
+      </widget>
      </item>
      <item>
-      <widget class="QPushButton" name="browse_grav">
+      <widget class="QPushButton" name="browse_gravity">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
        <property name="maximumSize">
         <size>
-         <width>30</width>
+         <width>16777215</width>
          <height>16777215</height>
         </size>
+       </property>
+       <property name="baseSize">
+        <size>
+         <width>50</width>
+         <height>0</height>
+        </size>
+       </property>
+       <property name="toolTip">
+        <string>Browse</string>
+       </property>
+       <property name="statusTip">
+        <string>Browse</string>
        </property>
        <property name="text">
         <string>...</string>
@@ -186,27 +156,55 @@
     </layout>
    </item>
    <item row="5" column="0">
-    <widget class="QLabel" name="label_2">
+    <widget class="QLabel" name="label_gps">
      <property name="text">
       <string>GPS Data</string>
      </property>
      <property name="buddy">
-      <cstring>lineEdit</cstring>
+      <cstring>path_gps</cstring>
      </property>
     </widget>
    </item>
    <item row="5" column="1">
-    <layout class="QHBoxLayout" name="horizontalLayout_2">
+    <layout class="QHBoxLayout" name="gps_layout">
      <item>
-      <widget class="QLineEdit" name="lineEdit"/>
+      <widget class="QLineEdit" name="path_gps">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+         <horstretch>2</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="baseSize">
+        <size>
+         <width>200</width>
+         <height>0</height>
+        </size>
+       </property>
+      </widget>
      </item>
      <item>
-      <widget class="QPushButton" name="pushButton">
+      <widget class="QPushButton" name="browse_gps">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
        <property name="maximumSize">
         <size>
-         <width>30</width>
+         <width>16777215</width>
          <height>16777215</height>
         </size>
+       </property>
+       <property name="baseSize">
+        <size>
+         <width>50</width>
+         <height>0</height>
+        </size>
+       </property>
+       <property name="toolTip">
+        <string>Browse</string>
        </property>
        <property name="text">
         <string>...</string>
@@ -215,6 +213,30 @@
      </item>
     </layout>
    </item>
+   <item row="6" column="0">
+    <widget class="QLabel" name="label_flight_param">
+     <property name="text">
+      <string>Flight Parameters</string>
+     </property>
+    </widget>
+   </item>
+   <item row="8" column="0">
+    <widget class="QDialogButtonBox" name="buttons_dialog">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+   <item row="8" column="1">
+    <widget class="QLabel" name="label_message">
+     <property name="text">
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;right&quot;&gt;*required fields&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+     </property>
+    </widget>
+   </item>
+   <item row="7" column="0" colspan="2">
+    <widget class="QTableView" name="flight_params"/>
+   </item>
   </layout>
  </widget>
  <tabstops>
@@ -222,10 +244,9 @@
   <tabstop>date_flight</tabstop>
   <tabstop>combo_meter</tabstop>
   <tabstop>path_gravity</tabstop>
-  <tabstop>browse_grav</tabstop>
-  <tabstop>lineEdit</tabstop>
-  <tabstop>pushButton</tabstop>
-  <tabstop>table_flight_param</tabstop>
+  <tabstop>browse_gravity</tabstop>
+  <tabstop>path_gps</tabstop>
+  <tabstop>browse_gps</tabstop>
   <tabstop>text_uuid</tabstop>
  </tabstops>
  <resources>
