@@ -4,7 +4,7 @@ import os
 import pathlib
 import functools
 import logging
-from typing import Tuple, List, Dict
+from typing import Dict
 
 from pandas import Series, DataFrame
 from PyQt5 import QtCore, QtWidgets, QtGui
@@ -14,9 +14,8 @@ from PyQt5.uic import loadUiType
 
 import dgp.lib.project as prj
 from dgp.gui.loader import LoadFile
-from dgp.lib.types import FlightLine
 from dgp.lib.plotter import LineGrabPlot, LineUpdate
-from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, get_project_file
+from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP, get_project_file
 from dgp.gui.dialogs import ImportData, AddFlight, CreateProject, InfoDialog, AdvancedImport
 from dgp.gui.models import TableModel, ProjectModel
 
@@ -114,8 +113,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.gps_plot_layout.addWidget(self.gps_stack)
 
         # Initialize Variables
-        # TODO: Change this to use pathlib.Path
-        self.import_base_path = os.path.join(os.getcwd(), '../tests')
+        self.import_base_path = pathlib.Path('../tests').resolve()
 
         self.current_flight = None  # type: prj.Flight
         self.current_flight_index = QtCore.QModelIndex()  # type: QtCore.QModelIndex
@@ -260,9 +258,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
     def set_logging_level(self, name: str):
         """PyQt Slot: Changes logging level to passed string logging level name."""
         self.log.debug("Changing logging level to: {}".format(name))
-        # TODO: Replace this with gui.utils LOG_COLOR_MAP
-        level = {'debug': logging.DEBUG, 'info': logging.INFO, 'warning': logging.WARNING, 'error': logging.ERROR,
-                 'critical': logging.CRITICAL}[name.lower()]
+        level = LOG_LEVEL_MAP[name.lower()]
         self.log.setLevel(level)
 
     def write_console(self, text, level):
@@ -375,29 +371,35 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         None
         """
         plot.clear()
+        queue_draw = False
         grav_series = flight.gravity
         eotvos_series = flight.eotvos
         if grav_series is not None:
-            plot.plot2(plot[0], grav_series['gravity'])
-            plot.plot2(plot[1], grav_series['cross'])
-            plot.plot2(plot[1], grav_series['long'])
+            plot.plot_series(plot[0], grav_series['gravity'])
+            plot.plot_series(plot[1], grav_series['cross'])
+            plot.plot_series(plot[1], grav_series['long'])
+            queue_draw = True
         if eotvos_series is not None:
-            plot.plot2(plot[2], eotvos_series['eotvos'])
+            plot.plot_series(plot[2], eotvos_series['eotvos'])
+            queue_draw = True
         for line in flight.lines:
             plot.draw_patch(line.start, line.stop, line.uid)
-        plot.draw()
+        if queue_draw:
+            print("Drawing plot")
+            plot.draw()
 
     @staticmethod
     def plot_time_series(plot: LineGrabPlot, data: DataFrame, fields: Dict):
+        # Currently unused
         plot.clear()
         for index in fields:
             if isinstance(fields[index], str):
                 series = data.get(fields[index])  # type: Series
-                plot.plot2(plot[index], series)
+                plot.plot_series(plot[index], series)
                 continue
             for field in fields[index]:
                 series = data.get(field)  # type: Series
-                plot.plot2(plot[index], series)
+                plot.plot_series(plot[index], series)
         plot.draw()
         plot.plotted = True
 
@@ -477,7 +479,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         if not path:
             return
 
-        prj_file = get_project_file(path)  # TODO: Migrate this func to a utility module
+        prj_file = get_project_file(path)
         if prj_file is None:
             self.log.warning("No project file's found in directory: {}".format(path))
             return
@@ -503,7 +505,6 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             plot.line_changed.connect(self._on_modified_line)
             self.gravity_stack.addWidget(widget)
             self.flight_plots[flight.uid] = plot, widget
-            # self.project_tree.refresh(curr_flightid=flight.uid)
             return
 
     def save_project(self) -> None:

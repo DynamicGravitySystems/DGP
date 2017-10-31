@@ -282,7 +282,7 @@ class ProjectItem:
             return self._parent.indexof(self)
         return 0
 
-    def parent_item(self):
+    def parent(self):
         return self._parent
 
 
@@ -290,6 +290,7 @@ class ProjectItem:
 # adding a flight, which would then update the model, without rebuilding the entire structure as
 # is currently done.
 # TODO: Can we inherit from AirborneProject, to create a single interface for modifying, and displaying the project?
+# or vice versa
 class ProjectModel(QtCore.QAbstractItemModel):
     def __init__(self, project, parent=None):
         super().__init__(parent=parent)
@@ -299,7 +300,6 @@ class ProjectModel(QtCore.QAbstractItemModel):
         self._project.parent = self
 
     def update(self, action, obj, uid=None):
-        # TODO: Use this function to delegate add/remove methods based on obj type (i.e. child, or sub-children)
         if action.lower() == 'add':
             self.add_child(obj, uid)
         elif action.lower() == 'remove':
@@ -326,7 +326,6 @@ class ProjectModel(QtCore.QAbstractItemModel):
         ------
         NotImplementedError:
             Raised if item is not an instance of a recognized type, currently Flight or MeterConfig
-
         """
         # If uid is provided, search for it and add the item (we won't check here for type correctness)
         if uid is not None:
@@ -370,7 +369,8 @@ class ProjectModel(QtCore.QAbstractItemModel):
                 return True
         return False
 
-    def data(self, index: QModelIndex, role: int=None):
+    @staticmethod
+    def data(index: QModelIndex, role: int=None):
         if not index.isValid():
             return QVariant()
 
@@ -380,7 +380,8 @@ class ProjectModel(QtCore.QAbstractItemModel):
         else:
             return item.data(role)
 
-    def itemFromIndex(self, index: QModelIndex):
+    @staticmethod
+    def itemFromIndex(index: QModelIndex):
         return index.internalPointer()
 
     def flags(self, index: QModelIndex):
@@ -412,7 +413,7 @@ class ProjectModel(QtCore.QAbstractItemModel):
             return QModelIndex()
 
         child_item = index.internalPointer()  # type: ProjectItem
-        parent_item = child_item.parent_item()  # type: ProjectItem
+        parent_item = child_item.parent()  # type: ProjectItem
         if parent_item == self._root_item:
             return QModelIndex()
         return self.createIndex(parent_item.row(), 0, parent_item)
@@ -424,7 +425,8 @@ class ProjectModel(QtCore.QAbstractItemModel):
         else:
             return self._root_item.child_count()
 
-    def columnCount(self, parent: QModelIndex=QModelIndex(), *args, **kwargs):
+    @staticmethod
+    def columnCount(parent: QModelIndex=QModelIndex(), *args, **kwargs):
         return 1
 
     # Highly Experimental:
@@ -472,6 +474,3 @@ class SelectionDelegate(Qt.QStyledItemDelegate):
 
     def updateEditorGeometry(self, editor: QWidget, option: Qt.QStyleOptionViewItem, index: QModelIndex) -> None:
         editor.setGeometry(option.rect)
-
-
-

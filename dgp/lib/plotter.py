@@ -51,9 +51,6 @@ class BasePlottingCanvas(FigureCanvas):
     def generate_subplots(self, rows: int) -> None:
         """Generate vertically stacked subplots for comparing data"""
         # TODO: Experimenting with generating multiple plots, work with Chris on this class
-        # def set_x_formatter(axes):
-        #     print("Xlimit changed")
-        #     axes.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
 
         # Clear any current axes first
         self._axes = []
@@ -156,16 +153,15 @@ class LineGrabPlot(BasePlottingCanvas):
 
     def clear(self):
         self._lines = {}
+        self.rects = []
         self.resample = slice(None, None, 20)
         self.draw()
         for ax in self._axes:  # type: Axes
             for line in ax.lines[:]:
                 ax.lines.remove(line)
-            # ax.cla()
-            # ax.grid(True)
-            # Reconnect the xlim_changed callback after clearing
-            # ax.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
-            # ax.callbacks.connect('xlim_changed', self._on_xlim_changed)
+            for patch in ax.patches[:]:
+                patch.remove()
+            ax.relim()
         self.draw()
 
     # TODO: Clean this up, allow direct passing of FlightLine Objects
@@ -210,6 +206,8 @@ class LineGrabPlot(BasePlottingCanvas):
 
     def onclick(self, event: MouseEvent):
         # TO DO: What happens when a patch is added before a new plot is added?
+        if not self.plotted:
+            return
 
         if self.zooming or self.panning:  # Don't do anything when zooming/panning is enabled
             return
@@ -407,7 +405,7 @@ class LineGrabPlot(BasePlottingCanvas):
 
         self.figure.canvas.draw()
 
-    def plot2(self, ax: Axes, series: Series):
+    def plot_series(self, ax: Axes, series: Series):
         if self._lines.get(id(ax), None) is None:
             self._lines[id(ax)] = []
         if len(series) > 10000:
@@ -421,15 +419,16 @@ class LineGrabPlot(BasePlottingCanvas):
         ax.relim()
         ax.autoscale_view()
         self._lines[id(ax)].append((line, series))
-        self.timespan = self._timespan(*ax.get_xlim())
+        self.timespan = self.get_time_delta(*ax.get_xlim())
         # print("Timespan: {}".format(self.timespan))
         ax.legend()
 
     @staticmethod
-    def _timespan(x0, x1):
+    def get_time_delta(x0, x1):
+        """Return a time delta from a plot axis limit"""
         return num2date(x1) - num2date(x0)
 
-    def _on_xlim_changed(self, changed: Axes):
+    def _on_xlim_changed(self, changed: Axes) -> None:
         """
         When the xlim changes (width of the graph), we want to apply a decimation algorithm to the
         dataset to speed up the visual performance of the graph. So when the graph is zoomed out
@@ -441,11 +440,9 @@ class LineGrabPlot(BasePlottingCanvas):
 
         Returns
         -------
-
+        None
         """
-        # print("Xlim changed for ax: {}".format(ax))
-        # TODO: Probably move this logic into its own function(s)
-        delta = self._timespan(*changed.get_xlim())
+        delta = self.get_time_delta(*changed.get_xlim())
         if self.timespan:
             ratio = delta/self.timespan * 100
         else:
@@ -462,13 +459,12 @@ class LineGrabPlot(BasePlottingCanvas):
 
         self.resample = resample
 
+        # Update line data using new resample rate
         for ax in self._axes:
             if self._lines.get(id(ax), None) is not None:
                 # print(self._lines[id(ax)])
                 for line, series in self._lines[id(ax)]:
-                    print("xshape: {}".format(series.shape))
                     r_series = series[self.resample]
-                    print("Resample shape: {}".format(r_series.shape))
                     line[0].set_ydata(r_series.values)
                     line[0].set_xdata(r_series.index)
                     ax.draw_artist(line[0])
@@ -479,7 +475,7 @@ class LineGrabPlot(BasePlottingCanvas):
 
     def get_toolbar(self, parent=None) -> QtWidgets.QToolBar:
         """
-        Get a Matplotlib Toolbar for the current plot instance, and set toolbar actions (pan/zoom) specific to this plot.
+        Get a Matplotlib Toolbar for the current plot instance, and set toolbar actions (pan/zoom) specific to this plot
         Parameters
         ----------
         [parent]

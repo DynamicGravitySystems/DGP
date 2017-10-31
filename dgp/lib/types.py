@@ -18,11 +18,9 @@ Location = namedtuple('Location', ['lat', 'long', 'alt'])
 
 StillReading = namedtuple('StillReading', ['gravity', 'location', 'time'])
 
-# FlightLine = namedtuple('FlightLine', ['uid', 'sequence', 'file_ref', 'start', 'end', 'parent'])
-
 DataCurve = namedtuple('DataCurve', ['channel', 'data'])
 
-# DataPacket = namedtuple('DataPacket', ['data', 'path', 'dtype'])
+DataFile = namedtuple('DataFile', ['filename', 'uid', 'dtype'])
 
 
 class TreeItem(ABC):
@@ -53,6 +51,11 @@ class TreeItem(ABC):
 
     @abstractmethod
     def __str__(self):
+        pass
+
+
+class ProjectItem2(TreeItem):
+    def __init__(self):
         pass
 
 
