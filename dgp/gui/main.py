@@ -4,20 +4,25 @@ import os
 import pathlib
 import functools
 import logging
-from typing import Dict
+from typing import Dict, Union
 
 from pandas import Series, DataFrame
 from PyQt5 import QtCore, QtWidgets, QtGui
-from PyQt5.QtCore import pyqtSignal, pyqtBoundSignal
+from PyQt5.QtWidgets import QListWidgetItem
+from PyQt5.QtCore import pyqtSignal, pyqtBoundSignal, Qt
 from PyQt5.QtGui import QColor, QStandardItemModel, QStandardItem, QIcon
 from PyQt5.uic import loadUiType
 
 import dgp.lib.project as prj
 from dgp.gui.loader import LoadFile
 from dgp.lib.plotter import LineGrabPlot, LineUpdate
+from dgp.lib.types import PlotLine
+from dgp.lib.etc import gen_uuid
 from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP, get_project_file
 from dgp.gui.dialogs import ImportData, AddFlight, CreateProject, InfoDialog, AdvancedImport
-from dgp.gui.models import TableModel, ProjectModel
+from dgp.gui.models import TableModel, ProjectModel, ProjectItem
+
+from dgp.gui.widgets import DropTarget
 
 # Load .ui form
 main_window, _ = loadUiType('dgp/gui/ui/main_window.ui')
@@ -44,7 +49,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
     status = pyqtSignal(str)  # type: pyqtBoundSignal
     progress = pyqtSignal(int)  # type: pyqtBoundSignal
 
-    def __init__(self, project: prj.GravityProject=None, *args):
+    def __init__(self, project: Union[prj.GravityProject, prj.AirborneProject]=None, *args):
         super().__init__(*args)
 
         self.setupUi(self)  # Set up ui within this class - which is base_class defined by .ui file
@@ -121,8 +126,11 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.flight_plots = {}  # Stores plotter objects for flights
 
         self.project_tree = ProjectTreeView(parent=self, project=self.project)
-        self.project_tree.setMinimumWidth(290)
+        self.project_tree.setMinimumWidth(300)
         self.project_dock_grid.addWidget(self.project_tree, 0, 0, 1, 2)
+
+        # Issue #36 Channel Selection Model
+        self.std_model = None  # type: QStandardItemModel
 
     def load(self):
         self._init_plots()
@@ -139,6 +147,8 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             pass
 
     def _init_plots(self) -> None:
+        # TODO: The logic here and in add_flight_dialog needs to be consolidated into single function
+        # TODO: If a flight has saved data channel selection plot those instead of the default
         """
         Initialize plots for flight objects in project.
         This allows us to switch between individual plots without re-plotting giving a vast
@@ -153,14 +163,15 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
                 continue
 
             plot, widget = self._new_plot_widget(flight, rows=3)
-            # TO DO: Need to disconnect these at some point?
+            plot.series_changed.connect(flight.update_series)
 
             self.flight_plots[flight.uid] = plot, widget
             self.gravity_stack.addWidget(widget)
             # gravity = flight.gravity
             self.log.debug("Plotting using plot_flight_main method")
-            self.plot_flight_main(plot, flight)
+            self.plot_defaults(plot, flight)
 
+            # TODO: Need to disconnect these at some point?
             # Don't connect this until after self.plot_flight_main or it will trigger on initial draw
             plot.line_changed.connect(self._on_modified_line)
             self.log.debug("Initialized Flight Plot: {}".format(plot))
@@ -241,6 +252,86 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
         # Console Window Actions #
         self.combo_console_verbosity.currentIndexChanged[str].connect(self.set_logging_level)
+
+        # Testing #
+        self.populate_channels(None)
+
+    # Experimental: Issue #36 Channel Selection
+    def populate_channels(self, flight: prj.Flight):
+        # TODO: Allow reset of entire list, or specific headers (via context menu right-click)
+        if flight is None:
+            return
+        std_model = QStandardItemModel()
+        header_flags = Qt.NoItemFlags
+        std_header = QStandardItem("Data Channels")
+        std_header.setFlags(header_flags)
+        std_model.appendRow(std_header)
+
+        drag_flags = Qt.ItemIsSelectable | Qt.ItemIsDragEnabled | Qt.ItemIsEnabled
+
+        channels = []
+        if flight.gravity is not None:
+            channels += list(flight.gravity.keys())
+
+        if flight.gps is not None:
+            channels += list(flight.gps.keys())
+
+        # TODO: Maybe create private function to setup channel items
+        for channel in channels:
+            print(channel)
+            if channel.lower() in flight.get_plotted_lines():
+                continue
+            drag_item = QStandardItem(channel)
+            drag_item.setData(channel, Qt.UserRole)
+            drag_item.setFlags(drag_flags)
+            std_model.appendRow(drag_item)
+
+        # Track header keys for plot instances
+        plot_headers = []
+        # flight_plots format: {flt_uid: (plot, stack_widget)}
+        for ax in range(len(self.flight_plots[flight.uid][0])):
+            ax_name = "Plot: {}".format(ax)
+            plot_headers.append(ax_name)
+            ax_header = QStandardItem(ax_name)
+            ax_header.setData(ax, role=Qt.UserRole)
+            ax_header.setFlags(header_flags)
+            std_model.appendRow(ax_header)
+            # Populate already plotted channels beneath their respective header
+            plotted_channels = flight.get_plotted_lines(ax)
+            for channel in plotted_channels:
+                drag_item = QStandardItem(channel)
+                drag_item.setData(channel, Qt.UserRole)
+                drag_item.setFlags(drag_flags)
+                std_model.appendRow(drag_item)
+
+        std_model.itemChanged.connect(self.channel_changed)
+        self.list_channels.setModel(std_model)
+
+    def channel_changed(self, item: QStandardItem):
+        headers = ["Data Channels"]
+        for ax in range(len(self.flight_plots[self.current_flight.uid][0])):
+            headers.append("Plot: {}".format(ax))
+
+        model = self.list_channels.model()
+        row = model.indexFromItem(item).row()
+        axes_index = None
+        for i in reversed(range(row)):
+            inspect = model.item(i)
+            if inspect.text() in headers:
+                axes_index = inspect.data(Qt.UserRole)
+                self.log.debug("Item {} parent: {}".format(item.text(), inspect.text()))
+                break
+
+        plot = self.flight_plots[self.current_flight.uid][0]  # type: LineGrabPlot
+        if axes_index is None:
+            # TODO: Implement action upon removal of series from plot
+            # Remove
+            # plot.remove_series('')
+            return
+        channel = item.data(Qt.UserRole)
+        linedata = self.current_flight.gravity[channel]
+        line = PlotLine(linedata, channel, 'Purple', gen_uuid('line'))
+        plot.add_series(line, ax_index=axes_index)
 
     def exit(self):
         """PyQt Slot: Exit the PyQt application by closing the main window (self)"""
@@ -328,8 +419,10 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             self.log.error("No plot for this flight found.")
             return
 
+        self.populate_channels(flight)
+
         if not grav_plot.plotted:
-            self.plot_flight_main(grav_plot, flight)
+            self.plot_defaults(grav_plot, flight)
         return
 
     def redraw(self, flt_id: str) -> None:
@@ -348,9 +441,9 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.log.warning("Redrawing plot")
         plot, _ = self.flight_plots[flt_id]
         flt = self.project.get_flight(flt_id)  # type: prj.Flight
-        self.plot_flight_main(plot, flt)
+        self.plot_defaults(plot, flt)
 
-    def plot_flight_main(self, plot: LineGrabPlot, flight: prj.Flight) -> None:
+    def plot_defaults(self, plot: LineGrabPlot, flight: prj.Flight) -> None:
         """
         Plot a flight on the main plot area as a time series, displaying gravity, long/cross and eotvos
         By default, expects a plot with 3 subplots accesible via getattr notation.
@@ -375,17 +468,20 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         grav_series = flight.gravity
         eotvos_series = flight.eotvos
         if grav_series is not None:
-            plot.plot_series(plot[0], grav_series['gravity'])
-            plot.plot_series(plot[1], grav_series['cross'])
-            plot.plot_series(plot[1], grav_series['long'])
-            queue_draw = True
+            # Issue #36
+            # TODO: How to save and reference these lines for modification later
+            grav_line = PlotLine(grav_series['gravity'], 'Gravity', 'blue', gen_uuid('line'))
+            cross_line = PlotLine(grav_series['cross'], 'Cross', 'green', gen_uuid('line'))
+            long_line = PlotLine(grav_series['long'], 'Long', 'red', gen_uuid('line'))
+            plot.add_series(grav_line)
+            plot.add_series(cross_line, long_line, ax_index=1)
         if eotvos_series is not None:
-            plot.plot_series(plot[2], eotvos_series['eotvos'])
-            queue_draw = True
+            eot_line = PlotLine(eotvos_series['eotvos'], 'Eotvos', 'black', gen_uuid('line'))
+            plot.add_series(eot_line, ax_index=2)
         for line in flight.lines:
             plot.draw_patch(line.start, line.stop, line.uid)
+            queue_draw = True
         if queue_draw:
-            print("Drawing plot")
             plot.draw()
 
     @staticmethod
@@ -505,6 +601,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             plot.line_changed.connect(self._on_modified_line)
             self.gravity_stack.addWidget(widget)
             self.flight_plots[flight.uid] = plot, widget
+            plot.series_changed.connect(flight.update_series)
             return
 
     def save_project(self) -> None:
@@ -632,7 +729,8 @@ class ProjectTreeView(QtWidgets.QTreeView):
 
     def contextMenuEvent(self, event: QtGui.QContextMenuEvent, *args, **kwargs):
         context_ind = self.indexAt(event.pos())  # get the index of the item under the click event
-        context_focus = self.model().itemFromIndex(context_ind)
+        context_focus = self.model().itemFromIndex(context_ind)  # type: ProjectItem
+        print(context_focus.uid)
 
         info_slot = functools.partial(self.flight_info, context_focus)
         plot_slot = functools.partial(self.flight_plot, context_focus)

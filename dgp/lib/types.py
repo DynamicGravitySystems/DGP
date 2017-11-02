@@ -22,6 +22,8 @@ DataCurve = namedtuple('DataCurve', ['channel', 'data'])
 
 DataFile = namedtuple('DataFile', ['filename', 'uid', 'dtype'])
 
+PlotLine = namedtuple('PlotLine', ['data', 'label', 'color', 'uid'])
+
 
 class TreeItem(ABC):
     """Abstract Base Class for an object that can be displayed in a hierarchical 'tree' view."""
@@ -51,11 +53,6 @@ class TreeItem(ABC):
 
     @abstractmethod
     def __str__(self):
-        pass
-
-
-class ProjectItem2(TreeItem):
-    def __init__(self):
         pass
 
 

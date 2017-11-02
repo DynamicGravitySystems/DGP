@@ -11,7 +11,7 @@ from pandas import HDFStore, DataFrame, Series
 
 from dgp.lib.meterconfig import MeterConfig, AT1Meter
 from dgp.lib.etc import gen_uuid
-from dgp.lib.types import Location, StillReading, FlightLine, TreeItem, DataFile
+from dgp.lib.types import Location, StillReading, FlightLine, TreeItem, DataFile, PlotLine
 import dgp.lib.eotvos as eov
 
 """
@@ -319,6 +319,9 @@ class Flight(TreeItem):
 
         self.flight_timeshift = 0
 
+        # Issue #36 Plotting data channels
+        self._plotted_channels = {}
+
         self.lines = Container(ctype=FlightLine, parent=self, name='Flight Lines')
         self._data = Container(ctype=DataFile, parent=self, name='Data Files')
 
@@ -384,7 +387,7 @@ class Flight(TreeItem):
             pandas DataFrame containing Gravity Data
         """
         if self._gravdata_uid is None:
-            return
+            return None
         if self._gravdata is None:
             self.log.warning("Loading gravity data from HDFStore.")
             self._gravdata = self.parent.load_data(self._gravdata_uid,
@@ -420,6 +423,29 @@ class Flight(TreeItem):
         ev_corr = eov.calc_eotvos(lat, lon, ht, rate)
         ev_frame = DataFrame(ev_corr, index=index, columns=['eotvos'])
         return ev_frame
+
+    def update_series(self, line: PlotLine, ax_index: int, action: str):
+        existing = self._plotted_channels.get(ax_index, [])
+        if action == 'add':
+            pass
+        elif action == 'remove':
+            pass
+
+        existing.append(line.label.lower())
+
+        self._plotted_channels[ax_index] = existing
+
+    def get_plotted_lines(self, ax_index: int=-1):
+        """Return a list of plotted line labels on the given ax_index."""
+        # TODO: Nothing stopping duplicates here, fix the logic
+        if ax_index >= 0:
+            return set(self._plotted_channels.get(ax_index, []))
+        else:
+            channels = set()
+            for ax, labels in self._plotted_channels.items():
+                for label in labels:
+                    channels.add(label)
+            return channels
 
     def get_channel_data(self, channel):
         return self.gravity[channel]
@@ -510,7 +536,7 @@ class Container(TreeItem):
         """
         assert ctype in Container.ctypes
         # assert parent is not None
-        self._uid = gen_uuid('c')
+        self._uid = gen_uuid('box')
         self._parent = parent
         self._ctype = ctype
         self._name = kwargs.get('name', self._ctype.__name__)

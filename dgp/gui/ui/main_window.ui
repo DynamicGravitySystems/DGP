@@ -48,10 +48,16 @@
            <height>500</height>
           </size>
          </property>
+         <property name="acceptDrops">
+          <bool>true</bool>
+         </property>
          <property name="currentIndex">
           <number>0</number>
          </property>
          <widget class="QWidget" name="gravity_tab">
+          <property name="acceptDrops">
+           <bool>true</bool>
+          </property>
           <attribute name="title">
            <string>Gravity</string>
           </attribute>
@@ -62,6 +68,9 @@
           </layout>
          </widget>
          <widget class="QWidget" name="gps_tab">
+          <property name="acceptDrops">
+           <bool>true</bool>
+          </property>
           <attribute name="title">
            <string>GPS</string>
           </attribute>
@@ -138,20 +147,20 @@
     <bool>true</bool>
    </property>
    <property name="sizePolicy">
-    <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+    <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
      <horstretch>0</horstretch>
      <verstretch>0</verstretch>
     </sizepolicy>
    </property>
    <property name="minimumSize">
     <size>
-     <width>300</width>
+     <width>350</width>
      <height>632</height>
     </size>
    </property>
    <property name="maximumSize">
     <size>
-     <width>300</width>
+     <width>350</width>
      <height>524287</height>
     </size>
    </property>
@@ -166,7 +175,7 @@
    </attribute>
    <widget class="QWidget" name="project_dock_contents">
     <property name="sizePolicy">
-     <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
       <horstretch>0</horstretch>
       <verstretch>0</verstretch>
      </sizepolicy>
@@ -177,7 +186,25 @@
        <property name="leftMargin">
         <number>5</number>
        </property>
-       <item row="3" column="0">
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_prj_info">
+         <property name="text">
+          <string>Project Tree:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QPushButton" name="prj_add_meter">
+         <property name="text">
+          <string>Add Meter</string>
+         </property>
+         <property name="icon">
+          <iconset resource="resources.qrc">
+           <normaloff>:/images/assets/meter_config.png</normaloff>:/images/assets/meter_config.png</iconset>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0">
         <widget class="QPushButton" name="prj_import_data">
          <property name="text">
           <string>Import Data</string>
@@ -188,7 +215,7 @@
          </property>
         </widget>
        </item>
-       <item row="1" column="0">
+       <item row="2" column="0">
         <widget class="QPushButton" name="prj_add_flight">
          <property name="text">
           <string>Add Flight</string>
@@ -199,21 +226,19 @@
          </property>
         </widget>
        </item>
-       <item row="0" column="0">
-        <widget class="QLabel" name="label_prj_info">
-         <property name="text">
-          <string>Project Tree:</string>
+       <item row="1" column="0" colspan="2">
+        <widget class="QListView" name="list_channels">
+         <property name="dragEnabled">
+          <bool>true</bool>
          </property>
-        </widget>
-       </item>
-       <item row="1" column="1">
-        <widget class="QPushButton" name="prj_add_meter">
-         <property name="text">
-          <string>Add Meter</string>
+         <property name="dragDropOverwriteMode">
+          <bool>false</bool>
          </property>
-         <property name="icon">
-          <iconset resource="resources.qrc">
-           <normaloff>:/images/assets/meter_config.png</normaloff>:/images/assets/meter_config.png</iconset>
+         <property name="dragDropMode">
+          <enum>QAbstractItemView::InternalMove</enum>
+         </property>
+         <property name="defaultDropAction">
+          <enum>Qt::MoveAction</enum>
          </property>
         </widget>
        </item>
@@ -246,10 +271,22 @@
   </widget>
   <widget class="QDockWidget" name="info_dock">
    <property name="sizePolicy">
-    <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+    <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
      <horstretch>0</horstretch>
      <verstretch>0</verstretch>
     </sizepolicy>
+   </property>
+   <property name="minimumSize">
+    <size>
+     <width>524</width>
+     <height>300</height>
+    </size>
+   </property>
+   <property name="maximumSize">
+    <size>
+     <width>524287</width>
+     <height>300</height>
+    </size>
    </property>
    <property name="sizeIncrement">
     <size>

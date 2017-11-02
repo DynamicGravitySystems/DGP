@@ -11,20 +11,22 @@ import datetime
 from collections import namedtuple
 from typing import List, Tuple
 
-from PyQt5 import QtWidgets
-from PyQt5.QtWidgets import QSizePolicy, QMenu, QAction
-from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtGui import QCursor
+# from PyQt5 import QtWidgets
+from PyQt5.QtWidgets import QSizePolicy, QMenu, QAction, QWidget, QToolBar
+from PyQt5.QtCore import pyqtSignal, QMimeData
+from PyQt5.QtGui import QCursor, QDropEvent, QDragEnterEvent, QDragMoveEvent
 from matplotlib.backends.backend_qt5agg import (FigureCanvasQTAgg as FigureCanvas,
                                                 NavigationToolbar2QT as NavigationToolbar)
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 from matplotlib.dates import DateFormatter, num2date, date2num
-from matplotlib.backend_bases import MouseEvent
+from matplotlib.backend_bases import MouseEvent, PickEvent
 from matplotlib.patches import Rectangle
 from pandas import Series
 import numpy as np
-from functools import partial
+
+from dgp.lib.types import PlotLine
+from dgp.gui.widgets import DropTarget
 
 
 class BasePlottingCanvas(FigureCanvas):
@@ -33,10 +35,12 @@ class BasePlottingCanvas(FigureCanvas):
     to be subclassed for different plot types.
     """
     def __init__(self, parent=None, width=8, height=4, dpi=100):
+        print("Initializing BasePlottingCanvas")
         self.log = logging.getLogger(__name__)
         self.parent = parent
         fig = Figure(figsize=(width, height), dpi=dpi, tight_layout=True)
-        FigureCanvas.__init__(self, fig)
+        super().__init__(fig)
+        # FigureCanvas.__init__(self, fig)
 
         self.setParent(parent)
         FigureCanvas.setSizePolicy(self, QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -47,6 +51,7 @@ class BasePlottingCanvas(FigureCanvas):
         self.figure.canvas.mpl_connect('button_press_event', self.onclick)
         self.figure.canvas.mpl_connect('button_release_event', self.onrelease)
         self.figure.canvas.mpl_connect('motion_notify_event', self.onmotion)
+        self.figure.canvas.mpl_connect('pick_event', self.onpick)
 
     def generate_subplots(self, rows: int) -> None:
         """Generate vertically stacked subplots for comparing data"""
@@ -82,6 +87,9 @@ class BasePlottingCanvas(FigureCanvas):
     def onclick(self, event: MouseEvent):
         pass
 
+    def onpick(self, event: PickEvent):
+        pass
+
     def onrelease(self, event: MouseEvent):
         pass
 
@@ -96,16 +104,18 @@ ClickInfo = namedtuple('ClickInfo', ['partners', 'x0', 'width', 'xpos', 'ypos'])
 LineUpdate = namedtuple('LineUpdate', ['flight_id', 'action', 'uid', 'start', 'stop', 'label'])
 
 
-class LineGrabPlot(BasePlottingCanvas):
+class LineGrabPlot(BasePlottingCanvas, QWidget):
     """
     LineGrabPlot implements BasePlottingCanvas and provides an onclick method to select flight
     line segments.
     """
 
     line_changed = pyqtSignal(LineUpdate)
+    series_changed = pyqtSignal(PlotLine, int, str)
 
     def __init__(self, n=1, fid=None, title=None, parent=None):
-        BasePlottingCanvas.__init__(self, parent=parent)
+        super().__init__(parent=parent)
+        self.setAcceptDrops(True)
         self.rects = []
         self.zooming = False
         self.panning = False
@@ -116,6 +126,9 @@ class LineGrabPlot(BasePlottingCanvas):
         self.resample = slice(None, None, 20)
         self._lines = {}
         self._flight_id = fid
+
+        # Issue #36
+        self._plot_lines = {axi: {} for axi in range(len(self._axes))}
 
         if title:
             self.figure.suptitle(title, y=1)
@@ -149,6 +162,7 @@ class LineGrabPlot(BasePlottingCanvas):
 
     def draw(self):
         self.plotted = True
+        # self.figure.canvas.draw()
         super().draw()
 
     def clear(self):
@@ -163,6 +177,64 @@ class LineGrabPlot(BasePlottingCanvas):
                 patch.remove()
             ax.relim()
         self.draw()
+
+    # Issue #36 Enable data/channel selection and plotting
+    def add_series(self, *lines: PlotLine, ax_index=0, draw=True):
+        """Add one or more data series to the specified axes as a line plot."""
+        if ax_index >= len(self._axes):
+            self.log.error("Axes index out of range.")
+            raise IndexError("Axes index out of range.")
+        axes = self._axes[ax_index]
+
+        for line in lines:
+            lineobject = axes.plot(line.data.index, line.data.values, label=line.label)[0]
+            self._plot_lines[ax_index][line.uid] = lineobject
+            self.series_changed.emit(line, ax_index, 'add')
+
+        axes.legend()
+        axes.relim()
+
+        if draw:
+            self.figure.canvas.draw()
+
+    def update_series(self, plotline: PlotLine):
+        pass
+
+    def remove_series(self, uid):
+        for index, line_map in self._plot_lines.items():
+            if uid not in line_map:
+                continue
+            try:
+                self._axes[index].lines.remove(line_map[uid])
+                del self._plot_lines[index][uid]
+                # self.series_changed.emit( ,index, 'remove')
+                self._axes[index].relim()
+            except KeyError:
+                print("Couldn't remove line from axes.lines")
+
+        self.figure.canvas.draw()
+
+    def get_series_by_label(self, label: str):
+        pass
+
+    def plot_series(self, ax: Axes, series: Series):
+        "Original default method to plot a series on an axes, performing resampling based on # of data points"
+        if self._lines.get(id(ax), None) is None:
+            self._lines[id(ax)] = []
+        if len(series) > 10000:
+            sample_series = series[self.resample]
+        else:
+            # Don't resample small series
+            sample_series = series
+        line = ax.plot(sample_series.index, sample_series.values, label=sample_series.name)
+        ax.xaxis.set_major_formatter(DateFormatter('%H:%M:%S'))
+
+        ax.relim()
+        ax.autoscale_view()
+        self._lines[id(ax)].append((line, series))
+        self.timespan = self.get_time_delta(*ax.get_xlim())
+        # print("Timespan: {}".format(self.timespan))
+        ax.legend()
 
     # TODO: Clean this up, allow direct passing of FlightLine Objects
     # Also convert this/test this to be used in onclick to create lines
@@ -190,7 +262,7 @@ class LineGrabPlot(BasePlottingCanvas):
                 continue
             ylim = ax.get_ylim()
             height = ylim[1] - ylim[0]
-            a_rect = Rectangle((xstart, ylim[0]), width, height * 2, alpha=0.1)
+            a_rect = Rectangle((xstart, ylim[0]), width, height * 2, alpha=0.1, picker=True)
             ax.add_patch(a_rect)
             ax.draw_artist(ax.patch)
             left = num2date(a_rect.get_x())
@@ -203,6 +275,13 @@ class LineGrabPlot(BasePlottingCanvas):
         self.figure.canvas.draw()
         self.draw()
         return
+
+    # Testing: Maybe way to optimize rectangle selection/dragging code
+    def onpick(self, event: PickEvent):
+        # Pick needs to be enabled for artist ( picker=True )
+        # event.artist references the artist that triggered the pick
+        print("Picked artist:")
+        print(event.artist)
 
     def onclick(self, event: MouseEvent):
         # TO DO: What happens when a patch is added before a new plot is added?
@@ -225,7 +304,8 @@ class LineGrabPlot(BasePlottingCanvas):
             # Right click
             for partners in self.rects:
                 patch = partners[0]['rect']
-                if patch.get_x() <= event.xdata <= patch.get_x() + patch.get_width():
+                hit, _ = patch.contains(event)
+                if hit:
                     cursor = QCursor()
                     self._selected_patch = partners
                     self._pop_menu.popup(cursor.pos())
@@ -261,7 +341,7 @@ class LineGrabPlot(BasePlottingCanvas):
             x0 = event.xdata - width / 2
             y0 = ylim[0]
             height = ylim[1] - ylim[0]
-            c_rect = Rectangle((x0, y0), width, height*2, alpha=0.1)
+            c_rect = Rectangle((x0, y0), width, height*2, alpha=0.1, picker=True)
 
             # Experimental replacement:
             # self.draw_patch(num2date(x0), num2date(x0+width), uid=gen_uuid('ln'))
@@ -405,23 +485,22 @@ class LineGrabPlot(BasePlottingCanvas):
 
         self.figure.canvas.draw()
 
-    def plot_series(self, ax: Axes, series: Series):
-        if self._lines.get(id(ax), None) is None:
-            self._lines[id(ax)] = []
-        if len(series) > 10000:
-            sample_series = series[self.resample]
-        else:
-            # Don't resample small series
-            sample_series = series
-        line = ax.plot(sample_series.index, sample_series.values, label=sample_series.name)
-        ax.xaxis.set_major_formatter(DateFormatter('%H:%M:%S'))
+    def dragEnterEvent(self, event: QDragEnterEvent):
+        print("Drag entered widget")
+        event.acceptProposedAction()
 
-        ax.relim()
-        ax.autoscale_view()
-        self._lines[id(ax)].append((line, series))
-        self.timespan = self.get_time_delta(*ax.get_xlim())
-        # print("Timespan: {}".format(self.timespan))
-        ax.legend()
+    def dragMoveEvent(self, event: QDragMoveEvent):
+        print("Drag moved")
+        event.acceptProposedAction()
+
+    def dropEvent(self, event: QDropEvent):
+        print("Drop detected")
+        event.acceptProposedAction()
+        print(event.source())
+        print(event.pos())
+        mime = event.mimeData()  # type: QMimeData
+        print(mime)
+        print(mime.text())
 
     @staticmethod
     def get_time_delta(x0, x1):
@@ -473,9 +552,19 @@ class LineGrabPlot(BasePlottingCanvas):
             ax.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
         self.figure.canvas.draw()
 
-    def get_toolbar(self, parent=None) -> QtWidgets.QToolBar:
+    def get_toolbar(self, parent=None) -> QToolBar:
         """
         Get a Matplotlib Toolbar for the current plot instance, and set toolbar actions (pan/zoom) specific to this plot
+        toolbar.actions() supports indexing, with the following default buttons at the specified index:
+        1: Home
+        2: Back
+        3: Forward
+        4: Pan
+        5: Zoom
+        6: Configure Sub-plots
+        7: Edit axis, curve etc..
+        8: Save the figure
+
         Parameters
         ----------
         [parent]
@@ -490,5 +579,12 @@ class LineGrabPlot(BasePlottingCanvas):
         toolbar.actions()[5].triggered.connect(self.toggle_zoom)
         return toolbar
 
-    def __getitem__(self, item):
-        return self._axes[item]
+    def __getitem__(self, index):
+        return self._axes[index]
+
+    def __iter__(self):
+        for axes in self._axes:
+            yield axes
+
+    def __len__(self):
+        return len(self._axes)

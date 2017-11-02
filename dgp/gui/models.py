@@ -5,11 +5,12 @@
 from typing import List, Union
 
 from PyQt5 import Qt, QtCore
-from PyQt5.Qt import QWidget, QModelIndex, QAbstractItemModel
+from PyQt5.Qt import QWidget, QModelIndex, QAbstractItemModel, QStandardItemModel
 from PyQt5.QtCore import QModelIndex, QVariant
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QStandardItem
 from PyQt5.QtWidgets import QComboBox
 
+from dgp.lib.etc import gen_uuid
 from dgp.lib.types import TreeItem, FlightLine
 from dgp.lib.project import Container, AirborneProject, Flight, MeterConfig
 
@@ -135,6 +136,11 @@ class ProjectItem:
         # _hasdata records whether the item is a class of ProjectItem or TreeItem, and thus has a data() method.
         self._hasdata = True
 
+        if hasattr(item, 'uid'):
+            self._uid = item.uid
+        else:
+            self._uid = gen_uuid('prj')
+
         if not issubclass(item.__class__, TreeItem) or isinstance(item, ProjectItem):
             self._hasdata = False
         if not hasattr(item, 'children'):
@@ -157,7 +163,7 @@ class ProjectItem:
     def uid(self) -> Union[str, None]:
         """Return the UID of the internal object if it has one, else None"""
         if not self._hasdata:
-            return None
+            return self._uid
         return self.object.uid
 
     def search(self, uid) -> Union['ProjectItem', None]:
@@ -474,3 +480,23 @@ class SelectionDelegate(Qt.QStyledItemDelegate):
 
     def updateEditorGeometry(self, editor: QWidget, option: Qt.QStyleOptionViewItem, index: QModelIndex) -> None:
         editor.setGeometry(option.rect)
+
+
+# Experimental: Issue #36
+class DataChannel(QStandardItem):
+    def __init__(self):
+        super().__init__(self)
+        self.setDragEnabled(True)
+
+    def onclick(self):
+        pass
+
+
+class ChannelListModel(QStandardItemModel):
+    def __init__(self):
+        pass
+
+    def dropMimeData(self, QMimeData, Qt_DropAction, p_int, p_int_1, QModelIndex):
+        print("Mime data dropped")
+        pass
+    pass
