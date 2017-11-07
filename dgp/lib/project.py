@@ -108,7 +108,7 @@ class GravityProject:
 
         self.log.debug("Gravity Project Initialized")
 
-    def load_data(self, uid: str, prefix: str):
+    def load_data(self, uid: str, prefix: str='data'):
         """
         Load data from the project HDFStore (HDF5 format datafile) by prefix and uid.
 
@@ -117,6 +117,7 @@ class GravityProject:
         uid : str
             32 digit hexadecimal unique identifier for the file to load.
         prefix : str
+            Deprecated - parameter reserved while testing compatibility
             Data type prefix, 'gps' or 'gravity' specifying the HDF5 group to retrieve the file from.
 
         Returns
@@ -320,7 +321,9 @@ class Flight(TreeItem):
         self.flight_timeshift = 0
 
         # Issue #36 Plotting data channels
-        self._plotted_channels = {}
+        self._channels = {}  # {uid: (file_uid, label), ...}
+        self._plotted_channels = {}  # {uid: axes_index, ...}
+        self._default_plot_map = {'gravity': 0, 'long': 1, 'cross': 1}
 
         self.lines = Container(ctype=FlightLine, parent=self, name='Flight Lines')
         self._data = Container(ctype=DataFile, parent=self, name='Data Files')
@@ -358,7 +361,7 @@ class Flight(TreeItem):
             return
         if self._gpsdata is None:
             self.log.warning("Loading gps data from HDFStore.")
-            self._gpsdata = self.parent.load_data(self._gpsdata_uid, 'gps')
+            self._gpsdata = self.parent.load_data(self._gpsdata_uid)
         return self._gpsdata
 
     @gps.setter
@@ -390,8 +393,7 @@ class Flight(TreeItem):
             return None
         if self._gravdata is None:
             self.log.warning("Loading gravity data from HDFStore.")
-            self._gravdata = self.parent.load_data(self._gravdata_uid,
-                                                   'gravity')
+            self._gravdata = self.parent.load_data(self._gravdata_uid)
         return self._gravdata
 
     @gravity.setter
@@ -435,24 +437,34 @@ class Flight(TreeItem):
 
         self._plotted_channels[ax_index] = existing
 
-    def get_plotted_lines(self, ax_index: int=-1):
-        """Return a list of plotted line labels on the given ax_index."""
-        # TODO: Nothing stopping duplicates here, fix the logic
-        if ax_index >= 0:
-            return set(self._plotted_channels.get(ax_index, []))
-        else:
-            channels = set()
-            for ax, labels in self._plotted_channels.items():
-                for label in labels:
-                    channels.add(label)
-            return channels
+    def get_plot_state(self):
+        # Return: {uid: (label, axes), ...}
+        state = {}
+        # TODO: Could refactor into dict comp
+        for uid in self._plotted_channels:
+            state[uid] = self._channels[uid][1], self._plotted_channels[uid]
+        return state
 
-    def get_channel_data(self, channel):
-        return self.gravity[channel]
+    def get_channel_data(self, uid: str):
+        data_uid, field = self._channels[uid]
+        # TODO: Optimize by using already loaded data
+        return self.parent.load_data(data_uid)[field]
 
     def add_data(self, data: DataFile):
-        self._data.add_child(data)
+        # Redundant? - apparently - as long as the model does its job
+        # self._data.add_child(data)
+
+        # Called to update GUI Tree
         self.parent.update('add', data, self._data.uid)
+
+        for col in data.fields:
+            col_uid = gen_uuid('col')
+            self._channels[col_uid] = data.uid, col
+            # If defaults are specified then add them to the plotted_channels state
+            if col in self._default_plot_map:
+                self._plotted_channels[col_uid] = self._default_plot_map[col]
+        print("Plotted: ", self._plotted_channels)
+        print(self._channels)
 
     def add_line(self, start: datetime, stop: datetime, uid=None):
         """Add a flight line to the flight by start/stop index and sequence number"""
@@ -723,12 +735,13 @@ class AirborneProject(GravityProject, TreeItem):
         with HDFStore(str(self.hdf_path)) as store:
             # Separate data into groups by data type (GPS & Gravity Data)
             # format: 'table' pytables format enables searching/appending, fixed is more performant.
-            store.put('{dtype}/{uid}'.format(dtype=dtype, uid=file_uid), df, format='fixed', data_columns=True)
+            store.put('data/{uid}'.format(uid=file_uid), df, format='fixed', data_columns=True)
             # Store a reference to the original file path
             self.data_map[file_uid] = path
         try:
             flight = self.get_flight(flight_uid)
-            flight.add_data(DataFile(path, file_uid, dtype))
+
+            flight.add_data(DataFile(file_uid, path, [col for col in df.keys()], dtype))
             if dtype == 'gravity':
                 if flight.gravity is not None:
                     print("Clearing old FlightLines")

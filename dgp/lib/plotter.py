@@ -111,9 +111,8 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
     """
 
     line_changed = pyqtSignal(LineUpdate)
-    series_changed = pyqtSignal(PlotLine, int, str)
 
-    def __init__(self, n=1, fid=None, title=None, parent=None):
+    def __init__(self, flight, n=1, fid=None, title=None, parent=None):
         super().__init__(parent=parent)
         self.setAcceptDrops(True)
         self.rects = []
@@ -125,6 +124,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         self.timespan = datetime.timedelta(0)
         self.resample = slice(None, None, 20)
         self._lines = {}
+        self._flight = flight
         self._flight_id = fid
 
         # Issue #36
@@ -189,7 +189,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         for line in lines:
             lineobject = axes.plot(line.data.index, line.data.values, label=line.label)[0]
             self._plot_lines[ax_index][line.uid] = lineobject
-            self.series_changed.emit(line, ax_index, 'add')
+            # self.series_changed.emit(line, ax_index, 'add')
 
         axes.legend()
         axes.relim()

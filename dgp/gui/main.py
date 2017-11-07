@@ -163,7 +163,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
                 continue
 
             plot, widget = self._new_plot_widget(flight, rows=3)
-            plot.series_changed.connect(flight.update_series)
+            # plot.series_changed.connect(flight.update_series)
 
             self.flight_plots[flight.uid] = plot, widget
             self.gravity_stack.addWidget(widget)
@@ -210,8 +210,9 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
                                            label=info.label))
 
     @staticmethod
-    def _new_plot_widget(flight, rows=2):
-        plot = LineGrabPlot(rows, fid=flight.uid, title=flight.name)
+    def _new_plot_widget(flight, rows=3):
+        """Generate a new LineGrabPlot and Containing Widget for display in Qt"""
+        plot = LineGrabPlot(flight, n=rows, fid=flight.uid, title=flight.name)
         plot_toolbar = plot.get_toolbar()
 
         layout = QtWidgets.QVBoxLayout()
@@ -254,84 +255,6 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.combo_console_verbosity.currentIndexChanged[str].connect(self.set_logging_level)
 
         # Testing #
-        self.populate_channels(None)
-
-    # Experimental: Issue #36 Channel Selection
-    def populate_channels(self, flight: prj.Flight):
-        # TODO: Allow reset of entire list, or specific headers (via context menu right-click)
-        if flight is None:
-            return
-        std_model = QStandardItemModel()
-        header_flags = Qt.NoItemFlags
-        std_header = QStandardItem("Data Channels")
-        std_header.setFlags(header_flags)
-        std_model.appendRow(std_header)
-
-        drag_flags = Qt.ItemIsSelectable | Qt.ItemIsDragEnabled | Qt.ItemIsEnabled
-
-        channels = []
-        if flight.gravity is not None:
-            channels += list(flight.gravity.keys())
-
-        if flight.gps is not None:
-            channels += list(flight.gps.keys())
-
-        # TODO: Maybe create private function to setup channel items
-        for channel in channels:
-            print(channel)
-            if channel.lower() in flight.get_plotted_lines():
-                continue
-            drag_item = QStandardItem(channel)
-            drag_item.setData(channel, Qt.UserRole)
-            drag_item.setFlags(drag_flags)
-            std_model.appendRow(drag_item)
-
-        # Track header keys for plot instances
-        plot_headers = []
-        # flight_plots format: {flt_uid: (plot, stack_widget)}
-        for ax in range(len(self.flight_plots[flight.uid][0])):
-            ax_name = "Plot: {}".format(ax)
-            plot_headers.append(ax_name)
-            ax_header = QStandardItem(ax_name)
-            ax_header.setData(ax, role=Qt.UserRole)
-            ax_header.setFlags(header_flags)
-            std_model.appendRow(ax_header)
-            # Populate already plotted channels beneath their respective header
-            plotted_channels = flight.get_plotted_lines(ax)
-            for channel in plotted_channels:
-                drag_item = QStandardItem(channel)
-                drag_item.setData(channel, Qt.UserRole)
-                drag_item.setFlags(drag_flags)
-                std_model.appendRow(drag_item)
-
-        std_model.itemChanged.connect(self.channel_changed)
-        self.list_channels.setModel(std_model)
-
-    def channel_changed(self, item: QStandardItem):
-        headers = ["Data Channels"]
-        for ax in range(len(self.flight_plots[self.current_flight.uid][0])):
-            headers.append("Plot: {}".format(ax))
-
-        model = self.list_channels.model()
-        row = model.indexFromItem(item).row()
-        axes_index = None
-        for i in reversed(range(row)):
-            inspect = model.item(i)
-            if inspect.text() in headers:
-                axes_index = inspect.data(Qt.UserRole)
-                self.log.debug("Item {} parent: {}".format(item.text(), inspect.text()))
-                break
-
-        plot = self.flight_plots[self.current_flight.uid][0]  # type: LineGrabPlot
-        if axes_index is None:
-            # TODO: Implement action upon removal of series from plot
-            # Remove
-            # plot.remove_series('')
-            return
-        channel = item.data(Qt.UserRole)
-        linedata = self.current_flight.gravity[channel]
-        line = PlotLine(linedata, channel, 'Purple', gen_uuid('line'))
-        plot.add_series(line, ax_index=axes_index)
 
     def exit(self):
         """PyQt Slot: Exit the PyQt application by closing the main window (self)"""
@@ -419,7 +342,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             self.log.error("No plot for this flight found.")
             return
 
-        self.populate_channels(flight)
+        # self.populate_channels(flight)
 
         if not grav_plot.plotted:
             self.plot_defaults(grav_plot, flight)
@@ -465,19 +388,13 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         """
         plot.clear()
         queue_draw = False
-        grav_series = flight.gravity
-        eotvos_series = flight.eotvos
-        if grav_series is not None:
-            # Issue #36
-            # TODO: How to save and reference these lines for modification later
-            grav_line = PlotLine(grav_series['gravity'], 'Gravity', 'blue', gen_uuid('line'))
-            cross_line = PlotLine(grav_series['cross'], 'Cross', 'green', gen_uuid('line'))
-            long_line = PlotLine(grav_series['long'], 'Long', 'red', gen_uuid('line'))
-            plot.add_series(grav_line)
-            plot.add_series(cross_line, long_line, ax_index=1)
-        if eotvos_series is not None:
-            eot_line = PlotLine(eotvos_series['eotvos'], 'Eotvos', 'black', gen_uuid('line'))
-            plot.add_series(eot_line, ax_index=2)
+
+        state = flight.get_plot_state()
+        for channel in state:
+            label, axes = state[channel]
+            curve = PlotLine(flight.get_channel_data(channel), label, None, channel)
+            plot.add_series(curve, ax_index=axes)
+
         for line in flight.lines:
             plot.draw_patch(line.start, line.stop, line.uid)
             queue_draw = True
@@ -601,7 +518,6 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             plot.line_changed.connect(self._on_modified_line)
             self.gravity_stack.addWidget(widget)
             self.flight_plots[flight.uid] = plot, widget
-            plot.series_changed.connect(flight.update_series)
             return
 
     def save_project(self) -> None:

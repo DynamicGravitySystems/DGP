@@ -20,7 +20,7 @@ StillReading = namedtuple('StillReading', ['gravity', 'location', 'time'])
 
 DataCurve = namedtuple('DataCurve', ['channel', 'data'])
 
-DataFile = namedtuple('DataFile', ['filename', 'uid', 'dtype'])
+DataFile = namedtuple('DataFile', ['uid', 'filename', 'fields', 'dtype'])
 
 PlotLine = namedtuple('PlotLine', ['data', 'label', 'color', 'uid'])
 
