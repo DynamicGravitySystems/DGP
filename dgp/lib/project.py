@@ -11,7 +11,7 @@ from pandas import HDFStore, DataFrame, Series
 
 from dgp.lib.meterconfig import MeterConfig, AT1Meter
 from dgp.lib.etc import gen_uuid
-from dgp.lib.types import Location, StillReading, FlightLine, TreeItem, DataFile, PlotLine
+from dgp.lib.types import FlightLine, TreeItem, DataFile, PlotCurve
 import dgp.lib.eotvos as eov
 
 """
@@ -293,6 +293,7 @@ class Flight(TreeItem):
         # If uuid is passed use the value else assign new uuid
         # the letter 'f' is prepended to the uuid to ensure that we have a natural python name
         # as python variables cannot start with a number
+        self.log = logging.getLevelName(__name__)
         self._parent = parent
         self.name = name
         self._uid = kwargs.get('uuid', gen_uuid('flt'))
@@ -426,7 +427,7 @@ class Flight(TreeItem):
         ev_frame = DataFrame(ev_corr, index=index, columns=['eotvos'])
         return ev_frame
 
-    def update_series(self, line: PlotLine, ax_index: int, action: str):
+    def update_series(self, line: PlotCurve, ax_index: int, action: str):
         existing = self._plotted_channels.get(ax_index, [])
         if action == 'add':
             pass

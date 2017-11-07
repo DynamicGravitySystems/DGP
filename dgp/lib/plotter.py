@@ -25,8 +25,8 @@ from matplotlib.patches import Rectangle
 from pandas import Series
 import numpy as np
 
-from dgp.lib.types import PlotLine
-from dgp.gui.widgets import DropTarget
+from dgp.lib.types import PlotCurve
+from dgp.lib.project import Flight
 
 
 class BasePlottingCanvas(FigureCanvas):
@@ -35,8 +35,8 @@ class BasePlottingCanvas(FigureCanvas):
     to be subclassed for different plot types.
     """
     def __init__(self, parent=None, width=8, height=4, dpi=100):
-        print("Initializing BasePlottingCanvas")
         self.log = logging.getLogger(__name__)
+        self.log.info("Initializing BasePlottingCanvas")
         self.parent = parent
         fig = Figure(figsize=(width, height), dpi=dpi, tight_layout=True)
         super().__init__(fig)
@@ -124,11 +124,11 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         self.timespan = datetime.timedelta(0)
         self.resample = slice(None, None, 20)
         self._lines = {}
-        self._flight = flight
+        self._flight = flight  # type: Flight
         self._flight_id = fid
 
         # Issue #36
-        self._plot_lines = {axi: {} for axi in range(len(self._axes))}
+        self._plot_lines = {}  # {uid: PlotCurve, ...}
 
         if title:
             self.figure.suptitle(title, y=1)
@@ -141,6 +141,15 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         self._pop_menu = QMenu(self)
         self._pop_menu.addAction(QAction('Remove', self,
             triggered=self._remove_patch))
+
+    def update_plot(self):
+        raise NotImplementedError
+        flight_state = self._flight.get_plot_state()
+
+        for channel in flight_state:
+            label, axes = flight_state[channel]
+            if channel not in self._plot_lines:
+                pass
 
     def _remove_patch(self, partners):
         if self._selected_patch is not None:
@@ -179,25 +188,25 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         self.draw()
 
     # Issue #36 Enable data/channel selection and plotting
-    def add_series(self, *lines: PlotLine, ax_index=0, draw=True):
+    def add_series(self, *lines: PlotCurve, draw=True, propogate=True):
         """Add one or more data series to the specified axes as a line plot."""
-        if ax_index >= len(self._axes):
-            self.log.error("Axes index out of range.")
-            raise IndexError("Axes index out of range.")
-        axes = self._axes[ax_index]
-
+        drawn_axes = {}  # Record axes that need to be redrawn
         for line in lines:
-            lineobject = axes.plot(line.data.index, line.data.values, label=line.label)[0]
-            self._plot_lines[ax_index][line.uid] = lineobject
-            # self.series_changed.emit(line, ax_index, 'add')
+            axes = self._axes[line.axes]
+            drawn_axes[line.axes] = axes
+            line.line2d = axes.plot(line.data.index, line.data.values, label=line.label)[0]
+            self._plot_lines[line.uid] = line
 
-        axes.legend()
-        axes.relim()
+        for axes in drawn_axes.values():
+            axes.legend()
+            axes.relim()
+
+        self.log.info(self._plot_lines)
 
         if draw:
             self.figure.canvas.draw()
 
-    def update_series(self, plotline: PlotLine):
+    def update_series(self, line: PlotCurve):
         pass
 
     def remove_series(self, uid):
@@ -210,31 +219,12 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
                 # self.series_changed.emit( ,index, 'remove')
                 self._axes[index].relim()
             except KeyError:
-                print("Couldn't remove line from axes.lines")
+                self.log.error("Couldn't remove line from axes.lines")
 
         self.figure.canvas.draw()
 
     def get_series_by_label(self, label: str):
         pass
-
-    def plot_series(self, ax: Axes, series: Series):
-        "Original default method to plot a series on an axes, performing resampling based on # of data points"
-        if self._lines.get(id(ax), None) is None:
-            self._lines[id(ax)] = []
-        if len(series) > 10000:
-            sample_series = series[self.resample]
-        else:
-            # Don't resample small series
-            sample_series = series
-        line = ax.plot(sample_series.index, sample_series.values, label=sample_series.name)
-        ax.xaxis.set_major_formatter(DateFormatter('%H:%M:%S'))
-
-        ax.relim()
-        ax.autoscale_view()
-        self._lines[id(ax)].append((line, series))
-        self.timespan = self.get_time_delta(*ax.get_xlim())
-        # print("Timespan: {}".format(self.timespan))
-        ax.legend()
 
     # TODO: Clean this up, allow direct passing of FlightLine Objects
     # Also convert this/test this to be used in onclick to create lines
@@ -243,16 +233,13 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         ylim = caxes.get_ylim()  # type: Tuple
         xstart = date2num(start)
         xstop = date2num(stop)
-        # print("Xstart: {}, Xend: {}".format(xstart, xstop))
         width = xstop - xstart
         height = ylim[1] - ylim[0]
-        # print("Adding patch at {}:{} height: {} width: {}".format(start, stop, height, width))
         c_rect = Rectangle((xstart, ylim[0]), width, height*2, alpha=0.2)
 
         caxes.add_patch(c_rect)
         caxes.draw_artist(caxes.patch)
 
-        # uid = gen_uuid('ln')
         left = num2date(c_rect.get_x())
         right = num2date(c_rect.get_x() + c_rect.get_width())
         partners = [{'uid': uid, 'rect': c_rect, 'bg': None, 'left': left, 'right': right, 'label': None}]
@@ -280,8 +267,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
     def onpick(self, event: PickEvent):
         # Pick needs to be enabled for artist ( picker=True )
         # event.artist references the artist that triggered the pick
-        print("Picked artist:")
-        print(event.artist)
+        self.log.debug("Picked artist: {artist}".format(artist=event.artist))
 
     def onclick(self, event: MouseEvent):
         # TO DO: What happens when a patch is added before a new plot is added?
@@ -547,7 +533,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
                     line[0].set_ydata(r_series.values)
                     line[0].set_xdata(r_series.index)
                     ax.draw_artist(line[0])
-                    print("Resampling to: {}".format(self.resample))
+                    self.log.debug("Resampling to: {}".format(self.resample))
             ax.relim()
             ax.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
         self.figure.canvas.draw()

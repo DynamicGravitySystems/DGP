@@ -16,13 +16,12 @@ from PyQt5.uic import loadUiType
 import dgp.lib.project as prj
 from dgp.gui.loader import LoadFile
 from dgp.lib.plotter import LineGrabPlot, LineUpdate
-from dgp.lib.types import PlotLine
+from dgp.lib.types import PlotCurve
 from dgp.lib.etc import gen_uuid
 from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP, get_project_file
 from dgp.gui.dialogs import ImportData, AddFlight, CreateProject, InfoDialog, AdvancedImport
 from dgp.gui.models import TableModel, ProjectModel, ProjectItem
 
-from dgp.gui.widgets import DropTarget
 
 # Load .ui form
 main_window, _ = loadUiType('dgp/gui/ui/main_window.ui')
@@ -56,7 +55,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.title = 'Dynamic Gravity Processor'
 
         # Setup logging
-        self.log = logging.getLogger(__name__)
+        self.log = logging.getLogger()  # Attach to the root logger to capture all events
         console_handler = ConsoleHandler(self.write_console)
         console_handler.setFormatter(LOG_FORMAT)
         self.log.addHandler(console_handler)
@@ -146,6 +145,36 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         except TypeError:  # This will happen if there are no slots connected
             pass
 
+    def _init_slots(self):
+        """Initialize PyQt Signals/Slots for UI Buttons and Menus"""
+
+        # File Menu Actions #
+        self.action_exit.triggered.connect(self.close)
+        self.action_file_new.triggered.connect(self.new_project_dialog)
+        self.action_file_open.triggered.connect(self.open_project_dialog)
+        self.action_file_save.triggered.connect(self.save_project)
+
+        # Project Menu Actions #
+        self.action_import_data.triggered.connect(self.import_data_dialog)
+        self.action_add_flight.triggered.connect(self.add_flight_dialog)
+
+        # Project Tree View Actions #
+        # self.prj_tree.doubleClicked.connect(self.log_tree)
+        self.project_tree.clicked.connect(self.flight_changed)
+
+        # Project Control Buttons #
+        self.prj_add_flight.clicked.connect(self.add_flight_dialog)
+        self.prj_import_data.clicked.connect(self.import_data_dialog)
+
+        # Channel Panel Buttons #
+        # self.selectAllChannels.clicked.connect(self.set_channel_state)
+
+        # self.gravity_channels.itemChanged.connect(self.channel_changed)
+        # self.resample_value.valueChanged[int].connect(self.resample_rate_changed)
+
+        # Console Window Actions #
+        self.combo_console_verbosity.currentIndexChanged[str].connect(self.set_logging_level)
+
     def _init_plots(self) -> None:
         # TODO: The logic here and in add_flight_dialog needs to be consolidated into single function
         # TODO: If a flight has saved data channel selection plot those instead of the default
@@ -163,13 +192,10 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
                 continue
 
             plot, widget = self._new_plot_widget(flight, rows=3)
-            # plot.series_changed.connect(flight.update_series)
 
             self.flight_plots[flight.uid] = plot, widget
             self.gravity_stack.addWidget(widget)
-            # gravity = flight.gravity
-            self.log.debug("Plotting using plot_flight_main method")
-            self.plot_defaults(plot, flight)
+            self.update_plot(plot, flight)
 
             # TODO: Need to disconnect these at some point?
             # Don't connect this until after self.plot_flight_main or it will trigger on initial draw
@@ -224,42 +250,6 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
         return plot, widget
 
-    def _init_slots(self):
-        """Initialize PyQt Signals/Slots for UI Buttons and Menus"""
-
-        # File Menu Actions #
-        self.action_exit.triggered.connect(self.exit)
-        self.action_file_new.triggered.connect(self.new_project_dialog)
-        self.action_file_open.triggered.connect(self.open_project_dialog)
-        self.action_file_save.triggered.connect(self.save_project)
-
-        # Project Menu Actions #
-        self.action_import_data.triggered.connect(self.import_data_dialog)
-        self.action_add_flight.triggered.connect(self.add_flight_dialog)
-
-        # Project Tree View Actions #
-        # self.prj_tree.doubleClicked.connect(self.log_tree)
-        self.project_tree.clicked.connect(self.flight_changed)
-
-        # Project Control Buttons #
-        self.prj_add_flight.clicked.connect(self.add_flight_dialog)
-        self.prj_import_data.clicked.connect(self.import_data_dialog)
-
-        # Channel Panel Buttons #
-        # self.selectAllChannels.clicked.connect(self.set_channel_state)
-
-        # self.gravity_channels.itemChanged.connect(self.channel_changed)
-        # self.resample_value.valueChanged[int].connect(self.resample_rate_changed)
-
-        # Console Window Actions #
-        self.combo_console_verbosity.currentIndexChanged[str].connect(self.set_logging_level)
-
-        # Testing #
-
-    def exit(self):
-        """PyQt Slot: Exit the PyQt application by closing the main window (self)"""
-        self.close()
-
     # Experimental Context Menu
     def create_actions(self):
         info_action = QtWidgets.QAction('&Info')
@@ -311,7 +301,6 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
         """
         self.tree_index = index
-        # qitem = self.project_tree.model().itemFromIndex(index)  # type: QtGui.QStandardItem
         qitem = index.internalPointer()
         if qitem is None:
             return
@@ -345,7 +334,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         # self.populate_channels(flight)
 
         if not grav_plot.plotted:
-            self.plot_defaults(grav_plot, flight)
+            self.update_plot(grav_plot, flight)
         return
 
     def redraw(self, flt_id: str) -> None:
@@ -364,9 +353,10 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.log.warning("Redrawing plot")
         plot, _ = self.flight_plots[flt_id]
         flt = self.project.get_flight(flt_id)  # type: prj.Flight
-        self.plot_defaults(plot, flt)
+        self.update_plot(plot, flt)
 
-    def plot_defaults(self, plot: LineGrabPlot, flight: prj.Flight) -> None:
+    @staticmethod
+    def update_plot(plot: LineGrabPlot, flight: prj.Flight) -> None:
         """
         Plot a flight on the main plot area as a time series, displaying gravity, long/cross and eotvos
         By default, expects a plot with 3 subplots accesible via getattr notation.
@@ -392,8 +382,8 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         state = flight.get_plot_state()
         for channel in state:
             label, axes = state[channel]
-            curve = PlotLine(flight.get_channel_data(channel), label, None, channel)
-            plot.add_series(curve, ax_index=axes)
+            curve = PlotCurve(channel, flight.get_channel_data(channel), label, axes)
+            plot.add_series(curve)
 
         for line in flight.lines:
             plot.draw_patch(line.start, line.stop, line.uid)
@@ -401,23 +391,9 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         if queue_draw:
             plot.draw()
 
-    @staticmethod
-    def plot_time_series(plot: LineGrabPlot, data: DataFrame, fields: Dict):
-        # Currently unused
-        plot.clear()
-        for index in fields:
-            if isinstance(fields[index], str):
-                series = data.get(fields[index])  # type: Series
-                plot.plot_series(plot[index], series)
-                continue
-            for field in fields[index]:
-                series = data.get(field)  # type: Series
-                plot.plot_series(plot[index], series)
-        plot.draw()
-        plot.plotted = True
-
-    def progress_dialog(self, title, min=0, max=1):
-        dialog = QtWidgets.QProgressDialog(title, "Cancel", min, max, self)
+    def progress_dialog(self, title, start=0, stop=1):
+        """Generate a progress bar dialog to show progress on long running operation."""
+        dialog = QtWidgets.QProgressDialog(title, "Cancel", start, stop, self)
         dialog.setWindowTitle("Loading...")
         dialog.setModal(True)
         dialog.setMinimumDuration(0)
