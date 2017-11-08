@@ -46,7 +46,7 @@ class BasePlottingCanvas(FigureCanvas):
         FigureCanvas.setSizePolicy(self, QSizePolicy.Expanding, QSizePolicy.Expanding)
         FigureCanvas.updateGeometry(self)
 
-        self._axes = []
+        self.axes = []
 
         self.figure.canvas.mpl_connect('button_press_event', self.onclick)
         self.figure.canvas.mpl_connect('button_release_event', self.onrelease)
@@ -58,19 +58,19 @@ class BasePlottingCanvas(FigureCanvas):
         # TODO: Experimenting with generating multiple plots, work with Chris on this class
 
         # Clear any current axes first
-        self._axes = []
+        self.axes = []
         for i in range(rows):
             if i == 0:
                 sp = self.figure.add_subplot(rows, 1, i+1)  # type: Axes
             else:  # Share x-axis with plot 0
-                sp = self.figure.add_subplot(rows, 1, i + 1, sharex=self._axes[0])  # type: Axes
+                sp = self.figure.add_subplot(rows, 1, i + 1, sharex=self.axes[0])  # type: Axes
 
             sp.grid(True)
             # sp.xaxis_date()
             # sp.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
             sp.name = 'Axes {}'.format(i)
             # sp.callbacks.connect('xlim_changed', set_x_formatter)
-            self._axes.append(sp)
+            self.axes.append(sp)
             i += 1
 
         self.compute_initial_figure()
@@ -97,7 +97,7 @@ class BasePlottingCanvas(FigureCanvas):
         pass
 
     def __len__(self):
-        return len(self._axes)
+        return len(self.axes)
 
 
 ClickInfo = namedtuple('ClickInfo', ['partners', 'x0', 'width', 'xpos', 'ypos'])
@@ -179,7 +179,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         self.rects = []
         self.resample = slice(None, None, 20)
         self.draw()
-        for ax in self._axes:  # type: Axes
+        for ax in self.axes:  # type: Axes
             for line in ax.lines[:]:
                 ax.lines.remove(line)
             for patch in ax.patches[:]:
@@ -192,17 +192,20 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         """Add one or more data series to the specified axes as a line plot."""
         drawn_axes = {}  # Record axes that need to be redrawn
         for line in lines:
-            axes = self._axes[line.axes]
+            axes = self.axes[line.axes]
             drawn_axes[line.axes] = axes
             line.line2d = axes.plot(line.data.index, line.data.values, label=line.label)[0]
             self._plot_lines[line.uid] = line
+            if propogate:
+                self._flight.update_series(line, action="add")
 
         for axes in drawn_axes.values():
+            self.log.info("Adding legend, relim and autoscaling on axes: {}".format(axes))
             axes.legend()
             axes.relim()
+            axes.autoscale_view()
 
-        self.log.info(self._plot_lines)
-
+        # self.log.info(self._plot_lines)
         if draw:
             self.figure.canvas.draw()
 
@@ -210,17 +213,16 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         pass
 
     def remove_series(self, uid):
-        for index, line_map in self._plot_lines.items():
-            if uid not in line_map:
-                continue
-            try:
-                self._axes[index].lines.remove(line_map[uid])
-                del self._plot_lines[index][uid]
-                # self.series_changed.emit( ,index, 'remove')
-                self._axes[index].relim()
-            except KeyError:
-                self.log.error("Couldn't remove line from axes.lines")
-
+        if uid not in self._plot_lines:
+            self.log.warning("Series UID could not be located in plot_lines")
+            return
+        curve = self._plot_lines[uid]  # type: PlotCurve
+        self._flight.update_series(curve, action="remove")
+        self.axes[curve.axes].lines.remove(curve.line2d)
+        self.axes[curve.axes].relim()
+        self.axes[curve.axes].autoscale_view()
+        self.axes[curve.axes].legend()  # Does this work?
+        del self._plot_lines[uid]
         self.figure.canvas.draw()
 
     def get_series_by_label(self, label: str):
@@ -229,7 +231,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
     # TODO: Clean this up, allow direct passing of FlightLine Objects
     # Also convert this/test this to be used in onclick to create lines
     def draw_patch(self, start, stop, uid):
-        caxes = self._axes[0]
+        caxes = self.axes[0]
         ylim = caxes.get_ylim()  # type: Tuple
         xstart = date2num(start)
         xstop = date2num(stop)
@@ -244,7 +246,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         right = num2date(c_rect.get_x() + c_rect.get_width())
         partners = [{'uid': uid, 'rect': c_rect, 'bg': None, 'left': left, 'right': right, 'label': None}]
 
-        for ax in self._axes:
+        for ax in self.axes:
             if ax == caxes:
                 continue
             ylim = ax.get_ylim()
@@ -270,20 +272,25 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         self.log.debug("Picked artist: {artist}".format(artist=event.artist))
 
     def onclick(self, event: MouseEvent):
-        # TO DO: What happens when a patch is added before a new plot is added?
+        # TODO: What happens when a patch is added before a new plot is added?
         if not self.plotted:
+            return
+        lines = 0
+        for ax in self.axes:
+            lines += len(ax.lines)
+        if lines <= 0:
             return
 
         if self.zooming or self.panning:  # Don't do anything when zooming/panning is enabled
             return
 
         # Check that the click event happened within one of the subplot axes
-        if event.inaxes not in self._axes:
+        if event.inaxes not in self.axes:
             return
         self.log.info("Xdata: {}".format(event.xdata))
 
         caxes = event.inaxes  # type: Axes
-        other_axes = [ax for ax in self._axes if ax != caxes]
+        other_axes = [ax for ax in self.axes if ax != caxes]
         # print("Current axes: {}\nOther axes obj: {}".format(repr(caxes), other_axes))
 
         if event.button == 3:
@@ -430,7 +437,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         return None
 
     def onmotion(self, event: MouseEvent):
-        if event.inaxes not in self._axes:
+        if event.inaxes not in self.axes:
             return
 
         if self.clicked is not None:
@@ -525,7 +532,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         self.resample = resample
 
         # Update line data using new resample rate
-        for ax in self._axes:
+        for ax in self.axes:
             if self._lines.get(id(ax), None) is not None:
                 # print(self._lines[id(ax)])
                 for line, series in self._lines[id(ax)]:
@@ -566,11 +573,11 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         return toolbar
 
     def __getitem__(self, index):
-        return self._axes[index]
+        return self.axes[index]
 
     def __iter__(self):
-        for axes in self._axes:
+        for axes in self.axes:
             yield axes
 
     def __len__(self):
-        return len(self._axes)
+        return len(self.axes)

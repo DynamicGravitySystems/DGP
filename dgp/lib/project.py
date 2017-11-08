@@ -427,16 +427,21 @@ class Flight(TreeItem):
         ev_frame = DataFrame(ev_corr, index=index, columns=['eotvos'])
         return ev_frame
 
-    def update_series(self, line: PlotCurve, ax_index: int, action: str):
-        existing = self._plotted_channels.get(ax_index, [])
+    @property
+    def channels(self):
+        """Return data channels as map of {uid: label, ...}"""
+        return {k: self._channels[k][1] for k in self._channels}
+
+    def update_series(self, line: PlotCurve, action: str):
+        """Update the Flight state tracking for plotted data channels"""
+        self.log.info("Doing {action} on line {line} in {flt}".format(action=action, line=line.label, flt=self.name))
         if action == 'add':
-            pass
+            self._plotted_channels[line.uid] = line.axes
         elif action == 'remove':
-            pass
-
-        existing.append(line.label.lower())
-
-        self._plotted_channels[ax_index] = existing
+            try:
+                del self._plotted_channels[line.uid]
+            except KeyError:
+                self.log.error("No plotted line to remove")
 
     def get_plot_state(self):
         # Return: {uid: (label, axes), ...}

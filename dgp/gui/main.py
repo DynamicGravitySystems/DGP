@@ -123,6 +123,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.current_flight_index = QtCore.QModelIndex()  # type: QtCore.QModelIndex
         self.tree_index = None  # type: QtCore.QModelIndex
         self.flight_plots = {}  # Stores plotter objects for flights
+        self._flight_channel_models = {}  # Store StandardItemModels for Flight channel selection
 
         self.project_tree = ProjectTreeView(parent=self, project=self.project)
         self.project_tree.setMinimumWidth(300)
@@ -160,7 +161,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
         # Project Tree View Actions #
         # self.prj_tree.doubleClicked.connect(self.log_tree)
-        self.project_tree.clicked.connect(self.flight_changed)
+        self.project_tree.clicked.connect(self._on_flight_changed)
 
         # Project Control Buttons #
         self.prj_add_flight.clicked.connect(self.add_flight_dialog)
@@ -250,6 +251,75 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
         return plot, widget
 
+    def populate_channel_tree(self, flight: prj.Flight=None):
+        if flight is None:
+            flight = self.current_flight
+
+        if flight.uid in self._flight_channel_models:
+            self.tree_channels.setModel(self._flight_channel_models[flight.uid])
+            self.tree_channels.expandAll()
+            return
+        else:
+            # Generate new StdModel
+            model = QStandardItemModel()
+            model.itemChanged.connect(self._update_channel_tree)
+
+            header_flags = Qt.ItemIsSelectable | Qt.ItemIsEnabled | Qt.ItemIsDropEnabled
+            headers = {}  # ax_index: header
+            for ax in range(len(self.flight_plots[flight.uid][0])):
+                plot_header = QStandardItem("Plot {idx}".format(idx=ax))
+                plot_header.setData(ax, Qt.UserRole)
+                plot_header.setFlags(header_flags)
+                plot_header.setBackground(QColor("LightBlue"))
+                headers[ax] = plot_header
+                model.appendRow(plot_header)
+
+            channels_header = QStandardItem("Available Channels::")
+            channels_header.setBackground(QColor("Orange"))
+            channels_header.setFlags(Qt.NoItemFlags)
+            model.appendRow(channels_header)
+
+            items = {}  # uid: item
+            item_flags = Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsDragEnabled
+            for uid, label in flight.channels.items():
+                item = QStandardItem(label)
+                item.setData(uid, role=Qt.UserRole)
+                item.setFlags(item_flags)
+                items[uid] = item
+
+            state = flight.get_plot_state()  # returns: {uid: (label, axes), ...}
+            for uid in state:
+                label, axes = state[uid]
+                headers[axes].appendRow(items[uid])
+
+            for uid in items:
+                if uid not in state:
+                    model.appendRow(items[uid])
+
+            self._flight_channel_models[flight.uid] = model
+            self.tree_channels.setModel(model)
+            self.tree_channels.expandAll()
+
+    def _update_channel_tree(self, item):
+        self.log.debug("Updating model: {}".format(item.text()))
+        parent = item.parent()
+        plot, _ = self.flight_plots[self.current_flight.uid]  # type: LineGrabPlot
+        uid = item.data(Qt.UserRole)
+        if parent is not None:
+            # TODO: Logic here to remove from previous sub-plots (i.e. dragged from plot 0 to plot 1)
+            plot.remove_series(uid)
+            label = item.text()
+            plot_ax = parent.data(Qt.UserRole)
+            self.log.debug("Item new parent: {}".format(item.parent().text()))
+            self.log.debug("Adding plot on axes: {}".format(plot_ax))
+            data = self.current_flight.get_channel_data(uid)
+            curve = PlotCurve(uid, data, label, plot_ax)
+            plot.add_series(curve, propogate=True)
+
+        else:
+            self.log.debug("Item has no parent (remove from plot)")
+            plot.remove_series(uid)
+
     # Experimental Context Menu
     def create_actions(self):
         info_action = QtWidgets.QAction('&Info')
@@ -279,7 +349,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
     # Plot functions
     #####
 
-    def flight_changed(self, index: QtCore.QModelIndex) -> None:
+    def _on_flight_changed(self, index: QtCore.QModelIndex) -> None:
         """
         PyQt Slot called upon change in flight selection using the Project Tree View.
         When a new flight is selected we want to plot the gravity channel in subplot 0, with cross and long in subplot 1
@@ -322,6 +392,8 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.text_info.clear()
         self.text_info.appendPlainText(str(flight))
 
+        self.populate_channel_tree(flight)
+
         # Check if there is a plot for this flight already
         if self.flight_plots.get(flight.uid, None) is not None:
             grav_plot, stack_widget = self.flight_plots[flight.uid]  # type: LineGrabPlot
@@ -337,6 +409,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             self.update_plot(grav_plot, flight)
         return
 
+    # TODO: is this necessary
     def redraw(self, flt_id: str) -> None:
         """
         Redraw the main flight plot (gravity, cross/long, eotvos) for the specific flight.
@@ -354,6 +427,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         plot, _ = self.flight_plots[flt_id]
         flt = self.project.get_flight(flt_id)  # type: prj.Flight
         self.update_plot(plot, flt)
+        # self.populate_channel_tree(flt)
 
     @staticmethod
     def update_plot(plot: LineGrabPlot, flight: prj.Flight) -> None:
@@ -383,7 +457,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         for channel in state:
             label, axes = state[channel]
             curve = PlotCurve(channel, flight.get_channel_data(channel), label, axes)
-            plot.add_series(curve)
+            plot.add_series(curve, propogate=False)
 
         for line in flight.lines:
             plot.draw_patch(line.start, line.stop, line.uid)
@@ -433,6 +507,8 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         if dialog.exec_():
             path, dtype, fields, flight = dialog.content
             # print("path: {}  type: {}\nfields: {}\nflight: {}".format(path, dtype, fields, flight))
+            # Delete flight model to force update
+            del self._flight_channel_models[flight.uid]
             self.import_data(path, dtype, flight, fields=fields)
             return
 
@@ -638,6 +714,7 @@ class ProjectTreeView(QtWidgets.QTreeView):
         event.accept()
 
     def flight_plot(self, item):
+        raise NotImplementedError
         print("Opening new plot for item")
         pass
 

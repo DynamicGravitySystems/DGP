@@ -236,7 +236,7 @@
        <item row="1" column="0" colspan="2">
         <widget class="QTreeView" name="tree_channels">
          <property name="dragEnabled">
-          <bool>true</bool>
+          <bool>false</bool>
          </property>
          <property name="dragDropOverwriteMode">
           <bool>false</bool>
@@ -247,6 +247,12 @@
          <property name="defaultDropAction">
           <enum>Qt::MoveAction</enum>
          </property>
+         <property name="uniformRowHeights">
+          <bool>true</bool>
+         </property>
+         <attribute name="headerVisible">
+          <bool>false</bool>
+         </attribute>
         </widget>
        </item>
       </layout>
