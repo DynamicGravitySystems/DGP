@@ -10,21 +10,25 @@ import logging
 import datetime
 from collections import namedtuple
 from typing import List, Tuple
+from functools import reduce
 
-from PyQt5 import QtWidgets
-from PyQt5.QtWidgets import QSizePolicy, QMenu, QAction
-from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtGui import QCursor
+# from PyQt5 import QtWidgets
+from PyQt5.QtWidgets import QSizePolicy, QMenu, QAction, QWidget, QToolBar
+from PyQt5.QtCore import pyqtSignal, QMimeData
+from PyQt5.QtGui import QCursor, QDropEvent, QDragEnterEvent, QDragMoveEvent
 from matplotlib.backends.backend_qt5agg import (FigureCanvasQTAgg as FigureCanvas,
                                                 NavigationToolbar2QT as NavigationToolbar)
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 from matplotlib.dates import DateFormatter, num2date, date2num
-from matplotlib.backend_bases import MouseEvent
+from matplotlib.ticker import NullFormatter, NullLocator, AutoLocator
+from matplotlib.backend_bases import MouseEvent, PickEvent
 from matplotlib.patches import Rectangle
 from pandas import Series
 import numpy as np
-from functools import partial
+
+from dgp.lib.types import PlotCurve
+from dgp.lib.project import Flight
 
 
 class BasePlottingCanvas(FigureCanvas):
@@ -34,41 +38,41 @@ class BasePlottingCanvas(FigureCanvas):
     """
     def __init__(self, parent=None, width=8, height=4, dpi=100):
         self.log = logging.getLogger(__name__)
+        self.log.info("Initializing BasePlottingCanvas")
         self.parent = parent
         fig = Figure(figsize=(width, height), dpi=dpi, tight_layout=True)
-        FigureCanvas.__init__(self, fig)
+        super().__init__(fig)
+        # FigureCanvas.__init__(self, fig)
 
         self.setParent(parent)
         FigureCanvas.setSizePolicy(self, QSizePolicy.Expanding, QSizePolicy.Expanding)
         FigureCanvas.updateGeometry(self)
 
-        self._axes = []
+        self.axes = []
 
         self.figure.canvas.mpl_connect('button_press_event', self.onclick)
         self.figure.canvas.mpl_connect('button_release_event', self.onrelease)
         self.figure.canvas.mpl_connect('motion_notify_event', self.onmotion)
+        self.figure.canvas.mpl_connect('pick_event', self.onpick)
 
     def generate_subplots(self, rows: int) -> None:
         """Generate vertically stacked subplots for comparing data"""
         # TODO: Experimenting with generating multiple plots, work with Chris on this class
-        # def set_x_formatter(axes):
-        #     print("Xlimit changed")
-        #     axes.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
 
         # Clear any current axes first
-        self._axes = []
+        self.axes = []
         for i in range(rows):
             if i == 0:
                 sp = self.figure.add_subplot(rows, 1, i+1)  # type: Axes
             else:  # Share x-axis with plot 0
-                sp = self.figure.add_subplot(rows, 1, i + 1, sharex=self._axes[0])  # type: Axes
+                sp = self.figure.add_subplot(rows, 1, i + 1, sharex=self.axes[0])  # type: Axes
 
             sp.grid(True)
             # sp.xaxis_date()
             # sp.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
             sp.name = 'Axes {}'.format(i)
             # sp.callbacks.connect('xlim_changed', set_x_formatter)
-            self._axes.append(sp)
+            self.axes.append(sp)
             i += 1
 
         self.compute_initial_figure()
@@ -85,6 +89,9 @@ class BasePlottingCanvas(FigureCanvas):
     def onclick(self, event: MouseEvent):
         pass
 
+    def onpick(self, event: PickEvent):
+        pass
+
     def onrelease(self, event: MouseEvent):
         pass
 
@@ -92,14 +99,14 @@ class BasePlottingCanvas(FigureCanvas):
         pass
 
     def __len__(self):
-        return len(self._axes)
+        return len(self.axes)
 
 
 ClickInfo = namedtuple('ClickInfo', ['partners', 'x0', 'width', 'xpos', 'ypos'])
 LineUpdate = namedtuple('LineUpdate', ['flight_id', 'action', 'uid', 'start', 'stop', 'label'])
 
 
-class LineGrabPlot(BasePlottingCanvas):
+class LineGrabPlot(BasePlottingCanvas, QWidget):
     """
     LineGrabPlot implements BasePlottingCanvas and provides an onclick method to select flight
     line segments.
@@ -107,8 +114,10 @@ class LineGrabPlot(BasePlottingCanvas):
 
     line_changed = pyqtSignal(LineUpdate)
 
-    def __init__(self, n=1, fid=None, title=None, parent=None):
-        BasePlottingCanvas.__init__(self, parent=parent)
+    def __init__(self, flight, n=1, fid=None, title=None, parent=None):
+        super().__init__(parent=parent)
+        self.setAcceptDrops(True)
+        self.log = logging.getLogger(__name__)
         self.rects = []
         self.zooming = False
         self.panning = False
@@ -118,7 +127,11 @@ class LineGrabPlot(BasePlottingCanvas):
         self.timespan = datetime.timedelta(0)
         self.resample = slice(None, None, 20)
         self._lines = {}
+        self._flight = flight  # type: Flight
         self._flight_id = fid
+
+        # Issue #36
+        self._plot_lines = {}  # {uid: PlotCurve, ...}
 
         if title:
             self.figure.suptitle(title, y=1)
@@ -131,6 +144,15 @@ class LineGrabPlot(BasePlottingCanvas):
         self._pop_menu = QMenu(self)
         self._pop_menu.addAction(QAction('Remove', self,
             triggered=self._remove_patch))
+
+    def update_plot(self):
+        raise NotImplementedError
+        flight_state = self._flight.get_plot_state()
+
+        for channel in flight_state:
+            label, axes = flight_state[channel]
+            if channel not in self._plot_lines:
+                pass
 
     def _remove_patch(self, partners):
         if self._selected_patch is not None:
@@ -152,49 +174,109 @@ class LineGrabPlot(BasePlottingCanvas):
 
     def draw(self):
         self.plotted = True
+        # self.figure.canvas.draw()
         super().draw()
 
     def clear(self):
         self._lines = {}
+        self.rects = []
         self.resample = slice(None, None, 20)
         self.draw()
-        for ax in self._axes:  # type: Axes
+        for ax in self.axes:  # type: Axes
             for line in ax.lines[:]:
                 ax.lines.remove(line)
-            # ax.cla()
-            # ax.grid(True)
-            # Reconnect the xlim_changed callback after clearing
-            # ax.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
-            # ax.callbacks.connect('xlim_changed', self._on_xlim_changed)
+            for patch in ax.patches[:]:
+                patch.remove()
+            ax.relim()
         self.draw()
+
+    # Issue #36 Enable data/channel selection and plotting
+    def add_series(self, *lines: PlotCurve, draw=True, propogate=True):
+        """Add one or more data series to the specified axes as a line plot."""
+        if not len(self._plot_lines):
+            # If there are 0 plot lines we need to reset the major locator/formatter
+            self.log.debug("Re-adding locator and major formatter to empty plot.")
+            self.axes[0].xaxis.set_major_locator(AutoLocator())
+            self.axes[0].xaxis.set_major_formatter(DateFormatter('%H:%M:%S'))
+
+        drawn_axes = {}  # Record axes that need to be redrawn
+        for line in lines:
+            axes = self.axes[line.axes]
+            drawn_axes[line.axes] = axes
+            line.line2d = axes.plot(line.data.index, line.data.values, label=line.label)[0]
+            self._plot_lines[line.uid] = line
+            if propogate:
+                self._flight.update_series(line, action="add")
+
+        for axes in drawn_axes.values():
+            self.log.info("Adding legend, relim and autoscaling on axes: {}".format(axes))
+            axes.legend()
+            axes.relim()
+            axes.autoscale_view()
+
+        # self.log.info(self._plot_lines)
+        if draw:
+            self.figure.canvas.draw()
+
+    def update_series(self, line: PlotCurve):
+        pass
+
+    def remove_series(self, uid):
+        if uid not in self._plot_lines:
+            self.log.warning("Series UID could not be located in plot_lines")
+            return
+        curve = self._plot_lines[uid]  # type: PlotCurve
+        axes = self.axes[curve.axes]  # type: Axes
+        self._flight.update_series(curve, action="remove")
+        axes.lines.remove(curve.line2d)
+        # axes.set
+        axes.relim()
+        axes.autoscale_view()
+        if not axes.lines:
+            axes.legend_.remove()  # Does this work? It does.
+        else:
+            axes.legend()
+        del self._plot_lines[uid]
+        if len(self._plot_lines) == 0:
+            self.log.warning("No lines on plotter axes.")
+
+        line_count = reduce(lambda acc, res: acc + res, (len(x.lines) for x in self.axes))
+        if not line_count:
+            self.log.warning("No Lines on any axes.")
+            # This works, but then need to replace the locator when adding data back
+            print(self.axes[0].xaxis.get_major_locator())
+            self.axes[0].xaxis.set_major_locator(NullLocator())
+            self.axes[0].xaxis.set_major_formatter(NullFormatter())
+
+        self.figure.canvas.draw()
+
+    def get_series_by_label(self, label: str):
+        pass
 
     # TODO: Clean this up, allow direct passing of FlightLine Objects
     # Also convert this/test this to be used in onclick to create lines
     def draw_patch(self, start, stop, uid):
-        caxes = self._axes[0]
+        caxes = self.axes[0]
         ylim = caxes.get_ylim()  # type: Tuple
         xstart = date2num(start)
         xstop = date2num(stop)
-        # print("Xstart: {}, Xend: {}".format(xstart, xstop))
         width = xstop - xstart
         height = ylim[1] - ylim[0]
-        # print("Adding patch at {}:{} height: {} width: {}".format(start, stop, height, width))
         c_rect = Rectangle((xstart, ylim[0]), width, height*2, alpha=0.2)
 
         caxes.add_patch(c_rect)
         caxes.draw_artist(caxes.patch)
 
-        # uid = gen_uuid('ln')
         left = num2date(c_rect.get_x())
         right = num2date(c_rect.get_x() + c_rect.get_width())
         partners = [{'uid': uid, 'rect': c_rect, 'bg': None, 'left': left, 'right': right, 'label': None}]
 
-        for ax in self._axes:
+        for ax in self.axes:
             if ax == caxes:
                 continue
             ylim = ax.get_ylim()
             height = ylim[1] - ylim[0]
-            a_rect = Rectangle((xstart, ylim[0]), width, height * 2, alpha=0.1)
+            a_rect = Rectangle((xstart, ylim[0]), width, height * 2, alpha=0.1, picker=True)
             ax.add_patch(a_rect)
             ax.draw_artist(ax.patch)
             left = num2date(a_rect.get_x())
@@ -208,26 +290,40 @@ class LineGrabPlot(BasePlottingCanvas):
         self.draw()
         return
 
+    # Testing: Maybe way to optimize rectangle selection/dragging code
+    def onpick(self, event: PickEvent):
+        # Pick needs to be enabled for artist ( picker=True )
+        # event.artist references the artist that triggered the pick
+        self.log.debug("Picked artist: {artist}".format(artist=event.artist))
+
     def onclick(self, event: MouseEvent):
-        # TO DO: What happens when a patch is added before a new plot is added?
+        # TODO: What happens when a patch is added before a new plot is added?
+        if not self.plotted:
+            return
+        lines = 0
+        for ax in self.axes:
+            lines += len(ax.lines)
+        if lines <= 0:
+            return
 
         if self.zooming or self.panning:  # Don't do anything when zooming/panning is enabled
             return
 
         # Check that the click event happened within one of the subplot axes
-        if event.inaxes not in self._axes:
+        if event.inaxes not in self.axes:
             return
         self.log.info("Xdata: {}".format(event.xdata))
 
         caxes = event.inaxes  # type: Axes
-        other_axes = [ax for ax in self._axes if ax != caxes]
+        other_axes = [ax for ax in self.axes if ax != caxes]
         # print("Current axes: {}\nOther axes obj: {}".format(repr(caxes), other_axes))
 
         if event.button == 3:
             # Right click
             for partners in self.rects:
                 patch = partners[0]['rect']
-                if patch.get_x() <= event.xdata <= patch.get_x() + patch.get_width():
+                hit, _ = patch.contains(event)
+                if hit:
                     cursor = QCursor()
                     self._selected_patch = partners
                     self._pop_menu.popup(cursor.pos())
@@ -263,7 +359,7 @@ class LineGrabPlot(BasePlottingCanvas):
             x0 = event.xdata - width / 2
             y0 = ylim[0]
             height = ylim[1] - ylim[0]
-            c_rect = Rectangle((x0, y0), width, height*2, alpha=0.1)
+            c_rect = Rectangle((x0, y0), width, height*2, alpha=0.1, picker=True)
 
             # Experimental replacement:
             # self.draw_patch(num2date(x0), num2date(x0+width), uid=gen_uuid('ln'))
@@ -366,7 +462,7 @@ class LineGrabPlot(BasePlottingCanvas):
         return None
 
     def onmotion(self, event: MouseEvent):
-        if event.inaxes not in self._axes:
+        if event.inaxes not in self.axes:
             return
 
         if self.clicked is not None:
@@ -407,29 +503,29 @@ class LineGrabPlot(BasePlottingCanvas):
 
         self.figure.canvas.draw()
 
-    def plot2(self, ax: Axes, series: Series):
-        if self._lines.get(id(ax), None) is None:
-            self._lines[id(ax)] = []
-        if len(series) > 10000:
-            sample_series = series[self.resample]
-        else:
-            # Don't resample small series
-            sample_series = series
-        line = ax.plot(sample_series.index, sample_series.values, label=sample_series.name)
-        ax.xaxis.set_major_formatter(DateFormatter('%H:%M:%S'))
+    def dragEnterEvent(self, event: QDragEnterEvent):
+        print("Drag entered widget")
+        event.acceptProposedAction()
 
-        ax.relim()
-        ax.autoscale_view()
-        self._lines[id(ax)].append((line, series))
-        self.timespan = self._timespan(*ax.get_xlim())
-        # print("Timespan: {}".format(self.timespan))
-        ax.legend()
+    def dragMoveEvent(self, event: QDragMoveEvent):
+        print("Drag moved")
+        event.acceptProposedAction()
+
+    def dropEvent(self, event: QDropEvent):
+        print("Drop detected")
+        event.acceptProposedAction()
+        print(event.source())
+        print(event.pos())
+        mime = event.mimeData()  # type: QMimeData
+        print(mime)
+        print(mime.text())
 
     @staticmethod
-    def _timespan(x0, x1):
+    def get_time_delta(x0, x1):
+        """Return a time delta from a plot axis limit"""
         return num2date(x1) - num2date(x0)
 
-    def _on_xlim_changed(self, changed: Axes):
+    def _on_xlim_changed(self, changed: Axes) -> None:
         """
         When the xlim changes (width of the graph), we want to apply a decimation algorithm to the
         dataset to speed up the visual performance of the graph. So when the graph is zoomed out
@@ -441,11 +537,10 @@ class LineGrabPlot(BasePlottingCanvas):
 
         Returns
         -------
-
+        None
         """
-        # print("Xlim changed for ax: {}".format(ax))
-        # TODO: Probably move this logic into its own function(s)
-        delta = self._timespan(*changed.get_xlim())
+        self.log.info("XLIM Changed!")
+        delta = self.get_time_delta(*changed.get_xlim())
         if self.timespan:
             ratio = delta/self.timespan * 100
         else:
@@ -462,24 +557,33 @@ class LineGrabPlot(BasePlottingCanvas):
 
         self.resample = resample
 
-        for ax in self._axes:
+        # Update line data using new resample rate
+        for ax in self.axes:
             if self._lines.get(id(ax), None) is not None:
                 # print(self._lines[id(ax)])
                 for line, series in self._lines[id(ax)]:
-                    print("xshape: {}".format(series.shape))
                     r_series = series[self.resample]
-                    print("Resample shape: {}".format(r_series.shape))
                     line[0].set_ydata(r_series.values)
                     line[0].set_xdata(r_series.index)
                     ax.draw_artist(line[0])
-                    print("Resampling to: {}".format(self.resample))
+                    self.log.debug("Resampling to: {}".format(self.resample))
             ax.relim()
             ax.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
         self.figure.canvas.draw()
 
-    def get_toolbar(self, parent=None) -> QtWidgets.QToolBar:
+    def get_toolbar(self, parent=None) -> QToolBar:
         """
-        Get a Matplotlib Toolbar for the current plot instance, and set toolbar actions (pan/zoom) specific to this plot.
+        Get a Matplotlib Toolbar for the current plot instance, and set toolbar actions (pan/zoom) specific to this plot
+        toolbar.actions() supports indexing, with the following default buttons at the specified index:
+        1: Home
+        2: Back
+        3: Forward
+        4: Pan
+        5: Zoom
+        6: Configure Sub-plots
+        7: Edit axis, curve etc..
+        8: Save the figure
+
         Parameters
         ----------
         [parent]
@@ -494,5 +598,12 @@ class LineGrabPlot(BasePlottingCanvas):
         toolbar.actions()[5].triggered.connect(self.toggle_zoom)
         return toolbar
 
-    def __getitem__(self, item):
-        return self._axes[item]
+    def __getitem__(self, index):
+        return self.axes[index]
+
+    def __iter__(self):
+        for axes in self.axes:
+            yield axes
+
+    def __len__(self):
+        return len(self.axes)

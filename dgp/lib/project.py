@@ -11,7 +11,7 @@ from pandas import HDFStore, DataFrame, Series
 
 from dgp.lib.meterconfig import MeterConfig, AT1Meter
 from dgp.lib.etc import gen_uuid
-from dgp.lib.types import Location, StillReading, FlightLine, TreeItem
+from dgp.lib.types import FlightLine, TreeItem, DataFile, PlotCurve
 import dgp.lib.eotvos as eov
 
 """
@@ -22,6 +22,17 @@ Overview:
 project.py provides the object framework for setting up a gravity processing project, which may include project specific
 configurations and settings, project specific files and imports, and the ability to segment a project into individual
 flights and flight lines.
+
+Guiding Principles:
+This module has been designed to be explicitly independant of Qt, primarly because it is tricky or impossible to pickle
+many Qt objects. This also in theory means that the classes contained within can be utilized for other uses, without
+relying on the specific Qt GUI package.
+Because of this, some abstraction has been necesarry particulary in the models.py class, which acts as a bridge between
+the Classes in this module, and the Qt GUI - providing the required interfaces to display and interact with the project
+from a graphical user interface (Qt).
+Though there is no dependence on Qt itself, there are a few methods e.g. the data() method in several classes, that are
+particular to our Qt GUI - specifically they return internal data based on a 'role' parameter, which is simply an int
+passed by a Qt Display Object telling the underlying code which data is being requested for a particular display type.
 
 Workflow:
     User creates new project - enters project name, description, and location to save project.
@@ -45,8 +56,7 @@ UserRole = 256
 
 
 def can_pickle(attribute):
-    """Helper function used by __getstate__ to determine if an attribute should be pickled."""
-    # TODO: As necessary change this to check against a list of un-pickleable types
+    """Helper function used by __getstate__ to determine if an attribute should/can be pickled."""
     no_pickle = [logging.Logger, DataFrame]
     for invalid in no_pickle:
         if isinstance(attribute, invalid):
@@ -98,7 +108,7 @@ class GravityProject:
 
         self.log.debug("Gravity Project Initialized")
 
-    def load_data(self, uid: str, prefix: str):
+    def load_data(self, uid: str, prefix: str='data'):
         """
         Load data from the project HDFStore (HDF5 format datafile) by prefix and uid.
 
@@ -107,6 +117,7 @@ class GravityProject:
         uid : str
             32 digit hexadecimal unique identifier for the file to load.
         prefix : str
+            Deprecated - parameter reserved while testing compatibility
             Data type prefix, 'gps' or 'gravity' specifying the HDF5 group to retrieve the file from.
 
         Returns
@@ -137,7 +148,7 @@ class GravityProject:
 
     def import_meter(self, path: pathlib.Path):
         """Import a meter configuration from an ini file and add it to the sensors dict"""
-        # TODO: Way to construct different meter types (other than AT1 meter) dynamically
+        # TODO: Need to construct different meter types (other than AT1 meter) dynamically
         if path.exists():
             try:
                 meter = AT1Meter.from_ini(path)
@@ -282,9 +293,10 @@ class Flight(TreeItem):
         # If uuid is passed use the value else assign new uuid
         # the letter 'f' is prepended to the uuid to ensure that we have a natural python name
         # as python variables cannot start with a number
+        self.log = logging.getLevelName(__name__)
         self._parent = parent
         self.name = name
-        self._uid = kwargs.get('uuid', gen_uuid('f'))
+        self._uid = kwargs.get('uuid', gen_uuid('flt'))
         self._icon = ':images/assets/flight_icon.png'
         self.meter = meter
         if 'date' in kwargs:
@@ -309,7 +321,15 @@ class Flight(TreeItem):
 
         self.flight_timeshift = 0
 
+        # Issue #36 Plotting data channels
+        self._channels = {}  # {uid: (file_uid, label), ...}
+        self._plotted_channels = {}  # {uid: axes_index, ...}
+        self._default_plot_map = {'gravity': 0, 'long': 1, 'cross': 1}
+
+        self._data_cache = {}  # {data_uid: DataFrame, ...}
+
         self.lines = Container(ctype=FlightLine, parent=self, name='Flight Lines')
+        self._data = Container(ctype=DataFile, parent=self, name='Data Files')
 
     @property
     def uid(self):
@@ -335,7 +355,7 @@ class Flight(TreeItem):
     @property
     def children(self):
         """Yield appropriate child objects for display in project Tree View"""
-        for child in [self.lines, self._gpsdata_uid, self._gravdata_uid]:
+        for child in [self.lines, self._data]:
             yield child
 
     @property
@@ -344,7 +364,7 @@ class Flight(TreeItem):
             return
         if self._gpsdata is None:
             self.log.warning("Loading gps data from HDFStore.")
-            self._gpsdata = self.parent.load_data(self._gpsdata_uid, 'gps')
+            self._gpsdata = self.parent.load_data(self._gpsdata_uid)
         return self._gpsdata
 
     @gps.setter
@@ -373,11 +393,10 @@ class Flight(TreeItem):
             pandas DataFrame containing Gravity Data
         """
         if self._gravdata_uid is None:
-            return
+            return None
         if self._gravdata is None:
             self.log.warning("Loading gravity data from HDFStore.")
-            self._gravdata = self.parent.load_data(self._gravdata_uid,
-                                                   'gravity')
+            self._gravdata = self.parent.load_data(self._gravdata_uid)
         return self._gravdata
 
     @gravity.setter
@@ -401,7 +420,6 @@ class Flight(TreeItem):
         gps_data = self.gps
         # WARNING: It is vital to use the .values of the pandas Series, otherwise the eotvos func
         # does not work properly for some reason
-        # TODO: Find out why that is ^
         index = gps_data['lat'].index
         lat = gps_data['lat'].values
         lon = gps_data['long'].values
@@ -411,8 +429,54 @@ class Flight(TreeItem):
         ev_frame = DataFrame(ev_corr, index=index, columns=['eotvos'])
         return ev_frame
 
-    def get_channel_data(self, channel):
-        return self.gravity[channel]
+    @property
+    def channels(self):
+        """Return data channels as map of {uid: label, ...}"""
+        return {k: self._channels[k][1] for k in self._channels}
+
+    def update_series(self, line: PlotCurve, action: str):
+        """Update the Flight state tracking for plotted data channels"""
+        self.log.info("Doing {action} on line {line} in {flt}".format(action=action, line=line.label, flt=self.name))
+        if action == 'add':
+            self._plotted_channels[line.uid] = line.axes
+        elif action == 'remove':
+            try:
+                del self._plotted_channels[line.uid]
+            except KeyError:
+                self.log.error("No plotted line to remove")
+
+    def get_plot_state(self):
+        # Return: {uid: (label, axes), ...}
+        state = {}
+        # TODO: Could refactor into dict comp
+        for uid in self._plotted_channels:
+            state[uid] = self._channels[uid][1], self._plotted_channels[uid]
+        return state
+
+    def get_channel_data(self, uid: str):
+        data_uid, field = self._channels[uid]
+        if data_uid in self._data_cache:
+            return self._data_cache[data_uid][field]
+        else:
+            self.log.warning("Loading datafile {} from HDF5 Store".format(data_uid))
+            self._data_cache[data_uid] = self.parent.load_data(data_uid)
+            return self.get_channel_data(uid)
+
+    def add_data(self, data: DataFile):
+        # Redundant? - apparently - as long as the model does its job
+        # self._data.add_child(data)
+
+        # Called to update GUI Tree
+        self.parent.update('add', data, self._data.uid)
+
+        for col in data.fields:
+            col_uid = gen_uuid('col')
+            self._channels[col_uid] = data.uid, col
+            # If defaults are specified then add them to the plotted_channels state
+            if col in self._default_plot_map:
+                self._plotted_channels[col_uid] = self._default_plot_map[col]
+        print("Plotted: ", self._plotted_channels)
+        print(self._channels)
 
     def add_line(self, start: datetime, stop: datetime, uid=None):
         """Add a flight line to the flight by start/stop index and sequence number"""
@@ -426,7 +490,12 @@ class Flight(TreeItem):
 
     def remove_line(self, uid):
         """ Remove a flight line """
-        return self.lines.remove_child(self.lines[uid])
+        self.lines.remove_child(self.lines[uid])
+        self.parent.update('remove', uid=uid)
+
+    def clear_lines(self):
+        """Removes all Lines from Flight"""
+        self.lines.clear()
 
     def __iter__(self):
         """
@@ -461,7 +530,8 @@ class Flight(TreeItem):
 
 
 class Container(TreeItem):
-    ctypes = {Flight, MeterConfig, FlightLine}
+    # Arbitrary list of permitted types
+    ctypes = {Flight, MeterConfig, FlightLine, DataFile}
 
     def __init__(self, ctype, parent, *args, **kwargs):
         """
@@ -491,7 +561,7 @@ class Container(TreeItem):
         """
         assert ctype in Container.ctypes
         # assert parent is not None
-        self._uid = gen_uuid('c')
+        self._uid = gen_uuid('box')
         self._parent = parent
         self._ctype = ctype
         self._name = kwargs.get('name', self._ctype.__name__)
@@ -529,10 +599,14 @@ class Container(TreeItem):
             return "Container for {} type objects.".format(self._name)
         return self._name
 
-    # TODO: Implement recursive search function to locate child/object by UID in the tree.
-
     def child(self, uid):
         return self._children[uid]
+
+    def clear(self):
+        """Remove all items from the container."""
+        del self._children
+        self._children = {}
+
 
     def add_child(self, child) -> bool:
         """
@@ -638,7 +712,7 @@ class AirborneProject(GravityProject, TreeItem):
         return "{} :: <{}>".format(self.name, self.projectdir.resolve())
 
     # TODO: Move this into the GravityProject base class?
-    # Although we use flight_uid here, this could be abstracted however.
+    # Although we use flight_uid here, this could be abstracted.
     def add_data(self, df: DataFrame, path: pathlib.Path, dtype: str, flight_uid: str):
         """
         Add an imported DataFrame to a specific Flight in the project.
@@ -669,17 +743,22 @@ class AirborneProject(GravityProject, TreeItem):
         self.log.debug("Ingesting data and exporting to hdf5 store")
 
         # Fixes NaturalNameWarning by ensuring first char is letter ('f').
-        file_uid = 'f' + uuid.uuid4().hex[1:]
+        file_uid = gen_uuid('dat')
 
         with HDFStore(str(self.hdf_path)) as store:
             # Separate data into groups by data type (GPS & Gravity Data)
             # format: 'table' pytables format enables searching/appending, fixed is more performant.
-            store.put('{typ}/{uid}'.format(typ=dtype, uid=file_uid), df, format='fixed', data_columns=True)
+            store.put('data/{uid}'.format(uid=file_uid), df, format='fixed', data_columns=True)
             # Store a reference to the original file path
             self.data_map[file_uid] = path
         try:
             flight = self.get_flight(flight_uid)
+
+            flight.add_data(DataFile(file_uid, path, [col for col in df.keys()], dtype))
             if dtype == 'gravity':
+                if flight.gravity is not None:
+                    print("Clearing old FlightLines")
+                    flight.clear_lines()
                 flight.gravity = file_uid
             elif dtype == 'gps':
                 flight.gps = file_uid
@@ -687,7 +766,8 @@ class AirborneProject(GravityProject, TreeItem):
         except KeyError:
             return False
 
-    def update(self, action: str, item, uid=None) -> bool:
+    def update(self, action: str, item=None, uid=None) -> bool:
+        """Used to update the wrapping (parent) ProjectModel of this project for GUI display"""
         if self.parent is not None:
             print("Calling update on parent model with params: {} {} {}".format(action, item, uid))
             self.parent.update(action, item, uid)

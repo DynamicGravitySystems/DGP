@@ -3,6 +3,9 @@
 from abc import ABC, abstractmethod
 from collections import namedtuple
 
+from matplotlib.lines import Line2D
+from pandas import Series
+
 from dgp.lib.etc import gen_uuid
 
 """
@@ -18,11 +21,9 @@ Location = namedtuple('Location', ['lat', 'long', 'alt'])
 
 StillReading = namedtuple('StillReading', ['gravity', 'location', 'time'])
 
-# FlightLine = namedtuple('FlightLine', ['uid', 'sequence', 'file_ref', 'start', 'end', 'parent'])
-
 DataCurve = namedtuple('DataCurve', ['channel', 'data'])
 
-# DataPacket = namedtuple('DataPacket', ['data', 'path', 'dtype'])
+DataFile = namedtuple('DataFile', ['uid', 'filename', 'fields', 'dtype'])
 
 
 class TreeItem(ABC):
@@ -54,6 +55,46 @@ class TreeItem(ABC):
     @abstractmethod
     def __str__(self):
         pass
+
+
+class PlotCurve:
+    def __init__(self, uid: str, data: Series, label: str=None, axes: int=0, color: str=None):
+        self._uid = uid
+        self._data = data
+        self._label = label
+        if label is None:
+            self._label = self._data.name
+        self.axes = axes
+        self._line2d = None
+        self._changed = False
+
+    @property
+    def uid(self) -> str:
+        return self._uid
+
+    @property
+    def data(self) -> Series:
+        return self._data
+
+    @data.setter
+    def data(self, value: Series):
+        self._changed = True
+        self._data = value
+
+    @property
+    def label(self) -> str:
+        return self._label
+
+    @property
+    def line2d(self):
+        return self._line2d
+
+    @line2d.setter
+    def line2d(self, value: Line2D):
+        assert isinstance(value, Line2D)
+        print("Updating line in PlotCurve: ", self._label)
+        self._line2d = value
+        print(self._line2d)
 
 
 class FlightLine(TreeItem):

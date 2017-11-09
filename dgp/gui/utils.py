@@ -7,7 +7,8 @@ from typing import Union
 LOG_FORMAT = logging.Formatter(fmt="%(asctime)s:%(levelname)s - %(module)s:%(funcName)s :: %(message)s",
                                datefmt="%H:%M:%S")
 LOG_COLOR_MAP = {'debug': 'blue', 'info': 'yellow', 'warning': 'brown', 'error': 'red', 'critical': 'orange'}
-
+LOG_LEVEL_MAP = {'debug': logging.DEBUG, 'info': logging.INFO, 'warning': logging.WARNING, 'error': logging.ERROR,
+                 'critical': logging.CRITICAL}
 
 class ConsoleHandler(logging.Handler):
     """Custom Logging Handler allowing the specification of a custom destination e.g. a QTextEdit area."""

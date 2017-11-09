@@ -24,7 +24,13 @@ info_dialog, _ = loadUiType('dgp/gui/ui/info_dialog.ui')
 
 
 class BaseDialog(QtWidgets.QDialog):
-    pass
+    def __init__(self):
+        self.log = logging.getLogger(__name__)
+        error_handler = ConsoleHandler(self.write_error)
+        error_handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+        error_handler.setLevel(logging.DEBUG)
+        self.log.addHandler(error_handler)
+        pass
 
 
 class ImportData(QtWidgets.QDialog, data_dialog):
@@ -88,7 +94,7 @@ class ImportData(QtWidgets.QDialog, data_dialog):
         path = pathlib.Path(self.file_model.filePath(index))
         # TODO: Verify extensions for selected files before setting below
         if path.is_file():
-            self.field_path.setText(os.path.normpath(path))  # TODO: Change this to use pathlib function
+            self.field_path.setText(str(path.resolve()))
             self.path = path
         else:
             return
@@ -131,7 +137,7 @@ class AdvancedImport(QtWidgets.QDialog, advanced_import):
         """
         super().__init__(parent=parent)
         self.setupUi(self)
-        self._preview_limit = 3
+        self._preview_limit = 5
         self._project = project
         self._path = None
         self._flight = flight
@@ -145,7 +151,8 @@ class AdvancedImport(QtWidgets.QDialog, advanced_import):
         self.line_path.textChanged.connect(self._preview)
         self.btn_browse.clicked.connect(self.browse_file)
         self.btn_setcols.clicked.connect(self._capture)
-        self.btn_reload.clicked.connect(functools.partial(self._preview, self._path))
+        # This doesn't work, as the partial function is created with self._path which is None
+        # self.btn_reload.clicked.connect(functools.partial(self._preview, self._path))
 
     @property
     def content(self) -> (str, str, List, prj.Flight):
@@ -170,6 +177,8 @@ class AdvancedImport(QtWidgets.QDialog, advanced_import):
                                                         'gravity')
 
     def _preview(self, path: str):
+        if path is None:
+            return
         path = pathlib.Path(path)
         if not path.exists():
             print("Path doesn't exist")
@@ -264,7 +273,7 @@ class CreateProject(QtWidgets.QDialog, project_dialog):
         super().__init__(*args)
         self.setupUi(self)
 
-        # TODO: Abstract this to a base dialog class so that it can be easily implemented in all dialogs
+        # TODO: Abstract logging setup to a base dialog class so that it can be easily implemented in all dialogs
         self.log = logging.getLogger(__name__)
         error_handler = ConsoleHandler(self.write_error)
         error_handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))

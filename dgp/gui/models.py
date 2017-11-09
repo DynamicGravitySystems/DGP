@@ -5,11 +5,12 @@
 from typing import List, Union
 
 from PyQt5 import Qt, QtCore
-from PyQt5.Qt import QWidget, QModelIndex, QAbstractItemModel
+from PyQt5.Qt import QWidget, QModelIndex, QAbstractItemModel, QStandardItemModel
 from PyQt5.QtCore import QModelIndex, QVariant
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QStandardItem
 from PyQt5.QtWidgets import QComboBox
 
+from dgp.lib.etc import gen_uuid
 from dgp.lib.types import TreeItem, FlightLine
 from dgp.lib.project import Container, AirborneProject, Flight, MeterConfig
 
@@ -135,6 +136,11 @@ class ProjectItem:
         # _hasdata records whether the item is a class of ProjectItem or TreeItem, and thus has a data() method.
         self._hasdata = True
 
+        if hasattr(item, 'uid'):
+            self._uid = item.uid
+        else:
+            self._uid = gen_uuid('prj')
+
         if not issubclass(item.__class__, TreeItem) or isinstance(item, ProjectItem):
             self._hasdata = False
         if not hasattr(item, 'children'):
@@ -157,7 +163,7 @@ class ProjectItem:
     def uid(self) -> Union[str, None]:
         """Return the UID of the internal object if it has one, else None"""
         if not self._hasdata:
-            return None
+            return self._uid
         return self.object.uid
 
     def search(self, uid) -> Union['ProjectItem', None]:
@@ -227,7 +233,7 @@ class ProjectItem:
 
         """
         for subitem in self._children[:]:  # type: ProjectItem
-            if subitem.object.uid == child.uid:
+            if subitem.uid == child.uid:
                 print("removing subitem: {}".format(subitem))
                 self._children.remove(subitem)
                 return True
@@ -282,7 +288,7 @@ class ProjectItem:
             return self._parent.indexof(self)
         return 0
 
-    def parent_item(self):
+    def parent(self):
         return self._parent
 
 
@@ -290,6 +296,7 @@ class ProjectItem:
 # adding a flight, which would then update the model, without rebuilding the entire structure as
 # is currently done.
 # TODO: Can we inherit from AirborneProject, to create a single interface for modifying, and displaying the project?
+# or vice versa
 class ProjectModel(QtCore.QAbstractItemModel):
     def __init__(self, project, parent=None):
         super().__init__(parent=parent)
@@ -299,11 +306,10 @@ class ProjectModel(QtCore.QAbstractItemModel):
         self._project.parent = self
 
     def update(self, action, obj, uid=None):
-        # TODO: Use this function to delegate add/remove methods based on obj type (i.e. child, or sub-children)
         if action.lower() == 'add':
             self.add_child(obj, uid)
         elif action.lower() == 'remove':
-            self.remove_child(obj, uid)
+            self.remove_child(uid)
 
     def add_child(self, item, uid=None):
         """
@@ -326,7 +332,6 @@ class ProjectModel(QtCore.QAbstractItemModel):
         ------
         NotImplementedError:
             Raised if item is not an instance of a recognized type, currently Flight or MeterConfig
-
         """
         # If uid is provided, search for it and add the item (we won't check here for type correctness)
         if uid is not None:
@@ -356,21 +361,20 @@ class ProjectModel(QtCore.QAbstractItemModel):
         print("No match on contianer for object: {}".format(item))
         return False
 
-    def remove_child(self, item, uid=None):
-        for wrapper in self._root_item.children:  # type: ProjectItem
-            # Get the internal object representation (within the ProjectItem)
-            c_obj = wrapper.object  # type: Container
-            if isinstance(c_obj, Container) and c_obj.ctype == item.__class__:
-                cindex = self.createIndex(self._root_item.indexof(wrapper), 1, wrapper)
-                self.beginRemoveRows(cindex, wrapper.indexof(item), wrapper.indexof(item))
-                c_obj.remove_child(item)
-                # ProjectItem remove_child accepts a proper object (i.e. not a ProjectItem), and compares the UID
-                wrapper.remove_child(item)
-                self.endRemoveRows()
-                return True
-        return False
+    def remove_child(self, uid):
+        item = self._root_item.search(uid)
+        item_index = self.createIndex(item.index(), 1, item)
+        parent = item.parent()
+        cindex = self.createIndex(0, 0, parent)
 
-    def data(self, index: QModelIndex, role: int=None):
+        # Execute removal
+        self.beginRemoveRows(cindex, item_index.row(), item_index.row())
+        parent.remove_child(item)
+        self.endRemoveRows()
+        return
+
+    @staticmethod
+    def data(index: QModelIndex, role: int=None):
         if not index.isValid():
             return QVariant()
 
@@ -380,7 +384,8 @@ class ProjectModel(QtCore.QAbstractItemModel):
         else:
             return item.data(role)
 
-    def itemFromIndex(self, index: QModelIndex):
+    @staticmethod
+    def itemFromIndex(index: QModelIndex):
         return index.internalPointer()
 
     def flags(self, index: QModelIndex):
@@ -412,7 +417,7 @@ class ProjectModel(QtCore.QAbstractItemModel):
             return QModelIndex()
 
         child_item = index.internalPointer()  # type: ProjectItem
-        parent_item = child_item.parent_item()  # type: ProjectItem
+        parent_item = child_item.parent()  # type: ProjectItem
         if parent_item == self._root_item:
             return QModelIndex()
         return self.createIndex(parent_item.row(), 0, parent_item)
@@ -424,7 +429,8 @@ class ProjectModel(QtCore.QAbstractItemModel):
         else:
             return self._root_item.child_count()
 
-    def columnCount(self, parent: QModelIndex=QModelIndex(), *args, **kwargs):
+    @staticmethod
+    def columnCount(parent: QModelIndex=QModelIndex(), *args, **kwargs):
         return 1
 
     # Highly Experimental:
@@ -474,4 +480,21 @@ class SelectionDelegate(Qt.QStyledItemDelegate):
         editor.setGeometry(option.rect)
 
 
+# Experimental: Issue #36
+class DataChannel(QStandardItem):
+    def __init__(self):
+        super().__init__(self)
+        self.setDragEnabled(True)
 
+    def onclick(self):
+        pass
+
+
+class ChannelListModel(QStandardItemModel):
+    def __init__(self):
+        pass
+
+    def dropMimeData(self, QMimeData, Qt_DropAction, p_int, p_int_1, QModelIndex):
+        print("Mime data dropped")
+        pass
+    pass
