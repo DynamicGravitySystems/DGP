@@ -1,19 +1,34 @@
 # coding=utf-8
-# This file is part of DynamicGravityProcessor (https://github.com/DynamicGravitySystems/DGP).
-import numpy as np
-import scipy.interpolate
-import matplotlib.pyplot as plt
 
-def interpolate_1d_vector(vector, factor):
+# This file is part of DynamicGravityProcessor (https://github.com/DynamicGravitySystems/DGP).
+
+import numpy as np
+
+# bradyzp: Updated function to remove dependency on scipy, using numpy.interp instead.
+# bradyzp: Code cleanup and re-write docstrings to conform to project specs.
+
+
+def interpolate_1d_vector(vector: np.array, factor: int):
     """
-    Interpolate, i.e. upsample, a given 1D vector by a specific interpolation factor.
-    :param vector: 1D data vector
-    :param factor: factor for interpolation (must be integer)
-    :return: interpolated 1D vector by a given factor
+    Interpolate i.e. up sample a give 1D vector by specified interpolation factor
+
+    Parameters
+    ----------
+    vector: np.array
+        1D Data Vector
+    factor: int
+        Interpolation factor
+
+    Returns
+    -------
+    np.array:
+        1D Array interpolated by 'factor'
+
     """
     x = np.arange(np.size(vector))
     y = vector
-    f = scipy.interpolate.interp1d(x, y)
+    # f = scipy.interpolate.interp1d(x, y)
+    f = np.interp(x, x, y)
 
     x_extended_by_factor = np.linspace(x[0], x[-1], np.size(x) * factor)
     y_interpolated = np.zeros(np.size(x_extended_by_factor))
@@ -25,27 +40,45 @@ def interpolate_1d_vector(vector, factor):
 
     return y_interpolated
 
-def find_time_delay(s1,s2,datarate,resolution=None):
+
+def find_time_delay(s1: np.array, s2: np.array, datarate: int, resolution: bool=None):
     """
-        Python implementacion of Daniel Aliod time syncronization matlab function
-        Find the time shift or dalay between to arrays.If s1 is avanced to s2 timedelay is psitive
-        :param array: s1 is 1D array
-        :param array: s2 1D array
-        :param datarate: Scalar data sampling rate in Hz
-        :param resolution: if None , uses data without oversampling
-        :return: time shift between s1 and s2
-        """
+    Python implementation of Daniel Aliod's time synchronization MATLAB function.
+    Finds the time shift or delay between two arrays.
+    If s1 is advanced to s2, timedelay is positive.
+
+    Parameters
+    ----------
+    s1: np.array
+        Input array 1
+    s2: np.array
+        Input array 2
+    datarate: int
+        Scalar data sampling rate in Hz
+    resolution: bool
+        If False use data without oversampling
+        If True, calculates time delay with 10* oversampling
+
+    Returns
+    -------
+    Scalar:
+        Time shift between s1 and s2
+    """
     lagwith = 200
-    if resolution is None:
-        out = plt.xcorr(s1,s2, maxlags=lagwith)
-        scale=datarate
+    if not resolution:
+        c = np.correlate(s1, s2, mode=2)
+        len_s1 = len(s1)
+        scale = datarate
     else:
-        is1 = interpolate_1d_vector(s1,datarate)
-        is2 = interpolate_1d_vector(s2,datarate)
-        out = plt.xcorr(is2,is1, maxlags=lagwith)
-        scale=datarate*10
+        s1 = interpolate_1d_vector(s1, datarate)
+        s2 = interpolate_1d_vector(s2, datarate)
+        c = np.correlate(s1, s2, mode=2)
+        len_s1 = len(s1)
+        scale = datarate*10
+
     shift = np.linspace(-lagwith, lagwith, 2 * lagwith + 1)
-    corre = out[1]
+    # lags = np.arange(-lagwith, lagwith+1)
+    corre = c[len_s1 - 1 - lagwith:len_s1 + lagwith]
     maxi = np.argmax(corre)
     dm1 = abs(corre[maxi] - corre[maxi - 1])
     dp1 = abs(corre[maxi] - corre[maxi + 1])
@@ -55,6 +88,6 @@ def find_time_delay(s1,s2,datarate,resolution=None):
         z = np.polyfit(shift[maxi - 1:maxi + 2], corre[maxi - 1:maxi + 2], 2)
 
     dt1 = z[1] / (2 * z[0])
-    #print(dt1 / scale)
+
     # return time shift
     return dt1/scale
