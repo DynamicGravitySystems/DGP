@@ -233,7 +233,7 @@ class ProjectItem:
 
         """
         for subitem in self._children[:]:  # type: ProjectItem
-            if subitem.object.uid == child.uid:
+            if subitem.uid == child.uid:
                 print("removing subitem: {}".format(subitem))
                 self._children.remove(subitem)
                 return True
@@ -309,7 +309,7 @@ class ProjectModel(QtCore.QAbstractItemModel):
         if action.lower() == 'add':
             self.add_child(obj, uid)
         elif action.lower() == 'remove':
-            self.remove_child(obj, uid)
+            self.remove_child(uid)
 
     def add_child(self, item, uid=None):
         """
@@ -361,19 +361,17 @@ class ProjectModel(QtCore.QAbstractItemModel):
         print("No match on contianer for object: {}".format(item))
         return False
 
-    def remove_child(self, item, uid=None):
-        for wrapper in self._root_item.children:  # type: ProjectItem
-            # Get the internal object representation (within the ProjectItem)
-            c_obj = wrapper.object  # type: Container
-            if isinstance(c_obj, Container) and c_obj.ctype == item.__class__:
-                cindex = self.createIndex(self._root_item.indexof(wrapper), 1, wrapper)
-                self.beginRemoveRows(cindex, wrapper.indexof(item), wrapper.indexof(item))
-                c_obj.remove_child(item)
-                # ProjectItem remove_child accepts a proper object (i.e. not a ProjectItem), and compares the UID
-                wrapper.remove_child(item)
-                self.endRemoveRows()
-                return True
-        return False
+    def remove_child(self, uid):
+        item = self._root_item.search(uid)
+        item_index = self.createIndex(item.index(), 1, item)
+        parent = item.parent()
+        cindex = self.createIndex(0, 0, parent)
+
+        # Execute removal
+        self.beginRemoveRows(cindex, item_index.row(), item_index.row())
+        parent.remove_child(item)
+        self.endRemoveRows()
+        return
 
     @staticmethod
     def data(index: QModelIndex, role: int=None):

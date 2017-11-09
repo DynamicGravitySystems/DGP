@@ -10,6 +10,7 @@ import logging
 import datetime
 from collections import namedtuple
 from typing import List, Tuple
+from functools import reduce
 
 # from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QSizePolicy, QMenu, QAction, QWidget, QToolBar
@@ -20,6 +21,7 @@ from matplotlib.backends.backend_qt5agg import (FigureCanvasQTAgg as FigureCanva
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 from matplotlib.dates import DateFormatter, num2date, date2num
+from matplotlib.ticker import NullFormatter, NullLocator, AutoLocator
 from matplotlib.backend_bases import MouseEvent, PickEvent
 from matplotlib.patches import Rectangle
 from pandas import Series
@@ -115,6 +117,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
     def __init__(self, flight, n=1, fid=None, title=None, parent=None):
         super().__init__(parent=parent)
         self.setAcceptDrops(True)
+        self.log = logging.getLogger(__name__)
         self.rects = []
         self.zooming = False
         self.panning = False
@@ -190,6 +193,12 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
     # Issue #36 Enable data/channel selection and plotting
     def add_series(self, *lines: PlotCurve, draw=True, propogate=True):
         """Add one or more data series to the specified axes as a line plot."""
+        if not len(self._plot_lines):
+            # If there are 0 plot lines we need to reset the major locator/formatter
+            self.log.debug("Re-adding locator and major formatter to empty plot.")
+            self.axes[0].xaxis.set_major_locator(AutoLocator())
+            self.axes[0].xaxis.set_major_formatter(DateFormatter('%H:%M:%S'))
+
         drawn_axes = {}  # Record axes that need to be redrawn
         for line in lines:
             axes = self.axes[line.axes]
@@ -217,12 +226,28 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
             self.log.warning("Series UID could not be located in plot_lines")
             return
         curve = self._plot_lines[uid]  # type: PlotCurve
+        axes = self.axes[curve.axes]  # type: Axes
         self._flight.update_series(curve, action="remove")
-        self.axes[curve.axes].lines.remove(curve.line2d)
-        self.axes[curve.axes].relim()
-        self.axes[curve.axes].autoscale_view()
-        self.axes[curve.axes].legend()  # Does this work?
+        axes.lines.remove(curve.line2d)
+        # axes.set
+        axes.relim()
+        axes.autoscale_view()
+        if not axes.lines:
+            axes.legend_.remove()  # Does this work? It does.
+        else:
+            axes.legend()
         del self._plot_lines[uid]
+        if len(self._plot_lines) == 0:
+            self.log.warning("No lines on plotter axes.")
+
+        line_count = reduce(lambda acc, res: acc + res, (len(x.lines) for x in self.axes))
+        if not line_count:
+            self.log.warning("No Lines on any axes.")
+            # This works, but then need to replace the locator when adding data back
+            print(self.axes[0].xaxis.get_major_locator())
+            self.axes[0].xaxis.set_major_locator(NullLocator())
+            self.axes[0].xaxis.set_major_formatter(NullFormatter())
+
         self.figure.canvas.draw()
 
     def get_series_by_label(self, label: str):
@@ -514,6 +539,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         -------
         None
         """
+        self.log.info("XLIM Changed!")
         delta = self.get_time_delta(*changed.get_xlim())
         if self.timespan:
             ratio = delta/self.timespan * 100

@@ -326,6 +326,8 @@ class Flight(TreeItem):
         self._plotted_channels = {}  # {uid: axes_index, ...}
         self._default_plot_map = {'gravity': 0, 'long': 1, 'cross': 1}
 
+        self._data_cache = {}  # {data_uid: DataFrame, ...}
+
         self.lines = Container(ctype=FlightLine, parent=self, name='Flight Lines')
         self._data = Container(ctype=DataFile, parent=self, name='Data Files')
 
@@ -453,8 +455,12 @@ class Flight(TreeItem):
 
     def get_channel_data(self, uid: str):
         data_uid, field = self._channels[uid]
-        # TODO: Optimize by using already loaded data
-        return self.parent.load_data(data_uid)[field]
+        if data_uid in self._data_cache:
+            return self._data_cache[data_uid][field]
+        else:
+            self.log.warning("Loading datafile {} from HDF5 Store".format(data_uid))
+            self._data_cache[data_uid] = self.parent.load_data(data_uid)
+            return self.get_channel_data(uid)
 
     def add_data(self, data: DataFile):
         # Redundant? - apparently - as long as the model does its job
@@ -484,7 +490,8 @@ class Flight(TreeItem):
 
     def remove_line(self, uid):
         """ Remove a flight line """
-        return self.lines.remove_child(self.lines[uid])
+        self.lines.remove_child(self.lines[uid])
+        self.parent.update('remove', uid=uid)
 
     def clear_lines(self):
         """Removes all Lines from Flight"""
@@ -759,7 +766,7 @@ class AirborneProject(GravityProject, TreeItem):
         except KeyError:
             return False
 
-    def update(self, action: str, item, uid=None) -> bool:
+    def update(self, action: str, item=None, uid=None) -> bool:
         """Used to update the wrapping (parent) ProjectModel of this project for GUI display"""
         if self.parent is not None:
             print("Calling update on parent model with params: {} {} {}".format(action, item, uid))
