@@ -21,6 +21,7 @@ advanced_import, _ = loadUiType('dgp/gui/ui/advanced_data_import.ui')
 flight_dialog, _ = loadUiType('dgp/gui/ui/add_flight_dialog.ui')
 project_dialog, _ = loadUiType('dgp/gui/ui/project_dialog.ui')
 info_dialog, _ = loadUiType('dgp/gui/ui/info_dialog.ui')
+line_label_dialog, _ = loadUiType('dgp/gui/ui/set_line_label.ui')
 
 
 class BaseDialog(QtWidgets.QDialog):
@@ -368,3 +369,30 @@ class InfoDialog(QtWidgets.QDialog, info_dialog):
     def accept(self):
         self.updates = self._model.updates
         super().accept()
+
+class SetLineLabelDialog(QtWidgets.QDialog, line_label_dialog):
+    def __init__(self, label):
+        super().__init__()
+        self.setupUi(self)
+
+        self._label = label
+
+        if self._label is not None:
+            self.label_txt.setText(self._label)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+
+    def accept(self):
+        text = self.label_txt.text().strip()
+        if text:
+            self._label = text
+        else:
+            self._label = None
+        super().accept()
+
+    def reject(self):
+        super().reject()
+
+    @property
+    def label_text(self):
+        return self._label

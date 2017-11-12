@@ -29,6 +29,7 @@ import numpy as np
 
 from dgp.lib.types import PlotCurve
 from dgp.lib.project import Flight
+from dgp.gui.dialogs import SetLineLabelDialog
 
 
 class BasePlottingCanvas(FigureCanvas):
@@ -72,6 +73,7 @@ class BasePlottingCanvas(FigureCanvas):
             # sp.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
             sp.name = 'Axes {}'.format(i)
             # sp.callbacks.connect('xlim_changed', set_x_formatter)
+            sp.callbacks.connect('ylim_changed', self._on_ylim_changed)
             self.axes.append(sp)
             i += 1
 
@@ -144,6 +146,10 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         self._pop_menu = QMenu(self)
         self._pop_menu.addAction(QAction('Remove', self,
             triggered=self._remove_patch))
+        # self._pop_menu.addAction(QAction('Set Label', self,
+        #     triggered=self._label_patch))
+        self._pop_menu.addAction(QAction('Set Label', self,
+            triggered=self._label_patch))
 
     def update_plot(self):
         raise NotImplementedError
@@ -166,11 +172,62 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
             while partners:
                 patch_group = partners.pop()
                 patch_group['rect'].remove()
+                if patch_group['label'] is not None:
+                    patch_group['label'].remove()
             self.rects.remove(partners)
             self.draw()
             self.line_changed.emit(LineUpdate(flight_id=self._flight_id,
                 action='remove', uid=uid, start=start, stop=stop, label=None))
             self._selected_patch = None
+
+    def _label_patch(self, label):
+        if self._selected_patch is not None:
+            partners = self._selected_patch
+            current_label = partners[0]['label']
+            if current_label is not None:
+                dialog = SetLineLabelDialog(current_label.get_text())
+            else:
+                dialog = SetLineLabelDialog(None)
+            if dialog.exec_():
+                label = dialog.label_text
+            else:
+                return
+        else:
+            return
+
+        for p in partners:
+            rx = p['rect'].get_x()
+            cx = rx + p['rect'].get_width() * 0.5
+            axes = p['rect'].axes
+            ylim = axes.get_ylim()
+            cy = ylim[0] + abs(ylim[1] - ylim[0]) * 0.5
+            axes = p['rect'].axes
+
+            if label is not None:
+                if p['label'] is not None:
+                    p['label'].set_text(label)
+                else:
+                    p['label'] = axes.annotate(label,
+                                               xy=(cx, cy),
+                                               weight='bold',
+                                               fontsize=6,
+                                               ha='center',
+                                               va='center',
+                                               annotation_clip=False)
+            else:
+                if p['label'] is not None:
+                    p['label'].remove()
+                    p['label'] = None
+
+        self.draw()
+
+    def _move_patch_label(self, attr):
+        rx = attr['rect'].get_x()
+        cx = rx + attr['rect'].get_width() * 0.5
+        axes = attr['rect'].axes
+        ylim = axes.get_ylim()
+        cy = ylim[0] + abs(ylim[1] - ylim[0]) * 0.5
+        attr['label'].set_position((cx, cy))
 
     def draw(self):
         self.plotted = True
@@ -262,7 +319,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         xstop = date2num(stop)
         width = xstop - xstart
         height = ylim[1] - ylim[0]
-        c_rect = Rectangle((xstart, ylim[0]), width, height*2, alpha=0.2)
+        c_rect = Rectangle((xstart, ylim[0]), width, height, alpha=0.2)
 
         caxes.add_patch(c_rect)
         caxes.draw_artist(caxes.patch)
@@ -276,7 +333,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
                 continue
             ylim = ax.get_ylim()
             height = ylim[1] - ylim[0]
-            a_rect = Rectangle((xstart, ylim[0]), width, height * 2, alpha=0.1, picker=True)
+            a_rect = Rectangle((xstart, ylim[0]), width, height, alpha=0.1, picker=True)
             ax.add_patch(a_rect)
             ax.draw_artist(ax.patch)
             left = num2date(a_rect.get_x())
@@ -321,12 +378,13 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         if event.button == 3:
             # Right click
             for partners in self.rects:
-                patch = partners[0]['rect']
-                hit, _ = patch.contains(event)
-                if hit:
-                    cursor = QCursor()
-                    self._selected_patch = partners
-                    self._pop_menu.popup(cursor.pos())
+                for p in partners:
+                    patch = p['rect']
+                    hit, _ = patch.contains(event)
+                    if hit:
+                        cursor = QCursor()
+                        self._selected_patch = partners
+                        self._pop_menu.popup(cursor.pos())
             return
 
         else:
@@ -343,6 +401,8 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
                     for attrs in partners:
                         rect = attrs['rect']
                         rect.set_animated(True)
+                        label = attrs['label']
+                        label.set_animated(True)
                         r_canvas = rect.figure.canvas
                         r_axes = rect.axes  # type: Axes
                         r_canvas.draw()
@@ -409,7 +469,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         dx = event.xdata - xclick
         for attr in partners:
             rect = attr['rect']
-
+            label = attr['label']
             if self._stretching is not None:
                 if self._stretching == 'left':
                     if width - dx > 0:
@@ -421,10 +481,13 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
             else:
                 rect.set_x(x0 + dx)
 
+            self._move_patch_label(attr)
+
             canvas = rect.figure.canvas
             axes = rect.axes
             canvas.restore_region(attr['bg'])
             axes.draw_artist(rect)
+            axes.draw_artist(label)
             canvas.blit(axes.bbox)
 
     def _near_edge(self, event, prox=0.0005):
@@ -481,6 +544,8 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         for attrs in partners:
             rect = attrs['rect']
             rect.set_animated(False)
+            label = attrs['label']
+            label.set_animated(False)
             rect.axes.draw_artist(rect)
             attrs['bg'] = None
             # attrs['left'] = num2date(rect.get_x())
@@ -524,6 +589,18 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
     def get_time_delta(x0, x1):
         """Return a time delta from a plot axis limit"""
         return num2date(x1) - num2date(x0)
+
+    def _on_ylim_changed(self, changed: Axes):
+        for partners in self.rects:
+            for attr in partners:
+                if attr['rect'].axes == changed:
+                    # reset rectangle sizes
+                    ylim = changed.get_ylim()
+                    attr['rect'].set_y(ylim[0])
+                    attr['rect'].set_height(abs(ylim[1] - ylim[0]))
+
+                    # reset label positions
+                    self._move_patch_label(attr)
 
     def _on_xlim_changed(self, changed: Axes) -> None:
         """
