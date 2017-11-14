@@ -6,7 +6,7 @@ import unittest
 
 import numpy as np
 
-from dgp.lib.timesync import find_time_delay,time_Shift_array
+from dgp.lib.timesync import find_time_delay, time_shift_array, shift_frames
 
 
 class TestTimesync(unittest.TestCase):
@@ -21,11 +21,9 @@ class TestTimesync(unittest.TestCase):
         time = find_time_delay(s1, s2, 10)
         self.assertAlmostEqual(rnd_offset, -time, places=2)
 
-       #
-
     def test_timeshift(self):
         rnd_offset = 6.234
-        # generate syntetic data totest
+        # generate synthetic data to test
         t1 = np.linspace(0, 5000, 50000) + 0.0
         t2 = t1 + rnd_offset
 
@@ -43,7 +41,7 @@ class TestTimesync(unittest.TestCase):
                 newt[x]=t2[-1]
         s3 = f(newt)
         """
-        s3 = time_Shift_array(s2,rnd_offset, 10)
+        s3 = time_shift_array(s2, rnd_offset, 10)
         """""
         error1=s1-s2
         plt.figure()
@@ -61,7 +59,14 @@ class TestTimesync(unittest.TestCase):
         outsig = np.std(error2[100:len(t2) - 100])
         print('std of error', outsig)
 
-        self.assertAlmostEqual(0,outsig, places=2)
-        #
+        self.assertAlmostEqual(0, outsig, places=2)
+
+    def test_shift_frames(self):
+        """Test time shift against Pandas DataFrames"""
+
+        # Generate gps and gravity DataFrames from test data.
+
+
+        pass
 
 

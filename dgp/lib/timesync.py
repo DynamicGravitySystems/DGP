@@ -70,24 +70,20 @@ def find_time_delay(s1: np.array, s2: np.array, datarate: int, resolution: bool=
         Time shift between s1 and s2
     """
     lagwith = 200
+    len_s1 = len(s1)
     if not resolution:
-        c = np.correlate(s1, s2, mode=2)
-        len_s1 = len(s1)
+        print("Correlating s1, s2 resolution: False")
+        c = np.correlate(s1, s2, mode='full')
         scale = datarate
     else:
         s1 = interpolate_1d_vector(s1, datarate)
         s2 = interpolate_1d_vector(s2, datarate)
-        c = np.correlate(s1, s2, mode=2)
-        len_s1 = len(s1)
+        c = np.correlate(s1, s2, mode='full')
         scale = datarate*10
 
     shift = np.linspace(-lagwith, lagwith, 2 * lagwith + 1)
-    print("Shift: \n")
-    print(shift[0:10])
-    # lags = np.arange(-lagwith, lagwith+1)
     corre = c[len_s1 - 1 - lagwith:len_s1 + lagwith]
     maxi = np.argmax(corre)
-    print("Maxi: ", maxi, "\n")
     dm1 = abs(corre[maxi] - corre[maxi - 1])
     dp1 = abs(corre[maxi] - corre[maxi + 1])
     if dm1 < dp1:
@@ -133,10 +129,8 @@ def shift_frames(gravity: DataFrame, gps: DataFrame, datarate=10) -> DataFrame:
     """
 
     eotvos = calc_eotvos(gps['lat'].values, gps['longitude'].values, gps['ell_ht'].values, datarate)
-    print("Eotvos: \n")
-    print(eotvos[0:5])
     delay = find_time_delay(gravity['gravity'].values, eotvos, 10)
-    print(delay)
+    print("Time Delay: ", delay)
     time_shift = DateOffset(seconds=delay)
 
     # Upsample and then shift:
@@ -148,11 +142,12 @@ def shift_frames(gravity: DataFrame, gps: DataFrame, datarate=10) -> DataFrame:
     joined = gravity_synced.join(gps_1ms, how='left', rsuffix='_gps')
     # Now downsample back to original period
     down_sample = "{}S".format(1/datarate)
-    # TODO: What method to use when downsampling - mean, or select every 10 etc.?
+    # TODO: What method to use when downsampling - mean, or some other method?
+    # Could use .apply() to apply custom filter/sampling method
     return joined.resample(down_sample).mean()
 
 
-def time_Shift_array(s1: np.array,timeshift, datarate: int):
+def time_shift_array(s1: np.array, timeshift, datarate: int):
     """
         Time shifting of the input array, by interpolating teh
         original data to a new time query points
@@ -171,7 +166,7 @@ def time_Shift_array(s1: np.array,timeshift, datarate: int):
     t = np.linspace(0, len(s1)/datarate, len(s1))+timeshift
     f = interp1d(t,s1, kind='cubic')
     # only generate data in the range of t2
-   # newt = t - timeshift*datarate
+    # newt = t - timeshift*datarate
     newt = t-timeshift
     for x in range(0, len(t)):
         if newt[x] < t[0]:
