@@ -88,5 +88,3 @@ class TestTransform(unittest.TestCase):
 
         self.assertTrue(df_a.equals(wrapper.modified[tc_a.uid]))
         self.assertTrue(df_b.equals(wrapper.modified[tc_b.uid]))
-
-    def test_data_wrapper_inputs(self):
