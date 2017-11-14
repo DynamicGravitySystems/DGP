@@ -22,7 +22,7 @@ class TransformChain:
     def uid(self):
         return self._uid
 
-    def add_transform(self, transform):
+    def addtransform(self, transform):
         if callable(transform):
             uid = gen_uuid('tf')
             self.transforms[uid] = transform
@@ -31,7 +31,7 @@ class TransformChain:
         else:
             return None
 
-    def remove_transform(self, uid):
+    def removetransform(self, uid):
         del self.transforms[uid]
         self.ordering.remove(uid)
 
@@ -72,15 +72,18 @@ class DataWrapper:
         self.modified = {}
         self._transform_chains = {}
 
-    def remove_chain(self, uid):
+    def removechain(self, uid):
         del self._transform_chains[uid]
         del self.modified[uid]
 
-    def apply_chain(self, uid):
+    def applychain(self, tc):
+        if not isinstance(tc, TransformChain):
+            raise TypeError('expected an instance of subclass of TransformChain, but got ({typ})'.format(type(tc)))
+
         if tc.uid not in self._transform_chains:
             self._transform_chains[tc.uid] = tc
-        self.modified[uid] = self._transform_chains[uid].apply(self.df)
-        return self.modified[uid]
+        self.modified[tc.uid] = self._transform_chains[tc.uid].apply(self.df)
+        return self.modified[tc.uid]
 
     def __len__(self):
         return len(self.modified.items())
