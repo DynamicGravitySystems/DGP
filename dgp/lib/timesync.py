@@ -3,6 +3,10 @@
 # This file is part of DynamicGravityProcessor (https://github.com/DynamicGravitySystems/DGP).
 
 import numpy as np
+from pandas import DataFrame, Series
+from pandas.tseries.offsets import DateOffset
+
+from dgp.lib.eotvos import calc_eotvos
 
 # bradyzp: Updated function to remove dependency on scipy, using numpy.interp instead.
 # bradyzp: Code cleanup and re-write docstrings to conform to project specs.
@@ -41,7 +45,7 @@ def interpolate_1d_vector(vector: np.array, factor: int):
     return y_interpolated
 
 
-def find_time_delay(s1: np.array, s2: np.array, datarate: int, resolution: bool=None):
+def find_time_delay(s1: np.array, s2: np.array, datarate: int, resolution: bool=False):
     """
     Python implementation of Daniel Aliod's time synchronization MATLAB function.
     Finds the time shift or delay between two arrays.
@@ -77,13 +81,18 @@ def find_time_delay(s1: np.array, s2: np.array, datarate: int, resolution: bool=
         scale = datarate*10
 
     shift = np.linspace(-lagwith, lagwith, 2 * lagwith + 1)
+    print("Shift: \n")
+    print(shift[0:10])
     # lags = np.arange(-lagwith, lagwith+1)
     corre = c[len_s1 - 1 - lagwith:len_s1 + lagwith]
     maxi = np.argmax(corre)
+    print("Maxi: ", maxi, "\n")
     dm1 = abs(corre[maxi] - corre[maxi - 1])
     dp1 = abs(corre[maxi] - corre[maxi + 1])
     if dm1 < dp1:
-        z = np.polyfit(shift[maxi - 2:maxi + 1], corre[maxi - 2:maxi + 1], 2)
+        x = shift[maxi-2: maxi+1]
+        # z = np.polyfit(shift[maxi - 2:maxi + 1], corre[maxi - 2:maxi + 1], 2)
+        z = np.polyfit(x, corre[maxi - 2:maxi + 1], 2)
     else:
         z = np.polyfit(shift[maxi - 1:maxi + 2], corre[maxi - 1:maxi + 2], 2)
 
@@ -91,3 +100,57 @@ def find_time_delay(s1: np.array, s2: np.array, datarate: int, resolution: bool=
 
     # return time shift
     return dt1/scale
+
+
+def shift_frames(gravity: DataFrame, gps: DataFrame, datarate=10) -> DataFrame:
+    """
+    Synchronize and join a gravity and gps DataFrame (DF) into a single time-shifted DF
+    Time lag/shift is found using the find_time_delay function, which cross correlates the
+    gravity channel with Eotvos corrections.
+    The DFs (gravity and gps) are then upsampled to a 1ms period using cubic interpolation.
+    The Gravity DataFrame is then shifted by the time shift factor returned by find_time_delay at ms
+    precision.
+    We then join the GPS DF on the Gravity DF using a left join resulting in a single DF with
+    Gravity and GPS data at 1ms frequency.
+    Finally the joined DF is downsampled back to the original frequency (1 or 10 Hz)
+
+    Parameters
+    ----------
+    gravity: DataFrame
+        Gravity data DataFrame to time shift and join
+    gps: DataFrame
+        GPS/Trajectory DataFrame to correlate with Gravity data
+    datarate: int
+        Scalar datarate in Hz
+
+    Returns
+    -------
+    DataFrame:
+        Synchronized and joined DataFrame containing set{gravity.columns, gps.columns}
+        If gps contains duplicate column names relative to gravity DF, they will be
+        suffixed with '_gps'
+    """
+
+    eotvos = calc_eotvos(gps['lat'].values, gps['longitude'].values, gps['ell_ht'].values, datarate)
+    print("Eotvos: \n")
+    print(eotvos[0:5])
+    delay = find_time_delay(gravity['gravity'].values, eotvos, 10)
+    print(delay)
+    time_shift = DateOffset(seconds=delay)
+
+    # Upsample and then shift:
+    gravity_1ms = gravity.resample('1L').interpolate(method='cubic').fillna(method='pad')
+    gps_1ms = gps.resample('1L').interpolate(method='cubic').fillna(method='pad')
+    gravity_synced = gravity_1ms.shift(freq=time_shift)  # type: DataFrame
+
+    # Join shifted dataframes:
+    joined = gravity_synced.join(gps_1ms, how='left', rsuffix='_gps')
+    # Now downsample back to original period
+    down_sample = "{}S".format(1/datarate)
+    # TODO: What method to use when downsampling - mean, or select every 10 etc.?
+    return joined.resample(down_sample).mean()
+
+
+
+
+
