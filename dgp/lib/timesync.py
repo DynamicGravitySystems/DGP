@@ -3,6 +3,7 @@
 # This file is part of DynamicGravityProcessor (https://github.com/DynamicGravitySystems/DGP).
 
 import numpy as np
+from scipy.interpolate import interp1d
 
 # bradyzp: Updated function to remove dependency on scipy, using numpy.interp instead.
 # bradyzp: Code cleanup and re-write docstrings to conform to project specs.
@@ -91,3 +92,33 @@ def find_time_delay(s1: np.array, s2: np.array, datarate: int, resolution: bool=
 
     # return time shift
     return dt1/scale
+
+def time_Shift_array(s1: np.array,timeshift, datarate: int):
+    """
+        Time shifting of the input array, by interpolating teh
+        original data to a new time query points
+        Parameters
+        ----------
+        s1: np.array
+            Input array 1
+        tshift: Scalar
+                time to shift input array
+
+        Returns
+        -------
+        Scalar:
+            s2: np.array of time shifted data
+        """
+    t = np.linspace(0, len(s1)/datarate, len(s1))+timeshift
+    f = interp1d(t,s1, kind='cubic')
+    # only generate data in the range of t2
+   # newt = t - timeshift*datarate
+    newt = t-timeshift
+    for x in range(0, len(t)):
+        if newt[x] < t[0]:
+            newt[x] = t[0]
+        if newt[x] > t[-1]:
+            newt[x] = t[-1]
+    s2 = f(newt)
+
+    return s2
