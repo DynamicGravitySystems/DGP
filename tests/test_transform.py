@@ -4,6 +4,7 @@ import os
 import unittest
 import numpy as np
 import pandas as pd
+from copy import deepcopy
 
 from .context import  dgp
 from dgp.lib.transform import TransformChain, DataWrapper
@@ -34,13 +35,25 @@ class TestTransform(unittest.TestCase):
 
         self.assertTrue(len(tc) == 3)
 
-        new_df = tc.apply(df)
+        new_df_A = tc.apply(df)
 
-        df['A'] = df['A'] + 3.
-        df['A'] = df['A'] + df['B']
-        df = (df + df.shift(1)).dropna()
+        df_A = deepcopy(df)
+        df_A['A'] = df_A['A'] + 3.
+        df_A['A'] = df_A['A'] + df_A['B']
+        df_A = (df_A + df_A.shift(1)).dropna()
 
-        self.assertTrue(new_df.equals(df))
+        self.assertTrue(new_df_A.equals(df_A))
+
+        # test reordering
+        reordering = {tc[2]: 0, tc[0]: 2}
+        reordered_uids = [tc.ordering[-1], tc.ordering[1], tc.ordering[0]]
+        tc.reorder(reordering)
+
+        self.assertTrue(tc.ordering == reordered_uids)
+
+        xforms = [transform3, transform2, transform1]
+        reordered_xforms = [t for t in tc]
+        self.assertTrue(xforms == reordered_xforms)
 
     def test_basic_data_wrapper(self):
 

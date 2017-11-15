@@ -26,4 +26,16 @@ def gen_uuid(prefix: str=''):
         UUID String of length 32
     """
     base_uuid = uuid.uuid4().hex
-    return '{}{}'.format(prefix, base_uuid[len(prefix):])
+    return '{prefix}{uuid}'.format(prefix=prefix, uuid=base_uuid[len(prefix):])
+
+def dedup_dict(d):
+    t = [(k, d[k]) for k in d]
+    t.sort()
+    res = {}
+
+    for key, val in t:
+        if val in res.values():
+            continue
+        res[key] = val
+
+    return res
