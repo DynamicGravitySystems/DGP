@@ -1,9 +1,7 @@
 # coding: utf-8
 
 from .context import dgp
-
 import unittest
-
 import numpy as np
 
 from dgp.lib.timesync import find_time_delay, time_shift_array, shift_frames
