@@ -402,7 +402,8 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
                         rect = attrs['rect']
                         rect.set_animated(True)
                         label = attrs['label']
-                        label.set_animated(True)
+                        if label is not None:
+                            label.set_animated(True)
                         r_canvas = rect.figure.canvas
                         r_axes = rect.axes  # type: Axes
                         r_canvas.draw()
@@ -481,13 +482,15 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
             else:
                 rect.set_x(x0 + dx)
 
-            self._move_patch_label(attr)
+            if attr['label'] is not None:
+                self._move_patch_label(attr)
 
             canvas = rect.figure.canvas
             axes = rect.axes
             canvas.restore_region(attr['bg'])
             axes.draw_artist(rect)
-            axes.draw_artist(label)
+            if attr['label'] is not None:
+                axes.draw_artist(label)
             canvas.blit(axes.bbox)
 
     def _near_edge(self, event, prox=0.0005):
@@ -545,11 +548,10 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
             rect = attrs['rect']
             rect.set_animated(False)
             label = attrs['label']
-            label.set_animated(False)
+            if label is not None:
+                label.set_animated(False)
             rect.axes.draw_artist(rect)
             attrs['bg'] = None
-            # attrs['left'] = num2date(rect.get_x())
-            # attrs['right'] = num2date(rect.get_x() + rect.get_width())
 
         uid = partners[0]['uid']
         first_rect = partners[0]['rect']
@@ -599,8 +601,9 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
                     attr['rect'].set_y(ylim[0])
                     attr['rect'].set_height(abs(ylim[1] - ylim[0]))
 
-                    # reset label positions
-                    self._move_patch_label(attr)
+                    if attr['label'] is not None:
+                        # reset label positions
+                        self._move_patch_label(attr)
 
     def _on_xlim_changed(self, changed: Axes) -> None:
         """
