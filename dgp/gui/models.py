@@ -141,7 +141,8 @@ class ProjectItem:
         else:
             self._uid = gen_uuid('prj')
 
-        if not issubclass(item.__class__, TreeItem) or isinstance(item, ProjectItem):
+        if not issubclass(item.__class__, TreeItem) or isinstance(item,
+                                                                  ProjectItem):
             self._hasdata = False
         if not hasattr(item, 'children'):
             return
@@ -156,7 +157,7 @@ class ProjectItem:
 
     @property
     def object(self) -> TreeItem:
-        """Return the underlying class wrapped by this ProjectItem i.e. Flight"""
+        """Return the underlying class wrapped by this ProjectItem"""
         return self._object
 
     @property
@@ -260,9 +261,6 @@ class ProjectItem:
     def column_count():
         return 1
 
-    def index(self):
-        return self._parent.indexof(self)
-
     def data(self, role=None):
         # Allow the object to handle data display for certain roles
         if role in [QtCore.Qt.ToolTipRole, QtCore.Qt.DisplayRole, QtCore.Qt.UserRole]:
@@ -298,9 +296,10 @@ class ProjectItem:
 # TODO: Can we inherit from AirborneProject, to create a single interface for modifying, and displaying the project?
 # or vice versa
 class ProjectModel(QtCore.QAbstractItemModel):
+    """Heirarchial (Tree) Project Model with a single root node."""
     def __init__(self, project, parent=None):
         super().__init__(parent=parent)
-        # This will recursively populate the Model as ProjectItem will inspect and create children as necessary
+        # This will recursively populate the Model
         self._root_item = ProjectItem(project)
         self._project = project
         self._project.parent = self
@@ -363,7 +362,8 @@ class ProjectModel(QtCore.QAbstractItemModel):
 
     def remove_child(self, uid):
         item = self._root_item.search(uid)
-        item_index = self.createIndex(item.index(), 1, item)
+        # item_index = self.createIndex(item.index(), 1, item)
+        item_index = self.createIndex(item.row(), 1, item)
         parent = item.parent()
         cindex = self.createIndex(0, 0, parent)
 
