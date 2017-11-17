@@ -103,37 +103,45 @@ class TableModel(QtCore.QAbstractTableModel):
 
 class ProjectItem:
     """
-    ProjectItem is a wrapper for TreeItem descendants and/or simple string values, providing the necesarry interface to
-    be utilized as an item in an AbstractModel (specifically ProjectModel, but theoretically any class derived from
-    QAbstractItemModel).
-    Items passed to this class are evaluated, if they are subclassed from TreeItem or an instance of ProjectItem their
-    children (if any) will be wrapped (if not already) in a ProjectItem instance, and added as a child of this
-    ProjectItem, allowing the creation of a nested tree type heirarchy.
-    Due to the inspection of 'item's for children, this makes it effortless to create a tree from a single 'trunk', as
-    the descendant (children) objects of a passed object that has children, will be automatically populated into the
+    ProjectItem is a wrapper for TreeItem descendants and/or simple string
+    values, providing the necesarry interface to be utilized as an item in an
+    AbstractModel (specifically ProjectModel, but theoretically any class
+    derived from QAbstractItemModel).
+    Items passed to this class are evaluated, if they are subclassed from
+    TreeItem or an instance of ProjectItem their children (if any) will be
+    wrapped (if not already) in a ProjectItem instance, and added as a child of
+    this ProjectItem, allowing the creation of a nested tree type heirarchy.
+    Due to the inspection of 'item's for children, this makes it effortless to
+    create a tree from a single 'trunk', as the descendant (children) objects of
+    a passed object that has children, will be automatically populated into the
     first ProjectItem's descendant list.
-    If a supplied item does not have children, i.e. it is a string or other Python type, it will be stored internally,
-    accessible via the 'object' property, and will be displayed to any QtView (e.g. QTreeView, QListView) as the
-    string representation of the item, i.e. str(item), whatever that shall produce.
+    If a supplied item does not have children, i.e. it is a string or other
+    Python type, it will be stored internally, accessible via the 'object'
+    property, and will be displayed to any QtView (e.g. QTreeView, QListView)
+    as the string representation of the item, i.e. str(item), whatever that
+    shall produce.
     """
-    def __init__(self, item: Union['ProjectItem', TreeItem, str], parent: Union['ProjectItem', None]=None) -> None:
+    def __init__(self, item: Union['ProjectItem', TreeItem, str],
+                 parent: Union['ProjectItem', None]=None) -> None:
         """
         Initialize a ProjectItem for use in a Qt View.
         Parameters
         ----------
         item : Union[ProjectItem, TreeItem, str]
-            An item to encapsulate for presentation within a Qt View (e.g. QTreeView)
-            ProjectItem's and TreeItem's support the data(role) method, and as such the presentation of such objects can
-            be more finely controlled in the implementation of the object itself.
-            Other objects e.g. strings are simply displayed as is, or if an unsupported object is passed, the str() of
-            the object is used as the display value.
+            An item to encapsulate for presentation within a Qt View
+            ProjectItem's and TreeItem's support the data(role) method, and as
+            such the presentation of such objects can be more finely
+            controlled in the implementation of the object itself.
+            Other objects e.g. strings are simply displayed as is, or if an
+            unsupported object is passed, the str() of the object is used as
+            the display value.
         parent : Union[ProjectItem, None]
-            The parent ProjectItem, (or None if this is the root object in a view) for this item.
+            The parent ProjectItem, (or None if this is the root object in a
+            view) for this item.
         """
         self._parent = parent
         self._children = []
         self._object = item
-        # _hasdata records whether the item is a class of ProjectItem or TreeItem, and thus has a data() method.
         self._hasdata = True
 
         if hasattr(item, 'uid'):
@@ -194,10 +202,13 @@ class ProjectItem:
 
     def append_child(self, child) -> bool:
         """
-        Appends a child object to this ProjectItem. If the passed child is already an instance of ProjectItem, the
-        parent is updated to this object, and it is appended to the internal _children list.
-        If the object is not an instance of ProjectItem, we attempt to encapsulated it, passing self as the parent, and
-        append it to the _children list.
+        Appends a child object to this ProjectItem. If the passed child is
+        already an instance of ProjectItem, the
+        parent is updated to this object, and it is appended to the internal
+        _children list.
+        If the object is not an instance of ProjectItem, we attempt to
+        encapsulated it, passing self as the parent, and append it to the
+        _children list.
         Parameters
         ----------
         child
@@ -223,14 +234,15 @@ class ProjectItem:
         Parameters
         ----------
         child: Union[TreeItem, str]
-            The underlying object of a ProjectItem object. The ProjectItem that wraps 'child' will be determined by
-            comparing the uid of the 'child' to the uid's of any object contained within the children of this
-            ProjectItem.
+            The underlying object of a ProjectItem object. The ProjectItem that
+            wraps 'child' will be determined by comparing the uid of the
+            'child' to the uid's of any object contained within the children of
+            this ProjectItem.
         Returns
         -------
         bool:
             True on sucess
-            False if the child cannot be located within the children of this ProjectItem.
+            False if the child cannot be located within this ProjectItem.
 
         """
         for subitem in self._children[:]:  # type: ProjectItem
@@ -241,7 +253,8 @@ class ProjectItem:
         return False
 
     def child(self, row) -> Union['ProjectItem', None]:
-        """Return the child ProjectItem at the given row, or None if the index does not exist."""
+        """Return the child ProjectItem at the given row, or None if the index
+        does not exist."""
         try:
             return self._children[row]
         except IndexError:
@@ -263,7 +276,8 @@ class ProjectItem:
 
     def data(self, role=None):
         # Allow the object to handle data display for certain roles
-        if role in [QtCore.Qt.ToolTipRole, QtCore.Qt.DisplayRole, QtCore.Qt.UserRole]:
+        if role in [QtCore.Qt.ToolTipRole, QtCore.Qt.DisplayRole,
+                    QtCore.Qt.UserRole]:
             if not self._hasdata:
                 return str(self._object)
             return self._object.data(role)
@@ -278,7 +292,8 @@ class ProjectItem:
                 return QIcon(icon)
             return icon
         else:
-            return QVariant()  # This is very important, otherwise the display gets screwed up.
+            # This is very important, otherwise the display gets screwed up.
+            return QVariant()
 
     def row(self):
         """Reports this item's row location within parent's children list"""
@@ -290,11 +305,9 @@ class ProjectItem:
         return self._parent
 
 
-# ProjectModel should eventually have methods to make changes to the underlying data structure, e.g.
-# adding a flight, which would then update the model, without rebuilding the entire structure as
-# is currently done.
-# TODO: Can we inherit from AirborneProject, to create a single interface for modifying, and displaying the project?
-# or vice versa
+# ProjectModel should eventually have methods to make changes to the underlying
+# data structure, e.g. adding a flight, which would then update the model,
+# without rebuilding the entire structure as is currently done.
 class ProjectModel(QtCore.QAbstractItemModel):
     """Heirarchial (Tree) Project Model with a single root node."""
     def __init__(self, project, parent=None):
@@ -312,9 +325,10 @@ class ProjectModel(QtCore.QAbstractItemModel):
 
     def add_child(self, item, uid=None):
         """
-        Method to add a generic item of type Flight or MeterConfig to the project and model.
-        In future add ability to add sub-children, e.g. FlightLines (although possibly in
-        separate method).
+        Method to add a generic item of type Flight or MeterConfig to the
+        project and model.
+        In future add ability to add sub-children, e.g. FlightLines (although
+        possibly in separate method).
         Parameters
         ----------
         item : Union[Flight, MeterConfig]
@@ -325,14 +339,15 @@ class ProjectModel(QtCore.QAbstractItemModel):
         -------
         bool:
             True on successful addition
-            False if the method could not add the item, i.e. could not match the container to
-            insert the item.
+            False if the method could not add the item, i.e. could not match the
+            container to insert the item.
         Raises
         ------
         NotImplementedError:
-            Raised if item is not an instance of a recognized type, currently Flight or MeterConfig
+            Raised if item is not an instance of a recognized type, currently
+            Flight or MeterConfig
         """
-        # If uid is provided, search for it and add the item (we won't check here for type correctness)
+        # If uid is provided, search for it and add the item
         if uid is not None:
             parent = self._root_item.search(uid)
             print("Model adding child to: ", parent)
@@ -345,12 +360,14 @@ class ProjectModel(QtCore.QAbstractItemModel):
                 return True
             return False
 
-        # Otherwise, try to infer the correct parent based on the type of the item
+        # Otherwise, try to infer the correct parent based on the item type
         for child in self._root_item.children:  # type: ProjectItem
             c_obj = child.object  # type: Container
-            if isinstance(c_obj, Container) and issubclass(item.__class__, c_obj.ctype):
+            if isinstance(c_obj, Container) and issubclass(item.__class__,
+                                                           c_obj.ctype):
                 # print("matched instance in add_child")
-                cindex = self.createIndex(self._root_item.indexof(child), 1, child)
+                cindex = self.createIndex(self._root_item.indexof(child), 1,
+                                          child)
                 self.beginInsertRows(cindex, len(c_obj), len(c_obj))
                 c_obj.add_child(item)
                 child.append_child(ProjectItem(item))
@@ -433,12 +450,6 @@ class ProjectModel(QtCore.QAbstractItemModel):
     def columnCount(parent: QModelIndex=QModelIndex(), *args, **kwargs):
         return 1
 
-    # Highly Experimental:
-    # Pass on attribute calls to the _project if this class has no such attribute
-        # Unpickling encounters an error here (RecursionError)
-    # def __getattr__(self, item):
-    #     return getattr(self._project, item, None)
-
 
 # QStyledItemDelegate
 class SelectionDelegate(Qt.QStyledItemDelegate):
@@ -446,7 +457,8 @@ class SelectionDelegate(Qt.QStyledItemDelegate):
         super().__init__(parent=parent)
         self._choices = choices
 
-    def createEditor(self, parent: QWidget, option: Qt.QStyleOptionViewItem, index: QModelIndex) -> QWidget:
+    def createEditor(self, parent: QWidget, option: Qt.QStyleOptionViewItem,
+                     index: QModelIndex) -> QWidget:
         """Creates the editor widget to display in the view"""
         editor = QComboBox(parent)
         editor.setFrame(False)
@@ -455,7 +467,8 @@ class SelectionDelegate(Qt.QStyledItemDelegate):
         return editor
 
     def setEditorData(self, editor: QWidget, index: QModelIndex) -> None:
-        """Set the value displayed in the editor widget based on the model data at the index"""
+        """Set the value displayed in the editor widget based on the model data
+        at the index"""
         combobox = editor  # type: QComboBox
         value = str(index.model().data(index, QtCore.Qt.EditRole))
         index = combobox.findText(value)  # returns -1 if value not found
@@ -465,7 +478,8 @@ class SelectionDelegate(Qt.QStyledItemDelegate):
             combobox.addItem(value)
             combobox.setCurrentIndex(combobox.count() - 1)
 
-    def setModelData(self, editor: QWidget, model: QAbstractItemModel, index: QModelIndex) -> None:
+    def setModelData(self, editor: QWidget, model: QAbstractItemModel,
+                     index: QModelIndex) -> None:
         combobox = editor  # type: QComboBox
         value = str(combobox.currentText())
         row = index.row()
@@ -476,7 +490,8 @@ class SelectionDelegate(Qt.QStyledItemDelegate):
                 model.setData(mindex, '<Unassigned>', QtCore.Qt.EditRole)
         model.setData(index, value, QtCore.Qt.EditRole)
 
-    def updateEditorGeometry(self, editor: QWidget, option: Qt.QStyleOptionViewItem, index: QModelIndex) -> None:
+    def updateEditorGeometry(self, editor: QWidget, option: Qt.QStyleOptionViewItem,
+                             index: QModelIndex) -> None:
         editor.setGeometry(option.rect)
 
 
@@ -494,7 +509,6 @@ class ChannelListModel(QStandardItemModel):
     def __init__(self):
         pass
 
-    def dropMimeData(self, QMimeData, Qt_DropAction, p_int, p_int_1, QModelIndex):
+    def dropMimeData(self, QMimeData, Qt_DropAction, p, p1, QModelIndex):
         print("Mime data dropped")
         pass
-    pass

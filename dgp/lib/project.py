@@ -19,31 +19,38 @@ Dynamic Gravity Processor (DGP) :: project.py
 License: Apache License V2
 
 Overview:
-project.py provides the object framework for setting up a gravity processing project, which may include project specific
-configurations and settings, project specific files and imports, and the ability to segment a project into individual
-flights and flight lines.
+project.py provides the object framework for setting up a gravity processing 
+project, which may include project specific configurations and settings, 
+project specific files and imports, and the ability to segment a project into 
+individual flights and flight lines.
 
 Guiding Principles:
-This module has been designed to be explicitly independant of Qt, primarly because it is tricky or impossible to pickle
-many Qt objects. This also in theory means that the classes contained within can be utilized for other uses, without
-relying on the specific Qt GUI package.
-Because of this, some abstraction has been necesarry particulary in the models.py class, which acts as a bridge between
-the Classes in this module, and the Qt GUI - providing the required interfaces to display and interact with the project
-from a graphical user interface (Qt).
-Though there is no dependence on Qt itself, there are a few methods e.g. the data() method in several classes, that are
-particular to our Qt GUI - specifically they return internal data based on a 'role' parameter, which is simply an int
-passed by a Qt Display Object telling the underlying code which data is being requested for a particular display type.
+This module has been designed to be explicitly independant of Qt, primarly 
+because it is tricky or impossible to pickle many Qt objects. This also in 
+theory means that the classes contained within can be utilized for other uses, 
+without relying on the specific Qt GUI package.
+Because of this, some abstraction has been necesarry particulary in the 
+models.py class, which acts as a bridge between the Classes in this module, 
+and the Qt GUI - providing the required interfaces to display and interact with 
+the project from a graphical user interface (Qt).
+Though there is no dependence on Qt itself, there are a few methods e.g. the 
+data() method in several classes, that are particular to our Qt GUI - 
+specifically they return internal data based on a 'role' parameter, which is 
+simply an int passed by a Qt Display Object telling the underlying code which 
+data is being requested for a particular display type.
 
 Workflow:
-    User creates new project - enters project name, description, and location to save project.
+    User creates new project - enters project name, description, and location to 
+    save project.
         - User can additionaly define survey parameters specific to the project
         - User can then add a Gravity Meter configuration to the project
-        - User then creates new flights each day a flight is flown, flight parameters are defined
+        - User then creates new flights each day a flight is flown, flight 
+        parameters are defined
         - Data files are imported into project and associated with a flight
-            - Upon import the file will be converted to pandas DataFrame then written out to the
-            project directory as HDF5.
-
-        - User selects between flights in GUI to view in plot, data is pulled from the Flight object
+            - Upon import the file will be converted to pandas DataFrame then 
+            written out to the project directory as HDF5.
+        - User selects between flights in GUI to view in plot, data is pulled 
+        from the Flight object
 
 """
 
@@ -56,7 +63,8 @@ UserRole = 256
 
 
 def can_pickle(attribute):
-    """Helper function used by __getstate__ to determine if an attribute should/can be pickled."""
+    """Helper function used by __getstate__ to determine if an attribute
+    can/should be pickled."""
     no_pickle = [logging.Logger, DataFrame]
     for invalid in no_pickle:
         if isinstance(attribute, invalid):
@@ -68,19 +76,20 @@ def can_pickle(attribute):
 
 class GravityProject:
     """
-    GravityProject will be the base class defining common values for both airborne
-    and marine gravity survey projects.
+    GravityProject will be the base class defining common values for both
+    airborne and marine gravity survey projects.
     """
     version = 0.1  # Used for future pickling compatability
 
-    def __init__(self, path: pathlib.Path, name: str="Untitled Project", description: str=None):
+    def __init__(self, path: pathlib.Path, name: str = "Untitled Project",
+                 description: str = None):
         """
         Initializes a new GravityProject project class
 
         Parameters
         ----------
         path : pathlib.Path
-            Directory which will be used to store project configuration and data files.
+            Directory which will be used to store project configuration and data
         name : str
             Human readable name to call this project.
         description : str
@@ -108,9 +117,9 @@ class GravityProject:
 
         self.log.debug("Gravity Project Initialized")
 
-    def load_data(self, uid: str, prefix: str='data'):
+    def load_data(self, uid: str, prefix: str = 'data'):
         """
-        Load data from the project HDFStore (HDF5 format datafile) by prefix and uid.
+        Load data from the project HDFStore (HDF5 format datafile) by uid.
 
         Parameters
         ----------
@@ -118,7 +127,8 @@ class GravityProject:
             32 digit hexadecimal unique identifier for the file to load.
         prefix : str
             Deprecated - parameter reserved while testing compatibility
-            Data type prefix, 'gps' or 'gravity' specifying the HDF5 group to retrieve the file from.
+            Data type prefix, 'gps' or 'gravity' specifying the HDF5 group to
+            retrieve the file from.
 
         Returns
         -------
@@ -136,25 +146,26 @@ class GravityProject:
                 return data
 
     def add_meter(self, meter: MeterConfig) -> MeterConfig:
-        """Add an existing MeterConfig class to the dictionary of available meters"""
+        """Add an existing MeterConfig class to the dictionary of meters"""
         if isinstance(meter, MeterConfig):
             self._sensors[meter.name] = meter
             return self._sensors[meter.name]
         else:
-            raise ValueError("meter parameter is not an instance of MeterConfig")
+            raise ValueError("meter param is not an instance of MeterConfig")
 
     def get_meter(self, name):
         return self._sensors.get(name, None)
 
     def import_meter(self, path: pathlib.Path):
-        """Import a meter configuration from an ini file and add it to the sensors dict"""
-        # TODO: Need to construct different meter types (other than AT1 meter) dynamically
+        """Import a meter config from ini file and add it to the sensors dict"""
+        # TODO: Need to construct different meter types (other than AT1 meter)
         if path.exists():
             try:
                 meter = AT1Meter.from_ini(path)
                 self._sensors[meter.name] = meter
             except ValueError:
-                raise ValueError("Meter .ini file could not be imported, check format.")
+                raise ValueError("Meter .ini file could not be imported, check "
+                                 "format.")
             else:
                 return self._sensors[meter.name]
         else:
@@ -166,16 +177,18 @@ class GravityProject:
         for meter in self._sensors.values():
             yield meter
 
-    def save(self, path: pathlib.Path=None):
+    def save(self, path: pathlib.Path = None):
         """
-        Saves the project by pickling the project class and saving to a file specified by path.
+        Saves the project by pickling the project class and saving to a file
+        specified by path.
 
         Parameters
         ----------
         path : pathlib.Path, optional
-            Optional path object to manually specify the save location for the project class object. By default if no
-            path is passed to the save function, the project will be saved in the projectdir directory in a file named
-            for the project name, with extension .d2p
+            Optional path object to manually specify the save location for the
+            project class object. By default if no path is passed to the save
+            function, the project will be saved in the projectdir directory in a
+            file named for the project name, with extension .d2p
 
         Returns
         -------
@@ -194,12 +207,14 @@ class GravityProject:
     @staticmethod
     def load(path: pathlib.Path):
         """
-        Loads an existing project by unpickling a previously pickled project class from a file specified by path.
+        Loads an existing project by unpickling a previously pickled project
+        class from a file specified by path.
 
         Parameters
         ----------
         path : pathlib.Path
-            Path object referencing the binary file containing a pickled class object e.g. Path(project.d2p).
+            Path object referencing the binary file containing a pickled class
+            object e.g. Path(project.d2p).
 
         Returns
         -------
@@ -219,7 +234,7 @@ class GravityProject:
 
         with path.open('rb') as pickled:
             project = pickle.load(pickled)
-            # Override whatever the project dir was with the directory where it was opened
+            # Update project directory in case project was moved
             project.projectdir = path.parent
         return project
 
@@ -228,21 +243,25 @@ class GravityProject:
 
     def __getstate__(self):
         """
-        Used by the python pickle.dump method to determine if a class __dict__ member is 'pickleable'
+        Used by the python pickle.dump method to determine if a class __dict__
+        member is 'pickleable'
 
         Returns
         -------
         dict
-            Dictionary of self.__dict__ items that have been filtered using the can_pickle() function.
+            Dictionary of self.__dict__ items that have been filtered using the
+            can_pickle() function.
         """
         return {k: v for k, v in self.__dict__.items() if can_pickle(v)}
 
     def __setstate__(self, state) -> None:
         """
-        Used to adjust state of the class upon loading using pickle.load. This is used to reinitialize class
+        Used to adjust state of the class upon loading using pickle.load. This
+        is used to reinitialize class
         attributes that could not be pickled (filtered out using __getstate__).
-        In future this method may be used to ensure backwards compatibility with older version project classes that
-        are loaded using a newer software/project version.
+        In future this method may be used to ensure backwards compatibility with
+        older version project classes that are loaded using a newer
+        software/project version.
 
         Parameters
         ----------
@@ -259,25 +278,33 @@ class GravityProject:
 
 class Flight(TreeItem):
     """
-    Define a Flight class used to record and associate data with an entire survey flight (takeoff -> landing)
-    This class is iterable, yielding the flightlines named tuple objects from its lines dictionary
+    Define a Flight class used to record and associate data with an entire
+    survey flight (takeoff -> landing)
+    This class is iterable, yielding the flightlines named tuple objects from
+    its lines dictionary
     """
-    def __init__(self, parent: GravityProject, name: str, meter: MeterConfig=None, **kwargs):
+
+    def __init__(self, parent: GravityProject, name: str,
+                 meter: MeterConfig = None, **kwargs):
         """
-        The Flight object represents a single literal survey flight (Takeoff -> Landing) and stores various
-        parameters and configurations related to the flight.
-        The Flight class provides an easy interface to retrieve GPS and Gravity data which has been associated with it
-        in the project class.
-        Currently a Flight tracks a single GPS and single Gravity data file, if a second file is subsequently imported
-        the reference to the old file will be overwritten.
-        In future we plan on expanding the functionality so that multiple data files might be assigned to a flight, with
-        various operations (comparison, merge, join) able to be performed on them.
+        The Flight object represents a single literal survey flight
+        (Takeoff -> Landing) and stores various parameters and configurations
+        related to the flight.
+        The Flight class provides an easy interface to retrieve GPS and Gravity
+        data which has been associated with it in the project class.
+        Currently a Flight tracks a single GPS and single Gravity data file, if
+        a second file is subsequently imported the reference to the old file
+        will be overwritten.
+        In future we plan on expanding the functionality so that multiple data
+        files might be assigned to a flight, with various operations
+        (comparison, merge, join) able to be performed on them.
 
         Parameters
         ----------
         parent : GravityProject
-            Parent project class which this flight belongs to. This is essential as the project stores the references
-            to all data files which the flight may rely upon.
+            Parent project class which this flight belongs to. This is essential
+             as the project stores the references to all data files which the
+             flight may rely upon.
         name : str
             Human-readable reference name for this flight.
         meter : MeterConfig
@@ -285,14 +312,12 @@ class Flight(TreeItem):
         kwargs
             Arbitrary keyword arguments.
             uuid : uuid.uuid
-                Unique identifier to assign to this flight, else a uuid will be generated upon creation using the
+                Unique identifier to assign to this flight, else a uuid will be
+                generated upon creation using the
                 uuid.uuid4() method.
             date : datetime.date
                 Datetime object to  assign to this flight.
         """
-        # If uuid is passed use the value else assign new uuid
-        # the letter 'f' is prepended to the uuid to ensure that we have a natural python name
-        # as python variables cannot start with a number
         self.log = logging.getLevelName(__name__)
         self._parent = parent
         self.name = name
@@ -305,7 +330,8 @@ class Flight(TreeItem):
 
         self.log = logging.getLogger(__name__)
 
-        # These attributes will hold a file reference string used to retrieve data from hdf5 store.
+        # These attributes will hold a file reference string used to retrieve
+        # data from hdf5 store.
         self._gpsdata_uid = None  # type: str
         self._gravdata_uid = None  # type: str
 
@@ -328,7 +354,8 @@ class Flight(TreeItem):
 
         self._data_cache = {}  # {data_uid: DataFrame, ...}
 
-        self.lines = Container(ctype=FlightLine, parent=self, name='Flight Lines')
+        self.lines = Container(ctype=FlightLine, parent=self,
+                               name='Flight Lines')
         self._data = Container(ctype=DataFile, parent=self, name='Data Files')
 
     @property
@@ -370,7 +397,8 @@ class Flight(TreeItem):
     @gps.setter
     def gps(self, value):
         if self._gpsdata_uid:
-            self.log.warning('GPS Data File already exists, overwriting with new value.')
+            self.log.warning('GPS Data File already exists, overwriting with '
+                             'new value.')
             self._gpsdata = None
         self._gpsdata_uid = value
 
@@ -402,7 +430,8 @@ class Flight(TreeItem):
     @gravity.setter
     def gravity(self, value):
         if self._gravdata_uid:
-            self.log.warning('Gravity Data File already exists, overwriting with new value.')
+            self.log.warning(
+                'Gravity Data File already exists, overwriting with new value.')
             self._gravdata = None
         self._gravdata_uid = value
 
@@ -418,8 +447,8 @@ class Flight(TreeItem):
         if self.gps is None:
             return None
         gps_data = self.gps
-        # WARNING: It is vital to use the .values of the pandas Series, otherwise the eotvos func
-        # does not work properly for some reason
+        # WARNING: It is vital to use the .values of the pandas Series,
+        # otherwise the eotvos func does not work properly for some reason
         index = gps_data['lat'].index
         lat = gps_data['lat'].values
         lon = gps_data['long'].values
@@ -436,7 +465,10 @@ class Flight(TreeItem):
 
     def update_series(self, line: PlotCurve, action: str):
         """Update the Flight state tracking for plotted data channels"""
-        self.log.info("Doing {action} on line {line} in {flt}".format(action=action, line=line.label, flt=self.name))
+        self.log.info(
+            "Doing {action} on line {line} in {flt}".format(action=action,
+                                                            line=line.label,
+                                                            flt=self.name))
         if action == 'add':
             self._plotted_channels[line.uid] = line.axes
         elif action == 'remove':
@@ -458,7 +490,8 @@ class Flight(TreeItem):
         if data_uid in self._data_cache:
             return self._data_cache[data_uid][field]
         else:
-            self.log.warning("Loading datafile {} from HDF5 Store".format(data_uid))
+            self.log.warning(
+                "Loading datafile {} from HDF5 Store".format(data_uid))
             self._data_cache[data_uid] = self.parent.load_data(data_uid)
             return self.get_channel_data(uid)
 
@@ -472,18 +505,21 @@ class Flight(TreeItem):
         for col in data.fields:
             col_uid = gen_uuid('col')
             self._channels[col_uid] = data.uid, col
-            # If defaults are specified then add them to the plotted_channels state
+            # If defaults are specified then add them to the plotted_channels
             if col in self._default_plot_map:
                 self._plotted_channels[col_uid] = self._default_plot_map[col]
         print("Plotted: ", self._plotted_channels)
         print(self._channels)
 
     def add_line(self, start: datetime, stop: datetime, uid=None):
-        """Add a flight line to the flight by start/stop index and sequence number"""
+        """Add a flight line to the flight by start/stop index and sequence
+        number"""
         # line = FlightLine(len(self.lines), None, start, end, self)
-        self.log.debug("Adding line to LineContainer of flight: {}".format(self.name))
+        self.log.debug(
+            "Adding line to LineContainer of flight: {}".format(self.name))
         print("Adding line to LineContainer of flight: {}".format(self.name))
-        line = FlightLine(start, stop, len(self.lines) + 1, None, uid=uid, parent=self)
+        line = FlightLine(start, stop, len(self.lines) + 1, None, uid=uid,
+                          parent=self)
         self.lines.add_child(line)
         self.parent.update('add', line, self.lines.uid)
         return line
@@ -499,7 +535,7 @@ class Flight(TreeItem):
 
     def __iter__(self):
         """
-        Implement class iteration, allowing iteration through FlightLines in this Flight
+        Implement class iteration, allowing iteration through FlightLines
         Yields
         -------
         FlightLine : NamedTuple
@@ -512,9 +548,10 @@ class Flight(TreeItem):
         return len(self.lines)
 
     def __repr__(self):
-        return "{cls}({parent}, {name}, {meter})".format(cls=type(self).__name__,
-                                                         parent=self.parent, name=self.name,
-                                                         meter=self.meter)
+        return "{cls}({parent}, {name}, {meter})".format(
+            cls=type(self).__name__,
+            parent=self.parent, name=self.name,
+            meter=self.meter)
 
     def __str__(self):
         return "Flight: {name}".format(name=self.name)
@@ -535,29 +572,35 @@ class Container(TreeItem):
 
     def __init__(self, ctype, parent, *args, **kwargs):
         """
-        Defines a generic container designed for use with models.ProjectModel, implementing the
-        required functions to display and contain child objects.
-        When used/displayed by a TreeView the default behavior is to display the ctype.__name__
-        and a tooltip stating "Container for <name> type objects".
+        Defines a generic container designed for use with models.ProjectModel,
+        implementing the required functions to display and contain child
+        objects.
+        When used/displayed by a TreeView the default behavior is to display the
+        ctype.__name__ and a tooltip stating "Container for <name> type
+        objects".
 
-        The Container contains only objects of type ctype, or those derived from it. Attempting
-        to add a child of a different type will simply fail, with the add_child method returning
+        The Container contains only objects of type ctype, or those derived from
+        it. Attempting to add a child of a different type will simply fail,
+        with the add_child method returning
         False.
         Parameters
         ----------
         ctype : Class
-            The object type this container will contain as children, permitted classes are:
+            The object type this container will contain as children, permitted
+            classes are:
             Flight
             FlightLine
             MeterConfig
         parent
-            Parent object, e.g. Gravity[Airborne]Project, Flight etc. The container will set the
-            'parent' attribute of any children added to the container to this value.
+            Parent object, e.g. Gravity[Airborne]Project, Flight etc. The
+            container will set the 'parent' attribute of any children added
+            to the container to this value.
         args : [List<ctype>]
             Optional child objects to add to the Container at instantiation
         kwargs
             Optional key-word arguments. Recognized values:
-            str name : override the default name of this container (which is _ctype.__name__)
+            str name : override the default name of this container (which is
+            _ctype.__name__)
         """
         assert ctype in Container.ctypes
         # assert parent is not None
@@ -607,11 +650,11 @@ class Container(TreeItem):
         del self._children
         self._children = {}
 
-
     def add_child(self, child) -> bool:
         """
         Add a child object to the container.
-        The child object must be an instance of the ctype of the container, otherwise it will be rejected.
+        The child object must be an instance of the ctype of the container,
+        otherwise it will be rejected.
         Parameters
         ----------
         child
@@ -620,12 +663,14 @@ class Container(TreeItem):
         -------
         bool:
             True if add is sucessful
-            False if add fails (e.g. child is not a valid type for this container)
+            False if add fails (e.g. child not a valid type for this container)
         """
         if not isinstance(child, self._ctype):
             return False
         if child.uid in self._children:
-            print("child {} already exists in container, skipping insert".format(child))
+            print(
+                "child {} already exists in container, skipping insert".format(
+                    child))
             return True
         try:
             child.parent = self._parent
@@ -657,7 +702,8 @@ class Container(TreeItem):
         """
         try:
             del self._children[child.uid]
-            print("Deleted obj uid: {} from container children".format(child.uid))
+            print(
+                "Deleted obj uid: {} from container children".format(child.uid))
             return True
         except KeyError:
             return False
@@ -676,11 +722,14 @@ class Container(TreeItem):
 
 class AirborneProject(GravityProject, TreeItem):
     """
-    A subclass of the base GravityProject, AirborneProject will define an Airborne survey
-    project with parameters unique to airborne operations, and defining flight lines etc.
+    A subclass of the base GravityProject, AirborneProject will define an
+    Airborne survey project with parameters unique to airborne operations,
+    and defining flight lines etc.
 
-    This class is iterable, yielding the Flight objects contained within its flights dictionary
+    This class is iterable, yielding the Flight objects contained within its
+    flights dictionary
     """
+
     def __init__(self, path: pathlib.Path, name, description=None, parent=None):
         super().__init__(path, name, description)
 
@@ -713,14 +762,17 @@ class AirborneProject(GravityProject, TreeItem):
 
     # TODO: Move this into the GravityProject base class?
     # Although we use flight_uid here, this could be abstracted.
-    def add_data(self, df: DataFrame, path: pathlib.Path, dtype: str, flight_uid: str):
+    def add_data(self, df: DataFrame, path: pathlib.Path, dtype: str,
+                 flight_uid: str):
         """
         Add an imported DataFrame to a specific Flight in the project.
-        Upon adding a DataFrame a UUID is assigned, and together with the data type it is exported
-        to the project HDFStore into a group specified by data type i.e.
-            HDFStore.put('data_type/uuid', packet.data)
-        The data can then be retrieved from its respective dtype group using the UUID.
-        The UUID is then stored in the Flight class's data variable for the respective data_type.
+        Upon adding a DataFrame a UUID is assigned, and together with the data
+        type it is exported to the project HDFStore into a group specified by
+        data type i.e.
+                HDFStore.put('data_type/uuid', packet.data)
+        The data can then be retrieved from its respective dtype group using the
+        UUID. The UUID is then stored in the Flight class's data variable for
+        the respective data_type.
 
         Parameters
         ----------
@@ -746,15 +798,17 @@ class AirborneProject(GravityProject, TreeItem):
         file_uid = gen_uuid('dat')
 
         with HDFStore(str(self.hdf_path)) as store:
-            # Separate data into groups by data type (GPS & Gravity Data)
-            # format: 'table' pytables format enables searching/appending, fixed is more performant.
-            store.put('data/{uid}'.format(uid=file_uid), df, format='fixed', data_columns=True)
+            # format: 'table' pytables format enables searching/appending,
+            # fixed is more performant.
+            store.put('data/{uid}'.format(uid=file_uid), df, format='fixed',
+                      data_columns=True)
             # Store a reference to the original file path
             self.data_map[file_uid] = path
         try:
             flight = self.get_flight(flight_uid)
 
-            flight.add_data(DataFile(file_uid, path, [col for col in df.keys()], dtype))
+            flight.add_data(
+                DataFile(file_uid, path, [col for col in df.keys()], dtype))
             if dtype == 'gravity':
                 if flight.gravity is not None:
                     print("Clearing old FlightLines")
@@ -767,9 +821,11 @@ class AirborneProject(GravityProject, TreeItem):
             return False
 
     def update(self, action: str, item=None, uid=None) -> bool:
-        """Used to update the wrapping (parent) ProjectModel of this project for GUI display"""
+        """Used to update the wrapping (parent) ProjectModel of this project for
+         GUI display"""
         if self.parent is not None:
-            print("Calling update on parent model with params: {} {} {}".format(action, item, uid))
+            print("Calling update on parent model with params: {} {} {}".format(
+                action, item, uid))
             self.parent.update(action, item, uid)
             return True
         return False

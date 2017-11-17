@@ -78,18 +78,6 @@ class AbstractTreeItem(metaclass=ABCMeta):
     def data(self, role=None):
         pass
 
-    @abstractmethod
-    def __str__(self):
-        pass
-
-    @abstractmethod
-    def __len__(self):
-        pass
-
-    @abstractmethod
-    def __iter__(self):
-        pass
-
 
 class TreeItem(AbstractTreeItem):
     """
