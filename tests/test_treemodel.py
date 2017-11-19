@@ -1,6 +1,6 @@
 # coding: utf-8
 
-from .context import dgp
+# from .context import dgp
 
 import unittest
 
@@ -22,7 +22,7 @@ class TestModels(unittest.TestCase):
         self.assertIsInstance(self.ti, types.AbstractTreeItem)
         self.assertEqual(self.ti.uid, self.uid)
         with self.assertRaises(NotImplementedError):
-            res = self.ti.data()
+            res = self.ti.data(0)
 
         self.assertEqual(self.ti.child_count(), 0)
         self.assertEqual(self.ti.row(), 0)
@@ -37,11 +37,14 @@ class TestModels(unittest.TestCase):
         # Appending the same item twice should have no effect
         self.assertEqual(ti.child_count(), 1)
 
-        self.assertEqual(ti.child(child_uid), child)
+        # self.assertEqual(ti.child(child_uid), child)
         self.assertEqual(child.parent, ti)
 
         with self.assertRaises(AssertionError):
             ti.append_child("Bad Child")
+
+        with self.assertRaises(AssertionError):
+            child.parent = "Not a valid parent"
 
         self.assertEqual(ti.indexof(child), 0)
         child1 = types.TreeItem("uid456", parent=ti)
@@ -67,12 +70,41 @@ class TestModels(unittest.TestCase):
         self.ti.append_child(self.child1)
         self.assertEqual(len(self.ti), 2)
 
+    def test_tree_getitem(self):
+        self.ti.append_child(self.child0)
+        self.ti.append_child(self.child1)
 
+        self.assertEqual(self.ti[0], self.child0)
+        self.assertEqual(self.ti[1], self.child1)
+        with self.assertRaises(ValueError):
+            invl_key = self.ti[('a tuple',)]
 
+        with self.assertRaises(IndexError):
+            invl_idx = self.ti[5]
 
+        self.assertEqual(self.ti[self.uid_ch0], self.child0)
 
+        with self.assertRaises(KeyError):
+            invl_uid = self.ti["notarealuid"]
 
+    def test_remove_child(self):
+        self.ti.append_child(self.child0)
+        self.assertEqual(len(self.ti), 1)
 
+        self.ti.remove_child(self.child0)
+        self.assertEqual(len(self.ti), 0)
+        with self.assertRaises(KeyError):
+            ch0 = self.ti[self.uid_ch0]
 
+        self.ti.append_child(self.child0)
+        self.ti.append_child(self.child1)
+        self.assertEqual(len(self.ti), 2)
+        self.ti.remove_child(self.uid_ch0)
+        self.assertEqual(len(self.ti), 1)
 
+    def test_tree_contains(self):
+        """Test tree handling of 'x in tree' expressions."""
+        self.ti.append_child(self.child1)
+        self.assertTrue(self.child1 in self.ti)
+        self.assertTrue(self.child0 not in self.ti)
 

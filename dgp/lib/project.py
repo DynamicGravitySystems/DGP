@@ -1,6 +1,5 @@
 # coding: utf-8
 
-import uuid
 import pickle
 import pathlib
 import logging
@@ -9,6 +8,7 @@ from datetime import datetime
 
 from pandas import HDFStore, DataFrame, Series
 
+from dgp.gui.qtenum import QtItemFlags, QtDataRoles
 from dgp.lib.meterconfig import MeterConfig, AT1Meter
 from dgp.lib.etc import gen_uuid
 from dgp.lib.types import FlightLine, TreeItem, DataFile, PlotCurve
@@ -54,13 +54,6 @@ Workflow:
 
 """
 
-# QT ItemDataRoles
-DisplayRole = 0
-DecorationRole = 1
-ToolTipRole = 3
-StatusTipRole = 4
-UserRole = 256
-
 
 def can_pickle(attribute):
     """Helper function used by __getstate__ to determine if an attribute
@@ -74,15 +67,15 @@ def can_pickle(attribute):
     return True
 
 
-class GravityProject:
+class GravityProject(TreeItem):
     """
     GravityProject will be the base class defining common values for both
     airborne and marine gravity survey projects.
     """
-    version = 0.1  # Used for future pickling compatability
+    version = 0.2  # Used for future pickling compatibility
 
-    def __init__(self, path: pathlib.Path, name: str = "Untitled Project",
-                 description: str = None):
+    def __init__(self, path: pathlib.Path, name: str="Untitled Project",
+                 description: str=None, model_parent=None):
         """
         Initializes a new GravityProject project class
 
@@ -95,6 +88,8 @@ class GravityProject:
         description : str
             Short description for this project.
         """
+        super().__init__(gen_uuid('prj'), parent=None)
+        self._model_parent = model_parent
         self.log = logging.getLogger(__name__)
         if isinstance(path, pathlib.Path):
             self.projectdir = path  # type: pathlib.Path
@@ -116,6 +111,19 @@ class GravityProject:
         self._sensors = {}
 
         self.log.debug("Gravity Project Initialized")
+
+    def data(self, role: QtDataRoles):
+        if role == QtDataRoles.DisplayRole:
+            return self.name
+        return None
+
+    @property
+    def model(self):
+        return self._model_parent
+
+    @model.setter
+    def model(self, value):
+        self._model_parent = value
 
     def load_data(self, uid: str, prefix: str = 'data'):
         """
@@ -284,7 +292,7 @@ class Flight(TreeItem):
     its lines dictionary
     """
 
-    def __init__(self, parent: GravityProject, name: str,
+    def __init__(self, project: GravityProject, name: str,
                  meter: MeterConfig = None, **kwargs):
         """
         The Flight object represents a single literal survey flight
@@ -318,10 +326,12 @@ class Flight(TreeItem):
             date : datetime.date
                 Datetime object to  assign to this flight.
         """
+        uid = kwargs.get('uuid', gen_uuid('flt'))
+        super().__init__(uid, parent=None)
+
         self.log = logging.getLevelName(__name__)
-        self._parent = parent
         self.name = name
-        self._uid = kwargs.get('uuid', gen_uuid('flt'))
+        self._project = project
         self._icon = ':images/assets/flight_icon.png'
         self.meter = meter
         if 'date' in kwargs:
@@ -354,36 +364,26 @@ class Flight(TreeItem):
 
         self._data_cache = {}  # {data_uid: DataFrame, ...}
 
-        self.lines = Container(ctype=FlightLine, parent=self,
-                               name='Flight Lines')
+        self._lines = Container(ctype=FlightLine, parent=self,
+                                name='Flight Lines')
         self._data = Container(ctype=DataFile, parent=self, name='Data Files')
+        self.append_child(self._lines)
+        self.append_child(self._data)
 
-    @property
-    def uid(self):
-        return self._uid
-
-    @property
-    def parent(self):
-        return self._parent
-
-    @parent.setter
-    def parent(self, value):
-        self._parent = value
-
-    def data(self, role=None):
-        if role == UserRole:
+    def data(self, role):
+        if role == QtDataRoles.UserRole:
             return self
-        if role == ToolTipRole:
-            return repr(self)
-        if role == DecorationRole:
+        if role == QtDataRoles.ToolTipRole:
+            return "<{name}::{uid}>".format(name=self.name, uid=self.uid)
+        if role == QtDataRoles.DecorationRole:
             return self._icon
-        return self.name
+        if role == QtDataRoles.DisplayRole:
+            return self.name
+        return None
 
     @property
-    def children(self):
-        """Yield appropriate child objects for display in project Tree View"""
-        for child in [self.lines, self._data]:
-            yield child
+    def lines(self):
+        return self._lines
 
     @property
     def gps(self):
@@ -391,7 +391,7 @@ class Flight(TreeItem):
             return
         if self._gpsdata is None:
             self.log.warning("Loading gps data from HDFStore.")
-            self._gpsdata = self.parent.load_data(self._gpsdata_uid)
+            self._gpsdata = self._project.load_data(self._gpsdata_uid)
         return self._gpsdata
 
     @gps.setter
@@ -405,7 +405,7 @@ class Flight(TreeItem):
     @property
     def gps_file(self):
         try:
-            return self.parent.data_map[self._gpsdata_uid], self._gpsdata_uid
+            return self._project.data_map[self._gpsdata_uid], self._gpsdata_uid
         except KeyError:
             return None, None
 
@@ -424,7 +424,7 @@ class Flight(TreeItem):
             return None
         if self._gravdata is None:
             self.log.warning("Loading gravity data from HDFStore.")
-            self._gravdata = self.parent.load_data(self._gravdata_uid)
+            self._gravdata = self._project.load_data(self._gravdata_uid)
         return self._gravdata
 
     @gravity.setter
@@ -438,7 +438,8 @@ class Flight(TreeItem):
     @property
     def gravity_file(self):
         try:
-            return self.parent.data_map[self._gravdata_uid], self._gravdata_uid
+            return self._project.data_map[self._gravdata_uid], \
+                   self._gravdata_uid
         except KeyError:
             return None, None
 
@@ -492,15 +493,15 @@ class Flight(TreeItem):
         else:
             self.log.warning(
                 "Loading datafile {} from HDF5 Store".format(data_uid))
-            self._data_cache[data_uid] = self.parent.load_data(data_uid)
+            self._data_cache[data_uid] = self._project.load_data(data_uid)
             return self.get_channel_data(uid)
 
     def add_data(self, data: DataFile):
         # Redundant? - apparently - as long as the model does its job
-        # self._data.add_child(data)
+        self._data.append_child(data)
 
         # Called to update GUI Tree
-        self.parent.update('add', data, self._data.uid)
+        self.update('add', data)
 
         for col in data.fields:
             col_uid = gen_uuid('col')
@@ -517,21 +518,22 @@ class Flight(TreeItem):
         # line = FlightLine(len(self.lines), None, start, end, self)
         self.log.debug(
             "Adding line to LineContainer of flight: {}".format(self.name))
-        print("Adding line to LineContainer of flight: {}".format(self.name))
-        line = FlightLine(start, stop, len(self.lines) + 1, None, uid=uid,
-                          parent=self)
-        self.lines.add_child(line)
-        self.parent.update('add', line, self.lines.uid)
+        line = FlightLine(start, stop, len(self._lines) + 1, None, uid=uid,
+                          parent=self.lines)
+        self._lines.append_child(line)
+        self.update('add', line)
         return line
 
     def remove_line(self, uid):
         """ Remove a flight line """
-        self.lines.remove_child(self.lines[uid])
-        self.parent.update('remove', uid=uid)
+        line = self._lines[uid]
+        self._lines.remove_child(self._lines[uid])
+        self.update('del', line)
 
     def clear_lines(self):
         """Removes all Lines from Flight"""
-        self.lines.clear()
+        return
+        self._lines.clear()
 
     def __iter__(self):
         """
@@ -541,11 +543,11 @@ class Flight(TreeItem):
         FlightLine : NamedTuple
             Next FlightLine in Flight.lines
         """
-        for line in self.lines:
+        for line in self._lines:
             yield line
 
     def __len__(self):
-        return len(self.lines)
+        return len(self._lines)
 
     def __repr__(self):
         return "{cls}({parent}, {name}, {meter})".format(
@@ -602,55 +604,32 @@ class Container(TreeItem):
             str name : override the default name of this container (which is
             _ctype.__name__)
         """
+        super().__init__(uid=gen_uuid('box'), parent=parent)
         assert ctype in Container.ctypes
         # assert parent is not None
-        self._uid = gen_uuid('box')
-        self._parent = parent
         self._ctype = ctype
         self._name = kwargs.get('name', self._ctype.__name__)
-        self._children = {}
-        for arg in args:
-            self.add_child(arg)
 
-    @property
-    def parent(self):
-        return self._parent
-
-    @parent.setter
-    def parent(self, value):
-        self._parent = value
+        # for arg in args:
+        #     if isinstance(arg, TreeItem):
+        #         self.append_child(arg)
 
     @property
     def ctype(self):
         return self._ctype
 
     @property
-    def uid(self):
-        return self._uid
-
-    @property
     def name(self):
         return self._name.lower()
 
-    @property
-    def children(self):
-        for flight in self._children:
-            yield self._children[flight]
+    def data(self, role: QtDataRoles):
+        if role == QtDataRoles.ToolTipRole:
+            return "Container for {} objects. <{}>".format(self._name, self.uid)
+        elif role == QtDataRoles.DisplayRole:
+            return "Container: " + self._name
+        return None
 
-    def data(self, role=None):
-        if role == ToolTipRole:
-            return "Container for {} type objects.".format(self._name)
-        return self._name
-
-    def child(self, uid):
-        return self._children[uid]
-
-    def clear(self):
-        """Remove all items from the container."""
-        del self._children
-        self._children = {}
-
-    def add_child(self, child) -> bool:
+    def append_child(self, child) -> None:
         """
         Add a child object to the container.
         The child object must be an instance of the ctype of the container,
@@ -659,68 +638,22 @@ class Container(TreeItem):
         ----------
         child
             Child object of compatible type <ctype> for this container.
-        Returns
-        -------
-        bool:
-            True if add is sucessful
-            False if add fails (e.g. child not a valid type for this container)
+        Raises
+        ------
+        TypeError:
+            Raises TypeError if child is not of the permitted type defined by
+            this container.
         """
         if not isinstance(child, self._ctype):
-            return False
-        if child.uid in self._children:
-            print(
-                "child {} already exists in container, skipping insert".format(
-                    child))
-            return True
-        try:
-            child.parent = self._parent
-        except AttributeError:
-            # Can't reassign tuple attribute (may change FlightLine to class in future)
-            pass
-        self._children[child.uid] = child
-        return True
-
-    def __getitem__(self, key):
-        return self._children[key]
-
-    def __contains__(self, key):
-        return key in self._children
-
-    def remove_child(self, child) -> bool:
-        """
-        Remove a child object from the container.
-        Children are deleted by the uid key, no other comparison is executed.
-        Parameters
-        ----------
-        child
-
-        Returns
-        -------
-        bool:
-            True on sucessful deletion of child
-            False if child.uid could not be retrieved and deleted
-        """
-        try:
-            del self._children[child.uid]
-            print(
-                "Deleted obj uid: {} from container children".format(child.uid))
-            return True
-        except KeyError:
-            return False
-
-    def __iter__(self):
-        for child in self._children.values():
-            yield child
-
-    def __len__(self):
-        return len(self._children)
+            raise TypeError("Child type is not permitted in this container.")
+        super().append_child(child)
 
     def __str__(self):
         # return self._name
         return str(self._children)
 
 
-class AirborneProject(GravityProject, TreeItem):
+class AirborneProject(GravityProject):
     """
     A subclass of the base GravityProject, AirborneProject will define an
     Airborne survey project with parameters unique to airborne operations,
@@ -730,35 +663,27 @@ class AirborneProject(GravityProject, TreeItem):
     flights dictionary
     """
 
+    def __iter__(self):
+        pass
+
     def __init__(self, path: pathlib.Path, name, description=None, parent=None):
         super().__init__(path, name, description)
 
-        self._parent = parent
-        # Dictionary of Flight objects keyed by the flight uuid
-        self._children = {'flights': Container(ctype=Flight, parent=self),
-                          'meters': Container(ctype=MeterConfig, parent=self)}
+        self._flights = Container(ctype=Flight, parent=self)
+        self.append_child(self._flights)
+        self._meters = Container(ctype=MeterConfig, parent=self)
+        self.append_child(self._meters)
+
         self.log.debug("Airborne project initialized")
         self.data_map = {}
+        # print("Project children:")
+        # for child in self.children:
+        #     print(child.uid)
 
-    @property
-    def parent(self):
-        return self._parent
-
-    @parent.setter
-    def parent(self, value):
-        self._parent = value
-
-    @property
-    def children(self):
-        for child in self._children:
-            yield self._children[child]
-
-    @property
-    def uid(self):
-        return
-
-    def data(self, role=None):
-        return "{} :: <{}>".format(self.name, self.projectdir.resolve())
+    def data(self, role: QtDataRoles):
+        if role == QtDataRoles.DisplayRole:
+            return "{} :: <{}>".format(self.name, self.projectdir.resolve())
+        return None
 
     # TODO: Move this into the GravityProject base class?
     # Although we use flight_uid here, this could be abstracted.
@@ -820,38 +745,33 @@ class AirborneProject(GravityProject, TreeItem):
         except KeyError:
             return False
 
-    def update(self, action: str, item=None, uid=None) -> bool:
+    def update(self, action: str, item, **kwargs):
         """Used to update the wrapping (parent) ProjectModel of this project for
          GUI display"""
-        if self.parent is not None:
-            print("Calling update on parent model with params: {} {} {}".format(
-                action, item, uid))
-            self.parent.update(action, item, uid)
-            return True
-        return False
+        if self.model is not None:
+            print("Calling update on parent model with params: {} {}".format(
+                action, item))
+            self.model.update(action, item, **kwargs)
 
     def add_flight(self, flight: Flight) -> None:
         flight.parent = self
-        self._children['flights'].add_child(flight)
+        self._flights.append_child(flight)
+
+        # self._children['flights'].add_child(flight)
         self.update('add', flight)
 
+    def remove_flight(self, flight: Flight) -> bool:
+        self._flights.remove_child(flight)
+        self.update('del', flight, parent=flight.parent, row=flight.row())
+
     def get_flight(self, uid):
-        flight = self._children['flights'].child(uid)
-        return flight
+        return self._flights.child(uid)
+
+    @property
+    def count_flights(self):
+        return len(self._flights)
 
     @property
     def flights(self):
-        for flight in self._children['flights'].children:
+        for flight in self._flights:
             yield flight
-
-    def __iter__(self):
-        return (i for i in self._children.items())
-
-    def __len__(self):
-        count = 0
-        for child in self._children:
-            count += len(child)
-        return count
-
-    def __str__(self):
-        return "AirborneProject: {}".format(self.name)

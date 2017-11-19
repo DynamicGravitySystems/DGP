@@ -4,6 +4,8 @@ import os
 import uuid
 import configparser
 
+from dgp.gui.qtenum import QtDataRoles
+from dgp.lib.etc import gen_uuid
 from dgp.lib.types import TreeItem
 
 """
@@ -26,35 +28,20 @@ class MeterConfig(TreeItem):
     """
 
     def __init__(self, name, meter_type='AT1', parent=None, **config):
-        # TODO: Consider other meter types, what to do about different config values etc.
-        self._uid = 'm{}'.format(uuid.uuid4().hex[1:])
-        self._parent = parent
+        uid = gen_uuid('mtr')
+        super().__init__(uid, parent=parent)
         self.name = name
         self.type = meter_type
         self.config = {k.lower(): v for k, v in config.items()}
-
-    @property
-    def parent(self):
-        return self._parent
-
-    @parent.setter
-    def parent(self, value):
-        self._parent = value
 
     @staticmethod
     def from_ini(path):
         raise NotImplementedError
 
-    @property
-    def uid(self):
-        return self._uid
-
-    @property
-    def children(self):
-        return []
-
-    def data(self, role=None):
-        return "{} <{}>".format(self.name, self.type)
+    def data(self, role: QtDataRoles):
+        if role == QtDataRoles.DisplayRole:
+            return "{} <{}>".format(self.name, self.type)
+        return None
 
     def __getitem__(self, item):
         """Allow getting of configuration values using container type syntax e.g. value = MeterConfig['key']"""

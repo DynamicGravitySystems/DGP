@@ -16,11 +16,10 @@ from PyQt5.uic import loadUiType
 import dgp.lib.project as prj
 from dgp.gui.loader import LoadFile
 from dgp.lib.plotter import LineGrabPlot, LineUpdate
-from dgp.lib.types import PlotCurve
-from dgp.lib.etc import gen_uuid
+from dgp.lib.types import PlotCurve, AbstractTreeItem
 from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP, get_project_file
 from dgp.gui.dialogs import ImportData, AddFlight, CreateProject, InfoDialog, AdvancedImport
-from dgp.gui.models import TableModel, ProjectModel, ProjectItem
+from dgp.gui.models import TableModel, ProjectModel
 
 
 # Load .ui form
@@ -64,7 +63,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         # Setup Project
         self.project = project
         # Experimental: use the _model to affect changes to the project.
-        self._model = ProjectModel(project)
+        # self._model = ProjectModel(project)
 
         # See http://doc.qt.io/qt-5/stylesheet-examples.html#customizing-qtreeview
         # Set Stylesheet customizations for GUI Window
@@ -209,7 +208,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         for flight in self.project.flights:
             if info.flight_id == flight.uid:
 
-                if info.uid in flight.lines:
+                if info.uid in [x.uid for x in flight.lines]:
                     if info.action == 'modify':
                         line = flight.lines[info.uid]
                         line.start = info.start
@@ -252,6 +251,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         return plot, widget
 
     def populate_channel_tree(self, flight: prj.Flight=None):
+        self.log.debug("Populating channel tree")
         if flight is None:
             flight = self.current_flight
 
@@ -374,7 +374,9 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         qitem = index.internalPointer()
         if qitem is None:
             return
-        qitem_data = qitem.data(QtCore.Qt.UserRole)
+        # qitem_data = qitem.data(QtCore.Qt.UserRole)
+        # TODO: Fix this mess up
+        qitem_data = qitem
 
         if not isinstance(qitem_data, prj.Flight):
             # Return as we're not interested in handling non-flight selections
@@ -459,7 +461,7 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             curve = PlotCurve(channel, flight.get_channel_data(channel), label, axes)
             plot.add_series(curve, propogate=False)
 
-        for line in flight.lines:
+        for line in flight._lines:
             plot.draw_patch(line.start, line.stop, line.uid)
             queue_draw = True
         if queue_draw:
@@ -508,7 +510,10 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             path, dtype, fields, flight = dialog.content
             # print("path: {}  type: {}\nfields: {}\nflight: {}".format(path, dtype, fields, flight))
             # Delete flight model to force update
-            del self._flight_channel_models[flight.uid]
+            try:
+                del self._flight_channel_models[flight.uid]
+            except KeyError:
+                pass
             self.import_data(path, dtype, flight, fields=fields)
             return
 
@@ -588,8 +593,6 @@ class ProjectTreeView(QtWidgets.QTreeView):
         super().__init__(parent=parent)
 
         self._project = project
-        # Dict indexes to store [flight_uid] = QItemIndex
-        self._indexes = {}
         self.log = logging.getLogger(__name__)
 
         self.setMinimumSize(QtCore.QSize(0, 300))
@@ -601,12 +604,13 @@ class ProjectTreeView(QtWidgets.QTreeView):
         self.setObjectName('project_tree')
         self.setContextMenuPolicy(QtCore.Qt.DefaultContextMenu)
         self._init_model()
+        print("Project model inited")
 
     def _init_model(self):
         """Initialize a new-style ProjectModel from models.py"""
-        model = ProjectModel(self._project)
-        model.rowsAboutToBeInserted.connect(self.begin_insert)
-        model.rowsInserted.connect(self.end_insert)
+        model = ProjectModel(self._project, parent=self)
+        # model.rowsAboutToBeInserted.connect(self.begin_insert)
+        # model.rowsInserted.connect(self.end_insert)
         self.setModel(model)
         self.expandAll()
 
@@ -617,87 +621,13 @@ class ProjectTreeView(QtWidgets.QTreeView):
         print("Finixhed inserting rows, running update")
         # index is parent index
         model = self.model()
-        uindex = model.index(row=start-1, parent=index)
+        uindex = model.index(row=start, parent=index)
         self.update(uindex)
         self.expandAll()
 
-    def generate_airborne_model(self, project: prj.AirborneProject):
-        """Generate a Qt Model based on the project structure."""
-        raise DeprecationWarning
-        model = QStandardItemModel()
-        root = model.invisibleRootItem()
-
-        flight_items = {}  # Used to find indexes after creation
-
-        dgs_ico = QIcon(':images/assets/dgs_icon.xpm')
-        flt_ico = QIcon(':images/assets/flight_icon.png')
-
-        prj_header = QStandardItem(dgs_ico,
-                                   "{name}: {path}".format(name=project.name,
-                                                           path=project.projectdir))
-        prj_header.setData(project, QtCore.Qt.UserRole)
-        prj_header.setEditable(False)
-        fli_header = QStandardItem(flt_ico, "Flights")
-        fli_header.setEditable(False)
-        first_flight = None
-        for uid, flight in project.flights.items():
-            fli_item = QStandardItem(flt_ico, "Flight: {}".format(flight.name))
-            flight_items[flight.uid] = fli_item
-            if first_flight is None:
-                first_flight = fli_item
-            fli_item.setToolTip("UUID: {}".format(uid))
-            fli_item.setEditable(False)
-            fli_item.setData(flight, QtCore.Qt.UserRole)
-
-            gps_path, gps_uid = flight.gps_file
-            if gps_path is not None:
-                _, gps_fname = os.path.split(gps_path)
-            else:
-                gps_fname = '<None>'
-            gps = QStandardItem("GPS: {}".format(gps_fname))
-            gps.setToolTip("File Path: {}".format(gps_uid))
-            gps.setEditable(False)
-            gps.setData(gps_uid)  # For future use
-
-            grav_path, grav_uid = flight.gravity_file
-            if grav_path is not None:
-                _, grav_fname = os.path.split(grav_path)
-            else:
-                grav_fname = '<None>'
-            grav = QStandardItem("Gravity: {}".format(grav_fname))
-            grav.setToolTip("File Path: {}".format(grav_path))
-            grav.setEditable(False)
-            grav.setData(grav_uid)  # For future use
-
-            fli_item.appendRow(gps)
-            fli_item.appendRow(grav)
-
-            for line in flight:
-                line_item = QStandardItem("Line {}:{}".format(line.start, line.end))
-                line_item.setEditable(False)
-                fli_item.appendRow(line_item)
-            fli_header.appendRow(fli_item)
-        prj_header.appendRow(fli_header)
-
-        meter_header = QStandardItem("Meters")
-        for meter in project.meters:  # type: prj.AT1Meter
-            meter_item = QStandardItem("{}".format(meter.name))
-            meter_header.appendRow(meter_item)
-        prj_header.appendRow(meter_header)
-
-        root.appendRow(prj_header)
-        self.log.debug("Tree Model generated")
-        first_index = model.indexFromItem(first_flight)
-
-        # for uid, item in flight_items.items():
-        #     self._indexes[uid] = model.indexFromItem(item)
-        self._indexes = {uid: model.indexFromItem(item) for uid, item in flight_items.items()}
-
-        return model, first_index
-
     def contextMenuEvent(self, event: QtGui.QContextMenuEvent, *args, **kwargs):
         context_ind = self.indexAt(event.pos())  # get the index of the item under the click event
-        context_focus = self.model().itemFromIndex(context_ind)  # type: ProjectItem
+        context_focus = self.model().itemFromIndex(context_ind)
         print(context_focus.uid)
 
         info_slot = functools.partial(self.flight_info, context_focus)
