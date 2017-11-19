@@ -4,12 +4,15 @@
 and to remove reliance on Qt imports in modules that do not directly
 interact with Qt
 See: http://pyqt.sourceforge.net/Docs/PyQt4/qt.html
+
+The enum.IntFlag is not introduced until Python 3.6, but the enum.IntEnum
+class is functionally equivalent for our purposes.
 """
 
 import enum
 
 
-class QtItemFlags(enum.IntFlag):
+class QtItemFlags(enum.IntEnum):
     """Qt Item Flags"""
     NoItemFlags = 0
     ItemIsSelectable = 1
@@ -21,7 +24,7 @@ class QtItemFlags(enum.IntFlag):
     ItemIsTristate = 64
 
 
-class QtDataRoles(enum.IntFlag):
+class QtDataRoles(enum.IntEnum):
     """Qt Item Data Roles"""
     # Data to be rendered as text (QString)
     DisplayRole = 0
