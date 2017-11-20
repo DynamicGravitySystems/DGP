@@ -8,8 +8,125 @@ Library for data transformation classes
 
 from copy import deepcopy
 from pandas import DataFrame
+import inspect
 
 from dgp.lib.etc import gen_uuid, dedup_dict
+
+
+class Transform:
+    def __init__(self, func, typ):
+        self._uid = gen_uuid('xf')
+        self._func = func
+        self._transformtype = typ
+
+    @property
+    def func(self):
+        return self._func
+
+    @property
+    def transformtype(self):
+        return self._transformtype
+
+    @transformtype.setter
+    def transformtype(self, type):
+        self._transformtype = type
+
+    @property
+    def uid(self):
+        return self._uid
+
+    def __call__(self, *args, **kwargs):
+        raise NotImplementedError('Abstract definition. Not implemented.')
+
+    def __str__(self):
+        return 'Transform({func})'.format(func=self._func)
+
+
+class Filter(Transform):
+    var_dict = {'fs': '_fs',
+                'fc': '_fc',
+                'order': '_order',
+                'wn': '_wn',
+                'nyq': '_nyq',
+                'window': '_window'
+                }
+
+    def __init__(self, func, fc, fs, typ):
+        super().__init__(func, 'filter')
+
+        self.filtertype = typ
+        self._window = 'blackman'
+        self._fs = fs
+        self._fc = fc
+
+        self._order = 2.0 * 1 / self._fc * self._fs
+        self._nyq = self._fs * 0.5
+        self._wn = self._fc / self._nyq
+
+    @property
+    def nyq(self):
+        return self._nyq
+
+    @property
+    def wn(self):
+        return self._wn
+
+    @property
+    def fc(self):
+        return self._fc
+
+    @fc.setter
+    def fc(self, f):
+        self._fc = f
+        self._order = 2.0 * 1 / self._fc * self._fs
+        self._wn = self._fc / self._nyq
+
+    @property
+    def fs(self):
+        return self._fs
+
+    @property
+    def window(self):
+        return self._window
+
+    @window.setter
+    def window(self, w):
+        # TODO: Check for valid window selection
+        self._window = w
+
+    @fs.setter
+    def fs(self, f):
+        self._fs = f
+        self._order = 2.0 * 1 / self._fc * self._fs
+        self._nyq = self._fs * 0.5
+        self._wn = self._fc / self._nyq
+
+    def __call__(self, *args, **kwargs):
+        # identify arguments that are instance variables
+        argspec = inspect.getfullargspec(self._func)
+        keywords = {}
+        for arg in argspec.args:
+            if arg in self.var_dict:
+                keywords[arg] = self.__dict__[self.var_dict[arg]]
+
+        # override keywords explicitly set in function call
+        for k, v in kwargs.items():
+            keywords[k] = v
+
+        return self._func(*args, **keywords)
+
+    def __repr__(self):
+        return """Filter type: {typ}
+                  Window: {window}
+                  Cutoff frequency: {fc} Hz
+                  Sample frequency: {fs} Hz
+                  Nyquist frequency: {nyq} Hz
+                  Normalized frequency: {wn} pi radians / sample
+                  Order: {order}
+               """.format(typ=self.filtertype, fc=self._fc, fs=self._fs,
+                          nyq=self._nyq, order=self._order, wn=self._wn,
+                          window=self._window)
+
 
 class TransformChain:
     def __init__(self):
@@ -72,6 +189,7 @@ class TransformChain:
     def __iter__(self):
         for uid in self._ordering:
             yield self._transforms[uid]
+
 
 class DataWrapper:
     """
