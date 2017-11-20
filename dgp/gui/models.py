@@ -11,12 +11,11 @@ from typing import List, Union
 from PyQt5 import Qt, QtCore
 from PyQt5.Qt import QWidget, QAbstractItemModel, QStandardItemModel
 from PyQt5.QtCore import QModelIndex, QVariant
-from PyQt5.QtGui import QIcon, QStandardItem
+from PyQt5.QtGui import QIcon, QBrush, QColor, QStandardItem
 from PyQt5.QtWidgets import QComboBox
 
 from dgp.gui.qtenum import QtDataRoles, QtItemFlags
-from dgp.lib.types import AbstractTreeItem
-# from dgp.lib.project import GravityProject
+from dgp.lib.types import AbstractTreeItem, TreeItem
 
 
 class TableModel(QtCore.QAbstractTableModel):
@@ -84,7 +83,8 @@ class TableModel(QtCore.QAbstractTableModel):
         flags = QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
         if index.row() == 0 and self._editheader:
             flags = flags | QtCore.Qt.ItemIsEditable
-        elif self._editable is not None and index.column() in self._editable:  # Allow the values column to be edited
+        # Allow the values column to be edited
+        elif self._editable is not None and index.column() in self._editable:
             flags = flags | QtCore.Qt.ItemIsEditable
         return flags
 
@@ -108,11 +108,13 @@ class TableModel(QtCore.QAbstractTableModel):
 class ProjectModel(QtCore.QAbstractItemModel):
     """Heirarchial (Tree) Project Model with a single root node."""
     def __init__(self, project: AbstractTreeItem, parent=None):
+        self.log = logging.getLogger(__name__)
         super().__init__(parent=parent)
         # assert isinstance(project, GravityProject)
         project.model = self
-        self._root_item = project
-        self.log = logging.getLogger(__name__)
+        root = TreeItem("root1234")
+        root.append_child(project)
+        self._root_item = root
         self.layoutChanged.emit()
         self.log.info("Project Tree Model initialized.")
 
@@ -130,12 +132,6 @@ class ProjectModel(QtCore.QAbstractItemModel):
         self.log.info("ProjectModel Layout Changed")
         self.layoutChanged.emit()
         return
-        # Deprecated in favor of calling simple layoutChanged signals
-        if action.lower() == 'add':
-            self.append_child(obj)
-        elif action.lower() == 'del':
-            parent = kwargs.get('parent', None)
-            self.remove_child(parent, 0)
 
     def parent(self, index: QModelIndex) -> QModelIndex:
         """
@@ -165,10 +161,12 @@ class ProjectModel(QtCore.QAbstractItemModel):
         return self.createIndex(parent_item.row(), 0, parent_item)
 
     @staticmethod
-    def data(index: QModelIndex,
-             role: QtDataRoles) -> Union[QVariant, AbstractTreeItem]:
+    def data(index: QModelIndex, role: QtDataRoles):
         """
         Returns data for the requested index and role.
+        We do some processing here to encapsulate data within Qt Types where
+        necesarry, as TreeItems in general do not import Qt Modules due to
+        the possibilty of pickling them.
         Parameters
         ----------
         index: QModelIndex
@@ -178,27 +176,30 @@ class ProjectModel(QtCore.QAbstractItemModel):
             (Re-implemented for convenience and portability from PyQt defs)
         Returns
         -------
-        Union[QVariant, AbstractTreeItem]:
+        QVariant
             Returns QVariant data depending on specified role.
             If role is UserRole, the underlying AbstractTreeItem object is
             returned
         """
         if not index.isValid():
             return QVariant()
-
         item = index.internalPointer()  # type: AbstractTreeItem
+        data = item.data(role)
+
+        # To guard against cases where role is not implemented
+        if data is None:
+            return QVariant()
+
+        # Role encapsulation
         if role == QtDataRoles.UserRole:
             return item
-        if role == QtDataRoles.DisplayRole:
-            return item.data(QtDataRoles.DisplayRole)
-            # return QVariant(str(item))
-        else:
-            data = item.data(role)
-            # To guard against cases where certain roles not implemented
-            if data is None:
-                return QVariant()
-            # print("209 Returning data ", data)
-            return QVariant(data)
+        if role == QtDataRoles.DecorationRole:
+            # Construct Decoration object from data
+            return QIcon(data)
+        if role in [QtDataRoles.BackgroundRole, QtDataRoles.ForegroundRole]:
+            return QBrush(QColor(data))
+
+        return QVariant(data)
 
     @staticmethod
     def flags(index: QModelIndex) -> QtItemFlags:

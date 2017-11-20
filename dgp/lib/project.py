@@ -326,17 +326,21 @@ class Flight(TreeItem):
             date : datetime.date
                 Datetime object to  assign to this flight.
         """
+        self.log = logging.getLevelName(__name__)
         uid = kwargs.get('uuid', gen_uuid('flt'))
         super().__init__(uid, parent=None)
 
-        self.log = logging.getLevelName(__name__)
         self.name = name
         self._project = project
         self._icon = ':images/assets/flight_icon.png'
+        self.style = {'icon': ':images/assets/flight_icon.png',
+                      QtDataRoles.BackgroundRole: 'LightGray'}
         self.meter = meter
         if 'date' in kwargs:
             print("Setting date to: {}".format(kwargs['date']))
             self.date = kwargs['date']
+        else:
+            self.date = "No date set"
 
         self.log = logging.getLogger(__name__)
 
@@ -371,15 +375,11 @@ class Flight(TreeItem):
         self.append_child(self._data)
 
     def data(self, role):
-        if role == QtDataRoles.UserRole:
-            return self
         if role == QtDataRoles.ToolTipRole:
             return "<{name}::{uid}>".format(name=self.name, uid=self.uid)
-        if role == QtDataRoles.DecorationRole:
-            return self._icon
         if role == QtDataRoles.DisplayRole:
-            return self.name
-        return None
+            return "{name} - {date}".format(name=self.name, date=self.date)
+        return super().data(role)
 
     @property
     def lines(self):
@@ -497,11 +497,7 @@ class Flight(TreeItem):
             return self.get_channel_data(uid)
 
     def add_data(self, data: DataFile):
-        # Redundant? - apparently - as long as the model does its job
         self._data.append_child(data)
-
-        # Called to update GUI Tree
-        self.update('add', data)
 
         for col in data.fields:
             col_uid = gen_uuid('col')
@@ -509,8 +505,8 @@ class Flight(TreeItem):
             # If defaults are specified then add them to the plotted_channels
             if col in self._default_plot_map:
                 self._plotted_channels[col_uid] = self._default_plot_map[col]
-        print("Plotted: ", self._plotted_channels)
-        print(self._channels)
+        # print("Plotted: ", self._plotted_channels)
+        # print(self._channels)
 
     def add_line(self, start: datetime, stop: datetime, uid=None):
         """Add a flight line to the flight by start/stop index and sequence
@@ -521,14 +517,14 @@ class Flight(TreeItem):
         line = FlightLine(start, stop, len(self._lines) + 1, None, uid=uid,
                           parent=self.lines)
         self._lines.append_child(line)
-        self.update('add', line)
+        # self.update('add', line)
         return line
 
     def remove_line(self, uid):
         """ Remove a flight line """
         line = self._lines[uid]
         self._lines.remove_child(self._lines[uid])
-        self.update('del', line)
+        # self.update('del', line)
 
     def clear_lines(self):
         """Removes all Lines from Flight"""
@@ -609,10 +605,9 @@ class Container(TreeItem):
         # assert parent is not None
         self._ctype = ctype
         self._name = kwargs.get('name', self._ctype.__name__)
-
-        # for arg in args:
-        #     if isinstance(arg, TreeItem):
-        #         self.append_child(arg)
+        _icon = ':/images/assets/folder_open.png'
+        self.style = {QtDataRoles.DecorationRole: _icon,
+                      QtDataRoles.BackgroundRole: 'LightBlue'}
 
     @property
     def ctype(self):
@@ -625,9 +620,9 @@ class Container(TreeItem):
     def data(self, role: QtDataRoles):
         if role == QtDataRoles.ToolTipRole:
             return "Container for {} objects. <{}>".format(self._name, self.uid)
-        elif role == QtDataRoles.DisplayRole:
-            return "Container: " + self._name
-        return None
+        if role == QtDataRoles.DisplayRole:
+            return self._name
+        return super().data(role)
 
     def append_child(self, child) -> None:
         """
@@ -669,9 +664,10 @@ class AirborneProject(GravityProject):
     def __init__(self, path: pathlib.Path, name, description=None, parent=None):
         super().__init__(path, name, description)
 
-        self._flights = Container(ctype=Flight, parent=self)
+        self._flights = Container(ctype=Flight, name="Flights", parent=self)
         self.append_child(self._flights)
-        self._meters = Container(ctype=MeterConfig, parent=self)
+        self._meters = Container(ctype=MeterConfig, name="Meter Configurations",
+                                 parent=self)
         self.append_child(self._meters)
 
         self.log.debug("Airborne project initialized")
@@ -683,7 +679,7 @@ class AirborneProject(GravityProject):
     def data(self, role: QtDataRoles):
         if role == QtDataRoles.DisplayRole:
             return "{} :: <{}>".format(self.name, self.projectdir.resolve())
-        return None
+        return super().data(role)
 
     # TODO: Move this into the GravityProject base class?
     # Although we use flight_uid here, this could be abstracted.
@@ -745,24 +741,24 @@ class AirborneProject(GravityProject):
         except KeyError:
             return False
 
-    def update(self, action: str, item, **kwargs):
+    def update(self, **kwargs):
         """Used to update the wrapping (parent) ProjectModel of this project for
          GUI display"""
         if self.model is not None:
-            print("Calling update on parent model with params: {} {}".format(
-                action, item))
-            self.model.update(action, item, **kwargs)
+            # print("Calling update on parent model with params: {} {}".format(
+            #     action, item))
+            self.model.update(**kwargs)
 
     def add_flight(self, flight: Flight) -> None:
         flight.parent = self
         self._flights.append_child(flight)
 
         # self._children['flights'].add_child(flight)
-        self.update('add', flight)
+        # self.update('add', flight)
 
     def remove_flight(self, flight: Flight) -> bool:
         self._flights.remove_child(flight)
-        self.update('del', flight, parent=flight.parent, row=flight.row())
+        # self.update('del', flight, parent=flight.parent, row=flight.row())
 
     def get_flight(self, uid):
         return self._flights.child(uid)

@@ -5,6 +5,7 @@
 import unittest
 
 from dgp.lib import types, project
+from dgp.gui.qtenum import QtDataRoles
 from dgp.gui import models
 
 
@@ -21,8 +22,6 @@ class TestModels(unittest.TestCase):
         """Test new tree item base class"""
         self.assertIsInstance(self.ti, types.AbstractTreeItem)
         self.assertEqual(self.ti.uid, self.uid)
-        with self.assertRaises(NotImplementedError):
-            res = self.ti.data(0)
 
         self.assertEqual(self.ti.child_count(), 0)
         self.assertEqual(self.ti.row(), 0)

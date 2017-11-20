@@ -1,5 +1,6 @@
 # coding: utf-8
 
+from datetime import datetime
 from abc import ABCMeta, abstractmethod
 from collections import namedtuple
 from typing import Union, Generator
@@ -101,7 +102,7 @@ class AbstractTreeItem(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def update(self, action, item, **kwargs):
+    def update(self, **kwargs):
         pass
 
 
@@ -117,9 +118,13 @@ class TreeItem(AbstractTreeItem):
         # Private BaseClass members - should be accessed via properties
         self._parent = parent
         self._uid = uid
-        self._children = []  # List is required due to need for simple
-        # ordering
-        self._child_map = {}
+        self._children = []  # List is required due to need for ordering
+        self._child_map = {}  # Used for fast lookup by UID
+        self._style = {}
+        self._style_roles = {QtDataRoles.BackgroundRole: 'bg',
+                             QtDataRoles.ForegroundRole: 'fg',
+                             QtDataRoles.DecorationRole: 'icon',
+                             QtDataRoles.FontRole: 'font'}
 
         if parent is not None:
             parent.append_child(self)
@@ -165,6 +170,7 @@ class TreeItem(AbstractTreeItem):
             return
         assert isinstance(value, AbstractTreeItem)
         self._parent = value
+        self.update()
 
     @property
     def children(self) -> Generator[AbstractTreeItem, None, None]:
@@ -172,9 +178,41 @@ class TreeItem(AbstractTreeItem):
         for child in self._children:
             yield child
 
-    # def child(self, uid: str) -> Union[AbstractTreeItem, None]:
-    #     """Retrieve child of this object by UID, or None"""
-    #     return self._child_map.get(uid, None)
+    @property
+    def style(self):
+        return self._style
+
+    @style.setter
+    def style(self, value: dict):
+        # TODO: Check for valid style params
+        self._style = value
+
+    def data(self, role: QtDataRoles):
+        """
+        Return contextual data based on supplied role.
+        If a role is not defined or handled by descendents they should return
+        None, and the model should be take this into account.
+        TreeType provides a basic default implementation, which will also
+        handle common style parameters. Descendant classes should provide
+        their own definition to override specific roles, and then call the
+        base data() implementation to handle style application. e.g.
+        >>> def data(self, role: QtDataRoles):
+        >>>     if role == QtDataRoles.DisplayRole:
+        >>>         return "Custom Display: " + self.name
+        >>>     # Allow base class to apply styles if role not caught above
+        >>>     return super().data(role)
+        """
+        if role == QtDataRoles.DisplayRole:
+            return str(self)
+        if role == QtDataRoles.ToolTipRole:
+            return self.uid
+        # Allow style specification by QtDataRole or by name e.g. 'bg', 'fg'
+        if role in self._style:
+            return self._style[role]
+        if role in self._style_roles:
+            key = self._style_roles[role]
+            return self._style.get(key, None)
+        return None
 
     def child(self, index: Union[int, str]):
         if isinstance(index, str):
@@ -206,7 +244,7 @@ class TreeItem(AbstractTreeItem):
         child.parent = self
         self._children.append(child)
         self._child_map[child.uid] = child
-        # self.update('add', child)
+        self.update()
 
     def remove_child(self, child: Union[AbstractTreeItem, str]):
         # Allow children to be removed by UID
@@ -218,6 +256,7 @@ class TreeItem(AbstractTreeItem):
         # child.parent = None
         del self._child_map[child.uid]
         self._children.remove(child)
+        self.update()
 
     def indexof(self, child) -> Union[int, None]:
         """Return the index of a child contained in this object"""
@@ -242,32 +281,15 @@ class TreeItem(AbstractTreeItem):
         column Tree structure."""
         return 1
 
-    def data(self, role: QtDataRoles):
-        """
-        Return contextual data based on supplied role.
-        If a role is not defined or handled by descendents they should return
-        None, and the model should be take this into account.
-        """
-        raise NotImplementedError("data method must be implemented in subclass")
-
     def flags(self) -> int:
         """Returns default flags for Tree Items, override this to enable
         custom behavior in the model."""
         return QtItemFlags.ItemIsSelectable | QtItemFlags.ItemIsEnabled
 
-    def update(self, action, item, **kwargs):
+    def update(self, **kwargs):
         """Propogate update up to the parent that decides to catch it"""
         if self.parent is not None:
-            self.parent.update(action, item, **kwargs)
-
-
-class RootTreeItem(TreeItem):
-    def __init__(self, data: str):
-        super().__init__(gen_uuid("tr"))
-        self._data = data
-
-    def data(self, role: QtDataRoles=None):
-        return self._data
+            self.parent.update(**kwargs)
 
 
 class PlotCurve:
@@ -320,26 +342,61 @@ class FlightLine(TreeItem):
     def __init__(self, start, stop, sequence, file_ref, uid=None, parent=None):
         super().__init__(uid, parent)
 
-        self.start = start
-        self.stop = stop
+        self._start = start
+        self._stop = stop
         self._file = file_ref  # UUID of source file for this line
         self._sequence = sequence
+        self._label = None
+
+    @property
+    def label(self):
+        return self._label
+
+    @label.setter
+    def label(self, value):
+        self._label = value
+        self.update()
+
+    @property
+    def start(self):
+        return self._start
+
+    @start.setter
+    def start(self, value):
+        self._start = value
+        self.update()
+
+    @property
+    def stop(self):
+        return self._stop
+
+    @stop.setter
+    def stop(self, value):
+        self._stop = value
+        self.update()
 
     def data(self, role):
         if role == QtDataRoles.DisplayRole:
+            if self.label:
+                return "Line {lbl} {start} :: {end}".format(lbl=self.label,
+                                                            start=self.start,
+                                                            end=self.stop)
             return str(self)
         if role == QtDataRoles.ToolTipRole:
-            return "Line Start: {} Stop: {}".format(self.start, self.stop)
-        if role == QtDataRoles.DecorationRole:  # DecorationRole (Icon)
-            return None
-        return None
+            return "Line UID: " + self.uid
+        return super().data(role)
 
     def append_child(self, child: AbstractTreeItem):
         """Override base to disallow adding of children."""
         raise ValueError("FlightLine does not accept children.")
 
     def __str__(self):
-        return 'Line({start},{stop})'.format(start=self.start, stop=self.stop)
+        if self.label:
+            name = self.label
+        else:
+            name = 'Line'
+        return '{name} {start:%H:%M:%S} -> {stop:%H:%M:%S}'.format(
+            name=name, start=self.start, stop=self.stop)
 
 
 class DataFile(TreeItem):
@@ -353,4 +410,5 @@ class DataFile(TreeItem):
         if role == QtDataRoles.DisplayRole:
             return "{dtype}: {fname}".format(dtype=self.dtype,
                                              fname=self.filename)
+        super().data(role)
 

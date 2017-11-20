@@ -71,40 +71,16 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             QTreeView::item {
 
             }
-            QTreeView::branch:has-siblings:adjoins-them {
-                /*border: 1px solid black; */
-            }
             QTreeView::branch {
-                background: palette(base);
+                /*background: palette(base);*/
             }
 
-            QTreeView::branch:has-siblings:!adjoins-item {
-                /*background: cyan;*/
-            }
-
-            QTreeView::branch:has-siblings:adjoins-item {
-                background: orange;
-            }
-
-            QTreeView::branch:!has-children:!has-siblings:adjoins-item {
-                background: blue;
-            }
-
-            QTreeView::branch:closed:has-children:has-siblings {
+            QTreeView::branch:closed:has-children {
                 background: none;
                 image: url(:/images/assets/branch-closed.png);
             }
-
-            QTreeView::branch:has-children:!has-siblings:closed {
-                image: url(:/images/assets/branch-closed.png);
-            }
-
-            QTreeView::branch:open:has-children:has-siblings {
+            QTreeView::branch:open:has-children {
                 background: none;
-                image: url(:/images/assets/branch-open.png);
-            }
-
-            QTreeView::branch:open:has-children:!has-siblings {
                 image: url(:/images/assets/branch-open.png);
             }
         """)
@@ -116,13 +92,16 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         self.gps_plot_layout.addWidget(self.gps_stack)
 
         # Initialize Variables
-        self.import_base_path = pathlib.Path('../tests').resolve()
+        # self.import_base_path = pathlib.Path('../tests').resolve()
+        self.import_base_path = pathlib.Path('~').expanduser().joinpath(
+            'Desktop')
 
         self.current_flight = None  # type: prj.Flight
         self.current_flight_index = QtCore.QModelIndex()  # type: QtCore.QModelIndex
         self.tree_index = None  # type: QtCore.QModelIndex
         self.flight_plots = {}  # Stores plotter objects for flights
-        self._flight_channel_models = {}  # Store StandardItemModels for Flight channel selection
+        # Store StandardItemModels for Flight channel selection
+        self._flight_channel_models = {}
 
         self.project_tree = ProjectTreeView(parent=self, project=self.project)
         self.project_tree.setMinimumWidth(300)
@@ -160,11 +139,17 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
 
         # Project Tree View Actions #
         # self.prj_tree.doubleClicked.connect(self.log_tree)
-        self.project_tree.clicked.connect(self._on_flight_changed)
+        # self.project_tree.clicked.connect(self._on_flight_changed)
+        self.project_tree.doubleClicked.connect(self._on_flight_changed)
+        self.project_tree.doubleClicked.connect(self._launch_tab)
 
         # Project Control Buttons #
         self.prj_add_flight.clicked.connect(self.add_flight_dialog)
         self.prj_import_data.clicked.connect(self.import_data_dialog)
+
+        # Tab Browser Actions #
+        self.tab_workspace.currentChanged.connect(self._tab_changed)
+        self.tab_workspace.tabCloseRequested.connect(self._tab_closed)
 
         # Channel Panel Buttons #
         # self.selectAllChannels.clicked.connect(self.set_channel_state)
@@ -197,8 +182,8 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
             self.gravity_stack.addWidget(widget)
             self.update_plot(plot, flight)
 
-            # TODO: Need to disconnect these at some point?
-            # Don't connect this until after self.plot_flight_main or it will trigger on initial draw
+            # Don't connect this until after self.plot_flight_main or it will
+            # trigger on initial draw
             plot.line_changed.connect(self._on_modified_line)
             self.log.debug("Initialized Flight Plot: {}".format(plot))
             self.status.emit('Flight Plot {} Initialized'.format(flight.name))
@@ -374,15 +359,15 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         qitem = index.internalPointer()
         if qitem is None:
             return
-        # qitem_data = qitem.data(QtCore.Qt.UserRole)
-        # TODO: Fix this mess up
-        qitem_data = qitem
 
-        if not isinstance(qitem_data, prj.Flight):
-            # Return as we're not interested in handling non-flight selections
+        if not isinstance(qitem, prj.Flight):
+            # TODO: Move this into a separate slot to handle double click expand
+            self.project_tree.setExpanded(index,
+                                          (not self.project_tree.isExpanded(
+                                              index)))
             return None
         else:
-            flight = qitem_data  # type: prj.Flight
+            flight = qitem  # type: prj.Flight
 
         if self.current_flight == flight:
             # Return as this is the same flight as previously selected
@@ -410,6 +395,22 @@ class MainWindow(QtWidgets.QMainWindow, main_window):
         if not grav_plot.plotted:
             self.update_plot(grav_plot, flight)
         return
+
+    def _launch_tab(self, index: QtCore.QModelIndex):
+        """
+        TODO: This function will be responsible for launching a new flight tab.
+        """
+        item = index.internalPointer()
+        if isinstance(item, prj.Flight):
+            self.log.info("Launching tab for object: {}".format(
+                index.internalPointer().uid))
+
+    def _tab_closed(self, index: int):
+        # TODO: This will handle close requests for a tab
+        pass
+
+    def _tab_changed(self, index: int):
+        pass
 
     # TODO: is this necessary
     def redraw(self, flt_id: str) -> None:
@@ -596,11 +597,12 @@ class ProjectTreeView(QtWidgets.QTreeView):
         self.log = logging.getLogger(__name__)
 
         self.setMinimumSize(QtCore.QSize(0, 300))
-        self.setAlternatingRowColors(True)
+        self.setAlternatingRowColors(False)
         self.setAutoExpandDelay(1)
+        self.setExpandsOnDoubleClick(False)
         self.setRootIsDecorated(False)
         self.setUniformRowHeights(True)
-        # self.setHeaderHidden(True)
+        self.setHeaderHidden(True)
         self.setObjectName('project_tree')
         self.setContextMenuPolicy(QtCore.Qt.DefaultContextMenu)
         self._init_model()
@@ -630,8 +632,8 @@ class ProjectTreeView(QtWidgets.QTreeView):
         context_focus = self.model().itemFromIndex(context_ind)
         print(context_focus.uid)
 
-        info_slot = functools.partial(self.flight_info, context_focus)
-        plot_slot = functools.partial(self.flight_plot, context_focus)
+        info_slot = functools.partial(self._info_action, context_focus)
+        plot_slot = functools.partial(self._plot_action, context_focus)
         menu = QtWidgets.QMenu()
         info_action = QtWidgets.QAction("Info")
         info_action.triggered.connect(info_slot)
@@ -643,17 +645,18 @@ class ProjectTreeView(QtWidgets.QTreeView):
         menu.exec_(event.globalPos())
         event.accept()
 
-    def flight_plot(self, item):
+    def _plot_action(self, item):
         raise NotImplementedError
         print("Opening new plot for item")
         pass
 
-    def flight_info(self, item):
+    def _info_action(self, item):
         data = item.data(QtCore.Qt.UserRole)
-        if not (isinstance(data, prj.Flight) or isinstance(data, prj.GravityProject)):
+        if not (isinstance(item, prj.Flight) or isinstance(item,
+                                                        prj.GravityProject)):
             return
         model = TableModel(['Key', 'Value'])
-        model.set_object(data)
+        model.set_object(item)
         dialog = InfoDialog(model, parent=self)
         dialog.exec_()
         print(dialog.updates)

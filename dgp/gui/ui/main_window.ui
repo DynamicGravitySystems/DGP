@@ -28,6 +28,18 @@
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QHBoxLayout" name="horizontalLayout">
+    <property name="leftMargin">
+     <number>0</number>
+    </property>
+    <property name="topMargin">
+     <number>0</number>
+    </property>
+    <property name="rightMargin">
+     <number>0</number>
+    </property>
+    <property name="bottomMargin">
+     <number>0</number>
+    </property>
     <item>
      <widget class="QFrame" name="top_frame">
       <property name="sizePolicy">
@@ -40,8 +52,23 @@
        <enum>QFrame::StyledPanel</enum>
       </property>
       <layout class="QVBoxLayout" name="verticalLayout">
+       <property name="spacing">
+        <number>0</number>
+       </property>
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
        <item>
-        <widget class="QTabWidget" name="dataPlotTabWidget">
+        <widget class="QTabWidget" name="tab_workspace">
          <property name="minimumSize">
           <size>
            <width>0</width>
@@ -53,6 +80,9 @@
          </property>
          <property name="currentIndex">
           <number>0</number>
+         </property>
+         <property name="tabsClosable">
+          <bool>true</bool>
          </property>
          <widget class="QWidget" name="gravity_tab">
           <property name="acceptDrops">
@@ -72,7 +102,7 @@
            <bool>true</bool>
           </property>
           <attribute name="title">
-           <string>GPS</string>
+           <string>Mockup Tab</string>
           </attribute>
           <layout class="QHBoxLayout" name="horizontalLayout_2">
            <item>
@@ -147,20 +177,20 @@
     <bool>true</bool>
    </property>
    <property name="sizePolicy">
-    <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+    <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
      <horstretch>0</horstretch>
      <verstretch>0</verstretch>
     </sizepolicy>
    </property>
    <property name="minimumSize">
     <size>
-     <width>350</width>
-     <height>632</height>
+     <width>187</width>
+     <height>165</height>
     </size>
    </property>
    <property name="maximumSize">
     <size>
-     <width>350</width>
+     <width>524287</width>
      <height>524287</height>
     </size>
    </property>
@@ -175,16 +205,31 @@
    </attribute>
    <widget class="QWidget" name="project_dock_contents">
     <property name="sizePolicy">
-     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
+     <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
       <horstretch>0</horstretch>
       <verstretch>0</verstretch>
      </sizepolicy>
     </property>
     <layout class="QVBoxLayout" name="verticalLayout_4">
+     <property name="spacing">
+      <number>3</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
+      <number>0</number>
+     </property>
      <item>
       <layout class="QGridLayout" name="project_dock_grid" columnstretch="0,0">
        <property name="leftMargin">
         <number>5</number>
+       </property>
+       <property name="spacing">
+        <number>3</number>
        </property>
        <item row="0" column="0">
         <widget class="QLabel" name="label_prj_info">
@@ -292,13 +337,13 @@
    <property name="minimumSize">
     <size>
      <width>524</width>
-     <height>300</height>
+     <height>246</height>
     </size>
    </property>
    <property name="maximumSize">
     <size>
      <width>524287</width>
-     <height>300</height>
+     <height>246</height>
     </size>
    </property>
    <property name="sizeIncrement">
@@ -327,6 +372,21 @@
      </sizepolicy>
     </property>
     <layout class="QGridLayout" name="gridLayout">
+     <property name="leftMargin">
+      <number>5</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
+      <number>0</number>
+     </property>
+     <property name="spacing">
+      <number>0</number>
+     </property>
      <item row="0" column="1">
       <widget class="QFrame" name="console_frame">
        <property name="sizePolicy">
@@ -348,6 +408,21 @@
         <enum>QFrame::Raised</enum>
        </property>
        <layout class="QVBoxLayout" name="verticalLayout_2">
+        <property name="spacing">
+         <number>5</number>
+        </property>
+        <property name="leftMargin">
+         <number>6</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
+         <number>0</number>
+        </property>
         <item>
          <widget class="QTextEdit" name="text_console">
           <property name="sizePolicy">
@@ -359,7 +434,7 @@
           <property name="minimumSize">
            <size>
             <width>0</width>
-            <height>80</height>
+            <height>100</height>
            </size>
           </property>
           <property name="maximumSize">
@@ -482,6 +557,12 @@
          <horstretch>1</horstretch>
          <verstretch>0</verstretch>
         </sizepolicy>
+       </property>
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>100</height>
+        </size>
        </property>
        <property name="sizeIncrement">
         <size>
