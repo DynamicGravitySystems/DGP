@@ -105,13 +105,14 @@ class BasePlottingCanvas(FigureCanvas):
 
 
 ClickInfo = namedtuple('ClickInfo', ['partners', 'x0', 'width', 'xpos', 'ypos'])
-LineUpdate = namedtuple('LineUpdate', ['flight_id', 'action', 'uid', 'start', 'stop', 'label'])
+LineUpdate = namedtuple('LineUpdate', ['flight_id', 'action', 'uid', 'start',
+                                       'stop', 'label'])
 
 
 class LineGrabPlot(BasePlottingCanvas, QWidget):
     """
-    LineGrabPlot implements BasePlottingCanvas and provides an onclick method to select flight
-    line segments.
+    LineGrabPlot implements BasePlottingCanvas and provides an onclick method to
+    select flight line segments.
     """
 
     line_changed = pyqtSignal(LineUpdate)
@@ -130,13 +131,15 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         self.resample = slice(None, None, 20)
         self._lines = {}
         self._flight = flight  # type: Flight
-        self._flight_id = fid
+        self._flight_id = flight.uid
 
         # Issue #36
         self._plot_lines = {}  # {uid: PlotCurve, ...}
 
         if title:
             self.figure.suptitle(title, y=1)
+        else:
+            self.figure.suptitle(flight.name, y=1)
 
         self._stretching = None
         self._is_near_edge = False

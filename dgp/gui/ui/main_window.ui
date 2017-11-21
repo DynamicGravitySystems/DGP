@@ -79,37 +79,14 @@
           <bool>true</bool>
          </property>
          <property name="currentIndex">
-          <number>0</number>
+          <number>-1</number>
          </property>
          <property name="tabsClosable">
           <bool>true</bool>
          </property>
-         <widget class="QWidget" name="gravity_tab">
-          <property name="acceptDrops">
-           <bool>true</bool>
-          </property>
-          <attribute name="title">
-           <string>Gravity</string>
-          </attribute>
-          <layout class="QVBoxLayout" name="verticalLayout_3">
-           <item>
-            <layout class="QVBoxLayout" name="gravity_plot_layout"/>
-           </item>
-          </layout>
-         </widget>
-         <widget class="QWidget" name="gps_tab">
-          <property name="acceptDrops">
-           <bool>true</bool>
-          </property>
-          <attribute name="title">
-           <string>Mockup Tab</string>
-          </attribute>
-          <layout class="QHBoxLayout" name="horizontalLayout_2">
-           <item>
-            <layout class="QVBoxLayout" name="gps_plot_layout"/>
-           </item>
-          </layout>
-         </widget>
+         <property name="movable">
+          <bool>true</bool>
+         </property>
         </widget>
        </item>
       </layout>
@@ -184,8 +161,8 @@
    </property>
    <property name="minimumSize">
     <size>
-     <width>187</width>
-     <height>165</height>
+     <width>359</width>
+     <height>262</height>
     </size>
    </property>
    <property name="maximumSize">
@@ -336,7 +313,7 @@
    </property>
    <property name="minimumSize">
     <size>
-     <width>524</width>
+     <width>644</width>
      <height>246</height>
     </size>
    </property>
