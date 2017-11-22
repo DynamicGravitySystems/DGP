@@ -56,7 +56,7 @@ class MainWindow(QMainWindow, main_window):
         self.setupUi(self)
         self.title = 'Dynamic Gravity Processor'
 
-        # Attach to the root logger to capture all events
+        # Attach to the root logger to capture all child events
         self.log = logging.getLogger()
         # Setup logging handler to log to GUI panel
         console_handler = ConsoleHandler(self.write_console)
@@ -71,12 +71,10 @@ class MainWindow(QMainWindow, main_window):
         # http://doc.qt.io/qt-5/stylesheet-examples.html#customizing-qtreeview
         self.setStyleSheet("""
             QTreeView::item {
-
             }
             QTreeView::branch {
                 /*background: palette(base);*/
             }
-
             QTreeView::branch:closed:has-children {
                 background: none;
                 image: url(:/images/assets/branch-closed.png);
@@ -169,6 +167,7 @@ class MainWindow(QMainWindow, main_window):
             self.set_logging_level)
 
     def populate_channel_tree(self, flight: prj.Flight=None):
+
         self.log.debug("Populating channel tree")
         if flight is None:
             flight = self.current_flight

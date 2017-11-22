@@ -3,19 +3,26 @@
 """
 Provide definitions of the models used by the Qt Application in our
 model/view widgets.
+Defines:
+TableModel
+ProjectModel
+SelectionDelegate
+ChannelListModel
 """
 
 import logging
-from typing import List, Union
+from typing import Union
 
-from PyQt5 import Qt, QtCore
-from PyQt5.Qt import QWidget, QAbstractItemModel, QStandardItemModel
-from PyQt5.QtCore import QModelIndex, QVariant
-from PyQt5.QtGui import QIcon, QBrush, QColor, QStandardItem
+import PyQt5.QtCore as QtCore
+from PyQt5 import Qt
+from PyQt5.Qt import QWidget
+from PyQt5.QtCore import QModelIndex, QVariant, QAbstractItemModel, \
+    QMimeData, pyqtSignal, pyqtBoundSignal
+from PyQt5.QtGui import QIcon, QBrush, QColor
 from PyQt5.QtWidgets import QComboBox
 
 from dgp.gui.qtenum import QtDataRoles, QtItemFlags
-from dgp.lib.types import AbstractTreeItem, TreeItem
+from dgp.lib.types import AbstractTreeItem, TreeItem, TreeLabelItem, DataChannel
 
 
 class TableModel(QtCore.QAbstractTableModel):
@@ -105,16 +112,96 @@ class TableModel(QtCore.QAbstractTableModel):
             return False
 
 
-class ProjectModel(QtCore.QAbstractItemModel):
+class BaseTreeModel(QAbstractItemModel):
+    """
+    Define common methods required for a Tree Model based on
+    QAbstractItemModel.
+    Subclasses must provide implementations for update() and data()
+    """
+    def __init__(self, root_item: AbstractTreeItem, parent=None):
+        super().__init__(parent=parent)
+        self._root = root_item
+
+    @property
+    def root(self):
+        return self._root
+
+    def parent(self, index: QModelIndex=QModelIndex()) -> QModelIndex:
+        """
+        Returns the parent QModelIndex of the given index. If the object
+        referenced by index does not have a parent (i.e. the root node) an
+        invalid QModelIndex() is constructed and returned.
+        """
+        if not index.isValid():
+            return QModelIndex()
+
+        child_item = index.internalPointer()  # type: AbstractTreeItem
+        parent_item = child_item.parent  # type: AbstractTreeItem
+        if parent_item == self._root:
+            return QModelIndex()
+        return self.createIndex(parent_item.row(), 0, parent_item)
+
+    def update(self, *args, **kwargs):
+        raise NotImplementedError("Update must be implemented by subclass.")
+
+    def data(self, index: QModelIndex, role: QtDataRoles=None):
+        raise NotImplementedError("data() must be implemented by subclass.")
+
+    def flags(self, index: QModelIndex) -> QtItemFlags:
+        """Return the flags of an item at the specified ModelIndex"""
+        if not index.isValid():
+            return QtItemFlags.NoItemFlags
+        return index.internalPointer().flags()
+
+    @staticmethod
+    def itemFromIndex(index: QModelIndex) -> AbstractTreeItem:
+        """Returns the object referenced by index"""
+        return index.internalPointer()
+
+    @staticmethod
+    def columnCount(parent: QModelIndex=QModelIndex(), *args, **kwargs):
+        return 1
+
+    def headerData(self, section: int, orientation, role:
+                   QtDataRoles=QtDataRoles.DisplayRole):
+        """The Root item is responsible for first row header data"""
+        if orientation == QtCore.Qt.Horizontal and role == QtDataRoles.DisplayRole:
+            return self._root.data(role)
+        return QVariant()
+
+    def index(self, row: int, col: int, parent: QModelIndex=QModelIndex(),
+              *args, **kwargs) -> QModelIndex:
+        """Return a QModelIndex for the item at the given row and column,
+        with the specified parent."""
+        if not self.hasIndex(row, col, parent):
+            return QModelIndex()
+        if not parent.isValid():
+            parent_item = self._root
+        else:
+            parent_item = parent.internalPointer()  # type: AbstractTreeItem
+
+        child_item = parent_item.child(row)
+        # VITAL to compare is not None vs if child_item:
+        if child_item is not None:
+            return self.createIndex(row, col, child_item)
+        else:
+            return QModelIndex()
+
+    def rowCount(self, parent: QModelIndex=QModelIndex(), *args, **kwargs):
+        # *args and **kwargs are necessary to suppress Qt Warnings
+        if parent.isValid():
+            return parent.internalPointer().child_count()
+        return self._root.child_count()
+
+
+class ProjectModel(BaseTreeModel):
     """Heirarchial (Tree) Project Model with a single root node."""
     def __init__(self, project: AbstractTreeItem, parent=None):
         self.log = logging.getLogger(__name__)
-        super().__init__(parent=parent)
+        super().__init__(TreeItem("root"), parent=parent)
         # assert isinstance(project, GravityProject)
         project.model = self
-        root = TreeItem("root1234")
-        root.append_child(project)
-        self._root_item = root
+        self.root.append_child(project)
         self.layoutChanged.emit()
         self.log.info("Project Tree Model initialized.")
 
@@ -133,35 +220,7 @@ class ProjectModel(QtCore.QAbstractItemModel):
         self.layoutChanged.emit()
         return
 
-    def parent(self, index: QModelIndex) -> QModelIndex:
-        """
-        Returns the parent QModelIndex of the given index. If the object
-        referenced by index does not have a parent (i.e. the root node) an
-        invalid QModelIndex() is constructed and returned.
-        e.g.
-
-        Parameters
-        ----------
-        index: QModelIndex
-            index to find parent of
-
-        Returns
-        -------
-        QModelIndex:
-            Valid QModelIndex of parent if exists, else
-            Invalid QModelIndex() which references the root object
-        """
-        if not index.isValid():
-            return QModelIndex()
-
-        child_item = index.internalPointer()  # type: AbstractTreeItem
-        parent_item = child_item.parent  # type: AbstractTreeItem
-        if parent_item == self._root_item:
-            return QModelIndex()
-        return self.createIndex(parent_item.row(), 0, parent_item)
-
-    @staticmethod
-    def data(index: QModelIndex, role: QtDataRoles):
+    def data(self, index: QModelIndex, role: QtDataRoles=None):
         """
         Returns data for the requested index and role.
         We do some processing here to encapsulate data within Qt Types where
@@ -209,70 +268,10 @@ class ProjectModel(QtCore.QAbstractItemModel):
         # return index.internalPointer().flags()
         return QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
 
-    def headerData(self, section: int, orientation, role:
-                   QtDataRoles=QtDataRoles.DisplayRole):
-        """The Root item is responsible for first row header data"""
-        if orientation == QtCore.Qt.Horizontal and role == QtDataRoles.DisplayRole:
-            return self._root_item.data(role)
-        return QVariant()
-
-    @staticmethod
-    def itemFromIndex(index: QModelIndex) -> AbstractTreeItem:
-        """Returns the object referenced by index"""
-        return index.internalPointer()
-
-    # Experimental - doesn't work
-    def index_from_item(self, item: AbstractTreeItem):
-        """Iteratively walk through parents to generate an index"""
-        parent = item.parent  # type: AbstractTreeItem
-        chain = [item]
-        while parent != self._root_item:
-            print("Parent: ", parent.uid)
-            chain.append(parent)
-            parent = parent.parent
-        print(chain)
-        idx = {}
-        for i, thing in enumerate(reversed(chain)):
-            if i == 0:
-                print("Index0: row", thing.row())
-                idx[i] = self.index(thing.row(), 1, QModelIndex())
-            else:
-                idx[i] = self.index(thing.row(), 1, idx[i-1])
-        print(idx)
-        # print(idx[1].row())
-        return idx[len(idx)-1]
-
-    def index(self, row: int, column: int, parent: QModelIndex) -> QModelIndex:
-        """Return a QModelIndex for the item at the given row and column,
-        with the specified parent."""
-        if not self.hasIndex(row, column, parent):
-            return QModelIndex()
-        if not parent.isValid():
-            parent_item = self._root_item
-        else:
-            parent_item = parent.internalPointer()  # type: AbstractTreeItem
-
-        child_item = parent_item.child(row)
-        # VITAL to compare is not None vs if child_item:
-        if child_item is not None:
-            return self.createIndex(row, column, child_item)
-        else:
-            return QModelIndex()
-
-    def rowCount(self, parent: QModelIndex=QModelIndex(), *args, **kwargs):
-        # *args and **kwargs are necessary to suppress Qt Warnings
-        if parent.isValid():
-            return parent.internalPointer().child_count()
-        else:
-            return self._root_item.child_count()
-
-    @staticmethod
-    def columnCount(parent: QModelIndex=QModelIndex(), *args, **kwargs):
-        return 1
-
 
 # QStyledItemDelegate
 class SelectionDelegate(Qt.QStyledItemDelegate):
+    """Used by the Advanced Import Dialog to enable column selection/setting."""
     def __init__(self, choices, parent=None):
         super().__init__(parent=parent)
         self._choices = choices
@@ -315,21 +314,119 @@ class SelectionDelegate(Qt.QStyledItemDelegate):
         editor.setGeometry(option.rect)
 
 
-# Experimental: Issue #36
-class DataChannel(QStandardItem):
-    def __init__(self):
-        super().__init__(self)
-        self.setDragEnabled(True)
+class ChannelListModel(BaseTreeModel):
+    """
+    Tree type model for displaying/plotting data channels.
+    This model supports drag and drop internally.
+    """
 
-    def onclick(self):
-        pass
+    plotOverflow = pyqtSignal(str)  # type: pyqtBoundSignal
+    # signal(int: new index, int: old index, DataChannel)
+    # return -1 if item removed from plots to available list
+    channelChanged = pyqtSignal(int, int, DataChannel)  # type: pyqtBoundSignal
 
+    def __init__(self, channels, plots: int, parent=None):
+        """
+        Init sets up a model with n+1 top-level headers where n = plots.
+        Each plot has a header that channels can then be dragged to from the
+        available channel list.
+        The available channels list (displayed below the plot headers is
+        constructed from the list of channels supplied.
+        The plot headers limit the number of items that can be children to 2,
+        this is so that the MatplotLib plotting canvas can display a left and
+        right Y axis scale for each plot.
 
-# Experimental: Drag-n-drop related to Issue #36
-class ChannelListModel(QStandardItemModel):
-    def __init__(self):
-        pass
+        Parameters
+        ----------
+        channels
+        plots
+        parent
+        """
+        super().__init__(TreeLabelItem('Channel Selection'), parent=parent)
+        # It might be worthwhile to create a dedicated plot TreeItem for comp
+        self._plots = {}
+        self._child_limit = 2
+        for i in range(plots):
+            plt_label = TreeLabelItem('Plot {}'.format(i), True, 2)
+            self._plots[i] = plt_label
+            self.root.append_child(plt_label)
+        self._available = TreeLabelItem('Available Channels')
+        self._channels = {}
+        for channel in channels:
+            self._available.append_child(channel)
+            self._channels[channel.uid] = channel
+        self.root.append_child(self._available)
 
-    def dropMimeData(self, QMimeData, Qt_DropAction, p, p1, QModelIndex):
-        print("Mime data dropped")
-        pass
+    def update(self):
+        self.layoutAboutToBeChanged.emit()
+        self.layoutChanged.emit()
+
+    def data(self, index: QModelIndex, role: QtDataRoles=None):
+        item_data = index.internalPointer().data(role)
+        if item_data is None:
+            return QVariant()
+        return item_data
+
+    def flags(self, index: QModelIndex):
+        item = index.internalPointer()
+        if item == self.root:
+            return QtCore.Qt.NoItemFlags
+        if isinstance(item, DataChannel):
+            return QtCore.Qt.ItemIsDragEnabled | QtCore.Qt.ItemIsSelectable |\
+                   QtCore.Qt.ItemIsEnabled
+        return QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled | \
+               QtCore.Qt.ItemIsDropEnabled
+
+    def supportedDropActions(self):
+        return QtCore.Qt.MoveAction
+
+    def supportedDragActions(self):
+        return QtCore.Qt.MoveAction
+
+    def dropMimeData(self, data: QMimeData, action, row, col,
+                     parent: QModelIndex) -> bool:
+        if action != QtCore.Qt.MoveAction:
+            return False
+        if not data.hasText():
+            return False
+        if not parent.isValid():
+            if row == -1:
+                p_item = self._available
+            else:
+                p_item = self.root.child(row-1)
+        else:
+            p_item = parent.internalPointer()  # type: TreeLabelItem
+        if p_item.child_count() >= self._child_limit:
+            if p_item != self._available:
+                self.plotOverflow.emit(p_item.uid)
+                return False
+
+        drop_object = self._channels.get(data.text(), None)  # type: DataChannel
+        if drop_object is None:
+            return False
+        # Remove the object to be dropped from its previous parent
+        drop_parent = drop_object.parent
+        drop_parent.remove_child(drop_object)
+        self.beginInsertRows(parent, row, row)
+        # For simplicity, simply append as the sub-order doesn't matter
+        p_item.append_child(drop_object)
+        self.endInsertRows()
+        self.channelChanged.emit(p_item.row(), drop_parent.row(), drop_object)
+        self.update()
+        return True
+
+    def canDropMimeData(self, data: QMimeData, action, row, col, parent:
+                        QModelIndex) -> bool:
+        if data.hasText():
+            return True
+        return False
+
+    def mimeData(self, indexes):
+        """Get the mime encoded data for selected index."""
+        index = indexes[0]
+        item_uid = index.internalPointer().uid
+        print("UID for picked item: ", item_uid)
+        print("Picked item label: ", index.internalPointer().label)
+        data = QMimeData()
+        data.setText(item_uid)
+        return data
