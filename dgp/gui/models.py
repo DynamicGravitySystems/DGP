@@ -16,13 +16,14 @@ from typing import Union
 import PyQt5.QtCore as QtCore
 from PyQt5 import Qt
 from PyQt5.Qt import QWidget
-from PyQt5.QtCore import QModelIndex, QVariant, QAbstractItemModel, \
-    QMimeData, pyqtSignal, pyqtBoundSignal
+from PyQt5.QtCore import (QModelIndex, QVariant, QAbstractItemModel,
+                          QMimeData, pyqtSignal, pyqtBoundSignal)
 from PyQt5.QtGui import QIcon, QBrush, QColor
 from PyQt5.QtWidgets import QComboBox
 
 from dgp.gui.qtenum import QtDataRoles, QtItemFlags
 from dgp.lib.types import AbstractTreeItem, TreeItem, TreeLabelItem, DataChannel
+import dgp.lib.datamanager as dm
 
 
 class TableModel(QtCore.QAbstractTableModel):
@@ -137,7 +138,7 @@ class BaseTreeModel(QAbstractItemModel):
 
         child_item = index.internalPointer()  # type: AbstractTreeItem
         parent_item = child_item.parent  # type: AbstractTreeItem
-        if parent_item == self._root:
+        if parent_item == self._root or parent_item is None:
             return QModelIndex()
         return self.createIndex(parent_item.row(), 0, parent_item)
 
@@ -357,7 +358,24 @@ class ChannelListModel(BaseTreeModel):
             self._channels[channel.uid] = channel
         self.root.append_child(self._available)
 
-    def update(self):
+    def append_channel(self, channel: DataChannel):
+        self._available.append_child(channel)
+        self._channels[channel.uid] = channel
+
+    def remove_channel(self, uid: str) -> bool:
+        if uid not in self._channels:
+            return False
+        cn = self._channels[uid]  # type: DataChannel
+        cn_parent = cn.parent
+        cn_parent.remove_child(cn)
+        del self._channels[uid]
+        return True
+
+    def move_channel(self, uid, index) -> bool:
+        """Move channel specified by uid to parent at index"""
+
+    def update(self) -> None:
+        """Update the model layout."""
         self.layoutAboutToBeChanged.emit()
         self.layoutChanged.emit()
 
@@ -385,13 +403,28 @@ class ChannelListModel(BaseTreeModel):
 
     def dropMimeData(self, data: QMimeData, action, row, col,
                      parent: QModelIndex) -> bool:
+        """
+        Called when data is dropped into the model.
+        This model accepts only Move actions, and expects the data to be
+        textual, containing the UID of the DataChannel that is being dropped.
+        This method will also check to see that a drop will not violate the
+        _child_limit, as we want to limit the number of children to 2 for any
+        plot, allowing us to display twin y-axis scales.
+        """
         if action != QtCore.Qt.MoveAction:
             return False
         if not data.hasText():
             return False
+
+        drop_object = self._channels.get(data.text(), None)  # type: DataChannel
+        if drop_object is None:
+            return False
+
         if not parent.isValid():
             if row == -1:
                 p_item = self._available
+                drop_object.plotted = False
+                drop_object.axes = -1
             else:
                 p_item = self.root.child(row-1)
         else:
@@ -401,22 +434,34 @@ class ChannelListModel(BaseTreeModel):
                 self.plotOverflow.emit(p_item.uid)
                 return False
 
-        drop_object = self._channels.get(data.text(), None)  # type: DataChannel
-        if drop_object is None:
-            return False
+        print(p_item.row())
         # Remove the object to be dropped from its previous parent
         drop_parent = drop_object.parent
         drop_parent.remove_child(drop_object)
         self.beginInsertRows(parent, row, row)
         # For simplicity, simply append as the sub-order doesn't matter
+        drop_object.axes = p_item.row()
         p_item.append_child(drop_object)
         self.endInsertRows()
-        self.channelChanged.emit(p_item.row(), drop_parent.row(), drop_object)
+        if drop_parent is self._available:
+            old_row = -1
+        else:
+            old_row = drop_parent.row()
+        if p_item is self._available:
+            row = -1
+        else:
+            row = p_item.row()
+        self.channelChanged.emit(row, old_row, drop_object)
         self.update()
         return True
 
     def canDropMimeData(self, data: QMimeData, action, row, col, parent:
                         QModelIndex) -> bool:
+        """
+        Queried when Mime data is dragged over/into the model. Returns 
+        True if the data can be dropped. Does not guarantee that it will be 
+        accepted.
+        """
         if data.hasText():
             return True
         return False

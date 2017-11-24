@@ -8,6 +8,7 @@ from pathlib import Path
 
 from pandas import DataFrame
 
+from .context import dgp
 import dgp.lib.datamanager as dm
 
 

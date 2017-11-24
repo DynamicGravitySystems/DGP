@@ -11,8 +11,9 @@ from pandas import HDFStore, DataFrame, Series
 from dgp.gui.qtenum import QtItemFlags, QtDataRoles
 from dgp.lib.meterconfig import MeterConfig, AT1Meter
 from dgp.lib.etc import gen_uuid
-from dgp.lib.types import FlightLine, TreeItem, DataFile, PlotCurve
+import dgp.lib.types as types
 import dgp.lib.eotvos as eov
+import dgp.lib.datamanager as dm
 
 """
 Dynamic Gravity Processor (DGP) :: project.py
@@ -67,7 +68,7 @@ def can_pickle(attribute):
     return True
 
 
-class GravityProject(TreeItem):
+class GravityProject(types.TreeItem):
     """
     GravityProject will be the base class defining common values for both
     airborne and marine gravity survey projects.
@@ -106,11 +107,12 @@ class GravityProject(TreeItem):
 
         # self.hdf_path = os.path.join(self.projectdir, 'prjdata.h5')
         self.hdf_path = self.projectdir.joinpath('prjdata.h5')
+        dm.init(self.projectdir.joinpath('data'))
 
         # Store MeterConfig objects in dictionary keyed by the meter name
         self._sensors = {}
 
-        self.log.debug("Gravity Project Initialized")
+        self.log.debug("Gravity Project Initialized.")
 
     def data(self, role: QtDataRoles):
         if role == QtDataRoles.DisplayRole:
@@ -125,33 +127,34 @@ class GravityProject(TreeItem):
     def model(self, value):
         self._model_parent = value
 
-    def load_data(self, uid: str, prefix: str = 'data'):
-        """
-        Load data from the project HDFStore (HDF5 format datafile) by uid.
-
-        Parameters
-        ----------
-        uid : str
-            32 digit hexadecimal unique identifier for the file to load.
-        prefix : str
-            Deprecated - parameter reserved while testing compatibility
-            Data type prefix, 'gps' or 'gravity' specifying the HDF5 group to
-            retrieve the file from.
-
-        Returns
-        -------
-        DataFrame
-            Pandas DataFrame retrieved from HDFStore
-        """
-        self.log.info("Loading data <{}>/{} from HDFStore".format(prefix, uid))
-        with HDFStore(str(self.hdf_path)) as store:
-            try:
-                data = store.get('{}/{}'.format(prefix, uid))
-            except KeyError:
-                self.log.warning("No data exists for key: {}".format(uid))
-                return None
-            else:
-                return data
+    # def load_data(self, uid: str, prefix: str = 'data'):
+    #     """
+    #     Load data from the project HDFStore (HDF5 format datafile) by uid.
+    #
+    #     Parameters
+    #     ----------
+    #     uid : str
+    #         32 digit hexadecimal unique identifier for the file to load.
+    #     prefix : str
+    #         Deprecated - parameter reserved while testing compatibility
+    #         Data type prefix, 'gps' or 'gravity' specifying the HDF5 group to
+    #         retrieve the file from.
+    #
+    #     Returns
+    #     -------
+    #     DataFrame
+    #         Pandas DataFrame retrieved from HDFStore
+    #     """
+    #     self.log.info("Loading data <{}>/{} from HDFStore".format(prefix, uid))
+    #
+    #     with HDFStore(str(self.hdf_path)) as store:
+    #         try:
+    #             data = store.get('{}/{}'.format(prefix, uid))
+    #         except KeyError:
+    #             self.log.warning("No data exists for key: {}".format(uid))
+    #             return None
+    #         else:
+    #             return data
 
     def add_meter(self, meter: MeterConfig) -> MeterConfig:
         """Add an existing MeterConfig class to the dictionary of meters"""
@@ -282,9 +285,10 @@ class GravityProject(TreeItem):
         """
         self.__dict__.update(state)
         self.log = logging.getLogger(__name__)
+        dm.init(self.projectdir.joinpath('data'))
 
 
-class Flight(TreeItem):
+class Flight(types.TreeItem):
     """
     Define a Flight class used to record and associate data with an entire
     survey flight (takeoff -> landing)
@@ -326,7 +330,7 @@ class Flight(TreeItem):
             date : datetime.date
                 Datetime object to  assign to this flight.
         """
-        self.log = logging.getLevelName(__name__)
+        self.log = logging.getLogger(__name__)
         uid = kwargs.get('uuid', gen_uuid('flt'))
         super().__init__(uid, parent=None)
 
@@ -336,41 +340,21 @@ class Flight(TreeItem):
         self.style = {'icon': ':images/assets/flight_icon.png',
                       QtDataRoles.BackgroundRole: 'LightGray'}
         self.meter = meter
-        if 'date' in kwargs:
-            print("Setting date to: {}".format(kwargs['date']))
-            self.date = kwargs['date']
-        else:
-            self.date = "No date set"
+        self.date = kwargs.get('date', datetime.today())
 
-        self.log = logging.getLogger(__name__)
-
-        # These attributes will hold a file reference string used to retrieve
-        # data from hdf5 store.
-        self._gpsdata_uid = None  # type: str
-        self._gravdata_uid = None  # type: str
-
-        self._gpsdata = None  # type: DataFrame
-        self._gravdata = None  # type: DataFrame
-
-        # Known Absolute Site Reading/Location
-        self.tie_value = None
-        self.tie_location = None
-
-        self.pre_still_reading = None
-        self.post_still_reading = None
+        # Flight attribute dictionary, containing survey values e.g. still
+        # reading, tie location/value
+        self._attributes = {}
 
         self.flight_timeshift = 0
 
         # Issue #36 Plotting data channels
-        self._channels = {}  # {uid: (file_uid, label), ...}
-        self._plotted_channels = {}  # {uid: axes_index, ...}
         self._default_plot_map = {'gravity': 0, 'long': 1, 'cross': 1}
 
-        self._data_cache = {}  # {data_uid: DataFrame, ...}
-
-        self._lines = Container(ctype=FlightLine, parent=self,
+        self._lines = Container(ctype=types.FlightLine, parent=self,
                                 name='Flight Lines')
-        self._data = Container(ctype=DataFile, parent=self, name='Data Files')
+        self._data = Container(ctype=types.DataSource, parent=self,
+                               name='Data Files')
         self.append_child(self._lines)
         self.append_child(self._data)
 
@@ -386,150 +370,43 @@ class Flight(TreeItem):
         return self._lines
 
     @property
-    def gps(self):
-        if self._gpsdata_uid is None:
-            return
-        if self._gpsdata is None:
-            self.log.warning("Loading gps data from HDFStore.")
-            self._gpsdata = self._project.load_data(self._gpsdata_uid)
-        return self._gpsdata
-
-    @gps.setter
-    def gps(self, value):
-        if self._gpsdata_uid:
-            self.log.warning('GPS Data File already exists, overwriting with '
-                             'new value.')
-            self._gpsdata = None
-        self._gpsdata_uid = value
-
-    @property
-    def gps_file(self):
-        try:
-            return self._project.data_map[self._gpsdata_uid], self._gpsdata_uid
-        except KeyError:
-            return None, None
-
-    @property
-    def gravity(self):
-        """
-        Property accessor for Gravity data. This accessor will cache loaded
-        gravity data in an instance variable so that subsequent lookups do
-        not require an I/O operation.
-        Returns
-        -------
-        DataFrame
-            pandas DataFrame containing Gravity Data
-        """
-        if self._gravdata_uid is None:
-            return None
-        if self._gravdata is None:
-            self.log.warning("Loading gravity data from HDFStore.")
-            self._gravdata = self._project.load_data(self._gravdata_uid)
-        return self._gravdata
-
-    @gravity.setter
-    def gravity(self, value):
-        if self._gravdata_uid:
-            self.log.warning(
-                'Gravity Data File already exists, overwriting with new value.')
-            self._gravdata = None
-        self._gravdata_uid = value
-
-    @property
-    def gravity_file(self):
-        try:
-            return self._project.data_map[self._gravdata_uid], \
-                   self._gravdata_uid
-        except KeyError:
-            return None, None
-
-    @property
-    def eotvos(self):
-        if self.gps is None:
-            return None
-        gps_data = self.gps
-        # WARNING: It is vital to use the .values of the pandas Series,
-        # otherwise the eotvos func does not work properly for some reason
-        index = gps_data['lat'].index
-        lat = gps_data['lat'].values
-        lon = gps_data['long'].values
-        ht = gps_data['ell_ht'].values
-        rate = 10
-        ev_corr = eov.calc_eotvos(lat, lon, ht, rate)
-        ev_frame = DataFrame(ev_corr, index=index, columns=['eotvos'])
-        return ev_frame
-
-    @property
     def channels(self):
-        """Return data channels as map of {uid: label, ...}"""
-        return {k: self._channels[k][1] for k in self._channels}
-
-    def update_series(self, line: PlotCurve, action: str):
-        """Update the Flight state tracking for plotted data channels"""
-        self.log.info(
-            "Doing {action} on line {line} in {flt}".format(action=action,
-                                                            line=line.label,
-                                                            flt=self.name))
-        if action == 'add':
-            self._plotted_channels[line.uid] = line.axes
-        elif action == 'remove':
-            try:
-                del self._plotted_channels[line.uid]
-            except KeyError:
-                self.log.error("No plotted line to remove")
+        """Return data channels as list of DataChannel objects"""
+        cns = []
+        for source in self._data:  # type: types.DataSource
+            cns.extend(source.channels)
+            # for channel in source.channels:
+            #     cns.append(channel)
+        return cns
 
     def get_plot_state(self):
-        # Return: {uid: (label, axes), ...}
-        state = {}
-        # TODO: Could refactor into dict comp
-        for uid in self._plotted_channels:
-            state[uid] = self._channels[uid][1], self._plotted_channels[uid]
-        return state
+        # Return List[DataChannel if DataChannel is plotted]
+        return [dc for dc in self.channels if dc.plotted]
 
-    def get_channel_data(self, uid: str):
-        data_uid, field = self._channels[uid]
-        if data_uid in self._data_cache:
-            return self._data_cache[data_uid][field]
-        else:
-            self.log.warning(
-                "Loading datafile {} from HDF5 Store".format(data_uid))
-            self._data_cache[data_uid] = self._project.load_data(data_uid)
-            return self.get_channel_data(uid)
-
-    def add_data(self, data: DataFile):
-        self._data.append_child(data)
-
-        for col in data.fields:
-            col_uid = gen_uuid('col')
-            self._channels[col_uid] = data.uid, col
-            # If defaults are specified then add them to the plotted_channels
-            if col in self._default_plot_map:
-                self._plotted_channels[col_uid] = self._default_plot_map[col]
-        # print("Plotted: ", self._plotted_channels)
-        # print(self._channels)
+    def register_data(self, datasrc: types.DataSource):
+        """Register a data file for use by this Flight"""
+        self.log.info("Flight {} registering data source: {}".format(
+            self.name, datasrc.filename))
+        self._data.append_child(datasrc)
+        # TODO: Set channels within source to plotted if in default plot dict
 
     def add_line(self, start: datetime, stop: datetime, uid=None):
         """Add a flight line to the flight by start/stop index and sequence
         number"""
-        # line = FlightLine(len(self.lines), None, start, end, self)
         self.log.debug(
             "Adding line to LineContainer of flight: {}".format(self.name))
-        line = FlightLine(start, stop, len(self._lines) + 1, None, uid=uid,
-                          parent=self.lines)
+        line = types.FlightLine(start, stop, len(self._lines) + 1, None,
+                                uid=uid, parent=self.lines)
         self._lines.append_child(line)
-        # self.update('add', line)
         return line
 
     def remove_line(self, uid):
         """ Remove a flight line """
-        line = self._lines[uid]
         self._lines.remove_child(self._lines[uid])
-        # self.update('del', line)
 
     def clear_lines(self):
         """Removes all Lines from Flight"""
-        return
-        self._lines.clear()
+        raise NotImplementedError("clear_lines not implemented yet.")
 
     def __iter__(self):
         """
@@ -564,9 +441,9 @@ class Flight(TreeItem):
         self._gpsdata = None
 
 
-class Container(TreeItem):
+class Container(types.TreeItem):
     # Arbitrary list of permitted types
-    ctypes = {Flight, MeterConfig, FlightLine, DataFile}
+    ctypes = {Flight, MeterConfig, types.FlightLine, types.DataSource}
 
     def __init__(self, ctype, parent, *args, **kwargs):
         """
@@ -683,80 +560,67 @@ class AirborneProject(GravityProject):
 
     # TODO: Move this into the GravityProject base class?
     # Although we use flight_uid here, this could be abstracted.
-    def add_data(self, df: DataFrame, path: pathlib.Path, dtype: str,
-                 flight_uid: str):
-        """
-        Add an imported DataFrame to a specific Flight in the project.
-        Upon adding a DataFrame a UUID is assigned, and together with the data
-        type it is exported to the project HDFStore into a group specified by
-        data type i.e.
-                HDFStore.put('data_type/uuid', packet.data)
-        The data can then be retrieved from its respective dtype group using the
-        UUID. The UUID is then stored in the Flight class's data variable for
-        the respective data_type.
-
-        Parameters
-        ----------
-        df : DataFrame
-            Pandas DataFrame containing file data.
-        path : pathlib.Path
-            Original path to data file as a pathlib.Path object.
-        dtype : str
-            The data type of the data (df) being added, either gravity or gps.
-        flight_uid : str
-            UUID of the Flight the added data will be assigned/associated with.
-
-        Returns
-        -------
-        bool
-            True on success, False on failure
-            Causes of failure:
-                flight_uid does not exist in self.flights.keys
-        """
-        self.log.debug("Ingesting data and exporting to hdf5 store")
-
-        # Fixes NaturalNameWarning by ensuring first char is letter ('f').
-        file_uid = gen_uuid('dat')
-
-        with HDFStore(str(self.hdf_path)) as store:
-            # format: 'table' pytables format enables searching/appending,
-            # fixed is more performant.
-            store.put('data/{uid}'.format(uid=file_uid), df, format='fixed',
-                      data_columns=True)
-            # Store a reference to the original file path
-            self.data_map[file_uid] = path
-        try:
-            flight = self.get_flight(flight_uid)
-
-            flight.add_data(
-                DataFile(file_uid, path, [col for col in df.keys()], dtype))
-            if dtype == 'gravity':
-                if flight.gravity is not None:
-                    print("Clearing old FlightLines")
-                    flight.clear_lines()
-                flight.gravity = file_uid
-            elif dtype == 'gps':
-                flight.gps = file_uid
-            return True
-        except KeyError:
-            return False
+    # def add_data(self, df: DataFrame, path: pathlib.Path, dtype: str,
+    #              flight_uid: str):
+    #     """
+    #     Add an imported DataFrame to a specific Flight in the project.
+    #     Upon adding a DataFrame a UUID is assigned, and together with the data
+    #     type it is exported to the project HDFStore into a group specified by
+    #     data type i.e.
+    #             HDFStore.put('data_type/uuid', packet.data)
+    #     The data can then be retrieved from its respective dtype group using the
+    #     UUID. The UUID is then stored in the Flight class's data variable for
+    #     the respective data_type.
+    #
+    #     Parameters
+    #     ----------
+    #     df : DataFrame
+    #         Pandas DataFrame containing file data.
+    #     path : pathlib.Path
+    #         Original path to data file as a pathlib.Path object.
+    #     dtype : str
+    #         The data type of the data (df) being added, either gravity or gps.
+    #     flight_uid : str
+    #         UUID of the Flight the added data will be assigned/associated with.
+    #
+    #     Returns
+    #     -------
+    #     bool
+    #         True on success, False on failure
+    #         Causes of failure:
+    #             flight_uid does not exist in self.flights.keys
+    #     """
+    #     self.log.debug("Ingesting data and exporting to hdf5 store")
+    #
+    #     # Fixes NaturalNameWarning by ensuring first char is letter
+    #     file_uid = gen_uuid('dat')
+    #
+    #     with HDFStore(str(self.hdf_path)) as store:
+    #         # format: 'table' pytables format enables searching/appending,
+    #         # fixed is more performant.
+    #         store.put('data/{uid}'.format(uid=file_uid), df, format='fixed',
+    #                   data_columns=True)
+    #         # Store a reference to the original file path
+    #         self.data_map[file_uid] = path
+    #     try:
+    #         flight = self.get_flight(flight_uid)
+    #         cols = [col for col in df.keys()]
+    #         flight.register_data(types.DataSource(file_uid, path, cols, dtype))
+    #         return True
+    #     except KeyError:
+    #         return False
 
     def update(self, **kwargs):
         """Used to update the wrapping (parent) ProjectModel of this project for
          GUI display"""
         if self.model is not None:
-            # print("Calling update on parent model with params: {} {}".format(
-            #     action, item))
             self.model.update(**kwargs)
 
     def add_flight(self, flight: Flight) -> None:
         flight.parent = self
         self._flights.append_child(flight)
 
-        # self._children['flights'].add_child(flight)
-        # self.update('add', flight)
-
-    def remove_flight(self, flight: Flight) -> bool:
+    def remove_flight(self, flight: Flight):
         self._flights.remove_child(flight)
         # self.update('del', flight, parent=flight.parent, row=flight.row())
 

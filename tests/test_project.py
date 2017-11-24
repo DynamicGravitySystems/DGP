@@ -17,7 +17,8 @@ class TestProject(unittest.TestCase):
     def setUp(self):
         """Set up some dummy classes for testing use"""
         self.todelete = []
-        self.project = AirborneProject(path='tests', name='Test Airborne Project')
+        self.project = AirborneProject(path=Path('./tests'),
+                                       name='Test Airborne Project')
 
         # Sample values for testing meter configs
         self.meter_vals = {
@@ -32,8 +33,10 @@ class TestProject(unittest.TestCase):
     def test_project_directory(self):
         """
         Test the handling of the directory specifications within a project
-        Project should take an existing directory as a path, raising FileNotFoundError if it doesnt exist.
-        If the path exists but is a file, Project should automatically strip the leaf and use the parent path.
+        Project should take an existing directory as a path, raising
+        FileNotFoundError if it doesnt exist.
+        If the path exists but is a file, Project should automatically strip the
+        leaf and use the parent path.
         """
         with self.assertRaises(FileNotFoundError):
             project = GravityProject(path=Path('tests/invalid_dir'))
@@ -82,47 +85,21 @@ class TestProject(unittest.TestCase):
 
         flt = Flight(self.at1a5)
         self.project.add_flight(flt)
-
         data1 = 'tests/test_data.csv'
-        self.project.add_data(data1, flight=flt)
-
-        data1path = os.path.abspath(data1)
-        self.assertTrue(data1path in self.project.data_sources.values())
-
-        test_df = read_at1a(data1)
-        grav_data, gps_data = self.project.get_data(flt)
-        self.assertTrue(test_df.equals(grav_data))
-        self.assertIsNone(gps_data)
 
 
 class TestFlight(unittest.TestCase):
     def setUp(self):
         self._trj_data_path = 'tests/sample_data/eotvos_short_input.txt'
 
-    def test_flight_gps(self):
-        td = tempfile.TemporaryDirectory()
-        hdf_temp = Path(str(td.name)).joinpath('hdf5.h5')
-        prj = AirborneProject(Path(str(td.name)), 'test')
-        prj.hdf_path = hdf_temp
-        flight = Flight(prj, 'testflt')
-        prj.add_flight(flight)
-        self.assertEqual(len(list(prj.flights)), 1)
-        gps_fields = ['mdy', 'hms', 'lat', 'long', 'ortho_ht', 'ell_ht', 'num_stats', 'pdop']
-        traj_data = import_trajectory(self._trj_data_path, columns=gps_fields, skiprows=1,
-                                      timeformat='hms')
-        # dp = DataPacket(traj_data, self._trj_data_path, 'gps')
-
-        prj.add_data(traj_data, self._trj_data_path, 'gps', flight.uid)
-        # prj.add_data(dp, flight.uid)
-        # print(flight.gps_file)
-        self.assertTrue(flight.gps is not None)
-        self.assertTrue(flight.eotvos is not None)
-        # TODO: Line by line comparison of eotvos data from flight
-
-        try:
-            td.cleanup()
-        except OSError:
-            print("error")
+    def test_flight_init(self):
+        """Test initialization properties of a new Flight"""
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td)
+            project = AirborneProject(path=project_dir, name='TestFlightPrj')
+            flt = Flight(project, 'Flight1')
+            assert flt.channels == []
+            self.assertEqual(len(flt), 0)
 
 
 class TestMeterconfig(unittest.TestCase):

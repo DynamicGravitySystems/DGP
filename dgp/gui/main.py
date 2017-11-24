@@ -15,10 +15,11 @@ from PyQt5.QtCore import pyqtSignal, pyqtBoundSignal, Qt
 from PyQt5.QtGui import QColor, QStandardItemModel, QStandardItem, QIcon
 from PyQt5.uic import loadUiType
 
+import dgp.lib.datamanager as dm
 import dgp.lib.project as prj
+import dgp.lib.types as types
 from dgp.gui.loader import LoadFile
 from dgp.lib.plotter import LineGrabPlot, LineUpdate
-from dgp.lib.types import PlotCurve, AbstractTreeItem
 from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP, get_project_file
 from dgp.gui.dialogs import ImportData, AddFlight, CreateProject, InfoDialog, AdvancedImport
 from dgp.gui.models import TableModel, ProjectModel
@@ -96,6 +97,7 @@ class MainWindow(QMainWindow, main_window):
         # Issue #50 Flight Tabs
         self._tabs = self.tab_workspace  # type: QTabWidget
         self._open_tabs = {}  # Track opened tabs by {uid: tab_widget, ...}
+        self._context_tree = self.contextual_tree  # type: QTreeView
 
         # Initialize Project Tree Display
         self.project_tree = ProjectTreeView(parent=self, project=self.project)
@@ -166,76 +168,76 @@ class MainWindow(QMainWindow, main_window):
         self.combo_console_verbosity.currentIndexChanged[str].connect(
             self.set_logging_level)
 
-    def populate_channel_tree(self, flight: prj.Flight=None):
+    # def populate_channel_tree(self, flight: prj.Flight=None):
+    #
+    #     self.log.debug("Populating channel tree")
+    #     if flight is None:
+    #         flight = self.current_flight
+    #
+    #     if flight.uid in self._flight_channel_models:
+    #         self.tree_channels.setModel(self._flight_channel_models[flight.uid])
+    #         self.tree_channels.expandAll()
+    #         return
+    #     else:
+    #         # Generate new StdModel
+    #         model = QStandardItemModel()
+    #         model.itemChanged.connect(self._update_channel_tree)
+    #
+    #         header_flags = Qt.ItemIsSelectable | Qt.ItemIsEnabled | Qt.ItemIsDropEnabled
+    #         headers = {}  # ax_index: header
+    #         for ax in range(len(self._open_tabs[flight.uid].plot)):
+    #             plot_header = QStandardItem("Plot {idx}".format(idx=ax))
+    #             plot_header.setData(ax, Qt.UserRole)
+    #             plot_header.setFlags(header_flags)
+    #             plot_header.setBackground(QColor("LightBlue"))
+    #             headers[ax] = plot_header
+    #             model.appendRow(plot_header)
+    #
+    #         channels_header = QStandardItem("Available Channels::")
+    #         channels_header.setBackground(QColor("Orange"))
+    #         channels_header.setFlags(Qt.NoItemFlags)
+    #         model.appendRow(channels_header)
+    #
+    #         items = {}  # uid: item
+    #         item_flags = Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsDragEnabled
+    #         for uid, label in flight.channels.items():
+    #             item = QStandardItem(label)
+    #             item.setData(uid, role=Qt.UserRole)
+    #             item.setFlags(item_flags)
+    #             items[uid] = item
+    #
+    #         state = flight.get_plot_state()  # returns: {uid: (label, axes), ...}
+    #         for uid in state:
+    #             label, axes = state[uid]
+    #             headers[axes].appendRow(items[uid])
+    #
+    #         for uid in items:
+    #             if uid not in state:
+    #                 model.appendRow(items[uid])
+    #
+    #         self._flight_channel_models[flight.uid] = model
+    #         self.tree_channels.setModel(model)
+    #         self.tree_channels.expandAll()
 
-        self.log.debug("Populating channel tree")
-        if flight is None:
-            flight = self.current_flight
-
-        if flight.uid in self._flight_channel_models:
-            self.tree_channels.setModel(self._flight_channel_models[flight.uid])
-            self.tree_channels.expandAll()
-            return
-        else:
-            # Generate new StdModel
-            model = QStandardItemModel()
-            model.itemChanged.connect(self._update_channel_tree)
-
-            header_flags = Qt.ItemIsSelectable | Qt.ItemIsEnabled | Qt.ItemIsDropEnabled
-            headers = {}  # ax_index: header
-            for ax in range(len(self._open_tabs[flight.uid].plot)):
-                plot_header = QStandardItem("Plot {idx}".format(idx=ax))
-                plot_header.setData(ax, Qt.UserRole)
-                plot_header.setFlags(header_flags)
-                plot_header.setBackground(QColor("LightBlue"))
-                headers[ax] = plot_header
-                model.appendRow(plot_header)
-
-            channels_header = QStandardItem("Available Channels::")
-            channels_header.setBackground(QColor("Orange"))
-            channels_header.setFlags(Qt.NoItemFlags)
-            model.appendRow(channels_header)
-
-            items = {}  # uid: item
-            item_flags = Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsDragEnabled
-            for uid, label in flight.channels.items():
-                item = QStandardItem(label)
-                item.setData(uid, role=Qt.UserRole)
-                item.setFlags(item_flags)
-                items[uid] = item
-
-            state = flight.get_plot_state()  # returns: {uid: (label, axes), ...}
-            for uid in state:
-                label, axes = state[uid]
-                headers[axes].appendRow(items[uid])
-
-            for uid in items:
-                if uid not in state:
-                    model.appendRow(items[uid])
-
-            self._flight_channel_models[flight.uid] = model
-            self.tree_channels.setModel(model)
-            self.tree_channels.expandAll()
-
-    def _update_channel_tree(self, item):
-        """Update the data channel selection Tree/Model"""
-        self.log.debug("Updating model: {}".format(item.text()))
-        parent = item.parent()
-        plot = self.current_plot
-        uid = item.data(Qt.UserRole)
-        if parent is not None:
-            # TODO: Logic here to remove from previous sub-plots (Done, I think)
-            plot.remove_series(uid)
-            label = item.text()
-            plot_ax = parent.data(Qt.UserRole)
-            self.log.debug("Item new parent: {}".format(item.parent().text()))
-            self.log.debug("Adding plot on axes: {}".format(plot_ax))
-            data = self.current_flight.get_channel_data(uid)
-            curve = PlotCurve(uid, data, label, plot_ax)
-            plot.add_series(curve, propogate=True)
-        else:
-            self.log.debug("Item has no parent (remove from plot)")
-            plot.remove_series(uid)
+    # def _update_channel_tree(self, item):
+    #     """Update the data channel selection Tree/Model"""
+    #     self.log.debug("Updating model: {}".format(item.text()))
+    #     parent = item.parent()
+    #     plot = self.current_plot
+    #     uid = item.data(Qt.UserRole)
+    #     if parent is not None:
+    #         # TODO: Logic here to remove from previous sub-plots (Done, I think)
+    #         plot.remove_series(uid)
+    #         label = item.text()
+    #         plot_ax = parent.data(Qt.UserRole)
+    #         self.log.debug("Item new parent: {}".format(item.parent().text()))
+    #         self.log.debug("Adding plot on axes: {}".format(plot_ax))
+    #         data = self.current_flight.get_channel_data(uid)
+    #         curve = PlotCurve(uid, data, label, plot_ax)
+    #         plot.add_series(curve, propogate=True)
+    #     else:
+    #         self.log.debug("Item has no parent (remove from plot)")
+    #         plot.remove_series(uid)
 
     def set_logging_level(self, name: str):
         """Slot: Changes logging level to passed string logging level name."""
@@ -272,6 +274,7 @@ class MainWindow(QMainWindow, main_window):
 
         self.log.info("Launching tab for flight: UID<{}>".format(flight.uid))
         new_tab = FlightTab(flight)
+        new_tab.contextChanged.connect(self._update_context_tree)
         self._open_tabs[flight.uid] = new_tab
         t_idx = self._tabs.addTab(new_tab, flight.name)
         self._tabs.setCurrentIndex(t_idx)
@@ -282,26 +285,38 @@ class MainWindow(QMainWindow, main_window):
 
     def _tab_changed(self, index: int):
         self.log.info("Tab changed to index: {}".format(index))
-        flight = self._tabs.widget(index).flight
-        self.populate_channel_tree(flight)
+        tab = self._tabs.widget(index)  # type: FlightTab
+        # flight = tab.flight
+        # self.populate_channel_tree(flight)
+        self._context_tree.setModel(tab.context_model)
 
-    def update_plot(self, flight: prj.Flight) -> None:
+    def _update_context_tree(self, model):
+        print("Tab subcontext changed. Model: ", model)
+        self._context_tree.setModel(model)
+
+    def data_added(self, flight: prj.Flight, src: types.DataSource) -> None:
         """
+        Register a new data file with a flight and updates the Flight UI
+        components if the flight is open in a tab.
 
         Parameters
         ----------
         flight : prj.Flight
             Flight object with related Gravity and GPS properties to plot
+        src : types.DataSource
+            DataSource object containing pointer and metadata to a DataFrame
 
         Returns
         -------
         None
         """
+        flight.register_data(src)
         if flight.uid not in self._open_tabs:
             # If flight is not opened, don't need to update plot
             return
         else:
-            self.current_tab.update_plot()
+            tab = self._open_tabs[flight.uid]  # type: FlightTab
+            tab.new_data(src)
             return
 
     def progress_dialog(self, title, start=0, stop=1):
@@ -316,24 +331,25 @@ class MainWindow(QMainWindow, main_window):
 
     def import_data(self, path: pathlib.Path, dtype: str, flight: prj.Flight,
                     fields=None):
+        """Load data of dtype from path, using a threaded loader class
+        Upon load the data file should be registered with the specified flight.
+        """
+        assert path is not None
         self.log.info("Importing <{dtype}> from: Path({path}) into"
                       " <Flight({name})>".format(dtype=dtype, path=str(path),
                                                  name=flight.name))
-        if path is None:
-            return False
-        loader = LoadFile(path, dtype, flight.uid, fields=fields, parent=self)
+
+        loader = LoadFile(path, dtype, fields=fields, parent=self)
 
         # Curry functions to execute on thread completion.
-        add_data = functools.partial(self.project.add_data, flight_uid=flight.uid)
-        update_plot = functools.partial(self.update_plot, flight)
-        prog = self.progress_dialog("Loading", 0, 0)
+        on_data = functools.partial(self.data_added, flight)
+        progress = self.progress_dialog("Loading", 0, 0)
 
-        loader.data.connect(add_data)
-        loader.progress.connect(prog.setValue)
-        # loader.loaded.connect(tree_refresh)
-        loader.loaded.connect(update_plot)
+        loader.data.connect(on_data)
+        loader.progress.connect(progress.setValue)
         loader.loaded.connect(self.save_project)
-        loader.loaded.connect(prog.close)
+        loader.loaded.connect(progress.close)
+
         loader.start()
 
     def save_project(self) -> None:

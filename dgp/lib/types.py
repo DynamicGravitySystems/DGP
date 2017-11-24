@@ -10,6 +10,7 @@ from pandas import Series
 
 from dgp.lib.etc import gen_uuid
 from dgp.gui.qtenum import QtItemFlags, QtDataRoles
+import dgp.lib.datamanager as dm
 
 """
 Dynamic Gravity Processor (DGP) :: types.py
@@ -30,47 +31,6 @@ Location = namedtuple('Location', ['lat', 'long', 'alt'])
 StillReading = namedtuple('StillReading', ['gravity', 'location', 'time'])
 
 DataCurve = namedtuple('DataCurve', ['channel', 'data'])
-
-
-class PlotCurve:
-    def __init__(self, uid: str, data: Series, label: str=None, axes: int=0,
-                 color: str=None):
-        self._uid = uid
-        self._data = data
-        self._label = label
-        if label is None:
-            self._label = self._data.name
-        self.axes = axes
-        self._line2d = None
-        self._changed = False
-
-    @property
-    def uid(self) -> str:
-        return self._uid
-
-    @property
-    def data(self) -> Series:
-        return self._data
-
-    @data.setter
-    def data(self, value: Series):
-        self._changed = True
-        self._data = value
-
-    @property
-    def label(self) -> str:
-        return self._label
-
-    @property
-    def line2d(self):
-        return self._line2d
-
-    @line2d.setter
-    def line2d(self, value: Line2D):
-        assert isinstance(value, Line2D)
-        print("Updating line in PlotCurve: ", self._label)
-        self._line2d = value
-        print(self._line2d)
 
 
 class AbstractTreeItem(metaclass=ABCMeta):
@@ -333,8 +293,6 @@ class TreeItem(BaseTreeItem):
         >>>     # Allow base class to apply styles if role not caught above
         >>>     return super().data(role)
         """
-        # TODO: Does this go to far in the base TreeItem, should we create a
-        # StyledTreeItem to implement some of the more advanced implementations
         if role == QtDataRoles.DisplayRole:
             return str(self)
         if role == QtDataRoles.ToolTipRole:
@@ -442,38 +400,63 @@ class FlightLine(TreeItem):
             name=name, start=self.start, stop=self.stop)
 
 
-class DataFile(BaseTreeItem):
+class DataSource(BaseTreeItem):
     def __init__(self, uid, filename, fields, dtype):
+        """Create a DataSource item with UID matching the managed file UID
+        that it points to."""
         super().__init__(uid)
         self.filename = filename
         self.fields = fields
         self.dtype = dtype
+        self.channels = [DataChannel(field, self) for field in
+                         fields]
+
+    def load(self, field):
+        return dm.get_manager().load_data('hdf5', self.uid)[field]
 
     def data(self, role: QtDataRoles):
         if role == QtDataRoles.DisplayRole:
             return "{dtype}: {fname}".format(dtype=self.dtype,
                                              fname=self.filename)
 
+    def children(self):
+        return []
+
 
 class DataChannel(BaseTreeItem):
-    def __init__(self, label, data, parent=None):
+    def __init__(self, label, source: DataSource, parent=None):
         super().__init__(gen_uuid('dcn'), parent=parent)
-        self._label = label
-        self._data = data
+        self.label = label
+        self.field = label
+        self._source = source
+        self.plot_style = ''
+        self._plotted = False
+        self.axes = -1
 
     @property
-    def label(self):
-        return self._label
+    def plotted(self):
+        # This is a bad way to do this, False and 0 can be equivalent,
+        # and a valid result may return 0 (ax index 0)
+        if not self._plotted:
+            return False
+        return self.axes
 
-    @property
-    def cdata(self):
-        return self._data
+    @plotted.setter
+    def plotted(self, value: bool):
+        if not value:
+            self._plotted = False
+            self.axes = -1
+        else:
+            self._plotted = True
+
+    def series(self, force=False) -> Series:
+        return self._source.load(self.field)
 
     def data(self, role: QtDataRoles):
         if role == QtDataRoles.DisplayRole:
-            return self._label
+            return self.label
         if role == QtDataRoles.UserRole:
-            return self._data
+            return self.field
         return None
 
     def flags(self):

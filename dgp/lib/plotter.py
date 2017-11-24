@@ -27,9 +27,9 @@ from matplotlib.patches import Rectangle
 from pandas import Series
 import numpy as np
 
-from dgp.lib.types import PlotCurve
 from dgp.lib.project import Flight
 from dgp.gui.dialogs import SetLineLabelDialog
+import dgp.lib.types as types
 
 
 class BasePlottingCanvas(FigureCanvas):
@@ -134,7 +134,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         self._flight_id = flight.uid
 
         # Issue #36
-        self._plot_lines = {}  # {uid: PlotCurve, ...}
+        self._plot_lines = {}  # {uid: (ax_idx, Line2d), ...}
 
         if title:
             self.figure.suptitle(title, y=1)
@@ -250,60 +250,66 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
             ax.relim()
         self.draw()
 
+    def _set_formatters(self):
+        """
+        Check for lines on plot and set formatters accordingly.
+        If there are no lines plotted we apply a NullLocator and NullFormatter
+        If there are lines plotted or about to be plotted, re-apply an
+        AutoLocator and DateFormatter.
+        """
+        raise NotImplementedError("Method not yet implemented")
+
     # Issue #36 Enable data/channel selection and plotting
-    def add_series(self, *lines: PlotCurve, draw=True, propogate=True):
+    def add_series(self, dc: types.DataChannel, axes_idx: int=0, draw=True):
         """Add one or more data series to the specified axes as a line plot."""
-        if not len(self._plot_lines):
-            # If there are 0 plot lines we need to reset the major locator/formatter
-            self.log.debug("Re-adding locator and major formatter to empty plot.")
+        if len(self._plot_lines) == 0:
+            # If there are 0 plot lines we need to reset the locator/formatter
+            self.log.debug("Adding locator and major formatter to empty plot.")
             self.axes[0].xaxis.set_major_locator(AutoLocator())
             self.axes[0].xaxis.set_major_formatter(DateFormatter('%H:%M:%S'))
 
-        drawn_axes = {}  # Record axes that need to be redrawn
-        for line in lines:
-            axes = self.axes[line.axes]
-            drawn_axes[line.axes] = axes
-            line.line2d = axes.plot(line.data.index, line.data.values, label=line.label)[0]
-            self._plot_lines[line.uid] = line
-            if propogate:
-                self._flight.update_series(line, action="add")
+        axes = self.axes[axes_idx]
+        series = dc.series()
+        line_artist = axes.plot(series.index, series.values,
+                                label=dc.label)[0]
 
-        for axes in drawn_axes.values():
-            self.log.info("Adding legend, relim and autoscaling on axes: {}".format(axes))
-            axes.legend()
-            axes.relim()
-            axes.autoscale_view()
+        self._plot_lines[dc.uid] = axes_idx, line_artist
 
-        # self.log.info(self._plot_lines)
+        self.log.info("Adding legend, relim and autoscaling on axes: {}"
+                      .format(axes))
+        axes.legend()
+        axes.relim()
+        axes.autoscale_view()
+
         if draw:
             self.figure.canvas.draw()
 
-    def update_series(self, line: PlotCurve):
+    def update_series(self, line: types.DataChannel):
         pass
 
-    def remove_series(self, uid):
-        if uid not in self._plot_lines:
+    def remove_series(self, dc: types.DataChannel):
+
+        if dc.uid not in self._plot_lines:
             self.log.warning("Series UID could not be located in plot_lines")
             return
-        curve = self._plot_lines[uid]  # type: PlotCurve
-        axes = self.axes[curve.axes]  # type: Axes
-        self._flight.update_series(curve, action="remove")
-        axes.lines.remove(curve.line2d)
-        # axes.set
+        axes_idx, line = self._plot_lines[dc.uid]
+        axes = self.axes[axes_idx]
+        axes.lines.remove(line)
         axes.relim()
         axes.autoscale_view()
         if not axes.lines:
-            axes.legend_.remove()  # Does this work? It does.
+            axes.legend_.remove()
         else:
             axes.legend()
-        del self._plot_lines[uid]
+        del self._plot_lines[dc.uid]
+        dc.plotted = False
         if len(self._plot_lines) == 0:
             self.log.warning("No lines on plotter axes.")
 
-        line_count = reduce(lambda acc, res: acc + res, (len(x.lines) for x in self.axes))
+        line_count = reduce(lambda acc, res: acc + res,
+                            (len(x.lines) for x in self.axes))
         if not line_count:
             self.log.warning("No Lines on any axes.")
-            # This works, but then need to replace the locator when adding data back
             print(self.axes[0].xaxis.get_major_locator())
             self.axes[0].xaxis.set_major_locator(NullLocator())
             self.axes[0].xaxis.set_major_formatter(NullFormatter())
