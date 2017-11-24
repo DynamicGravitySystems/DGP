@@ -6,9 +6,13 @@ import numpy as np
 import pandas as pd
 from copy import deepcopy
 from scipy import signal
+import csv
 
 from .context import  dgp
-from dgp.lib.transform import TransformChain, DataWrapper, Filter
+from tests import sample_dir
+from dgp.lib.transform import TransformChain, DataWrapper, Filter, Derivative
+from dgp.lib.derivative import Eotvos, CentralDiff2
+import dgp.lib.trajectory_ingestor as ti
 
 from copy import deepcopy
 
@@ -159,3 +163,70 @@ class TestTransform(unittest.TestCase):
         filtered_sig = lp(sig)
         freq_after = self._find_comp(filtered_sig, fs)
         self.assertTrue(freq_after == [1.2, 3])
+
+    def test_transform_eotvos(self):
+        """Test Eotvos function against corrections generated with MATLAB program."""
+        # Ensure gps_fields are ordered correctly relative to test file
+        gps_fields = ['mdy', 'hms', 'lat', 'long', 'ortho_ht', 'ell_ht', 'num_stats', 'pdop']
+        data = ti.import_trajectory('tests/sample_data/eotvos_short_input.txt', columns=gps_fields, skiprows=1,
+                                    timeformat='hms')
+
+        result_eotvos = []
+        with sample_dir.joinpath('eotvos_short_result.csv').open() as fd:
+            test_data = csv.DictReader(fd)
+            for line in test_data:
+                result_eotvos.append(float(line['Eotvos_full']))
+        lat = data['lat'].values
+        lon = data['long'].values
+        ht = data['ell_ht'].values
+        rate = 10
+
+        derivative_func = CentralDiff2()
+        eotvos_func = Eotvos(derivative=derivative_func)
+        eotvos_a = eotvos_func(lat=lat, lon=lon, ht=ht)
+
+        for i, value in enumerate(eotvos_a):
+            try:
+                self.assertAlmostEqual(value, result_eotvos[i], places=2)
+            except AssertionError:
+                print("Invalid assertion at data line: {}".format(i))
+                raise AssertionError
+
+    @unittest.skip("test_transform_eotvos_npgradient not yet working.")
+    def test_transform_eotvos_npgradient(self):
+        """Test Eotvos function against corrections generated with MATLAB program."""
+        # Ensure gps_fields are ordered correctly relative to test file
+        gps_fields = ['mdy', 'hms', 'lat', 'long', 'ortho_ht', 'ell_ht', 'num_stats', 'pdop']
+        data = ti.import_trajectory('tests/sample_data/eotvos_short_input.txt', columns=gps_fields, skiprows=1,
+                                    timeformat='hms')
+
+        result_eotvos = []
+        with sample_dir.joinpath('eotvos_short_result.csv').open() as fd:
+            test_data = csv.DictReader(fd)
+            for line in test_data:
+                result_eotvos.append(float(line['Eotvos_full']))
+        lat = data['lat'].values
+        lon = data['long'].values
+        ht = data['ell_ht'].values
+        rate = 10
+
+        def npgradient(data, n=1):
+            if n == 1:
+                return np.gradient(data, edge_order=1)
+            elif n == 2:
+                return np.gradient(np.gradient(data, edge_order=1), edge_order=1)
+            else:
+                raise ValueError('Invalid value for parameter n {1 or 2}')
+
+        eotvos_func = Eotvos(derivative=Derivative(npgradient))
+        eotvos_a = eotvos_func(lat=lat, lon=lon, ht=ht)
+
+        # print(eotvos_a)
+        # print(result_eotvos)
+
+        for i, value in enumerate(eotvos_a):
+            try:
+                self.assertAlmostEqual(value, result_eotvos[i], places=2)
+            except AssertionError:
+                print("Invalid assertion at data line: {}".format(i))
+                raise AssertionError

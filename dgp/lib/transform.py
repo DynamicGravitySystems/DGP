@@ -14,10 +14,11 @@ from dgp.lib.etc import gen_uuid, dedup_dict
 
 
 class Transform:
-    def __init__(self, func, typ):
+    def __init__(self, func, typ, var_dict):
         self._uid = gen_uuid('xf')
         self._func = func
         self._transformtype = typ
+        self._var_dict = var_dict
 
     @property
     def func(self):
@@ -35,15 +36,36 @@ class Transform:
     def uid(self):
         return self._uid
 
+    # def __call__(self, *args, **kwargs):
+    #     raise NotImplementedError('Abstract definition. Not implemented.')
+
     def __call__(self, *args, **kwargs):
-        raise NotImplementedError('Abstract definition. Not implemented.')
+        # identify arguments that are instance variables
+        argspec = inspect.getfullargspec(self._func)
+        keywords = {}
+        for arg in argspec.args:
+            if arg in self._var_dict:
+                keywords[arg] = self.__dict__[self._var_dict[arg]]
+
+        # override keywords explicitly set in function call
+        for k, v in kwargs.items():
+            keywords[k] = v
+
+        return self._func(*args, **keywords)
 
     def __str__(self):
         return 'Transform({func})'.format(func=self._func)
 
 
+class Derivative(Transform):
+    _var_dict = {}
+
+    def __init__(self, func):
+        super().__init__(func, 'derivative', self._var_dict)
+
+
 class Filter(Transform):
-    var_dict = {'fs': '_fs',
+    _var_dict = {'fs': '_fs',
                 'fc': '_fc',
                 'order': '_order',
                 'wn': '_wn',
@@ -52,7 +74,7 @@ class Filter(Transform):
                 }
 
     def __init__(self, func, fc, fs, typ):
-        super().__init__(func, 'filter')
+        super().__init__(func, 'filter', self._var_dict)
 
         self.filtertype = typ
         self._window = 'blackman'
@@ -101,19 +123,19 @@ class Filter(Transform):
         self._nyq = self._fs * 0.5
         self._wn = self._fc / self._nyq
 
-    def __call__(self, *args, **kwargs):
-        # identify arguments that are instance variables
-        argspec = inspect.getfullargspec(self._func)
-        keywords = {}
-        for arg in argspec.args:
-            if arg in self.var_dict:
-                keywords[arg] = self.__dict__[self.var_dict[arg]]
-
-        # override keywords explicitly set in function call
-        for k, v in kwargs.items():
-            keywords[k] = v
-
-        return self._func(*args, **keywords)
+    # def __call__(self, *args, **kwargs):
+    #     # identify arguments that are instance variables
+    #     argspec = inspect.getfullargspec(self._func)
+    #     keywords = {}
+    #     for arg in argspec.args:
+    #         if arg in self.var_dict:
+    #             keywords[arg] = self.__dict__[self.var_dict[arg]]
+    #
+    #     # override keywords explicitly set in function call
+    #     for k, v in kwargs.items():
+    #         keywords[k] = v
+    #
+    #     return self._func(*args, **keywords)
 
     def __repr__(self):
         return """Filter type: {typ}
