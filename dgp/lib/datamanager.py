@@ -45,12 +45,14 @@ class DataManager:
         'dtypes': ['hdf5', 'json', 'csv'],
         'dfiles': {'hdf5': '',
                    'json': '',
-                   'csv': ''}
+                   'csv': ''},
+        'uidmap': {}
     }
 
     def __init__(self, root_path):
         self.log = logging.getLogger(__name__)
         self.dir = Path(root_path)
+        self.log.debug("DataManager root_path: {}".format(self.dir))
         if not self.dir.exists():
             self.dir.mkdir(parents=True)
         self.reg_path = self.dir.joinpath('registry.json')
@@ -64,7 +66,7 @@ class DataManager:
         self.log.debug("Loading DataManager registry from {}".format(
             self.reg_path))
         if not self.reg_path.exists():
-            print("No registry JSON exists.")
+            self.log.debug("No JSON registry exists.")
             return self._baseregister
 
         with self.reg_path.open(mode='r') as fd:
@@ -77,17 +79,20 @@ class DataManager:
             json.dump(self.reg, fd, indent=4)
 
     def save_data(self, dtype, data) -> str:
-        fpath = self.reg['dfiles'][dtype]  # type: str
-        if fpath == '' or fpath is None:
+        fname = self.reg['dfiles'].get(dtype, None)
+        if fname == '' or fname is None:
+            self.log.info("Creating {} store".format(dtype))
             fuid = uuid.uuid4().__str__()
             fname = '{uid}.{dtype}'.format(uid=fuid, dtype=dtype)
-            fpath = str(self.dir.joinpath(fname))
-            self.reg['dfiles'][dtype] = fpath
+            # Store only the file-name - path is dynamically built
+            self.reg['dfiles'][dtype] = fname
 
-        with HDFStore(fpath) as hdf:
-            duid = gen_uuid('dat')
-            hdf.put('data/{}'.format(duid), data, format='fixed',
-                    data_columns=True)
+        fpath = self.dir.joinpath(self.reg['dfiles'][dtype])  # type: str
+        duid = gen_uuid('dat')
+        data_leaf = 'data/{}'.format(duid)
+        with HDFStore(str(fpath)) as hdf:
+            self.log.debug("Writing DataFrame to HDF Key: {}".format(data_leaf))
+            hdf.put(data_leaf, data, format='fixed', data_columns=True)
             # TODO: Map data uid to fuid in registry?
             # Would enable lookup by UID only without knowing dtype
         self._save_registry()
@@ -98,8 +103,8 @@ class DataManager:
         if uid in self._cache:
             self.log.debug("Returning data from in-memory cache.")
             return self._cache[uid]
-        fpath = self.reg['dfiles'][dtype]
-        print(fpath)
+        fpath = self.dir.joinpath(self.reg['dfiles'][dtype])
+        self.log.debug("DataFile Path: {}".format(fpath))
         if dtype == 'hdf5':
             with HDFStore(str(fpath)) as hdf:
                 key = 'data/{uid}'.format(uid=uid)
@@ -108,10 +113,14 @@ class DataManager:
             self.log.debug("Loading data from HDFStore on disk.")
             return data
 
+    def save(self):
+        self._save_registry()
+
 
 def init(path: Path):
     global manager
     if manager is not None and manager.init:
+        print("Data Manager has already been initialized.")
         return False
     manager = DataManager(path)
     return True
