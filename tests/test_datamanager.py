@@ -14,8 +14,6 @@ import dgp.lib.datamanager as dm
 
 class TestDataManager(unittest.TestCase):
 
-    # with tempfile.NamedTemporaryFile() as tf:
-    #     tf.write(b"This is not a directory")
     def setUp(self):
         data = {'Col1': ['c1-1', 'c1-2', 'c1-3'], 'Col2': ['c2-1', 'c2-2',
                                                            'c2-3']}
@@ -25,7 +23,8 @@ class TestDataManager(unittest.TestCase):
             'dtypes': ['hdf5', 'json', 'csv'],
             'dfiles': {'hdf5': '',
                        'json': '',
-                       'csv': ''}
+                       'csv': ''},
+            'uidmap': {}
         }
 
     def tearDown(self):

@@ -11,7 +11,7 @@ ChannelListModel
 """
 
 import logging
-from typing import Union
+from typing import Union, List
 
 import PyQt5.QtCore as QtCore
 from PyQt5 import Qt
@@ -23,7 +23,6 @@ from PyQt5.QtWidgets import QComboBox
 
 from dgp.gui.qtenum import QtDataRoles, QtItemFlags
 from dgp.lib.types import AbstractTreeItem, TreeItem, TreeLabelItem, DataChannel
-import dgp.lib.datamanager as dm
 
 
 class TableModel(QtCore.QAbstractTableModel):
@@ -40,12 +39,14 @@ class TableModel(QtCore.QAbstractTableModel):
         self._updates = {}
 
     def set_object(self, obj):
-        """Populates the model with key, value pairs from the passed objects' __dict__"""
+        """Populates the model with key, value pairs from the passed objects'
+        __dict__"""
         for key, value in obj.__dict__.items():
             self.append(key, value)
 
     def append(self, *args):
-        """Add a new row of data to the table, trimming input array to length of columns."""
+        """Add a new row of data to the table, trimming input array to length of
+         columns."""
         if not isinstance(args, list):
             args = list(args)
         while len(args) < len(self._cols):
@@ -103,8 +104,9 @@ class TableModel(QtCore.QAbstractTableModel):
     # Required implementations of super class for editable table
 
     def setData(self, index: QtCore.QModelIndex, value: QtCore.QVariant, role=None):
-        """Basic implementation of editable model. This doesn't propagate the changes to the underlying
-        object upon which the model was based though (yet)"""
+        """Basic implementation of editable model. This doesn't propagate the
+        changes to the underlying object upon which the model was based
+        though (yet)"""
         if index.isValid() and role == QtCore.Qt.ItemIsEditable:
             self._rows[index.row()][index.column()] = value
             self.dataChanged.emit(index, index)
@@ -326,7 +328,7 @@ class ChannelListModel(BaseTreeModel):
     # return -1 if item removed from plots to available list
     channelChanged = pyqtSignal(int, int, DataChannel)  # type: pyqtBoundSignal
 
-    def __init__(self, channels, plots: int, parent=None):
+    def __init__(self, channels: List[DataChannel], plots: int, parent=None):
         """
         Init sets up a model with n+1 top-level headers where n = plots.
         Each plot has a header that channels can then be dragged to from the
@@ -339,7 +341,7 @@ class ChannelListModel(BaseTreeModel):
 
         Parameters
         ----------
-        channels
+        channels : List[DataChannel]
         plots
         parent
         """
@@ -353,10 +355,20 @@ class ChannelListModel(BaseTreeModel):
             self.root.append_child(plt_label)
         self._available = TreeLabelItem('Available Channels')
         self._channels = {}
-        for channel in channels:
-            self._available.append_child(channel)
-            self._channels[channel.uid] = channel
+        # for channel in channels:
+        #     self._available.append_child(channel)
+        #     self._channels[channel.uid] = channel
+        self._build_model(channels)
         self.root.append_child(self._available)
+
+    def _build_model(self, channels: List[DataChannel]):
+        """Build the model representation"""
+        for channel in channels:  # type: DataChannel
+            self._channels[channel.uid] = channel
+            if channel.plotted != -1:
+                self._plots[channel.plotted].append_child(channel)
+            else:
+                self._available.append_child(channel)
 
     def append_channel(self, channel: DataChannel):
         self._available.append_child(channel)
@@ -390,10 +402,10 @@ class ChannelListModel(BaseTreeModel):
         if item == self.root:
             return QtCore.Qt.NoItemFlags
         if isinstance(item, DataChannel):
-            return QtCore.Qt.ItemIsDragEnabled | QtCore.Qt.ItemIsSelectable |\
-                   QtCore.Qt.ItemIsEnabled
-        return QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled | \
-               QtCore.Qt.ItemIsDropEnabled
+            return (QtCore.Qt.ItemIsDragEnabled | QtCore.Qt.ItemIsSelectable |
+                    QtCore.Qt.ItemIsEnabled)
+        return (QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled |
+                QtCore.Qt.ItemIsDropEnabled)
 
     def supportedDropActions(self):
         return QtCore.Qt.MoveAction
@@ -434,7 +446,6 @@ class ChannelListModel(BaseTreeModel):
                 self.plotOverflow.emit(p_item.uid)
                 return False
 
-        print(p_item.row())
         # Remove the object to be dropped from its previous parent
         drop_parent = drop_object.parent
         drop_parent.remove_child(drop_object)

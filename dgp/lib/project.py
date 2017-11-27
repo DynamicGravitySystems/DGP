@@ -6,13 +6,12 @@ import logging
 from typing import Union, Type
 from datetime import datetime
 
-from pandas import HDFStore, DataFrame, Series
+from pandas import DataFrame
 
 from dgp.gui.qtenum import QtItemFlags, QtDataRoles
 from dgp.lib.meterconfig import MeterConfig, AT1Meter
 from dgp.lib.etc import gen_uuid
 import dgp.lib.types as types
-import dgp.lib.eotvos as eov
 import dgp.lib.datamanager as dm
 
 """
@@ -105,8 +104,6 @@ class GravityProject(types.TreeItem):
         self.name = name
         self.description = description
 
-        # self.hdf_path = os.path.join(self.projectdir, 'prjdata.h5')
-        self.hdf_path = self.projectdir.joinpath('prjdata.h5')
         dm.init(self.projectdir.joinpath('data'))
 
         # Store MeterConfig objects in dictionary keyed by the meter name
@@ -126,35 +123,6 @@ class GravityProject(types.TreeItem):
     @model.setter
     def model(self, value):
         self._model_parent = value
-
-    # def load_data(self, uid: str, prefix: str = 'data'):
-    #     """
-    #     Load data from the project HDFStore (HDF5 format datafile) by uid.
-    #
-    #     Parameters
-    #     ----------
-    #     uid : str
-    #         32 digit hexadecimal unique identifier for the file to load.
-    #     prefix : str
-    #         Deprecated - parameter reserved while testing compatibility
-    #         Data type prefix, 'gps' or 'gravity' specifying the HDF5 group to
-    #         retrieve the file from.
-    #
-    #     Returns
-    #     -------
-    #     DataFrame
-    #         Pandas DataFrame retrieved from HDFStore
-    #     """
-    #     self.log.info("Loading data <{}>/{} from HDFStore".format(prefix, uid))
-    #
-    #     with HDFStore(str(self.hdf_path)) as store:
-    #         try:
-    #             data = store.get('{}/{}'.format(prefix, uid))
-    #         except KeyError:
-    #             self.log.warning("No data exists for key: {}".format(uid))
-    #             return None
-    #         else:
-    #             return data
 
     def add_meter(self, meter: MeterConfig) -> MeterConfig:
         """Add an existing MeterConfig class to the dictionary of meters"""
@@ -344,7 +312,7 @@ class Flight(types.TreeItem):
 
         # Flight attribute dictionary, containing survey values e.g. still
         # reading, tie location/value
-        self._attributes = {}
+        self._survey_values = {}
 
         self.flight_timeshift = 0
 
@@ -375,18 +343,16 @@ class Flight(types.TreeItem):
         cns = []
         for source in self._data:  # type: types.DataSource
             cns.extend(source.channels)
-            # for channel in source.channels:
-            #     cns.append(channel)
         return cns
 
     def get_plot_state(self):
         # Return List[DataChannel if DataChannel is plotted]
-        return [dc for dc in self.channels if dc.plotted]
+        return [dc for dc in self.channels if dc.plotted != -1]
 
     def register_data(self, datasrc: types.DataSource):
         """Register a data file for use by this Flight"""
-        self.log.info("Flight {} registering data source: {}".format(
-            self.name, datasrc.filename))
+        self.log.info("Flight {} registering data source: {} UID: {}".format(
+            self.name, datasrc.filename, datasrc.uid))
         self._data.append_child(datasrc)
         # TODO: Set channels within source to plotted if in default plot dict
 
@@ -521,7 +487,6 @@ class Container(types.TreeItem):
         super().append_child(child)
 
     def __str__(self):
-        # return self._name
         return str(self._children)
 
 
@@ -549,66 +514,11 @@ class AirborneProject(GravityProject):
 
         self.log.debug("Airborne project initialized")
         self.data_map = {}
-        # print("Project children:")
-        # for child in self.children:
-        #     print(child.uid)
 
     def data(self, role: QtDataRoles):
         if role == QtDataRoles.DisplayRole:
             return "{} :: <{}>".format(self.name, self.projectdir.resolve())
         return super().data(role)
-
-    # TODO: Move this into the GravityProject base class?
-    # Although we use flight_uid here, this could be abstracted.
-    # def add_data(self, df: DataFrame, path: pathlib.Path, dtype: str,
-    #              flight_uid: str):
-    #     """
-    #     Add an imported DataFrame to a specific Flight in the project.
-    #     Upon adding a DataFrame a UUID is assigned, and together with the data
-    #     type it is exported to the project HDFStore into a group specified by
-    #     data type i.e.
-    #             HDFStore.put('data_type/uuid', packet.data)
-    #     The data can then be retrieved from its respective dtype group using the
-    #     UUID. The UUID is then stored in the Flight class's data variable for
-    #     the respective data_type.
-    #
-    #     Parameters
-    #     ----------
-    #     df : DataFrame
-    #         Pandas DataFrame containing file data.
-    #     path : pathlib.Path
-    #         Original path to data file as a pathlib.Path object.
-    #     dtype : str
-    #         The data type of the data (df) being added, either gravity or gps.
-    #     flight_uid : str
-    #         UUID of the Flight the added data will be assigned/associated with.
-    #
-    #     Returns
-    #     -------
-    #     bool
-    #         True on success, False on failure
-    #         Causes of failure:
-    #             flight_uid does not exist in self.flights.keys
-    #     """
-    #     self.log.debug("Ingesting data and exporting to hdf5 store")
-    #
-    #     # Fixes NaturalNameWarning by ensuring first char is letter
-    #     file_uid = gen_uuid('dat')
-    #
-    #     with HDFStore(str(self.hdf_path)) as store:
-    #         # format: 'table' pytables format enables searching/appending,
-    #         # fixed is more performant.
-    #         store.put('data/{uid}'.format(uid=file_uid), df, format='fixed',
-    #                   data_columns=True)
-    #         # Store a reference to the original file path
-    #         self.data_map[file_uid] = path
-    #     try:
-    #         flight = self.get_flight(flight_uid)
-    #         cols = [col for col in df.keys()]
-    #         flight.register_data(types.DataSource(file_uid, path, cols, dtype))
-    #         return True
-    #     except KeyError:
-    #         return False
 
     def update(self, **kwargs):
         """Used to update the wrapping (parent) ProjectModel of this project for
@@ -622,7 +532,6 @@ class AirborneProject(GravityProject):
 
     def remove_flight(self, flight: Flight):
         self._flights.remove_child(flight)
-        # self.update('del', flight, parent=flight.parent, row=flight.row())
 
     def get_flight(self, uid):
         return self._flights.child(uid)

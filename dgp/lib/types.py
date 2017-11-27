@@ -1,11 +1,9 @@
 # coding: utf-8
 
-from datetime import datetime
 from abc import ABCMeta, abstractmethod
 from collections import namedtuple
 from typing import Union, Generator
 
-from matplotlib.lines import Line2D
 from pandas import Series
 
 from dgp.lib.etc import gen_uuid
@@ -418,6 +416,8 @@ class DataSource(BaseTreeItem):
         if role == QtDataRoles.DisplayRole:
             return "{dtype}: {fname}".format(dtype=self.dtype,
                                              fname=self.filename)
+        if role == QtDataRoles.ToolTipRole:
+            return "UID: {}".format(self.uid)
 
     def children(self):
         return []
@@ -430,24 +430,15 @@ class DataChannel(BaseTreeItem):
         self.field = label
         self._source = source
         self.plot_style = ''
-        self._plotted = False
-        self.axes = -1
+        self._plot_axes = -1
 
     @property
     def plotted(self):
-        # This is a bad way to do this, False and 0 can be equivalent,
-        # and a valid result may return 0 (ax index 0)
-        if not self._plotted:
-            return False
-        return self.axes
+        return self._plot_axes
 
     @plotted.setter
-    def plotted(self, value: bool):
-        if not value:
-            self._plotted = False
-            self.axes = -1
-        else:
-            self._plotted = True
+    def plotted(self, value):
+        self._plot_axes = value
 
     def series(self, force=False) -> Series:
         return self._source.load(self.field)

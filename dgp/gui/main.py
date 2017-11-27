@@ -4,24 +4,24 @@ import os
 import pathlib
 import functools
 import logging
-from typing import Dict, Union
+from typing import Union
 
-from pandas import Series, DataFrame
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
-from PyQt5.QtWidgets import (QWidget, QMainWindow, QTabWidget, QVBoxLayout,
-    QAction, QMenu, QProgressDialog, QFileDialog, QTreeView)
-from PyQt5.QtCore import pyqtSignal, pyqtBoundSignal, Qt
-from PyQt5.QtGui import QColor, QStandardItemModel, QStandardItem, QIcon
+from PyQt5.QtWidgets import (QMainWindow, QTabWidget, QAction, QMenu,
+                             QProgressDialog, QFileDialog, QTreeView)
+from PyQt5.QtCore import pyqtSignal, pyqtBoundSignal
+from PyQt5.QtGui import QColor
 from PyQt5.uic import loadUiType
 
-import dgp.lib.datamanager as dm
 import dgp.lib.project as prj
 import dgp.lib.types as types
+import dgp.lib.datamanager as dm
 from dgp.gui.loader import LoadFile
-from dgp.lib.plotter import LineGrabPlot, LineUpdate
-from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP, get_project_file
-from dgp.gui.dialogs import ImportData, AddFlight, CreateProject, InfoDialog, AdvancedImport
+from dgp.gui.utils import (ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP,
+                           get_project_file)
+from dgp.gui.dialogs import (ImportData, AddFlight, CreateProject,
+                             InfoDialog, AdvancedImport)
 from dgp.gui.models import TableModel, ProjectModel
 from dgp.gui.widgets import FlightTab
 
@@ -51,7 +51,8 @@ class MainWindow(QMainWindow, main_window):
     status = pyqtSignal(str)  # type: pyqtBoundSignal
     progress = pyqtSignal(int)  # type: pyqtBoundSignal
 
-    def __init__(self, project: Union[prj.GravityProject, prj.AirborneProject]=None, *args):
+    def __init__(self, project: Union[prj.GravityProject,
+                                      prj.AirborneProject]=None, *args):
         super().__init__(*args)
 
         self.setupUi(self)
@@ -91,36 +92,27 @@ class MainWindow(QMainWindow, main_window):
         self.import_base_path = pathlib.Path('~').expanduser().joinpath(
             'Desktop')
 
-        # Store StandardItemModels for Flight channel selection
-        self._flight_channel_models = {}
-
         # Issue #50 Flight Tabs
         self._tabs = self.tab_workspace  # type: QTabWidget
         self._open_tabs = {}  # Track opened tabs by {uid: tab_widget, ...}
         self._context_tree = self.contextual_tree  # type: QTreeView
+        self._context_tree.setItemsExpandable(False)
 
         # Initialize Project Tree Display
         self.project_tree = ProjectTreeView(parent=self, project=self.project)
-        self.project_tree.setMinimumWidth(300)
+        self.project_tree.setMinimumWidth(250)
         self.project_dock_grid.addWidget(self.project_tree, 0, 0, 1, 2)
-
-        # Issue #36 Channel Selection Model
-        self.std_model = None  # type: QStandardItemModel
 
     @property
     def current_flight(self) -> Union[prj.Flight, None]:
+        """Returns the active flight based on which Flight Tab is in focus."""
         if self._tabs.count() > 0:
             return self._tabs.currentWidget().flight
         return None
 
     @property
-    def current_plot(self) -> Union[LineGrabPlot, None]:
-        if self._tabs.count() > 0:
-            return self._tabs.currentWidget().plot
-        return None
-
-    @property
     def current_tab(self) -> Union[FlightTab, None]:
+        """Get the active FlightTab (returns None if no Tabs are open)"""
         if self._tabs.count() > 0:
             return self._tabs.currentWidget()
         return None
@@ -134,7 +126,7 @@ class MainWindow(QMainWindow, main_window):
             self.progress.disconnect()
             self.status.disconnect()
         except TypeError:
-            # This will happen if there are no slots connected, ignore it.
+            # This can be safely ignored (no slots were connected)
             pass
 
     def _init_slots(self):
@@ -168,79 +160,14 @@ class MainWindow(QMainWindow, main_window):
         self.combo_console_verbosity.currentIndexChanged[str].connect(
             self.set_logging_level)
 
-    # def populate_channel_tree(self, flight: prj.Flight=None):
-    #
-    #     self.log.debug("Populating channel tree")
-    #     if flight is None:
-    #         flight = self.current_flight
-    #
-    #     if flight.uid in self._flight_channel_models:
-    #         self.tree_channels.setModel(self._flight_channel_models[flight.uid])
-    #         self.tree_channels.expandAll()
-    #         return
-    #     else:
-    #         # Generate new StdModel
-    #         model = QStandardItemModel()
-    #         model.itemChanged.connect(self._update_channel_tree)
-    #
-    #         header_flags = Qt.ItemIsSelectable | Qt.ItemIsEnabled | Qt.ItemIsDropEnabled
-    #         headers = {}  # ax_index: header
-    #         for ax in range(len(self._open_tabs[flight.uid].plot)):
-    #             plot_header = QStandardItem("Plot {idx}".format(idx=ax))
-    #             plot_header.setData(ax, Qt.UserRole)
-    #             plot_header.setFlags(header_flags)
-    #             plot_header.setBackground(QColor("LightBlue"))
-    #             headers[ax] = plot_header
-    #             model.appendRow(plot_header)
-    #
-    #         channels_header = QStandardItem("Available Channels::")
-    #         channels_header.setBackground(QColor("Orange"))
-    #         channels_header.setFlags(Qt.NoItemFlags)
-    #         model.appendRow(channels_header)
-    #
-    #         items = {}  # uid: item
-    #         item_flags = Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsDragEnabled
-    #         for uid, label in flight.channels.items():
-    #             item = QStandardItem(label)
-    #             item.setData(uid, role=Qt.UserRole)
-    #             item.setFlags(item_flags)
-    #             items[uid] = item
-    #
-    #         state = flight.get_plot_state()  # returns: {uid: (label, axes), ...}
-    #         for uid in state:
-    #             label, axes = state[uid]
-    #             headers[axes].appendRow(items[uid])
-    #
-    #         for uid in items:
-    #             if uid not in state:
-    #                 model.appendRow(items[uid])
-    #
-    #         self._flight_channel_models[flight.uid] = model
-    #         self.tree_channels.setModel(model)
-    #         self.tree_channels.expandAll()
-
-    # def _update_channel_tree(self, item):
-    #     """Update the data channel selection Tree/Model"""
-    #     self.log.debug("Updating model: {}".format(item.text()))
-    #     parent = item.parent()
-    #     plot = self.current_plot
-    #     uid = item.data(Qt.UserRole)
-    #     if parent is not None:
-    #         # TODO: Logic here to remove from previous sub-plots (Done, I think)
-    #         plot.remove_series(uid)
-    #         label = item.text()
-    #         plot_ax = parent.data(Qt.UserRole)
-    #         self.log.debug("Item new parent: {}".format(item.parent().text()))
-    #         self.log.debug("Adding plot on axes: {}".format(plot_ax))
-    #         data = self.current_flight.get_channel_data(uid)
-    #         curve = PlotCurve(uid, data, label, plot_ax)
-    #         plot.add_series(curve, propogate=True)
-    #     else:
-    #         self.log.debug("Item has no parent (remove from plot)")
-    #         plot.remove_series(uid)
+    def closeEvent(self, *args, **kwargs):
+        self.log.info("Saving project and closing.")
+        self.save_project()
+        dm.get_manager().save()
+        super().closeEvent(*args, **kwargs)
 
     def set_logging_level(self, name: str):
-        """Slot: Changes logging level to passed string logging level name."""
+        """PyQt Slot: Changes logging level to passed logging level name."""
         self.log.debug("Changing logging level to: {}".format(name))
         level = LOG_LEVEL_MAP[name.lower()]
         self.log.setLevel(level)
@@ -257,9 +184,21 @@ class MainWindow(QMainWindow, main_window):
         self.text_console.verticalScrollBar().setValue(
             self.text_console.verticalScrollBar().maximum())
 
-    def _launch_tab(self, index: QtCore.QModelIndex=None, flight=None):
+    def _launch_tab(self, index: QtCore.QModelIndex=None, flight=None) -> None:
         """
-        TODO: This function will be responsible for launching a new flight tab.
+        PyQtSlot:  Called to launch a flight from the Project Tree View.
+        This function can also be called independent of the Model if a flight is
+        specified, for e.g. when creating a new Flight object.
+        Parameters
+        ----------
+        index : QModelIndex
+            Model index pointing to a prj.Flight object to launch the tab for
+        flight : prj.Flight
+            Optional - required if this function is called without an index
+
+        Returns
+        -------
+        None
         """
         if flight is None:
             item = index.internalPointer()
@@ -286,12 +225,11 @@ class MainWindow(QMainWindow, main_window):
     def _tab_changed(self, index: int):
         self.log.info("Tab changed to index: {}".format(index))
         tab = self._tabs.widget(index)  # type: FlightTab
-        # flight = tab.flight
-        # self.populate_channel_tree(flight)
         self._context_tree.setModel(tab.context_model)
+        self._context_tree.expandAll()
 
     def _update_context_tree(self, model):
-        print("Tab subcontext changed. Model: ", model)
+        self.log.debug("Tab subcontext changed. Changing Tree Model")
         self._context_tree.setModel(model)
 
     def data_added(self, flight: prj.Flight, src: types.DataSource) -> None:
@@ -312,11 +250,11 @@ class MainWindow(QMainWindow, main_window):
         """
         flight.register_data(src)
         if flight.uid not in self._open_tabs:
-            # If flight is not opened, don't need to update plot
+            # If flight is not opened we don't need to update the plot
             return
         else:
             tab = self._open_tabs[flight.uid]  # type: FlightTab
-            tab.new_data(src)
+            tab.new_data(src)  # tell the tab that new data is available
             return
 
     def progress_dialog(self, title, start=0, stop=1):
@@ -373,24 +311,8 @@ class MainWindow(QMainWindow, main_window):
         dialog = AdvancedImport(self.project, self.current_flight)
         if dialog.exec_():
             path, dtype, fields, flight = dialog.content
-            # Delete flight model to force update
-            try:
-                del self._flight_channel_models[flight.uid]
-            except KeyError:
-                pass
             self.import_data(path, dtype, flight, fields=fields)
-            return
-
         return
-        # Old dialog:
-        dialog = ImportData(self.project, self.current_flight)
-        if dialog.exec_():
-            path, dtype, flt_id = dialog.content
-            flight = self.project.get_flight(flt_id)
-            # plot, _ = self.flight_plots[flt_id]
-            # plot.plotted = False
-            self.log.info("Importing {} file from {} into flight: {}".format(dtype, path, flight.uid))
-            self.import_data(path, dtype, flight)
 
     def new_project_dialog(self) -> QMainWindow:
         new_window = True
@@ -428,8 +350,8 @@ class MainWindow(QMainWindow, main_window):
     def add_flight_dialog(self) -> None:
         dialog = AddFlight(self.project)
         if dialog.exec_():
-            self.log.info("Adding flight:")
             flight = dialog.flight
+            self.log.info("Adding flight {}".format(flight.name))
             self.project.add_flight(flight)
 
             if dialog.gravity:
@@ -460,7 +382,6 @@ class ProjectTreeView(QTreeView):
         self.setObjectName('project_tree')
         self.setContextMenuPolicy(QtCore.Qt.DefaultContextMenu)
         self._init_model()
-        print("Project model inited")
 
     def _init_model(self):
         """Initialize a new-style ProjectModel from models.py"""
@@ -472,9 +393,6 @@ class ProjectTreeView(QTreeView):
 
     def toggle_expand(self, index):
         self.setExpanded(index, (not self.isExpanded(index)))
-
-    def begin_insert(self, index, start, end):
-        print("Inserting rows: {}, {}".format(start, end))
 
     def end_insert(self, index, start, end):
         print("Finixhed inserting rows, running update")
@@ -488,7 +406,6 @@ class ProjectTreeView(QTreeView):
         # get the index of the item under the click event
         context_ind = self.indexAt(event.pos())
         context_focus = self.model().itemFromIndex(context_ind)
-        print(context_focus.uid)
 
         info_slot = functools.partial(self._info_action, context_focus)
         plot_slot = functools.partial(self._plot_action, context_focus)
@@ -505,11 +422,8 @@ class ProjectTreeView(QTreeView):
 
     def _plot_action(self, item):
         raise NotImplementedError
-        print("Opening new plot for item")
-        pass
 
     def _info_action(self, item):
-        data = item.data(QtCore.Qt.UserRole)
         if not (isinstance(item, prj.Flight)
                 or isinstance(item, prj.GravityProject)):
             return
@@ -517,4 +431,3 @@ class ProjectTreeView(QTreeView):
         model.set_object(item)
         dialog = InfoDialog(model, parent=self)
         dialog.exec_()
-        print(dialog.updates)

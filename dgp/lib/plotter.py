@@ -270,6 +270,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
 
         axes = self.axes[axes_idx]
         series = dc.series()
+        dc.plotted = axes_idx
         line_artist = axes.plot(series.index, series.values,
                                 label=dc.label)[0]
 
@@ -302,7 +303,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         else:
             axes.legend()
         del self._plot_lines[dc.uid]
-        dc.plotted = False
+        dc.plotted = -1
         if len(self._plot_lines) == 0:
             self.log.warning("No lines on plotter axes.")
 

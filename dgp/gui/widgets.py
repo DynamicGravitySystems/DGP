@@ -73,7 +73,26 @@ class PlotTab(WorkspaceWidget):
         vlayout.addWidget(self._plot)
         vlayout.addWidget(self._plot.get_toolbar())
         self.setLayout(vlayout)
+        self._apply_state()
         self._init_model()
+
+    def _apply_state(self):
+        """
+        Apply saved state to plot based on Flight plot channels.
+        Returns
+        -------
+
+        """
+        state = self._flight.get_plot_state()
+        draw = False
+        for dc in state:
+            self._plot.add_series(dc, dc.plotted)
+
+        for line in self._flight.lines:
+            self._plot.draw_patch(line.start, line.stop, line.uid)
+            draw = True
+        if draw:
+            self._plot.draw()
 
     def _init_model(self):
         channels = list(self._flight.channels)
@@ -131,22 +150,6 @@ class PlotTab(WorkspaceWidget):
         self._plot.remove_series(channel)
         self._plot.add_series(channel, new)
         return
-
-    # # TODO: Change conflicting name
-    # def _update(self):
-    #     self._plot.clear()  # Do we really want to do this?
-    #
-    #     state = self._flight.get_plot_state()
-    #     draw = False
-    #     for channel in state:
-    #         dc = state[channel]  # type: types.DataChannel
-    #         self._plot.add_series(dc, dc.axes)
-    #
-    #     for line in self._flight.lines:
-    #         self._plot.draw_patch(line.start, line.stop, line.uid)
-    #         draw = True
-    #     if draw:
-    #         self._plot.draw()
 
     def _too_many_children(self, uid):
         self.log.warning("Too many children for plot: {}".format(uid))
