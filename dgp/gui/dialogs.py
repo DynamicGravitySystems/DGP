@@ -2,12 +2,13 @@
 
 import os
 import logging
-import functools
 import datetime
 import pathlib
-from typing import Dict, Union, List
+from typing import Union, List
 
-from PyQt5 import Qt, QtWidgets, QtCore
+from PyQt5 import Qt
+import PyQt5.QtWidgets as QtWidgets
+import PyQt5.QtCore as QtCore
 from PyQt5.uic import loadUiType
 
 import dgp.lib.project as prj
@@ -28,7 +29,8 @@ class BaseDialog(QtWidgets.QDialog):
     def __init__(self):
         self.log = logging.getLogger(__name__)
         error_handler = ConsoleHandler(self.write_error)
-        error_handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+        error_handler.setFormatter(logging.Formatter('%(levelname)s: '
+                                                     '%(message)s'))
         error_handler.setLevel(logging.DEBUG)
         self.log.addHandler(error_handler)
         pass
@@ -38,22 +40,17 @@ class ImportData(QtWidgets.QDialog, data_dialog):
     """
     Rationalization:
     This dialog will be used to import gravity and/or GPS data.
-    A drop down box will be populated with the available project flights into which the data will be associated
-    User will specify wheter the data is a gravity or gps file (TODO: maybe we can programatically determine the type)
+    A drop down box will be populated with the available project flights into
+    which the data will be associated
+    User will specify wheter the data is a gravity or gps file (TODO: maybe we
+    can programatically determine the type)
     User will specify file path
-        Maybe we can dynamically load the first 5 or so lines of data and display column headings, which would allow user
-        to change the headers if necesarry
 
-    This class does not handle the actual loading of data, it only sets up the parameters (path, type etc) for the
-    calling class to do the loading.
+    This class does not handle the actual loading of data, it only sets up the
+    parameters (path, type etc) for the calling class to do the loading.
     """
-    def __init__(self, project: prj.AirborneProject=None, flight: prj.Flight=None, *args):
-        """
-
-        :param project:
-        :param flight: Currently selected flight to auto-select in list box
-        :param args:
-        """
+    def __init__(self, project: prj.AirborneProject=None, flight:
+                 prj.Flight=None, *args):
         super().__init__(*args)
         self.setupUi(self)
 
@@ -69,10 +66,10 @@ class ImportData(QtWidgets.QDialog, data_dialog):
         self.flight = flight
 
         for flight in project.flights:
-            # TODO: Change dict index to human readable value
             self.combo_flights.addItem(flight.name, flight.uid)
-            if flight == self.flight:  # scroll to this item if it matches self.flight
-                self.combo_flights.setCurrentIndex(self.combo_flights.count() - 1)
+            # scroll to this item if it matches self.flight
+            if flight == self.flight:
+                self.combo_flights.setCurrentIndex(self.combo_flights.count()-1)
         for meter in project.meters:
             self.combo_meters.addItem(meter.name)
 
@@ -101,18 +98,20 @@ class ImportData(QtWidgets.QDialog, data_dialog):
             return
 
     def browse_file(self):
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select Data File", os.getcwd(), "Data (*.dat *.csv)")
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, "Select Data File", os.getcwd(), "Data (*.dat *.csv)")
         if path:
             self.path = pathlib.Path(path)
             self.field_path.setText(self.path.name)
             index = self.file_model.index(str(self.path.resolve()))
-            self.tree_directory.scrollTo(self.file_model.index(str(self.path.resolve())))
+            self.tree_directory.scrollTo(self.file_model.index(
+                str(self.path.resolve())))
             self.tree_directory.setCurrentIndex(index)
 
     def accept(self):
         # '&' is used to set text hints in the GUI
-        self.dtype = {'G&PS Data': 'gps', '&Gravity Data': 'gravity'}.get(self.group_radiotype.checkedButton().text(),
-                                                                          'gravity')
+        self.dtype = {'G&PS Data': 'gps', '&Gravity Data': 'gravity'}.get(
+            self.group_radiotype.checkedButton().text(), 'gravity')
         self.flight = self.combo_flights.currentData()
         if self.path is None:
             return
@@ -145,15 +144,15 @@ class AdvancedImport(QtWidgets.QDialog, advanced_import):
 
         for flt in project.flights:
             self.combo_flights.addItem(flt.name, flt)
-            if flt == self._flight:  # scroll to this item if it matches self.flight
-                self.combo_flights.setCurrentIndex(self.combo_flights.count() - 1)
+            # scroll to this item if it matches self.flight
+            if flt == self._flight:
+                self.combo_flights.setCurrentIndex(self.combo_flights.count()-1)
 
         # Signals/Slots
         self.line_path.textChanged.connect(self._preview)
         self.btn_browse.clicked.connect(self.browse_file)
         self.btn_setcols.clicked.connect(self._capture)
-        # This doesn't work, as the partial function is created with self._path which is None
-        # self.btn_reload.clicked.connect(functools.partial(self._preview, self._path))
+        self.btn_reload.clicked.connect(lambda: self._preview(self._path))
 
     @property
     def content(self) -> (str, str, List, prj.Flight):
@@ -174,8 +173,8 @@ class AdvancedImport(QtWidgets.QDialog, advanced_import):
         return fields
 
     def _dtype(self):
-        return {'GPS': 'gps', 'Gravity': 'gravity'}.get(self.group_dtype.checkedButton().text().replace('&', ''),
-                                                        'gravity')
+        return {'GPS': 'gps', 'Gravity': 'gravity'}.get(
+            self.group_dtype.checkedButton().text().replace('&', ''), 'gravity')
 
     def _preview(self, path: str):
         if path is None:
@@ -194,10 +193,11 @@ class AdvancedImport(QtWidgets.QDialog, advanced_import):
 
         dtype = self._dtype()
         if dtype == 'gravity':
-            fields = ['gravity', 'long', 'cross', 'beam', 'temp', 'status', 'pressure',
-                      'Etemp', 'GPSweek', 'GPSweekseconds']
+            fields = ['gravity', 'long', 'cross', 'beam', 'temp', 'status',
+                      'pressure', 'Etemp', 'GPSweek', 'GPSweekseconds']
         elif dtype == 'gps':
-            fields = ['mdy', 'hms', 'lat', 'long', 'ell_ht', 'ortho_ht', 'num_sats', 'pdop']
+            fields = ['mdy', 'hms', 'latitude', 'longitude', 'ell_ht',
+                      'ortho_ht', 'num_sats', 'pdop']
         else:
             return
         delegate = SelectionDelegate(fields)
@@ -209,8 +209,8 @@ class AdvancedImport(QtWidgets.QDialog, advanced_import):
         self.table_preview.setItemDelegate(delegate)
 
     def browse_file(self):
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select Data File", os.getcwd(),
-                                                        "Data (*.dat *.csv *.txt)")
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, "Select Data File", os.getcwd(), "Data (*.dat *.csv *.txt)")
         if path:
             self.line_path.setText(str(path))
             self._path = path
@@ -225,13 +225,20 @@ class AddFlight(QtWidgets.QDialog, flight_dialog):
         self._grav_path = None
         self._gps_path = None
         self.combo_meter.addItems(project.meters)
-        self.browse_gravity.clicked.connect(functools.partial(self.browse, field=self.path_gravity))
-        self.browse_gps.clicked.connect(functools.partial(self.browse, field=self.path_gps))
+        # self.browse_gravity.clicked.connect(functools.partial(self.browse,
+        # field=self.path_gravity))
+        self.browse_gravity.clicked.connect(lambda: self.browse(
+            field=self.path_gravity))
+        # self.browse_gps.clicked.connect(functools.partial(self.browse,
+        # field=self.path_gps))
+        self.browse_gps.clicked.connect(lambda: self.browse(
+            field=self.path_gps))
         self.date_flight.setDate(datetime.datetime.today())
         self._uid = gen_uuid('f')
         self.text_uuid.setText(self._uid)
 
-        self.params_model = TableModel(['Key', 'Start Value', 'End Value'], editable=[1, 2])
+        self.params_model = TableModel(['Key', 'Start Value', 'End Value'],
+                                       editable=[1, 2])
         self.params_model.append('Tie Location')
         self.params_model.append('Tie Reading')
         self.flight_params.setModel(self.params_model)
@@ -241,14 +248,15 @@ class AddFlight(QtWidgets.QDialog, flight_dialog):
         date = datetime.date(qdate.year(), qdate.month(), qdate.day())
         self._grav_path = self.path_gravity.text()
         self._gps_path = self.path_gps.text()
-        self._flight = prj.Flight(self._project, self.text_name.text(), self._project.get_meter(
+        self._flight = prj.Flight(self._project, self.text_name.text(),
+                                  self._project.get_meter(
             self.combo_meter.currentText()), uuid=self._uid, date=date)
-        print(self.params_model.updates)
+        # print(self.params_model.updates)
         super().accept()
 
     def browse(self, field):
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select Data File", os.getcwd(),
-                                                        "Data (*.dat *.csv *.txt)")
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, "Select Data File", os.getcwd(), "Data (*.dat *.csv *.txt)")
         if path:
             field.setText(path)
 
@@ -274,10 +282,10 @@ class CreateProject(QtWidgets.QDialog, project_dialog):
         super().__init__(*args)
         self.setupUi(self)
 
-        # TODO: Abstract logging setup to a base dialog class so that it can be easily implemented in all dialogs
         self.log = logging.getLogger(__name__)
         error_handler = ConsoleHandler(self.write_error)
-        error_handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+        error_handler.setFormatter(logging.Formatter('%(levelname)s: '
+                                                     '%(message)s'))
         error_handler.setLevel(logging.DEBUG)
         self.log.addHandler(error_handler)
 
@@ -288,15 +296,19 @@ class CreateProject(QtWidgets.QDialog, project_dialog):
         self._project = None
 
         # Populate the type selection list
-        dgs_airborne = Qt.QListWidgetItem(Qt.QIcon(':images/assets/flight_icon.png'), 'DGS Airborne', self.prj_type_list)
+        flt_icon = Qt.QIcon(':images/assets/flight_icon.png')
+        boat_icon = Qt.QIcon(':images/assets/boat_icon.png')
+        dgs_airborne = Qt.QListWidgetItem(flt_icon, 'DGS Airborne',
+                                          self.prj_type_list)
         dgs_airborne.setData(QtCore.Qt.UserRole, 'dgs_airborne')
         self.prj_type_list.setCurrentItem(dgs_airborne)
-        dgs_marine = Qt.QListWidgetItem(Qt.QIcon(':images/assets/boat_icon.png'), 'DGS Marine', self.prj_type_list)
+        dgs_marine = Qt.QListWidgetItem(boat_icon, 'DGS Marine',
+                                        self.prj_type_list)
         dgs_marine.setData(QtCore.Qt.UserRole, 'dgs_marine')
 
     def write_error(self, msg, level=None) -> None:
         self.label_required.setText(msg)
-        self.label_required.setStyleSheet('color: {}'.format(LOG_COLOR_MAP[level]))
+        self.label_required.setStyleSheet('color: ' + LOG_COLOR_MAP[level])
 
     def create_project(self):
         """
@@ -309,10 +321,12 @@ class CreateProject(QtWidgets.QDialog, project_dialog):
         invalid_input = False
         for attr in required_fields.keys():
             if not self.__getattribute__(attr).text():
-                self.__getattribute__(required_fields[attr]).setStyleSheet('color: red')
+                self.__getattribute__(required_fields[attr]).setStyleSheet(
+                    'color: red')
                 invalid_input = True
             else:
-                self.__getattribute__(required_fields[attr]).setStyleSheet('color: black')
+                self.__getattribute__(required_fields[attr]).setStyleSheet(
+                    'color: black')
 
         if not pathlib.Path(self.prj_dir.text()).exists():
             invalid_input = True
@@ -340,7 +354,8 @@ class CreateProject(QtWidgets.QDialog, project_dialog):
         self.prj_dir.setText(str(path))
 
     def select_dir(self):
-        path = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Project Parent Directory")
+        path = QtWidgets.QFileDialog.getExistingDirectory(
+            self, "Select Project Parent Directory")
         if path:
             self.prj_dir.setText(path)
 
@@ -369,6 +384,7 @@ class InfoDialog(QtWidgets.QDialog, info_dialog):
     def accept(self):
         self.updates = self._model.updates
         super().accept()
+
 
 class SetLineLabelDialog(QtWidgets.QDialog, line_label_dialog):
     def __init__(self, label):

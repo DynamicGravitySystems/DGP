@@ -16,12 +16,11 @@ from PyQt5.uic import loadUiType
 
 import dgp.lib.project as prj
 import dgp.lib.types as types
-import dgp.lib.datamanager as dm
 from dgp.gui.loader import LoadFile
 from dgp.gui.utils import (ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP,
                            get_project_file)
-from dgp.gui.dialogs import (ImportData, AddFlight, CreateProject,
-                             InfoDialog, AdvancedImport)
+from dgp.gui.dialogs import (AddFlight, CreateProject, InfoDialog,
+                             AdvancedImport)
 from dgp.gui.models import TableModel, ProjectModel
 from dgp.gui.widgets import FlightTab
 
@@ -96,6 +95,8 @@ class MainWindow(QMainWindow, main_window):
         self._tabs = self.tab_workspace  # type: QTabWidget
         self._open_tabs = {}  # Track opened tabs by {uid: tab_widget, ...}
         self._context_tree = self.contextual_tree  # type: QTreeView
+        self._context_tree.setRootIsDecorated(False)
+        self._context_tree.setIndentation(20)
         self._context_tree.setItemsExpandable(False)
 
         # Initialize Project Tree Display
@@ -118,6 +119,9 @@ class MainWindow(QMainWindow, main_window):
         return None
 
     def load(self):
+        """Called from splash screen to initialize and load main window.
+        This may be safely deprecated as we currently do not perform any long
+        running operations on initial load as we once did."""
         self._init_slots()
         self.setWindowState(QtCore.Qt.WindowMaximized)
         self.save_project()
@@ -153,9 +157,6 @@ class MainWindow(QMainWindow, main_window):
         self.tab_workspace.currentChanged.connect(self._tab_changed)
         self.tab_workspace.tabCloseRequested.connect(self._tab_closed)
 
-        # Channel Panel Buttons #
-        # self.selectAllChannels.clicked.connect(self.set_channel_state)
-
         # Console Window Actions #
         self.combo_console_verbosity.currentIndexChanged[str].connect(
             self.set_logging_level)
@@ -163,7 +164,6 @@ class MainWindow(QMainWindow, main_window):
     def closeEvent(self, *args, **kwargs):
         self.log.info("Saving project and closing.")
         self.save_project()
-        dm.get_manager().save()
         super().closeEvent(*args, **kwargs)
 
     def set_logging_level(self, name: str):
@@ -221,9 +221,15 @@ class MainWindow(QMainWindow, main_window):
     def _tab_closed(self, index: int):
         # TODO: This will handle close requests for a tab
         self.log.warning("Tab close requested for tab: {}".format(index))
+        flight_id = self._tabs.widget(index).flight.uid
+        self._tabs.removeTab(index)
+        del self._open_tabs[flight_id]
 
     def _tab_changed(self, index: int):
         self.log.info("Tab changed to index: {}".format(index))
+        if index == -1:  # If no tabs are displayed
+            self._context_tree.setModel(None)
+            return
         tab = self._tabs.widget(index)  # type: FlightTab
         self._context_tree.setModel(tab.context_model)
         self._context_tree.expandAll()
@@ -231,6 +237,7 @@ class MainWindow(QMainWindow, main_window):
     def _update_context_tree(self, model):
         self.log.debug("Tab subcontext changed. Changing Tree Model")
         self._context_tree.setModel(model)
+        self._context_tree.expandAll()
 
     def data_added(self, flight: prj.Flight, src: types.DataSource) -> None:
         """
@@ -269,7 +276,8 @@ class MainWindow(QMainWindow, main_window):
 
     def import_data(self, path: pathlib.Path, dtype: str, flight: prj.Flight,
                     fields=None):
-        """Load data of dtype from path, using a threaded loader class
+        """
+        Load data of dtype from path, using a threaded loader class
         Upon load the data file should be registered with the specified flight.
         """
         assert path is not None
@@ -279,11 +287,9 @@ class MainWindow(QMainWindow, main_window):
 
         loader = LoadFile(path, dtype, fields=fields, parent=self)
 
-        # Curry functions to execute on thread completion.
-        on_data = functools.partial(self.data_added, flight)
         progress = self.progress_dialog("Loading", 0, 0)
 
-        loader.data.connect(on_data)
+        loader.data.connect(lambda ds: self.data_added(flight, ds))
         loader.progress.connect(progress.setValue)
         loader.loaded.connect(self.save_project)
         loader.loaded.connect(progress.close)
@@ -386,21 +392,11 @@ class ProjectTreeView(QTreeView):
     def _init_model(self):
         """Initialize a new-style ProjectModel from models.py"""
         model = ProjectModel(self._project, parent=self)
-        # model.rowsAboutToBeInserted.connect(self.begin_insert)
-        # model.rowsInserted.connect(self.end_insert)
         self.setModel(model)
         self.expandAll()
 
     def toggle_expand(self, index):
         self.setExpanded(index, (not self.isExpanded(index)))
-
-    def end_insert(self, index, start, end):
-        print("Finixhed inserting rows, running update")
-        # index is parent index
-        model = self.model()
-        uindex = model.index(row=start, parent=index)
-        self.update(uindex)
-        self.expandAll()
 
     def contextMenuEvent(self, event: QtGui.QContextMenuEvent, *args, **kwargs):
         # get the index of the item under the click event

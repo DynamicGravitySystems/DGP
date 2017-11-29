@@ -18,14 +18,6 @@ class TestDataManager(unittest.TestCase):
         data = {'Col1': ['c1-1', 'c1-2', 'c1-3'], 'Col2': ['c2-1', 'c2-2',
                                                            'c2-3']}
         self.test_frame = DataFrame.from_dict(data)
-        self._baseregister = {
-            'version': 1,
-            'dtypes': ['hdf5', 'json', 'csv'],
-            'dfiles': {'hdf5': '',
-                       'json': '',
-                       'csv': ''},
-            'uidmap': {}
-        }
 
     def tearDown(self):
         pass
@@ -40,22 +32,24 @@ class TestDataManager(unittest.TestCase):
 
         mgr = dm.get_manager()
         self.assertEqual(mgr.dir, td)
-        self.assertIsInstance(mgr, dm.DataManager)
-        self.assertDictEqual(mgr.reg, self._baseregister)
+        self.assertIsInstance(mgr, dm._DataManager)
 
     def test_dm_save_hdf(self):
         mgr = dm.get_manager()
         self.assertTrue(mgr.init)
 
         res = mgr.save_data('hdf5', self.test_frame)
-        loaded = mgr.load_data('hdf5', res)
+        loaded = mgr.load_data(res)
         self.assertTrue(self.test_frame.equals(loaded))
+        # print(mgr._registry)
 
-    def test_dm_registry(self):
-        mgr = dm.get_manager()
+    @unittest.skip
+    def test_dm_double_init(self):
+        td2 = Path(tempfile.gettempdir()).joinpath(str(uuid.uuid4()))
+        dm2 = dm._DataManager(td2)
 
-        uid = mgr.save_data('hdf5', self.test_frame)
-
-        with mgr.reg_path.open(mode='r') as fd:
-            reg = json.load(fd)
-        print(reg)
+    def test_registry(self):
+        reg_tmp = Path(tempfile.gettempdir()).joinpath(str(uuid.uuid4()))
+        reg_tmp.mkdir(parents=True)
+        reg = dm._Registry(reg_tmp)
+        # print(reg.registry)

@@ -11,7 +11,7 @@ from dgp.gui.qtenum import QtItemFlags, QtDataRoles
 import dgp.lib.datamanager as dm
 
 """
-Dynamic Gravity Processor (DGP) :: types.py
+Dynamic Gravity Processor (DGP) :: lib/types.py
 License: Apache License V2
 
 Overview:
@@ -410,7 +410,7 @@ class DataSource(BaseTreeItem):
                          fields]
 
     def load(self, field):
-        return dm.get_manager().load_data('hdf5', self.uid)[field]
+        return dm.get_manager().load_data(self.uid)[field]
 
     def data(self, role: QtDataRoles):
         if role == QtDataRoles.DisplayRole:

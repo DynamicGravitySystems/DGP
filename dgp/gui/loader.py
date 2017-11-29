@@ -32,12 +32,14 @@ class LoadFile(QThread):
         self._fields = fields
 
     def run(self):
+        """Executed on thread.start(), performs long running data load action"""
         if self._dtype == 'gps':
             df = self._load_gps()
         else:
             df = self._load_gravity()
         self.progress.emit(1)
-        uid = dm.get_manager().save_data('hdf5', df)
+        # Export data to HDF5, get UID reference to pass along
+        uid = dm.get_manager().save_data(dm.HDF5, df)
         cols = [col for col in df.keys()]
         dsrc = types.DataSource(uid, self._path, cols, self._dtype)
         self.data.emit(dsrc)
@@ -47,13 +49,11 @@ class LoadFile(QThread):
         if self._fields is not None:
             fields = self._fields
         else:
-            fields = ['mdy', 'hms', 'lat', 'long', 'ortho_ht', 'ell_ht',
-                      'num_sats', 'pdop']
-        return self._functor(self._path, columns=fields, skiprows=1,
-                             timeformat='hms')
+            fields = ['mdy', 'hms', 'latitude', 'longitude', 'ortho_ht',
+                      'ell_ht', 'num_sats', 'pdop']
+        return import_trajectory(self._path, columns=fields, skiprows=1,
+                                 timeformat='hms')
 
     def _load_gravity(self):
-        if self._fields is None:
-            return self._functor(self._path)
-        else:
-            return self._functor(self._path, fields=self._fields)
+        """Load gravity data using AT1A format"""
+        return read_at1a(self._path, fields=self._fields)
