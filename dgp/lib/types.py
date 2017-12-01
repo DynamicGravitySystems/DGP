@@ -1,18 +1,17 @@
 # coding: utf-8
 
-from datetime import datetime
 from abc import ABCMeta, abstractmethod
 from collections import namedtuple
 from typing import Union, Generator
 
-from matplotlib.lines import Line2D
 from pandas import Series
 
 from dgp.lib.etc import gen_uuid
 from dgp.gui.qtenum import QtItemFlags, QtDataRoles
+import dgp.lib.datamanager as dm
 
 """
-Dynamic Gravity Processor (DGP) :: types.py
+Dynamic Gravity Processor (DGP) :: lib/types.py
 License: Apache License V2
 
 Overview:
@@ -30,8 +29,6 @@ Location = namedtuple('Location', ['lat', 'long', 'alt'])
 StillReading = namedtuple('StillReading', ['gravity', 'location', 'time'])
 
 DataCurve = namedtuple('DataCurve', ['channel', 'data'])
-
-# DataFile = namedtuple('DataFile', ['uid', 'filename', 'fields', 'dtype'])
 
 
 class AbstractTreeItem(metaclass=ABCMeta):
@@ -66,6 +63,10 @@ class AbstractTreeItem(metaclass=ABCMeta):
         pass
 
     @abstractmethod
+    def data(self, role):
+        pass
+
+    @abstractmethod
     def child(self, index):
         pass
 
@@ -94,10 +95,6 @@ class AbstractTreeItem(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def data(self, role):
-        pass
-
-    @abstractmethod
     def flags(self):
         pass
 
@@ -106,51 +103,18 @@ class AbstractTreeItem(metaclass=ABCMeta):
         pass
 
 
-class TreeItem(AbstractTreeItem):
+class BaseTreeItem(AbstractTreeItem):
     """
-    TreeItem provides default implementations for common model functions
-    and should be used as a base class for specialized data structures that
-    expect to be displayed in a QT Tree View.
+    Define a lightweight bare-minimum implementation of the
+    AbstractTreeItem to ease futher specialization in subclasses.
     """
-
-    def __init__(self, uid: str, parent: AbstractTreeItem=None):
-
-        # Private BaseClass members - should be accessed via properties
-        self._parent = parent
+    def __init__(self, uid, parent: AbstractTreeItem=None):
         self._uid = uid
-        self._children = []  # List is required due to need for ordering
+        self._parent = parent
+        self._children = []
         self._child_map = {}  # Used for fast lookup by UID
-        self._style = {}
-        self._style_roles = {QtDataRoles.BackgroundRole: 'bg',
-                             QtDataRoles.ForegroundRole: 'fg',
-                             QtDataRoles.DecorationRole: 'icon',
-                             QtDataRoles.FontRole: 'font'}
-
         if parent is not None:
             parent.append_child(self)
-
-    def __str__(self):
-        return "<TreeItem(uid={})>".format(self._uid)
-
-    def __len__(self):
-        return len(self._children)
-
-    def __iter__(self):
-        for child in self._children:
-            yield child
-
-    def __getitem__(self, key: Union[int, str]):
-        """Permit child access by ordered index, or UID"""
-        if not isinstance(key, (int, str)):
-            raise ValueError("Key must be int or str type")
-        if type(key) is int:
-            return self._children[key]
-
-        if type(key) is str:
-            return self._child_map[key]
-
-    def __contains__(self, item: AbstractTreeItem):
-        return item in self._children
 
     @property
     def uid(self) -> str:
@@ -178,41 +142,8 @@ class TreeItem(AbstractTreeItem):
         for child in self._children:
             yield child
 
-    @property
-    def style(self):
-        return self._style
-
-    @style.setter
-    def style(self, value: dict):
-        # TODO: Check for valid style params
-        self._style = value
-
     def data(self, role: QtDataRoles):
-        """
-        Return contextual data based on supplied role.
-        If a role is not defined or handled by descendents they should return
-        None, and the model should be take this into account.
-        TreeType provides a basic default implementation, which will also
-        handle common style parameters. Descendant classes should provide
-        their own definition to override specific roles, and then call the
-        base data() implementation to handle style application. e.g.
-        >>> def data(self, role: QtDataRoles):
-        >>>     if role == QtDataRoles.DisplayRole:
-        >>>         return "Custom Display: " + self.name
-        >>>     # Allow base class to apply styles if role not caught above
-        >>>     return super().data(role)
-        """
-        if role == QtDataRoles.DisplayRole:
-            return str(self)
-        if role == QtDataRoles.ToolTipRole:
-            return self.uid
-        # Allow style specification by QtDataRole or by name e.g. 'bg', 'fg'
-        if role in self._style:
-            return self._style[role]
-        if role in self._style_roles:
-            key = self._style_roles[role]
-            return self._style.get(key, None)
-        return None
+        raise NotImplementedError("data(role) must be implemented in subclass.")
 
     def child(self, index: Union[int, str]):
         if isinstance(index, str):
@@ -258,19 +189,15 @@ class TreeItem(AbstractTreeItem):
         self._children.remove(child)
         self.update()
 
-    def indexof(self, child) -> Union[int, None]:
-        """Return the index of a child contained in this object"""
-        try:
-            return self._children.index(child)
-        except ValueError:
-            print("Invalid child passed to indexof")
-            return None
-
-    def row(self) -> Union[int, None]:
-        """Return the row index of this TreeItem relative to its parent"""
-        if self._parent:
-            return self._parent.indexof(self)
-        return 0
+    def insert_child(self, child: AbstractTreeItem, index: int) -> bool:
+        if index == -1:
+            self.append_child(child)
+            return True
+        print("Inserting ATI child at index: ", index)
+        self._children.insert(index, child)
+        self._child_map[child.uid] = child
+        self.update()
+        return True
 
     def child_count(self):
         """Return number of children belonging to this object"""
@@ -280,6 +207,20 @@ class TreeItem(AbstractTreeItem):
         """Default column count is 1, and the current models expect a single
         column Tree structure."""
         return 1
+
+    def indexof(self, child) -> Union[int, None]:
+        """Return the index of a child contained in this object"""
+        try:
+            return self._children.index(child)
+        except ValueError:
+            print("Invalid child passed to indexof")
+            return -1
+
+    def row(self) -> Union[int, None]:
+        """Return the row index of this TreeItem relative to its parent"""
+        if self._parent:
+            return self._parent.indexof(self)
+        return 0
 
     def flags(self) -> int:
         """Returns default flags for Tree Items, override this to enable
@@ -292,52 +233,110 @@ class TreeItem(AbstractTreeItem):
             self.parent.update(**kwargs)
 
 
-class PlotCurve:
-    def __init__(self, uid: str, data: Series, label: str=None, axes: int=0,
-                 color: str=None):
-        self._uid = uid
-        self._data = data
-        self._label = label
-        if label is None:
-            self._label = self._data.name
-        self.axes = axes
-        self._line2d = None
-        self._changed = False
+class TreeItem(BaseTreeItem):
+    """
+    TreeItem extends BaseTreeItem and adds some extra convenience methods (
+    __str__, __len__, __iter__, __getitem__, __contains__), as well as
+    defining a default data() method which can apply styles set via the style
+    property in this class.
+    """
+
+    def __init__(self, uid: str, parent: AbstractTreeItem=None):
+        super().__init__(uid, parent)
+        self._style = {}
+        self._style_roles = {QtDataRoles.BackgroundRole: 'bg',
+                             QtDataRoles.ForegroundRole: 'fg',
+                             QtDataRoles.DecorationRole: 'icon',
+                             QtDataRoles.FontRole: 'font'}
+
+    def __str__(self):
+        return "<TreeItem(uid={})>".format(self.uid)
+
+    def __len__(self):
+        return self.child_count()
+
+    def __iter__(self):
+        for child in self.children:
+            yield child
+
+    def __getitem__(self, key: Union[int, str]):
+        """Permit child access by ordered index, or UID"""
+        if not isinstance(key, (int, str)):
+            raise ValueError("Key must be int or str type")
+        return self.child(key)
+
+    def __contains__(self, item: AbstractTreeItem):
+        return item in self.children
 
     @property
-    def uid(self) -> str:
-        return self._uid
+    def style(self):
+        return self._style
+
+    @style.setter
+    def style(self, value):
+        self._style = value
+
+    def data(self, role: QtDataRoles):
+        """
+        Return contextual data based on supplied role.
+        If a role is not defined or handled by descendents they should return
+        None, and the model should be take this into account.
+        TreeType provides a basic default implementation, which will also
+        handle common style parameters. Descendant classes should provide
+        their own definition to override specific roles, and then call the
+        base data() implementation to handle style application. e.g.
+        >>> def data(self, role: QtDataRoles):
+        >>>     if role == QtDataRoles.DisplayRole:
+        >>>         return "Custom Display: " + self.name
+        >>>     # Allow base class to apply styles if role not caught above
+        >>>     return super().data(role)
+        """
+        if role == QtDataRoles.DisplayRole:
+            return str(self)
+        if role == QtDataRoles.ToolTipRole:
+            return self.uid
+        # Allow style specification by QtDataRole or by name e.g. 'bg', 'fg'
+        if role in self._style:
+            return self._style[role]
+        if role in self._style_roles:
+            key = self._style_roles[role]
+            return self._style.get(key, None)
+        return None
+
+
+class TreeLabelItem(BaseTreeItem):
+    """
+    A simple Tree Item with a label, to be used as a header/label. This
+    TreeItem accepts children.
+    """
+    def __init__(self, label: str, supports_drop=False, max_children=None,
+                 parent=None):
+        super().__init__(uid=gen_uuid('ti'), parent=parent)
+        self.label = label
+        self._supports_drop = supports_drop
+        self._max_children = max_children
 
     @property
-    def data(self) -> Series:
-        return self._data
+    def droppable(self):
+        if not self._supports_drop:
+            return False
+        if self._max_children is None:
+            return True
+        if self.child_count() >= self._max_children:
+            return False
+        return True
 
-    @data.setter
-    def data(self, value: Series):
-        self._changed = True
-        self._data = value
-
-    @property
-    def label(self) -> str:
-        return self._label
-
-    @property
-    def line2d(self):
-        return self._line2d
-
-    @line2d.setter
-    def line2d(self, value: Line2D):
-        assert isinstance(value, Line2D)
-        print("Updating line in PlotCurve: ", self._label)
-        self._line2d = value
-        print(self._line2d)
+    def data(self, role: QtDataRoles):
+        if role == QtDataRoles.DisplayRole:
+            return self.label
+        return None
 
 
 class FlightLine(TreeItem):
     """
     Simple TreeItem to represent a Flight Line selection, storing a start
     and stop index, as well as the reference to the data it relates to.
-    This TreeItem does not permit the addition of children.
+    This TreeItem does not accept children.
     """
     def __init__(self, start, stop, sequence, file_ref, uid=None, parent=None):
         super().__init__(uid, parent)
@@ -399,16 +398,59 @@ class FlightLine(TreeItem):
             name=name, start=self.start, stop=self.stop)
 
 
-class DataFile(TreeItem):
+class DataSource(BaseTreeItem):
     def __init__(self, uid, filename, fields, dtype):
+        """Create a DataSource item with UID matching the managed file UID
+        that it points to."""
         super().__init__(uid)
         self.filename = filename
         self.fields = fields
         self.dtype = dtype
+        self.channels = [DataChannel(field, self) for field in
+                         fields]
+
+    def load(self, field):
+        return dm.get_manager().load_data(self.uid)[field]
 
     def data(self, role: QtDataRoles):
         if role == QtDataRoles.DisplayRole:
             return "{dtype}: {fname}".format(dtype=self.dtype,
                                              fname=self.filename)
-        super().data(role)
+        if role == QtDataRoles.ToolTipRole:
+            return "UID: {}".format(self.uid)
+
+    def children(self):
+        return []
+
+
+class DataChannel(BaseTreeItem):
+    def __init__(self, label, source: DataSource, parent=None):
+        super().__init__(gen_uuid('dcn'), parent=parent)
+        self.label = label
+        self.field = label
+        self._source = source
+        self.plot_style = ''
+        self._plot_axes = -1
+
+    @property
+    def plotted(self):
+        return self._plot_axes
+
+    @plotted.setter
+    def plotted(self, value):
+        self._plot_axes = value
+
+    def series(self, force=False) -> Series:
+        return self._source.load(self.field)
+
+    def data(self, role: QtDataRoles):
+        if role == QtDataRoles.DisplayRole:
+            return self.label
+        if role == QtDataRoles.UserRole:
+            return self.field
+        return None
+
+    def flags(self):
+        return super().flags() | QtItemFlags.ItemIsDragEnabled | \
+               QtItemFlags.ItemIsDropEnabled
 

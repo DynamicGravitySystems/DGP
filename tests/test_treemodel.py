@@ -70,6 +70,7 @@ class TestModels(unittest.TestCase):
         self.assertEqual(len(self.ti), 2)
 
     def test_tree_getitem(self):
+        """Test getitem [] usage with int index and string uid"""
         self.ti.append_child(self.child0)
         self.ti.append_child(self.child1)
 

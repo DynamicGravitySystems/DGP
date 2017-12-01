@@ -7,7 +7,8 @@ import logging
 from pathlib import Path
 from typing import Dict, Union
 
-from PyQt5 import QtWidgets, QtCore
+import PyQt5.QtWidgets as QtWidgets
+import PyQt5.QtCore as QtCore
 from PyQt5.uic import loadUiType
 
 from dgp.gui.main import MainWindow
@@ -30,7 +31,8 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
 
         self.setupUi(self)
 
-        self.settings_dir = Path.home().joinpath('AppData\Local\DynamicGravitySystems\DGP')
+        self.settings_dir = Path.home().joinpath(
+            'AppData\Local\DynamicGravitySystems\DGP')
         self.recent_file = self.settings_dir.joinpath('recent.json')
         if not self.settings_dir.exists():
             self.log.info("Settings Directory doesn't exist, creating.")
@@ -56,9 +58,11 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
         return logging.getLogger(__name__)
 
     def accept(self, project=None):
-        """Runs some basic verification before calling super(QDialog).accept()."""
+        """
+        Runs some basic verification before calling super(QDialog).accept().
+        """
 
-        # Case where project object is passed to accept() (when creating new project)
+        # Case where project object is passed to accept()
         if isinstance(project, prj.GravityProject):
             self.log.debug("Opening new project: {}".format(project.name))
         elif not self.project_path:
@@ -67,35 +71,43 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
             try:
                 project = prj.AirborneProject.load(self.project_path)
             except FileNotFoundError:
-                self.log.error("Project could not be loaded from path: {}".format(self.project_path))
+                self.log.error("Project could not be loaded from path: {}"
+                               .format(self.project_path))
                 return
 
-        self.update_recent_files(self.recent_file, {project.name: project.projectdir})
-        # Show a progress dialog for loading the project (as we generate plots upon load)
-        progress = QtWidgets.QProgressDialog("Loading Project", "Cancel", 0, len(project), self)
-        progress.setWindowFlags(QtCore.Qt.Dialog | QtCore.Qt.FramelessWindowHint | QtCore.Qt.CustomizeWindowHint)
+        self.update_recent_files(self.recent_file,
+                                 {project.name: project.projectdir})
+        # Show a progress dialog for loading the project
+        # TODO: This may be obsolete now as plots are not generated on load
+        progress = QtWidgets.QProgressDialog("Loading Project", "Cancel", 0,
+                                             len(project), self)
+        progress.setWindowFlags(QtCore.Qt.Dialog | QtCore.Qt.FramelessWindowHint
+                                | QtCore.Qt.CustomizeWindowHint)
         progress.setModal(True)
         progress.setMinimumDuration(0)
-        progress.setCancelButton(None)  # Remove the cancel button. Possibly add a slot that has load() check and cancel
+        # Remove the cancel button.
+        progress.setCancelButton(None)
         progress.setValue(1)  # Set an initial value to show the dialog
 
         main_window = MainWindow(project)
         main_window.status.connect(progress.setLabelText)
         main_window.progress.connect(progress.setValue)
         main_window.load()
-        progress.close()  # This isn't necessary if the min/max is set correctly, but just in case.
+        progress.close()
         super().accept()
         return main_window
 
     def set_recent_list(self) -> None:
         recent_files = self.get_recent_files(self.recent_file)
         if not recent_files:
-            no_recents = QtWidgets.QListWidgetItem("No Recent Projects", self.list_projects)
+            no_recents = QtWidgets.QListWidgetItem("No Recent Projects",
+                                                   self.list_projects)
             no_recents.setFlags(QtCore.Qt.NoItemFlags)
             return None
 
         for name, path in recent_files.items():
-            item = QtWidgets.QListWidgetItem('{name} :: {path}'.format(name=name, path=str(path)), self.list_projects)
+            item = QtWidgets.QListWidgetItem('{name} :: {path}'.format(
+                name=name, path=str(path)), self.list_projects)
             item.setData(QtCore.Qt.UserRole, path)
             item.setToolTip(str(path.resolve()))
         self.list_projects.setCurrentRow(0)
@@ -105,8 +117,8 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
         """Called when a recent item is selected"""
         self.project_path = get_project_file(item.data(QtCore.Qt.UserRole))
         if not self.project_path:
-            # TODO: Fix this, when user selects item multiple time the statement is re-appended
-            item.setText("{} - Project Moved or Deleted".format(item.data(QtCore.Qt.UserRole)))
+            item.setText("{} - Project Moved or Deleted"
+                         .format(item.data(QtCore.Qt.UserRole)))
 
         self.log.debug("Project path set to {}".format(self.project_path))
 
@@ -116,16 +128,16 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
         if dialog.exec_():
             project = dialog.project  # type: prj.AirborneProject
             project.save()
-            # self.update_recent_files(self.recent_file, {project.name: project.projectdir})
             self.accept(project)
 
     def browse_project(self):
         """Allow the user to browse for a project directory and load."""
-        path = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Project Directory")
+        path = QtWidgets.QFileDialog.getExistingDirectory(self,
+                                                          "Select Project Dir")
         if not path:
             return
 
-        prj_file = self.get_project_file(Path(path))
+        prj_file = get_project_file(Path(path))
         if not prj_file:
             self.log.error("No project files found")
             return
@@ -146,19 +158,20 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
     @staticmethod
     def get_recent_files(path: Path) -> Dict[str, Path]:
         """
-        Ingests a JSON file specified by path, containing project_name: project_directory mappings and returns dict of
-        valid projects (conducting path checking and conversion to pathlib.Path)
+        Ingests a JSON file specified by path, containing project_name:
+        project_directory mappings and returns dict of valid projects (
+        conducting path checking and conversion to pathlib.Path)
         Parameters
         ----------
         path : Path
-            Path object referencing JSON object containing mappings of recent projects -> project directories
+            Path object referencing JSON object containing mappings of recent
+            projects -> project directories
 
         Returns
         -------
         Dict
             Dictionary of (str) project_name: (pathlib.Path) project_directory mappings
             If the specified path cannot be found, an empty dictionary is returned
-
         """
         try:
             with path.open('r') as fd:
@@ -176,7 +189,8 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
     @staticmethod
     def set_recent_files(recent_files: Dict[str, Path], path: Path) -> None:
         """
-        Take a dictionary of recent projects (project_name: project_dir) and write it out to a JSON formatted file
+        Take a dictionary of recent projects (project_name: project_dir) and
+        write it out to a JSON formatted file
         specified by path
         Parameters
         ----------
