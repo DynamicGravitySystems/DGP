@@ -338,16 +338,16 @@ class Flight(types.TreeItem):
         return self._lines
 
     @property
-    def channels(self):
+    def channels(self) -> list:
         """Return data channels as list of DataChannel objects"""
-        cns = []
+        rv = []
         for source in self._data:  # type: types.DataSource
-            cns.extend(source.channels)
-        return cns
+            rv.extend(source.get_channels())
+        return rv
 
     def get_plot_state(self):
         # Return List[DataChannel if DataChannel is plotted]
-        return [dc for dc in self.channels if dc.plotted != -1]
+        return [dc for dc in self.channels if dc.plotted]
 
     def register_data(self, datasrc: types.DataSource):
         """Register a data file for use by this Flight"""
