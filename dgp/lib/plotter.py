@@ -9,15 +9,13 @@ from dgp.lib.etc import gen_uuid
 import logging
 import datetime
 from collections import namedtuple
-from typing import List, Tuple
-from functools import reduce
+from typing import List, Dict, Tuple, Union
 
-# from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QSizePolicy, QMenu, QAction, QWidget, QToolBar
 from PyQt5.QtCore import pyqtSignal, QMimeData
 from PyQt5.QtGui import QCursor, QDropEvent, QDragEnterEvent, QDragMoveEvent
-from matplotlib.backends.backend_qt5agg import (FigureCanvasQTAgg as FigureCanvas,
-                                                NavigationToolbar2QT as NavigationToolbar)
+from matplotlib.backends.backend_qt5agg import (
+   FigureCanvasQTAgg as FigureCanvas, NavigationToolbar2QT as NavigationToolbar)
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 from matplotlib.dates import DateFormatter, num2date, date2num
@@ -25,11 +23,388 @@ from matplotlib.ticker import NullFormatter, NullLocator, AutoLocator
 from matplotlib.backend_bases import MouseEvent, PickEvent
 from matplotlib.patches import Rectangle
 from matplotlib.lines import Line2D
+from matplotlib.text import Annotation
 import numpy as np
 
 from dgp.lib.project import Flight
 from dgp.gui.dialogs import SetLineLabelDialog
 import dgp.lib.types as types
+
+
+_log = logging.getLogger(__name__)
+
+
+class AxesGroup:
+    """
+    AxesGroup conceptually groups a set of sub-plot Axes together, and allows
+    for easier operations on multiple Axes at once, especially when dealing
+    with plot Patches and Annotations.
+
+    Parameters
+    ----------
+    *axes : List[Axes]
+        Positional list of 1 or more Axes (sub-plots) to add to this AxesGroup
+    twin : bool, Optional
+        If True, create 'twin' subplots for each of the passed plots, sharing
+        the X-Axis.
+        Default : False
+
+    Attributes
+    ----------
+    axes : Dict[int, Axes]
+        Dictionary of Axes objects keyed by int Index
+    twins : Union[Dict[int, Axes], None]
+        If the AxesGroup is initialized with twin=True, the resultant twinned
+        Axes objects are stored here, keyed by int Index matching that of
+        their parent Axes.
+    patches : Dict[str, PatchGroup]
+        Dictionary of PatchGroups keyed by the groups UID
+        PatchGroups contain partnered Rectangle Patches which are displayed
+        at the same location across all active primary Axes.
+    patch_pct : Float
+        Percentage width of Axes to initially create Patch Rectangles
+
+    """
+
+    def __init__(self, *axes, twin=False):
+        assert len(axes) >= 1
+        self.axes = dict(enumerate(axes))  # type: Dict[int, Axes]
+        self._ax0 = self.axes[0]
+        if twin:
+            self.twins = {i: ax.twinx() for i, ax in enumerate(axes)}
+        else:
+            self.twins = None
+
+        self.patches = {}  # type: Dict[str, PatchGroup]
+        self.patch_pct = 0.05
+
+        self._active = None  # type: PatchGroup
+
+    def __contains__(self, item: Axes):
+        if item in self.axes.values():
+            return True
+        if self.twins is None:
+            return False
+        if item in self.twins.values():
+            return True
+
+    def on_edge(self, event: MouseEvent):
+        xdata = event.xdata
+        for pg in self.patches.values():
+            if pg.contains(xdata):
+                return pg.on_edge(xdata)
+            pg.clear_edge()
+
+    def rescale_axes(self, axes: Axes):
+        for patch in axes.patches:
+            patch.set_visible(False)
+        axes.relim(visible_only=True)
+        axes.autoscale_view(tight=True)
+        for patch in axes.patches:
+            patch.set_visible(True)
+        for pg in self.patches.values():
+            pg.rescale_patches()
+
+    def get_axes(self, index, twin=False):
+        if twin and self.twins is not None:
+            return self.twins[index]
+        return self.axes[index]
+
+    def get_patch(self, xcoord) -> Union['PatchGroup', None]:
+        for group in self.patches.values():
+            if group.contains(xcoord):
+                return group
+        return None
+
+    def add_patch(self, xdata, start=None, stop=None, uid=None, label=None) \
+            -> Union['PatchGroup', None]:
+        """Add a flight line patch at the specified x-coordinate on all axes
+        When a user clicks on the plot, we want to place a rectangle,
+        centered on the mouse click x-location, and spanning across any
+        primary axes in the AxesGroup.
+
+        Parameters
+        ----------
+        xdata : int
+            X location on the Axes to add a new patch
+        start, stop : float, optional
+            If specified, draw a custom patch from saved data
+        uid : str, optional
+            If specified, assign the patch group a custom UID
+        label : str, optional
+            If specified, add the label text as an annotation on the created
+            patch group
+
+        Returns
+        -------
+        New Patch Group : PatchGroup
+            Returns newly created group of 'partnered' or linked Rectangle
+            Patches as a PatchGroup
+            If the PatchGroup is not created sucessfully (i.e. xdata was too
+            close to another patch) None is returned.
+
+        """
+        if start and stop:
+            # Reapply a saved patch
+            pg = PatchGroup(uid=uid, parent=self)
+            x0 = date2num(start)
+            x1 = date2num(stop)
+            width = x1 - x0
+            for i, ax in self.axes.items():
+                ylim = ax.get_ylim()
+                height = abs(ylim[1]) + abs(ylim[0])
+                rect = Rectangle((x0, ylim[0]), width, height * 2, alpha=0.1)
+                patch = ax.add_patch(rect)
+                ax.draw_artist(patch)
+                pg.add_patch(i, patch)
+            if label is not None:
+                pg.set_label(label)
+            self.patches[pg.uid] = pg
+            return pg
+
+        # Check if click is too close to existing patch groups
+        for group in self.patches.values():
+            if group.contains(xdata, prox=(group.width * 0.3)):
+                print("New rectangle too close to add")
+                return
+
+        pg = PatchGroup(parent=self)
+
+        xlim = self._ax0.get_xlim()  # type: Tuple
+        width = (xlim[1] - xlim[0]) * np.float64(self.patch_pct)
+        # x0, y0 = Bottom left corner coordinate
+        x0 = xdata - width / 2
+
+        for i, ax in self.axes.items():
+            ylim = ax.get_ylim()
+            height = ylim[1] - ylim[0]
+            rect = Rectangle((x0, ylim[0]), width, height*2, alpha=0.1)
+            patch = ax.add_patch(rect)
+            ax.draw_artist(patch)
+            pg.add_patch(i, patch)
+        self.patches[pg.uid] = pg
+        return pg
+
+    def remove_pg(self, pg: 'PatchGroup'):
+        del self.patches[pg.uid]
+
+
+class PatchGroup:
+    """
+    Contain related patches that are cloned across multiple sub-plots
+    """
+    def __init__(self, label: str=None, uid=None, parent=None):
+        self.parent = parent  # type: AxesGroup
+        if uid is not None:
+            self.uid = uid
+        else:
+            self.uid = gen_uuid('ptc')
+        self.label = label
+        self.modified = False
+        self.animated = False
+
+        self._patches = {}  # type: Dict[int, Rectangle]
+        self._labels = {}  # type: Dict[int, Annotation]
+        self._bgs = {}
+        self._width = 0
+        self._x0 = 0
+
+    @property
+    def x(self):
+        for patch in self._patches.values():
+            return patch.get_x()
+
+    @property
+    def width(self):
+        """Return the width of the patches in this group (all patches have
+        same width)"""
+        return self._width
+
+    def contains(self, xdata, prox=0.0005):
+        """Check if an x-coordinate is contained within the bounds of this
+        patch group, with an optional proximity modifier."""
+        return self._x0 - prox <= xdata <= self._x0 + self._width + prox
+
+    def add_patch(self, plot_index: int, patch: Rectangle):
+        self._width = patch.get_width()
+        self._x0 = patch.get_x()
+        self._patches[plot_index] = patch
+        patch.figure.canvas.draw()
+
+    def remove(self):
+        """Delete this patch group and associated labels from the axes's"""
+        for patch in self._patches.values():
+            patch.remove()
+        for label in self._labels.values():
+            label.remove()
+        if self.parent is not None:
+            self.parent.remove_pg(self)
+
+    def start(self):
+        for patch in self._patches.values():
+            return num2date(patch.get_x())
+
+    def stop(self):
+        for patch in self._patches.values():
+            return num2date(patch.get_x() + patch.get_width())
+
+    def clear_edge(self):
+        for patch in self._patches.values():
+            if patch.get_edgecolor() is not None:
+                patch.set_edgecolor(None)
+                patch.set_linewidth(None)
+                patch.axes.draw_artist(patch)
+
+    def on_edge(self, xdata, prox=0.0005) -> Union[str, None]:
+        """
+        Check if the xdata location is near the edge of this PatchGroup.
+        If the location is near an edge (within prox radius), change the edge
+        color of the patch, then return which edge (left/right) we're on.
+
+        Parameters
+        ----------
+        xdata : float
+            X location of event
+        prox : float, optional
+            Float proximity in Axes units to trigger an edge hit.
+
+        Returns
+        -------
+        Union[str, None]
+            Returns 'left' or 'right' if near the left or right edge of the
+            patch, otherwise None
+
+        """
+        patch = self._patches[0]
+        left = patch.get_x()
+        right = left + patch.get_width()
+        if left - prox <= xdata <= left + prox:
+            for _patch in self._patches.values():
+                _patch.set_edgecolor('red')
+                _patch.set_linewidth(2)
+                _patch.axes.draw_artist(_patch)
+            return 'left'
+        elif right - prox <= xdata <= right + prox:
+            for _patch in self._patches.values():
+                _patch.set_edgecolor('blue')
+                _patch.set_linewidth(2)
+                _patch.axes.draw_artist(_patch)
+            return 'right'
+        else:
+            self.clear_edge()
+            return None
+
+    def animate(self) -> None:
+
+        for i, patch in self._patches.items():  # type: int, Rectangle
+            patch.set_animated(True)
+            # Save original loc/width on animation
+            self._x0 = patch.get_x()
+            self._width = patch.get_width()
+            try:
+                self._labels[i].set_animated(True)
+            except KeyError:
+                pass
+            canvas = patch.figure.canvas
+            # Need to draw the canvas once after animating to remove the
+            # animated patch from the bbox - but this introduces lag.
+            # canvas.draw()
+            bg = canvas.copy_from_bbox(patch.axes.bbox)
+            self._bgs[i] = bg
+            canvas.restore_region(bg)
+            patch.axes.draw_artist(patch)
+            canvas.blit(patch.axes.bbox)
+
+            # This is slow - but would remove original square while dragging
+            # patch.figure.canvas.draw()
+        self.animated = True
+        return
+
+    def unanimate(self) -> None:
+        for patch in self._patches.values():
+            patch.set_animated(False)
+            patch.axes.draw_artist(patch)
+            self._x0 = patch.get_x()
+            self._width = patch.get_width()
+        for label in self._labels.values():
+            label.set_animated(False)
+
+        self._bgs = {}
+        self.animated = False
+        return
+
+    def set_label(self, label: str):
+        self.label = label
+        for i, patch in self._patches.items():
+            px = patch.get_x() + patch.get_width() * 0.5
+            ylims = patch.axes.get_ylim()
+            py = ylims[0] + abs(ylims[1] - ylims[0]) * 0.5
+
+            annotation = patch.axes.annotate(label,
+                xy=(px, py), weight='bold', fontsize=6, ha='center',
+                va='center', annotation_clip=False)
+            self._labels[i] = annotation
+        self.modified = True
+
+    def _update_label(self, index, x, y):
+        label = self._labels.get(index, None)
+        if label is None:
+            return
+        label.set_position((x, y))
+        label.axes.draw_artist(label)
+
+    def move_patches(self, dx):
+        for i in self._patches:
+            patch = self._patches[i]  # type: Rectangle
+            patch.set_x(self._x0 + dx)
+
+            canvas = patch.figure.canvas  # type: FigureCanvas
+            canvas.restore_region(self._bgs[i])
+            # Must draw_artist after restoring region, or they will be hidden
+            patch.axes.draw_artist(patch)
+
+            cx, cy = self._patch_center(patch)
+            self._update_label(i, cx, cy)
+
+            canvas.blit(patch.axes.bbox)
+            self.modified = True
+
+    @staticmethod
+    def _patch_center(patch):
+        cx = patch.get_x() + patch.get_width() * 0.5
+        ylims = patch.axes.get_ylim()
+        cy = ylims[0] + abs(ylims[1] - ylims[0]) * 0.5
+        return cx, cy
+
+    def stretch_patches(self, side, dx):
+        if side not in {'left', 'right'}:
+            return
+        for i, patch in self._patches.items():
+            if side == 'left' and self._width - dx > 0:
+                patch.set_x(self._x0 + dx)
+                patch.set_width(self._width - dx)
+            if side == 'right' and self._width + dx > 0:
+                patch.set_width(self._width + dx)
+
+            axes = patch.axes
+            cx, cy = self._patch_center(patch)
+            canvas = patch.figure.canvas
+            canvas.restore_region(self._bgs[i])
+            axes.draw_artist(patch)
+            self._update_label(i, cx, cy)
+
+            canvas.blit(axes.bbox)
+
+        self.modified = True
+
+    def rescale_patches(self):
+        """Adjust Height based on new axes limits"""
+        for patch in self._patches.values():
+            ylims = patch.axes.get_ylim()
+            height = ylims[1] - ylims[0]
+            patch.set_y(ylims[0])
+            patch.set_height(height)
+            patch.axes.draw_artist(patch)
 
 
 class BasePlottingCanvas(FigureCanvas):
@@ -38,8 +413,7 @@ class BasePlottingCanvas(FigureCanvas):
     to be subclassed for different plot types.
     """
     def __init__(self, parent=None, width=8, height=4, dpi=100):
-        self.log = logging.getLogger(__name__)
-        self.log.info("Initializing BasePlottingCanvas")
+        _log.info("Initializing BasePlottingCanvas")
 
         fig = Figure(figsize=(width, height), dpi=dpi, tight_layout=True)
         super().__init__(fig)
@@ -134,7 +508,6 @@ class BasePlottingCanvas(FigureCanvas):
         return self._plots[item]
 
 
-ClickInfo = namedtuple('ClickInfo', ['partners', 'x0', 'width', 'xpos', 'ypos'])
 LineUpdate = namedtuple('LineUpdate', ['flight_id', 'action', 'uid', 'start',
                                        'stop', 'label'])
 
@@ -147,25 +520,27 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
 
     line_changed = pyqtSignal(LineUpdate)
 
-    def __init__(self, flight, n=1, title=None, parent=None):
+    def __init__(self, flight: Flight, n: int=1, title=None, parent=None):
         super().__init__(parent=parent)
         # Set initial sub-plot layout
         self.set_plots(rows=n)
 
+        # Experimental patch feature
+        self.ax_grp = AxesGroup(*self.axes, twin=True)
+        self._selected_group = None  # type: PatchGroup
+        self._click_loc = None
+
         # Experimental
         self.setAcceptDrops(False)
         # END Experimental
-        self.log = logging.getLogger(__name__)
-        self.rects = []
-        self.clicked = None  # type: ClickInfo
         self.plotted = False
-        self.timespan = datetime.timedelta(0)
-        self.resample = slice(None, None, 20)
         self._zooming = False
         self._panning = False
         self._flight = flight  # type: Flight
 
-        self._twins = {}
+        # Resampling variables
+        self.timespan = datetime.timedelta(0)
+        self.resample = slice(None, None, 20)
 
         # Map of Line2D objects active in sub-plots, keyed by data UID
         self._lines = {}  # {uid: Line2D, ...}
@@ -176,8 +551,6 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
             self.figure.suptitle(flight.name, y=1)
 
         self._stretching = None
-        self._is_near_edge = False
-        self._selected_patch = None
 
         # create context menu
         self._pop_menu = QMenu(self)
@@ -188,89 +561,53 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         self._pop_menu.addAction(QAction('Set Label', self,
             triggered=self._label_patch))
 
-    @property
-    def all_axes(self) -> list:
-        axes = self.axes[:]
-        axes.extend(self._twins.values())
-        return axes
-
-    def _remove_patch(self, partners):
-        if self._selected_patch is not None:
-            partners = self._selected_patch
-
-            uid = partners[0]['uid']
-            start = partners[0]['left']
-            stop = partners[0]['right']
-
-            # remove patches
-            while partners:
-                patch_group = partners.pop()
-                patch_group['rect'].remove()
-                if patch_group['label'] is not None:
-                    patch_group['label'].remove()
-            self.rects.remove(partners)
-            self.draw()
+    def _remove_patch(self, *args):
+        # PyQt Slot
+        if self._selected_group is not None:
+            pg = self._selected_group
+            pg.remove()
             self.line_changed.emit(LineUpdate(flight_id=self._flight.uid,
-                action='remove', uid=uid, start=start, stop=stop, label=None))
-            self._selected_patch = None
+                                              action='remove', uid=pg.uid,
+                                              start=pg.start(), stop=pg.stop(),
+                                              label=None))
+            self._selected_group = None
+            self.draw()
+        return
 
-    def _label_patch(self, label):
-        if self._selected_patch is not None:
-            partners = self._selected_patch
-            current_label = partners[0]['label']
-            if current_label is not None:
-                dialog = SetLineLabelDialog(current_label.get_text())
+    def _label_patch(self):
+        # PyQt Slot
+        if self._selected_group is not None:
+            pg = self._selected_group
+            if pg.label is not None:
+                dialog = SetLineLabelDialog(pg.label)
             else:
                 dialog = SetLineLabelDialog(None)
             if dialog.exec_():
                 label = dialog.label_text
             else:
                 return
-        else:
-            return
 
-        for p in partners:
-            rx = p['rect'].get_x()
-            cx = rx + p['rect'].get_width() * 0.5
-            axes = p['rect'].axes
-            ylim = axes.get_ylim()
-            cy = ylim[0] + abs(ylim[1] - ylim[0]) * 0.5
-            axes = p['rect'].axes
+            pg.set_label(label)
+            update = LineUpdate(flight_id=self._flight.uid, action='modify',
+                                uid=pg.uid, start=pg.start(), stop=pg.stop(),
+                                label=pg.label)
+            self.line_changed.emit(update)
+            self.draw()
+        self._selected_group = None
+        return
 
-            if label is not None:
-                if p['label'] is not None:
-                    p['label'].set_text(label)
-                else:
-                    p['label'] = axes.annotate(label,
-                                               xy=(cx, cy),
-                                               weight='bold',
-                                               fontsize=6,
-                                               ha='center',
-                                               va='center',
-                                               annotation_clip=False)
-            else:
-                if p['label'] is not None:
-                    p['label'].remove()
-                    p['label'] = None
-
-        self.draw()
-
-    def _move_patch_label(self, attr):
-        rx = attr['rect'].get_x()
-        cx = rx + attr['rect'].get_width() * 0.5
-        axes = attr['rect'].axes
-        ylim = axes.get_ylim()
-        cy = ylim[0] + abs(ylim[1] - ylim[0]) * 0.5
-        attr['label'].set_position((cx, cy))
+    def add_patch(self, start, stop, uid, label=None):
+        if not self.plotted:
+            self.draw()
+        self.ax_grp.add_patch(0, start=start, stop=stop, uid=uid, label=label)
 
     def draw(self):
-        self.plotted = True
         super().draw()
+        self.plotted = True
 
     def clear(self):
         """Clear the canvas without resetting all of the axes properties."""
         raise NotImplementedError("Clear not properly implemented, do not use")
-        self.rects = []
         self.resample = slice(None, None, 20)
         self.draw()  # Why did I call draw() here?
         for ax in self.axes:  # type: Axes
@@ -286,21 +623,12 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         self.draw()
         self.plotted = False
 
-    def _set_formatters(self):
-        """
-        Check for lines on plot and set formatters accordingly.
-        If there are no lines plotted we apply a NullLocator and NullFormatter
-        If there are lines plotted or about to be plotted, re-apply an
-        AutoLocator and DateFormatter.
-        """
-        raise NotImplementedError("Method not yet implemented")
-
     # Issue #36 Enable data/channel selection and plotting
     def add_series(self, dc: types.DataChannel, axes_idx: int=0, draw=True):
         """Add one or more data series to the specified axes as a line plot."""
         if len(self._lines) == 0:
             # If there are 0 plot lines we need to reset the locator/formatter
-            self.log.debug("Adding locator and major formatter to empty plot.")
+            _log.debug("Adding locator and major formatter to empty plot.")
             self.axes[0].xaxis.set_major_locator(AutoLocator())
             self.axes[0].xaxis.set_major_formatter(DateFormatter('%H:%M:%S'))
 
@@ -308,9 +636,10 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         color = 'blue'
 
         if len(axes.lines):
-            self.log.debug("Base axes already has line, getting twin")
-            axes = axes.twinx()
-            self._twins[axes_idx] = axes
+            _log.debug("Base axes already has line, getting twin")
+            axes = self.ax_grp.get_axes(axes_idx, twin=True)
+            # axes = axes.twinx()
+            # self._twins[axes_idx] = axes
             color = 'orange'
 
         series = dc.series()
@@ -323,36 +652,29 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
 
         self._lines[dc.uid] = line_artist
 
-        # axes.legend()
-        axes.relim()
-        axes.autoscale_view()
+        self.ax_grp.rescale_axes(axes)
 
         if draw:
             self.figure.canvas.draw()
 
     def remove_series(self, dc: types.DataChannel):
-
         if dc.uid not in self._lines:
-            self.log.warning("Series UID could not be located in plot_lines")
+            _log.warning("Series UID could not be located in plot_lines")
             return
         line = self._lines[dc.uid]  # type: Line2D
 
-        axes = line.axes  # due to twin axes, get from line
+        axes = line.axes
         axes.lines.remove(line)
         axes.tick_params('y', colors='black')
         axes.set_ylabel('')
-        axes.relim()
-        axes.autoscale_view()
 
+        self.ax_grp.rescale_axes(axes)
         del self._lines[dc.uid]
         # dc.plotted = -1
         dc.plot(None)
 
-        # line_count = reduce(lambda acc, res: acc + res,
-        #                     (len(x.lines) for x in self.axes))
         if not len(self._lines):
-            self.log.warning("No Lines on any axes.")
-            print(self.axes[0].xaxis.get_major_locator())
+            _log.warning("No Lines on any axes.")
             self.axes[0].xaxis.set_major_locator(NullLocator())
             self.axes[0].xaxis.set_major_formatter(NullFormatter())
 
@@ -361,153 +683,105 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
     def get_series_by_label(self, label: str):
         pass
 
-    # TODO: Clean this up, allow direct passing of FlightLine Objects
-    # Also convert this/test this to be used in onclick to create lines
-    def draw_patch(self, start, stop, uid):
-        caxes = self.axes[0]
-        ylim = caxes.get_ylim()  # type: Tuple
-        xstart = date2num(start)
-        xstop = date2num(stop)
-        width = xstop - xstart
-        height = ylim[1] - ylim[0]
-        c_rect = Rectangle((xstart, ylim[0]), width, height, alpha=0.2)
-
-        caxes.add_patch(c_rect)
-        caxes.draw_artist(caxes.patch)
-
-        left = num2date(c_rect.get_x())
-        right = num2date(c_rect.get_x() + c_rect.get_width())
-        partners = [{'uid': uid, 'rect': c_rect, 'bg': None, 'left': left,
-                     'right': right, 'label': None}]
-
-        for ax in self.axes:
-            if ax == caxes:
-                continue
-            ylim = ax.get_ylim()
-            height = ylim[1] - ylim[0]
-            a_rect = Rectangle((xstart, ylim[0]), width, height, alpha=0.1,
-                               picker=True)
-            ax.add_patch(a_rect)
-            ax.draw_artist(ax.patch)
-            left = num2date(a_rect.get_x())
-            right = num2date(a_rect.get_x() + a_rect.get_width())
-            partners.append({'uid': uid, 'rect': a_rect, 'bg': None,
-                             'left': left, 'right': right, 'label': None})
-
-        self.rects.append(partners)
-
-        self.figure.canvas.draw()
-        self.draw()
-        return
-
     # Testing: Maybe way to optimize rectangle selection/dragging code
     def onpick(self, event: PickEvent):
         # Pick needs to be enabled for artist ( picker=True )
         # event.artist references the artist that triggered the pick
-        self.log.debug("Picked artist: {artist}".format(artist=event.artist))
+        _log.debug("Picked artist: {artist}".format(artist=event.artist))
 
     def onclick(self, event: MouseEvent):
         # First check conditions to see if we need to handle the click.
-        if not self.plotted:
+        if not self.plotted or not len(self._lines):
             return
         # Don't do anything when zooming/panning is enabled
         if self._zooming or self._panning:
             return
 
-        if event.inaxes not in self.all_axes:
+        if event.inaxes not in self.ax_grp:
             return
 
-        lines = 0
-        for ax in self.all_axes:
-            lines += len(ax.lines)
-        if lines == 0:
-            return
+        _log.info("Axes Click @ xdata: {}".format(event.xdata))
+        self._click_loc = event.xdata
+        self._stretching = None
 
-        # Check that the click event happened within one of the subplot axes
-        # if event.inaxes not in self.axes:
-        #     return
-        self.log.info("Xdata: {}".format(event.xdata))
-
-        caxes = event.inaxes  # type: Axes
-        other_axes = [ax for ax in self.axes if ax != caxes]
+        # Get PatchGroup at x-loc, or False if none exists
+        pg = self.ax_grp.get_patch(event.xdata)
+        if pg is not None:
+            _log.info("Selected PatchGroup: {}".format(pg.uid))
+            self._selected_group = pg
 
         if event.button == 3:
-            # Right click
-            for partners in self.rects:
-                for p in partners:
-                    patch = p['rect']
-                    hit, _ = patch.contains(event)
-                    if hit:
-                        cursor = QCursor()
-                        self._selected_patch = partners
-                        self._pop_menu.popup(cursor.pos())
+            # Right Click
+            if pg is not None:
+                cursor = QCursor()
+                self._pop_menu.popup(cursor.pos())
             return
 
-        else:
+        elif event.button == 1:
             # Left click
-            for partners in self.rects:
-                patch = partners[0]['rect']
-                if patch.get_x() <= event.xdata <= patch.get_x() + patch.get_width():
-                    # Then we clicked an existing rectangle
-                    x0, _ = patch.xy
-                    width = patch.get_width()
-                    self.clicked = ClickInfo(partners, x0, width, event.xdata, event.ydata)
-                    self._stretching = self._is_near_edge
+            if pg is not None:
+                # Already have patches here, animate them
+                pg.animate()
+                self._stretching = pg.on_edge(event.xdata)
+                # event.canvas.draw()
+                # self.figure.canvas.draw()
+                return
 
-                    for attrs in partners:
-                        rect = attrs['rect']
-                        rect.set_animated(True)
-                        label = attrs['label']
-                        if label is not None:
-                            label.set_animated(True)
-                        r_canvas = rect.figure.canvas
-                        r_axes = rect.axes  # type: Axes
-                        r_canvas.draw()
-                        attrs['bg'] = r_canvas.copy_from_bbox(r_axes.bbox)
-                    return
-
-            # else: Create a new rectangle on all axes
-            # TODO: Use the new draw_patch function to do this (some modifications required)
-            ylim = caxes.get_ylim()  # type: Tuple
-            xlim = caxes.get_xlim()  # type: Tuple
-            width = (xlim[1] - xlim[0]) * np.float64(0.05)
-            # Get the bottom left corner of the rectangle which will be centered at the mouse click
-            x0 = event.xdata - width / 2
-            y0 = ylim[0]
-            height = ylim[1] - ylim[0]
-            c_rect = Rectangle((x0, y0), width, height*2, alpha=0.1, picker=True)
-
-            # Experimental replacement:
-            caxes.add_patch(c_rect)
-            caxes.draw_artist(caxes.patch)
-
-            uid = gen_uuid('ln')
-            left = num2date(c_rect.get_x())
-            right = num2date(c_rect.get_x() + c_rect.get_width())
-            partners = [{'uid': uid, 'rect': c_rect, 'bg': None, 'left': left,
-                         'right': right, 'label': None}]
-            for ax in other_axes:
-                x0 = event.xdata - width / 2
-                ylim = ax.get_ylim()
-                y0 = ylim[0]
-                height = ylim[1] - ylim[0]
-                a_rect = Rectangle((x0, y0), width, height * 2, alpha=0.1)
-                ax.add_patch(a_rect)
-                ax.draw_artist(ax.patch)
-                left = num2date(a_rect.get_x())
-                right = num2date(a_rect.get_x() + a_rect.get_width())
-                partners.append({'uid': uid, 'rect': a_rect, 'bg': None,
-                                 'left': left, 'right': right, 'label': None})
-
-            self.rects.append(partners)
+            # Create new PatchGroup
+            pg = self.ax_grp.add_patch(event.xdata)
+            if pg is None:
+                _log.warning("Failed to create Patches, too close?")
+                return
+            self._selected_group = None
 
             if self._flight.uid is not None:
                 self.line_changed.emit(
                     LineUpdate(flight_id=self._flight.uid, action='add',
-                               uid=uid, start=left, stop=right, label=None))
+                               uid=pg.uid, start=pg.start(), stop=pg.stop(),
+                               label=None))
 
             self.figure.canvas.draw()
             return
+        else:
+            # Middle Click
+            print("Middle click not supported.")
+            return
+
+    def onmotion(self, event: MouseEvent):
+        if event.inaxes not in self.ax_grp:
+            return
+
+        if self._selected_group is not None:
+            dx = event.xdata - self._click_loc
+            if self._stretching is not None:
+                self._selected_group.stretch_patches(self._stretching, dx)
+            else:
+                self._selected_group.move_patches(dx)
+            return
+        # Paint edges of rectangle
+        self.ax_grp.on_edge(event)
+
+        event.canvas.draw()
+        return
+
+    def onrelease(self, event: MouseEvent):
+        if self._selected_group is not None:
+            pg = self._selected_group  # type: PatchGroup
+            if pg.modified:
+                update = LineUpdate(flight_id=self._flight.uid,
+                                    action='modify', uid=pg.uid,
+                                    start=pg.start(), stop=pg.stop(),
+                                    label=pg.label)
+                self.line_changed.emit(update)
+                pg.modified = False
+            if pg.animated:
+                pg.unanimate()
+            self._selected_group = None
+
+            self.figure.canvas.draw()
+
+        self._stretching = None
+        self._click_loc = None
 
     def toggle_zoom(self):
         if self._panning:
@@ -518,114 +792,6 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         if self._zooming:
             self._zooming = False
         self._panning = not self._panning
-
-    def _move_rect(self, event):
-        partners, x0, width, xclick, yclick = self.clicked
-
-        dx = event.xdata - xclick
-        for attr in partners:
-            rect = attr['rect']
-            label = attr['label']
-            if self._stretching is not None:
-                if self._stretching == 'left':
-                    if width - dx > 0:
-                        rect.set_x(x0 + dx)
-                        rect.set_width(width - dx)
-                elif self._stretching == 'right':
-                    if width + dx > 0:
-                        rect.set_width(width + dx)
-            else:
-                rect.set_x(x0 + dx)
-
-            if attr['label'] is not None:
-                self._move_patch_label(attr)
-
-            canvas = rect.figure.canvas
-            axes = rect.axes
-            canvas.restore_region(attr['bg'])
-            axes.draw_artist(rect)
-            if attr['label'] is not None:
-                axes.draw_artist(label)
-            canvas.blit(axes.bbox)
-
-    def _near_edge(self, event, prox=0.0005):
-        for partners in self.rects:
-            attr = partners[0]
-            rect = attr['rect']
-
-            axes = rect.axes
-            canvas = rect.figure.canvas
-
-            left = rect.get_x()
-            right = left + rect.get_width()
-
-            # if (event.xdata > left and event.xdata < left + prox):
-            if left < event.xdata < left + prox:
-                for p in partners:
-                    p['rect'].set_edgecolor('red')
-                    p['rect'].set_linewidth(3)
-                event.canvas.draw()
-                return 'left'
-
-            # elif (event.xdata < right and event.xdata > right - prox):
-            elif right - prox < event.xdata < right:
-                for p in partners:
-                    p['rect'].set_edgecolor('red')
-                    p['rect'].set_linewidth(3)
-                event.canvas.draw()
-                return 'right'
-
-            else:
-                if rect.get_linewidth() != 1.0 and self._stretching is None:
-                    for p in partners:
-                        p['rect'].set_edgecolor(None)
-                        p['rect'].set_linewidth(None)
-                    event.canvas.draw()
-
-        return None
-
-    def onmotion(self, event: MouseEvent):
-        if event.inaxes not in self.axes:
-            return
-
-        if self.clicked is not None:
-            self._move_rect(event)
-        else:
-            self._is_near_edge = self._near_edge(event)
-
-    def onrelease(self, event: MouseEvent):
-
-        if self.clicked is None:
-            if self._selected_patch is not None:
-                self._selected_patch = None
-            return  # Nothing Selected
-
-        partners = self.clicked.partners
-        for attrs in partners:
-            rect = attrs['rect']
-            rect.set_animated(False)
-            label = attrs['label']
-            if label is not None:
-                label.set_animated(False)
-            rect.axes.draw_artist(rect)
-            attrs['bg'] = None
-
-        uid = partners[0]['uid']
-        first_rect = partners[0]['rect']
-        start = num2date(first_rect.get_x())
-        stop = num2date(first_rect.get_x() + first_rect.get_width())
-        label = partners[0]['label']
-
-        if self._flight.uid is not None:
-            self.line_changed.emit(LineUpdate(flight_id=self._flight.uid,
-                action='modify', uid=uid, start=start, stop=stop, label=label))
-
-        self.clicked = None
-
-        if self._stretching is not None:
-            self._stretching = None
-
-        self.figure.canvas.draw()
 
     # EXPERIMENTAL Drag-n-Drop handlers
     def dragEnterEvent(self, event: QDragEnterEvent):
@@ -644,25 +810,12 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         mime = event.mimeData()  # type: QMimeData
         print(mime)
         print(mime.text())
-    # END EXPERIMENT
+    # END EXPERIMENTAL Drag-n-Drop
 
     @staticmethod
     def get_time_delta(x0, x1):
         """Return a time delta from a plot axis limit"""
         return num2date(x1) - num2date(x0)
-
-    def _on_ylim_changed(self, changed: Axes):
-        for partners in self.rects:
-            for attr in partners:
-                if attr['rect'].axes == changed:
-                    # reset rectangle sizes
-                    ylim = changed.get_ylim()
-                    attr['rect'].set_y(ylim[0])
-                    attr['rect'].set_height(abs(ylim[1] - ylim[0]))
-
-                    if attr['label'] is not None:
-                        # reset label positions
-                        self._move_patch_label(attr)
 
     def _on_xlim_changed(self, changed: Axes) -> None:
         """
@@ -681,7 +834,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         """
         raise NotImplementedError("Need to update this for new properties")
         # TODO: Fix to use new self._lines definition
-        self.log.info("XLIM Changed!")
+        _log.info("XLIM Changed!")
         delta = self.get_time_delta(*changed.get_xlim())
         if self.timespan:
             ratio = delta/self.timespan * 100
@@ -708,15 +861,16 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
                     line[0].set_ydata(r_series.values)
                     line[0].set_xdata(r_series.index)
                     ax.draw_artist(line[0])
-                    self.log.debug("Resampling to: {}".format(self.resample))
+                    _log.debug("Resampling to: {}".format(self.resample))
             ax.relim()
             ax.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
         self.figure.canvas.draw()
 
     def get_toolbar(self, parent=None) -> QToolBar:
         """
-        Get a Matplotlib Toolbar for the current plot instance, and set toolbar actions (pan/zoom) specific to this plot
-        toolbar.actions() supports indexing, with the following default buttons at the specified index:
+        Get a Matplotlib Toolbar for the current plot instance, and set toolbar
+        actions (pan/zoom) specific to this plot toolbar.actions() supports
+        indexing, with the following default buttons at the specified index:
         1: Home
         2: Back
         3: Forward
@@ -728,15 +882,15 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
 
         Parameters
         ----------
-        [parent]
+        parent : QtWidget, optional
             Optional Qt Parent for this object
 
         Returns
         -------
-        QtWidgets.QToolBar : Matplotlib Qt Toolbar used to control this plot instance
+        QtWidgets.QToolBar
+            Matplotlib Qt Toolbar used to control this plot instance
         """
         toolbar = NavigationToolbar(self, parent=parent)
         toolbar.actions()[4].triggered.connect(self.toggle_pan)
         toolbar.actions()[5].triggered.connect(self.toggle_zoom)
         return toolbar
-

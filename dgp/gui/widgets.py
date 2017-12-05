@@ -77,7 +77,7 @@ class PlotTab(WorkspaceWidget):
         vlayout.addWidget(self._plot)
         vlayout.addWidget(self._plot.get_toolbar())
         self.setLayout(vlayout)
-        # self._apply_state()
+        self._apply_state()
         self._init_model()
 
     def _apply_state(self) -> None:
@@ -90,7 +90,8 @@ class PlotTab(WorkspaceWidget):
             self._plot.add_series(dc, dc.plotted)
 
         for line in self._flight.lines:
-            self._plot.draw_patch(line.start, line.stop, line.uid)
+            self._plot.add_patch(line.start, line.stop, line.uid,
+                                 label=line.label)
             draw = True
         if draw:
             self._plot.draw()
