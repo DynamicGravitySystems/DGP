@@ -7,9 +7,8 @@ Class to handle Matplotlib plotting of data to be displayed in Qt GUI
 from dgp.lib.etc import gen_uuid
 
 import logging
-import datetime
 from collections import namedtuple
-from typing import List, Dict, Tuple, Union
+from typing import Dict, Tuple, Union
 
 from PyQt5.QtWidgets import QSizePolicy, QMenu, QAction, QWidget, QToolBar
 from PyQt5.QtCore import pyqtSignal, QMimeData
@@ -33,8 +32,13 @@ import dgp.lib.types as types
 
 
 _log = logging.getLogger(__name__)
-
 EDGE_PROX = 0.005
+
+# Monkey patch the MPL Nav toolbar home button. We'll provide custom action
+# by attaching a event listener to the toolbar action trigger.
+# Save the default home method in case another plot desires the default behavior
+NT_HOME = NavigationToolbar.home
+NavigationToolbar.home = lambda *args: None
 
 
 class AxesGroup:
@@ -66,12 +70,13 @@ class AxesGroup:
         at the same location across all active primary Axes.
     patch_pct : Float
         Percentage width of Axes to initially create Patch Rectangles
+        expressed as a Float value.
 
     """
 
     def __init__(self, *axes, twin=False, parent=None):
         assert len(axes) >= 1
-        self.parent=parent
+        self.parent = parent
         self.axes = dict(enumerate(axes))  # type: Dict[int, Axes]
         self._ax0 = self.axes[0]
         if twin:
@@ -86,6 +91,9 @@ class AxesGroup:
         self._select_loc = None
         self._stretch = None
         self._highlighted = None  # type: PatchGroup
+
+        # Map ax index to x/y limits of original data
+        self._base_ax_limits = {}
 
     def __contains__(self, item: Axes):
         if item in self.axes.values():
@@ -109,6 +117,15 @@ class AxesGroup:
         else:
             print("_active is None or doesn't have attribute: ", item)
             return lambda *x, **y: None
+
+    @property
+    def all_axes(self):
+        """Return a list of all Axes objects, including Twin Axes (if they
+        exist)"""
+        axes = list(self.axes.values())
+        if self.twins is not None:
+            axes.extend(self.twins.values())
+        return axes
 
     def select(self, xdata, prox=EDGE_PROX, inner=False):
         """
@@ -147,7 +164,10 @@ class AxesGroup:
         else:
             return False
 
-    def deselect(self):
+    def deselect(self) -> None:
+        """
+        Deselect the active PatchGroup (if there is one), and reset the cursor.
+        """
         if self._selected is not None:
             self._selected.unanimate()
             self._selected = None
@@ -157,7 +177,7 @@ class AxesGroup:
     def active(self) -> Union['PatchGroup', None]:
         return self._selected
 
-    def highlight_edge(self, xdata: float):
+    def highlight_edge(self, xdata: float) -> None:
         """
         Called on motion event if a patch isn't selected. Highlight the edge
         of a patch if it is under the mouse location.
@@ -165,15 +185,13 @@ class AxesGroup:
 
         Parameters
         ----------
-        xdata
-
-        Returns
-        -------
+        xdata : float
+            Mouse x-location in plot data coordinates
 
         """
-        """Check all patch groups and highlight the edge of mouse is in range to
-        stretch"""
         self.parent.setCursor(QtCore.Qt.ArrowCursor)
+        if not len(self.patches):
+            return
         for patch in self.patches.values():  # type: PatchGroup
             if patch.contains(xdata):
                 edge = patch.get_edge(xdata, inner=False)
@@ -195,28 +213,41 @@ class AxesGroup:
             dx = event.xdata - self._select_loc
             self._selected.move_patches(dx)
 
-    def rescale_axes(self, axes: Axes):
-        """Rescale a given axes to the data contained within it.
-        To ensure the axes is properly scaled to the data, without
-        consideration of the various patches or labels contained within,
-        the patches are hidden, and then the axes is relimmed to the visible
-        elements only.
-        Patches within the axes are also rescaled to ensure they vertically
-        fill the axes.
-        """
-        for patch in axes.patches:
-            patch.set_visible(False)
-        axes.relim(visible_only=True)
-        axes.autoscale_view(tight=True)
-        for patch in axes.patches:
-            patch.set_visible(True)
+    def go_home(self):
+        """Autoscale the axes back to the data limits, and rescale patches."""
+        for ax in self.all_axes:
+            ax.autoscale(True, 'both', False)
+        self.rescale_patches()
+
+    def rescale_patches(self):
+        """Rescales all Patch Groups to fit their Axes y-limits"""
         for pg in self.patches.values():
             pg.rescale_patches()
 
-    def get_axes(self, index, twin=False):
-        if twin and self.twins is not None:
-            return self.twins[index]
-        return self.axes[index]
+    def get_axes(self, index) -> (Axes, bool):
+        """
+        Get an Axes object at the specified index, or a twin if the Axes at
+        the index already has a line plotted in it.
+        Boolean is returned with the Axes, specifying whether the returned
+        Axes is a Twin or not.
+
+        Parameters
+        ----------
+        index : int
+            Index of the Axes to retrieve.
+
+        Returns
+        -------
+        Tuple[Axes, bool]:
+            Axes object and boolean value
+            bool : False if Axes is the base (non-twin) Axes,
+                   True if it is a twin
+
+        """
+        ax = self.axes[index]
+        if self.twins is not None and len(ax.lines):
+            return self.twins[index], True
+        return ax, False
 
     def add_patch(self, xdata, start=None, stop=None, uid=None, label=None) \
             -> Union['PatchGroup', None]:
@@ -254,15 +285,12 @@ class AxesGroup:
         else:
             xlim = self._ax0.get_xlim()  # type: Tuple
             width = (xlim[1] - xlim[0]) * np.float64(self.patch_pct)
-            # x0, y0 = Bottom left corner coordinate
             x0 = xdata - width / 2
 
         # Check if click is too close to existing patch groups
         for group in self.patches.values():
             if group.contains(xdata, prox=.04):
                 raise ValueError("Flight patch too close to add")
-                # _log.warning("New flight patch too close to add")
-                # return
 
         pg = PatchGroup(uid=uid, parent=self)
         for i, ax in self.axes.items():
@@ -323,6 +351,18 @@ class PatchGroup:
         same width)"""
         return self._p0.get_width()
 
+    def hide(self):
+        for patch in self._patches.values():
+            patch.set_visible(False)
+        for label in self._labels.values():
+            label.set_visible(False)
+
+    def show(self):
+        for patch in self._patches.values():
+            patch.set_visible(True)
+        for label in self._labels.values():
+            label.set_visible(True)
+
     def contains(self, xdata, prox=EDGE_PROX):
         """Check if an x-coordinate is contained within the bounds of this
         patch group, with an optional proximity modifier."""
@@ -330,14 +370,11 @@ class PatchGroup:
         x0 = self._p0.get_x()
         width = self._p0.get_width()
         return x0 - prox <= xdata <= x0 + width + prox
-        # return self._x0 - prox <= xdata <= self._x0 + self._width + prox
 
     def add_patch(self, plot_index: int, patch: Rectangle):
         if not len(self._patches):
             # Record attributes of first added patch for reference
             self._p0 = patch
-            # self._x0 = patch.get_x()
-            # self._width = patch.get_width()
         self._patches[plot_index] = patch
 
     def remove(self):
@@ -361,8 +398,6 @@ class PatchGroup:
         if self._p0 is None:
             return None
         return num2date(self._p0.get_x() + self._p0.get_width())
-        # for patch in self._patches.values():
-        #     return num2date(patch.get_x() + patch.get_width())
 
     def get_edge(self, xdata, prox=EDGE_PROX, inner=False):
         """Get the edge that the mouse is in proximity to, or None if it is
@@ -381,14 +416,17 @@ class PatchGroup:
         """Set the given edge color, and set the Group stretching factor if
         select"""
         if edge not in {'left', 'right'}:
-            color = 'black'
+            color = (0.0, 0.0, 0.0, 0.1)  # black, 10% alpha
             self._stretching = None
         elif select:
             _log.debug("Setting stretch to: {}".format(edge))
             self._stretching = edge
         for patch in self._patches.values():  # type: Rectangle
-            patch.set_edgecolor(color)
-            patch.axes.draw_artist(patch)
+            if patch.get_edgecolor() != color:
+                patch.set_edgecolor(color)
+                patch.axes.draw_artist(patch)
+            else:
+                break
 
     def animate(self) -> None:
         """
@@ -432,7 +470,6 @@ class PatchGroup:
             return
         for patch in self._patches.values():
             patch.set_animated(False)
-            # patch.axes.draw_artist(patch)
         for label in self._labels.values():
             label.set_animated(False)
 
@@ -458,8 +495,12 @@ class PatchGroup:
             py = ylims[0] + abs(ylims[1] - ylims[0]) * 0.5
 
             annotation = patch.axes.annotate(label,
-                xy=(px, py), weight='bold', fontsize=6, ha='center',
-                va='center', annotation_clip=False)
+                                             xy=(px, py),
+                                             weight='bold',
+                                             fontsize=6,
+                                             ha='center',
+                                             va='center',
+                                             annotation_clip=False)
             self._labels[i] = annotation
         self.modified = True
 
@@ -471,7 +512,7 @@ class PatchGroup:
         Parameters
         ----------
         dx : float
-            Delta X, positive or negative float value to move or stretch the
+            Delta x, positive or negative float value to move or stretch the
             group
 
         """
@@ -494,12 +535,13 @@ class PatchGroup:
 
     def rescale_patches(self) -> None:
         """Adjust Height based on new axes limits"""
-        for patch in self._patches.values():
+        for i, patch in self._patches.items():
             ylims = patch.axes.get_ylim()
-            height = ylims[1] - ylims[0]
+            height = abs(ylims[1]) + abs(ylims[0])
             patch.set_y(ylims[0])
             patch.set_height(height)
             patch.axes.draw_artist(patch)
+            self._move_label(i, *self._patch_center(patch))
 
     def _stretch(self, dx) -> None:
         if self._p0 is None:
@@ -570,90 +612,36 @@ class PatchGroup:
 
     @staticmethod
     def _patch_center(patch) -> Tuple[int, int]:
-        """Get the horizontal and vertical center of the patch"""
+        """Utility method to calculate the horizontal and vertical center
+        point of the specified patch"""
         cx = patch.get_x() + patch.get_width() * 0.5
         ylims = patch.axes.get_ylim()
         cy = ylims[0] + abs(ylims[1] - ylims[0]) * 0.5
         return cx, cy
 
 
-# TODO: I'm not sure if this Base class is worth the trouble
 class BasePlottingCanvas(FigureCanvas):
     """
-    BasePlottingCanvas sets up the basic Qt Canvas parameters, and is designed
-    to be subclassed for different plot types.
+    BasePlottingCanvas sets up the basic Qt FigureCanvas parameters, and is
+    designed to be subclassed for different plot types.
+    Mouse events are connected to the canvas here, and the handlers should be
+    overriden in sub-classes to provide custom actions.
     """
     def __init__(self, parent=None, width=8, height=4, dpi=100):
-        _log.info("Initializing BasePlottingCanvas")
+        _log.debug("Initializing BasePlottingCanvas")
 
-        fig = Figure(figsize=(width, height), dpi=dpi, tight_layout=True)
-        super().__init__(fig)
+        super().__init__(Figure(figsize=(width, height),
+                                dpi=dpi,
+                                tight_layout=True))
 
         self.setParent(parent)
-        FigureCanvas.setSizePolicy(self, QSizePolicy.Expanding, QSizePolicy.Expanding)
-        FigureCanvas.updateGeometry(self)
-
-        self._plots = {}
-        self._plot_params = {}
+        super().setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        super().updateGeometry()
 
         self.figure.canvas.mpl_connect('button_press_event', self.onclick)
         self.figure.canvas.mpl_connect('button_release_event', self.onrelease)
         self.figure.canvas.mpl_connect('motion_notify_event', self.onmotion)
         self.figure.canvas.mpl_connect('pick_event', self.onpick)
-
-    @property
-    def axes(self):
-        return [ax for ax in self._plots.values()]
-
-    def set_plots(self, rows: int, cols=1, sharex=True) -> None:
-        """
-        Sets the figure layout with a number of sub-figures and twin figures
-        as specified in the arguments.
-        The sharex and sharey params control the behavior of the sub-plots,
-        with sharex=True all plots will be linked together on the X-Axis
-        which is useful for showing/comparing linked data sets.
-        The sharey param in fact generates an extra sub-plot/Axes object for
-        each plot, overlayed on top of the original. This allows the plotting of
-        multiple data sets of different magnitudes on the same chart,
-        displaying a scale for each on the left and right edges.
-
-        Parameters
-        ----------
-        rows: int
-            Number plots to generate for display in a vertical stack
-        cols: int, optional
-            For now, cols will always be 1 (ignored param)
-            In future would like to enable dynamic layouts with multiple
-            columns as well as rows
-        sharex: bool, optional
-            Default True. All plots will share their X axis with each other.
-
-        Returns
-        -------
-        None
-        """
-        self.figure.clf()
-        plots = {}  # dict of plots indexed by int
-
-        # Subplot index starts at 0
-        for i in range(1, rows+1):
-            if sharex and i > 1:
-                plot = self.figure.add_subplot(rows, 1, i, sharex=plots[0])
-            else:
-                plot = self.figure.add_subplot(rows, 1, i)  # type: Axes
-            plot.grid(True)
-            plots[i-1] = plot
-
-        # sp.callbacks.connect('xlim_changed', self._on_xlim_changed)
-        # sp.callbacks.connect('ylim_changed', self._on_ylim_changed)
-
-        self._plot_params.update({'rows': rows, 'cols': cols, 'sharex':
-                                  sharex})
-
-        self._plots = plots
-
-    def clear(self):
-        pass
 
     def onclick(self, event: MouseEvent):
         pass
@@ -667,16 +655,6 @@ class BasePlottingCanvas(FigureCanvas):
     def onmotion(self, event: MouseEvent):
         pass
 
-    def __len__(self) -> int:
-        return len(self._plots)
-
-    def __iter__(self) -> Axes:
-        for plot in self._plots.values():
-            yield plot
-
-    def __getitem__(self, item) -> Axes:
-        return self._plots[item]
-
 
 LineUpdate = namedtuple('LineUpdate', ['flight_id', 'action', 'uid', 'start',
                                        'stop', 'label'])
@@ -686,16 +664,24 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
     """
     LineGrabPlot implements BasePlottingCanvas and provides an onclick method to
     select flight line segments.
+
+    Attributes
+    ----------
+    ax_grp : AxesGroup
+
+    plotted : bool
+        Boolean flag - True if any axes have been plotted/drawn to
+
     """
 
     line_changed = pyqtSignal(LineUpdate)
+    resample = pyqtSignal(int)
 
-    def __init__(self, flight: Flight, n: int=1, title=None, parent=None):
+    def __init__(self, flight: Flight, rows: int=1, title=None, parent=None):
         super().__init__(parent=parent)
         # Set initial sub-plot layout
-        self.set_plots(rows=n)
-
-        self.ax_grp = AxesGroup(*self.axes, twin=True, parent=self)
+        self._plots = self.set_plots(rows=rows, sharex=True, resample=True)
+        self.ax_grp = AxesGroup(*self._plots.values(), twin=True, parent=self)
 
         # Experimental
         self.setAcceptDrops(False)
@@ -706,8 +692,17 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         self._flight = flight  # type: Flight
 
         # Resampling variables
-        self.timespan = datetime.timedelta(0)
-        self.resample = slice(None, None, 20)
+        self._series = {}  # {uid: pandas.Series, ...}
+        self._xwidth = 0
+        self._ratio = 100
+        # Define resampling steps based on integer percent range
+        # TODO: Future: enable user to define custom ranges/steps
+        self._steps = {
+            range(0, 15): slice(None, None, 1),
+            range(15, 35): slice(None, None, 5),
+            range(35, 75): slice(None, None, 10),
+            range(75, 101): slice(None, None, 15)
+        }
 
         # Map of Line2D objects active in sub-plots, keyed by data UID
         self._lines = {}  # {uid: Line2D, ...}
@@ -725,6 +720,62 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         #     triggered=self._label_patch))
         self._pop_menu.addAction(
             QAction('Set Label', self, triggered=self._label_patch))
+
+    @property
+    def axes(self):
+        return [ax for ax in self._plots.values()]
+
+    def set_plots(self, rows: int, cols=1, sharex=True, resample=False):
+        """
+        Sets the figure layout with a number of sub-figures and twin figures
+        as specified in the arguments.
+        The sharex and sharey params control the behavior of the sub-plots,
+        with sharex=True all plots will be linked together on the X-Axis
+        which is useful for showing/comparing linked data sets.
+        The sharey param in fact generates an extra sub-plot/Axes object for
+        each plot, overlayed on top of the original. This allows the plotting of
+        multiple data sets of different magnitudes on the same chart,
+        displaying a scale for each on the left and right edges.
+
+        Parameters
+        ----------
+        rows : int
+            Number plots to generate for display in a vertical stack
+        cols : int, optional
+            For now, cols will always be 1 (ignored param)
+            In future would like to enable dynamic layouts with multiple
+            columns as well as rows
+        sharex : bool, optional
+            Default True. All plots will share their X axis with each other.
+        resample : bool, optional
+            If true, enable dynamic resampling on each Axes, that is,
+            down-sample data when zoomed completely out, and reduce the
+            down-sampling as the data is viewed closer.
+
+        Returns
+        -------
+        Dict[int, Axes]
+            Mapping of axes index (int) to subplot (Axes) objects
+
+        """
+        self.figure.clf()
+        cols = 1  # Hardcoded to 1 until future implementation
+        plots = {}
+
+        # Note: When adding subplots, the first index is 1
+        for i in range(1, rows+1):
+            if sharex and i > 1:
+                plot = self.figure.add_subplot(rows, cols, i, sharex=plots[0])
+            else:
+                plot = self.figure.add_subplot(rows, cols, i)  # type: Axes
+            if resample:
+                plot.callbacks.connect('xlim_changed', self._xlim_resample)
+            plot.callbacks.connect('ylim_changed', self._on_ylim_changed)
+
+            plot.grid(True)
+            plots[i-1] = plot
+
+        return plots
 
     def _remove_patch(self):
         """PyQtSlot:
@@ -767,6 +818,63 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         self.ax_grp.deselect()
         return
 
+    def _xlim_resample(self, axes: Axes) -> None:
+        """
+        Called on change of x-limits of a given Axes. This method will
+        re-sample line data in every linked Axes based on the zoom level.
+        This is done for performance reasons, as with large data-sets
+        interacting with the plot can become very slow.
+        Re-sampling is done by slicing the data and selecting points at every
+        x steps, determined by the current ratio of the plot width to
+        original width.
+        Ratio ranges and steps are defined in the instance _steps dictionary.
+
+        TODO: In future user should be able to override the re-sampling step
+        lookup and be able to dynamically turn off/on the resampling of data.
+
+        """
+        if self._panning:
+            return
+        if self._xwidth == 0:
+            return
+
+        x0, x1 = axes.get_xlim()
+        ratio = int((x1 - x0) / self._xwidth * 100)
+        if ratio == self._ratio:
+            _log.debug("Resample ratio hasn't changed")
+            return
+        else:
+            self._ratio = ratio
+
+        for rs in self._steps:
+            if ratio in rs:
+                resample = self._steps[rs]
+                break
+        else:
+            resample = slice(None, None, 1)
+
+        self.resample.emit(resample.step)
+        self._resample = resample
+
+        for uid, line in self._lines.items():  # type: str, Line2D
+            series = self._series.get(uid)
+            sample = series[resample]
+            line.set_xdata(sample.index)
+            line.set_ydata(sample.values)
+            line.axes.draw_artist(line)
+
+        self.draw()
+
+    def _on_ylim_changed(self, changed: Axes) -> None:
+        if self._panning:
+            self.ax_grp.rescale_patches()
+        return
+
+    def home(self, *args):
+        """Autoscale Axes in the ax_grp to fit all data, then draw."""
+        self.ax_grp.go_home()
+        self.draw()
+
     def add_patch(self, start, stop, uid, label=None):
         if not self.plotted:
             self.draw()
@@ -802,24 +910,29 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
             self.axes[0].xaxis.set_major_locator(AutoLocator())
             self.axes[0].xaxis.set_major_formatter(DateFormatter('%H:%M:%S'))
 
-        axes = self[axes_idx]
-        color = 'blue'
+        axes, twin = self.ax_grp.get_axes(axes_idx)
 
-        if len(axes.lines):
-            _log.debug("Base axes already has line, getting twin")
-            axes = self.ax_grp.get_axes(axes_idx, twin=True)
+        if twin:
             color = 'orange'
+        else:
+            color = 'blue'
 
         series = dc.series()
         dc.plot(axes_idx)
         line_artist = axes.plot(series.index, series.values,
                                 color=color, label=dc.label)[0]
+
+        # Set values for x-ratio resampling
+        x0, x1 = axes.get_xlim()
+        width = x1 - x0
+        self._xwidth = max(self._xwidth, width)
+
         axes.tick_params('y', colors=color)
         axes.set_ylabel(dc.label, color=color)
 
+        self._series[dc.uid] = series  # Store reference to series for resample
         self._lines[dc.uid] = line_artist
-        self.ax_grp.rescale_axes(axes)
-
+        self.ax_grp.rescale_patches()
         if draw:
             self.figure.canvas.draw()
 
@@ -847,9 +960,9 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         axes.tick_params('y', colors='black')
         axes.set_ylabel('')
 
-        self.ax_grp.rescale_axes(axes)
+        self.ax_grp.rescale_patches()
         del self._lines[dc.uid]
-        # dc.plotted = -1
+        del self._series[dc.uid]
         dc.plot(None)
 
         if not len(self._lines):
@@ -862,25 +975,20 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
     def get_series_by_label(self, label: str):
         pass
 
-    # Testing: Maybe way to optimize rectangle selection/dragging code
-    def onpick(self, event: PickEvent):
-        # This doesn't seem to work/get called
-        print("On pick called")
-        # Pick needs to be enabled for artist ( picker=True )
-        # event.artist references the artist that triggered the pick
-        _log.debug("Picked artist: {artist}".format(artist=event.artist))
-
     def onclick(self, event: MouseEvent):
-        # First check conditions to see if we need to handle the click.
-        if not self.plotted or not len(self._lines):
-            return
-        # Don't do anything when zooming/panning is enabled
         if self._zooming or self._panning:
+            # Possibly hide all artists here to speed up panning
+            # for line in self._lines.values():  # type: Line2D
+            #     line.set_visible(False)
             return
-        # If the event didn't occur within an Axes, return
+        if not self.plotted or not len(self._lines):
+            # If there is nothing plotted, don't allow user click interaction
+            return
+        # If the event didn't occur within an Axes, ignore it
         if event.inaxes not in self.ax_grp:
             return
 
+        # Else, process the click event
         _log.debug("Axes Click @ xdata: {}".format(event.xdata))
 
         active = self.ax_grp.select(event.xdata, inner=False)
@@ -923,14 +1031,48 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
             return
         else:
             # Middle Click
-            print("Middle click not supported.")
+            # _log.debug("Middle click is not supported.")
             return
 
     def onmotion(self, event: MouseEvent) -> None:
-        """Pass the event to the ax_grp to deal with"""
+        """
+        Event Handler: Pass any motion events to the AxesGroup to handle,
+        as long as the user is not Panning or Zooming.
+
+        Parameters
+        ----------
+        event : MouseEvent
+            Matplotlib MouseEvent object with event parameters
+
+        Returns
+        -------
+        None
+
+        """
+        if self._zooming or self._panning:
+            return
         return self.ax_grp.onmotion(event)
 
-    def onrelease(self, event: MouseEvent):
+    def onrelease(self, event: MouseEvent) -> None:
+        """
+        Event Handler: Process event and emit any changes made to the active
+        Patch group (if any) upon mouse release.
+
+        Parameters
+        ----------
+        event : MouseEvent
+            Matplotlib MouseEvent object with event parameters
+
+        Returns
+        -------
+        None
+
+        """
+        if self._zooming or self._panning:
+            # for line in self._lines.values():  # type: Line2D
+            #     line.set_visible(True)
+            self.ax_grp.rescale_patches()
+            return
         if self.ax_grp.active is not None:
             pg = self.ax_grp.active  # type: PatchGroup
             if pg.modified:
@@ -979,73 +1121,25 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         print(mime.text())
     # END EXPERIMENTAL Drag-n-Drop
 
-    @staticmethod
-    def get_time_delta(x0, x1):
-        """Return a time delta from a plot axis limit"""
-        return num2date(x1) - num2date(x0)
-
-    def _on_xlim_changed(self, changed: Axes) -> None:
-        """
-        When the xlim changes (width of the graph), we want to apply a
-        decimation algorithm to the dataset to speed up the visual
-        performance of the graph. So when the graph is zoomed out we will
-        plot only one in 20 data points, and as the graph is zoomed we will
-        lower the decimation factor to zero.
-        Parameters
-        ----------
-        changed
-
-        Returns
-        -------
-        None
-        """
-        raise NotImplementedError("Need to update this for new properties")
-        # TODO: Fix to use new self._lines definition
-        _log.info("XLIM Changed!")
-        delta = self.get_time_delta(*changed.get_xlim())
-        if self.timespan:
-            ratio = delta/self.timespan * 100
-        else:
-            ratio = 100
-
-        if 50 < ratio:
-            resample = slice(None, None, 20)
-        elif 10 < ratio <= 50:
-            resample = slice(None, None, 10)
-        else:
-            resample = slice(None, None, None)
-        if resample == self.resample:
-            return
-
-        self.resample = resample
-
-        # Update line data using new resample rate
-        for ax in self:
-            if self._lines.get(id(ax), None) is not None:
-                # print(self._lines[id(ax)])
-                for line, series in self._lines[id(ax)]:
-                    r_series = series[self.resample]
-                    line[0].set_ydata(r_series.values)
-                    line[0].set_xdata(r_series.index)
-                    ax.draw_artist(line[0])
-                    _log.debug("Resampling to: {}".format(self.resample))
-            ax.relim()
-            ax.get_xaxis().set_major_formatter(DateFormatter('%H:%M:%S'))
-        self.figure.canvas.draw()
-
     def get_toolbar(self, parent=None) -> QToolBar:
         """
         Get a Matplotlib Toolbar for the current plot instance, and set toolbar
-        actions (pan/zoom) specific to this plot toolbar.actions() supports
-        indexing, with the following default buttons at the specified index:
-        1: Home
-        2: Back
-        3: Forward
-        4: Pan
-        5: Zoom
-        6: Configure Sub-plots
-        7: Edit axis, curve etc..
-        8: Save the figure
+        actions (pan/zoom) specific to this plot.
+        We also override the home action (first by monkey-patching the
+        declaration in the NavigationToolbar class) as the MPL View stack method
+        provides inconsistent results with our code.
+
+        toolbar.actions() supports indexing, with the following default
+        buttons at the specified index:
+
+            0: Home
+            1: Back
+            2: Forward
+            4: Pan
+            5: Zoom
+            6: Configure Sub-plots
+            7: Edit axis, curve etc..
+            8: Save the figure
 
         Parameters
         ----------
@@ -1058,6 +1152,8 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
             Matplotlib Qt Toolbar used to control this plot instance
         """
         toolbar = NavigationToolbar(self, parent=parent)
+
+        toolbar.actions()[0].triggered.connect(self.home)
         toolbar.actions()[4].triggered.connect(self.toggle_pan)
         toolbar.actions()[5].triggered.connect(self.toggle_zoom)
         return toolbar
