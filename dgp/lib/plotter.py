@@ -721,6 +721,9 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         self._pop_menu.addAction(
             QAction('Set Label', self, triggered=self._label_patch))
 
+    def __len__(self):
+        return len(self._plots)
+
     @property
     def axes(self):
         return [ax for ax in self._plots.values()]
