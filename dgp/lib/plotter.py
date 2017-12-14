@@ -488,7 +488,12 @@ class PatchGroup:
             String to label the patch group with.
 
         """
+        if label is None:
+            # Fixes a label being displayed as 'None'
+            label = ''
+
         self.label = label
+
         for i, patch in self._patches.items():
             px = patch.get_x() + patch.get_width() * 0.5
             ylims = patch.axes.get_ylim()
@@ -817,8 +822,8 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
                                 uid=pg.uid, start=pg.start(), stop=pg.stop(),
                                 label=pg.label)
             self.line_changed.emit(update)
-            self.draw()
         self.ax_grp.deselect()
+        self.draw()
         return
 
     def _xlim_resample(self, axes: Axes) -> None:
@@ -869,7 +874,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         self.draw()
 
     def _on_ylim_changed(self, changed: Axes) -> None:
-        if self._panning:
+        if self._panning or self._zooming:
             self.ax_grp.rescale_patches()
         return
 
@@ -1075,6 +1080,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
             # for line in self._lines.values():  # type: Line2D
             #     line.set_visible(True)
             self.ax_grp.rescale_patches()
+            self.draw()
             return
         if self.ax_grp.active is not None:
             pg = self.ax_grp.active  # type: PatchGroup
