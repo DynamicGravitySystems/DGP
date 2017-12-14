@@ -4,10 +4,14 @@
 
 import logging
 
-from PyQt5.QtGui import QDropEvent, QDragEnterEvent, QDragMoveEvent
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget
-
+from PyQt5.QtGui import (QDropEvent, QDragEnterEvent, QDragMoveEvent,
+                         QContextMenuEvent)
 from PyQt5.QtCore import QMimeData, Qt, pyqtSignal, pyqtBoundSignal
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QGridLayout, QTabWidget,
+                             QTreeView, QStackedWidget, QSizePolicy)
+import PyQt5.QtWidgets as QtWidgets
+import PyQt5.QtGui as QtGui
+
 
 from dgp.lib.plotter import LineGrabPlot, LineUpdate
 from dgp.lib.project import Flight
@@ -61,7 +65,7 @@ class WorkspaceWidget(QWidget):
 class PlotTab(WorkspaceWidget):
     """Sub-tab displayed within Flight tab interface. Displays canvas for
     plotting data series."""
-    def __init__(self, flight, label, axes: int, **kwargs):
+    def __init__(self, flight: Flight, label: str, axes: int, **kwargs):
         super().__init__(label, **kwargs)
         self.log = logging.getLogger('PlotTab')
 
@@ -76,12 +80,9 @@ class PlotTab(WorkspaceWidget):
         self._apply_state()
         self._init_model()
 
-    def _apply_state(self):
+    def _apply_state(self) -> None:
         """
         Apply saved state to plot based on Flight plot channels.
-        Returns
-        -------
-
         """
         state = self._flight.get_plot_state()
         draw = False
@@ -89,13 +90,14 @@ class PlotTab(WorkspaceWidget):
             self._plot.add_series(dc, dc.plotted)
 
         for line in self._flight.lines:
-            self._plot.draw_patch(line.start, line.stop, line.uid)
+            self._plot.add_patch(line.start, line.stop, line.uid,
+                                 label=line.label)
             draw = True
         if draw:
             self._plot.draw()
 
     def _init_model(self):
-        channels = list(self._flight.channels)
+        channels = self._flight.channels
         plot_model = models.ChannelListModel(channels, len(self._plot))
         plot_model.plotOverflow.connect(self._too_many_children)
         plot_model.channelChanged.connect(self._on_channel_changed)
@@ -104,11 +106,8 @@ class PlotTab(WorkspaceWidget):
 
     def data_modified(self, action: str, uid: str):
         self.log.info("Adding channels to model.")
-        channels = list(self._flight.channels)
-        for cn in channels:
-            self.model.append_channel(cn)
-        self.model.update()
-        # self._init_model()
+        channels = self._flight.channels
+        self.model.set_channels(channels)
 
     def _on_modified_line(self, info: LineUpdate):
         flight = self._flight
@@ -135,28 +134,80 @@ class PlotTab(WorkspaceWidget):
                            .format(flt=flight.name, start=info.start,
                                    stop=info.stop, label=info.label))
 
-    def _on_channel_changed(self, new, old, channel: types.DataChannel):
-        self.log.info("Channel change request: new{} old{}".format(new, old))
-        if new == -1:
-            self.log.debug("Removing series from plot")
-            self._plot.remove_series(channel)
-            return
-        if old == -1:
-            self.log.info("Adding series to plot")
-            self._plot.add_series(channel, new)
-            return
+    def _on_channel_changed(self, new: int, channel: types.DataChannel):
+        self.log.info("Channel change request: new index: {}".format(new))
+
         self.log.debug("Moving series on plot")
-        # self._plot.move_series(channel.uid, new)
         self._plot.remove_series(channel)
-        self._plot.add_series(channel, new)
-        return
+        if new != -1:
+            self._plot.add_series(channel, new)
+        else:
+            print("destination is -1")
+        self.model.update()
 
     def _too_many_children(self, uid):
         self.log.warning("Too many children for plot: {}".format(uid))
 
 
 class TransformTab(WorkspaceWidget):
-    pass
+    def __init__(self, flight, label, *args, **kwargs):
+        super().__init__(label)
+        self._flight = flight
+        self._elements = {}
+
+        self._setupUi()
+        self._init_model()
+
+    def _setupUi(self) -> None:
+        """
+        Initialize the UI Components of the Transform Tab.
+        Major components (plot, transform view, info panel) are added to the
+        instance _elements dict.
+
+        """
+        grid = QGridLayout()
+        transform = QTreeView()
+        transform.setSizePolicy(QSizePolicy.Minimum,
+                                       QSizePolicy.Expanding)
+        info = QtWidgets.QTextEdit()
+        info.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+
+        plot = LineGrabPlot(self._flight, 2)
+        plot.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        plot_toolbar = plot.get_toolbar()
+
+        # Testing layout
+        btn = QtWidgets.QPushButton("Add")
+        btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        btn.pressed.connect(lambda: info.show())
+
+        btn2 = QtWidgets.QPushButton("Remove")
+        btn2.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        btn2.pressed.connect(lambda: info.hide())
+
+        grid.addWidget(transform, 0, 0)
+        grid.addWidget(btn, 2, 0)
+        grid.addWidget(btn2, 3, 0)
+        grid.addWidget(info, 1, 0)
+        grid.addWidget(plot, 0, 1, 3, 1)
+        grid.addWidget(plot_toolbar, 3, 1)
+
+        self.setLayout(grid)
+
+        elements = {'transform': transform,
+                    'plot': plot,
+                    'toolbar': plot_toolbar,
+                    'info': info}
+        self._elements.update(elements)
+
+    def _init_model(self):
+        channels = self._flight.channels
+        plot_model = models.ChannelListModel(channels, len(self._elements[
+                                                               'plot']))
+        # plot_model.plotOverflow.connect(self._too_many_children)
+        # plot_model.channelChanged.connect(self._on_channel_changed)
+        plot_model.update()
+        self.model = plot_model
 
 
 class MapTab(WorkspaceWidget):
@@ -181,7 +232,8 @@ class FlightTab(QWidget):
         # Define Sub-Tabs within Flight space e.g. Plot, Transform, Maps
         self._plot_tab = PlotTab(flight, "Plot", 3)
 
-        self._transform_tab = WorkspaceWidget("Transforms")
+        # self._transform_tab = WorkspaceWidget("Transforms")
+        self._transform_tab = TransformTab(flight, "Transforms")
         self._map_tab = WorkspaceWidget("Map")
 
         self._workspace.addTab(self._plot_tab, "Plot")
@@ -226,3 +278,43 @@ class FlightTab(QWidget):
         are switched."""
         current_tab = self._workspace.currentWidget()  # type: WorkspaceWidget
         return current_tab.model
+
+
+class CustomTabBar(QtWidgets.QTabBar):
+    """Custom Tab Bar to allow us to implement a custom Context Menu to
+    handle right-click events."""
+    def __init__(self, parent=None):
+        super().__init__(parent=parent)
+        self.setShape(self.RoundedNorth)
+        self.setTabsClosable(True)
+        self.setMovable(True)
+
+        self._actions = []  # Store action objects to keep a reference so no GC
+        # Allow closing tab via Ctrl+W key shortcut
+        _close_action = QtWidgets.QAction("Close")
+        _close_action.triggered.connect(
+            lambda: self.tabCloseRequested.emit(self.currentIndex()))
+        _close_action.setShortcut(QtGui.QKeySequence("Ctrl+W"))
+        self.addAction(_close_action)
+        self._actions.append(_close_action)
+
+    def contextMenuEvent(self, event: QContextMenuEvent, *args, **kwargs):
+        tab = self.tabAt(event.pos())
+
+        menu = QtWidgets.QMenu()
+        menu.setTitle('Tab: ')
+        kill_action = QtWidgets.QAction("Kill")
+        kill_action.triggered.connect(lambda: self.tabCloseRequested.emit(tab))
+
+        menu.addAction(kill_action)
+
+        menu.exec_(event.globalPos())
+        event.accept()
+
+
+class TabWorkspace(QtWidgets.QTabWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent=parent)
+
+        bar = CustomTabBar()
+        self.setTabBar(bar)

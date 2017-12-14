@@ -1,20 +1,10 @@
 # coding: utf-8
 
-"""
-Provide definitions of the models used by the Qt Application in our
-model/view widgets.
-Defines:
-TableModel
-ProjectModel
-SelectionDelegate
-ChannelListModel
-"""
-
 import logging
-from typing import Union, List
+from typing import List, Dict
 
 import PyQt5.QtCore as QtCore
-from PyQt5 import Qt
+import PyQt5.Qt as Qt
 from PyQt5.Qt import QWidget
 from PyQt5.QtCore import (QModelIndex, QVariant, QAbstractItemModel,
                           QMimeData, pyqtSignal, pyqtBoundSignal)
@@ -22,7 +12,23 @@ from PyQt5.QtGui import QIcon, QBrush, QColor
 from PyQt5.QtWidgets import QComboBox
 
 from dgp.gui.qtenum import QtDataRoles, QtItemFlags
-from dgp.lib.types import AbstractTreeItem, TreeItem, TreeLabelItem, DataChannel
+from dgp.lib.types import (AbstractTreeItem, BaseTreeItem, TreeItem,
+                           ChannelListHeader, DataChannel)
+from dgp.lib.etc import gen_uuid
+
+"""
+Dynamic Gravity Processor (DGP) :: gui/models.py
+License: Apache License V2
+
+Overview:
+Defines the various custom Qt Models derived from QAbstract*Model used to 
+display data in the graphical interface via a Q*View (List/Tree/Table)
+
+See Also
+--------
+dgp.lib.types.py : Defines many of the objects used within the models
+
+"""
 
 
 class TableModel(QtCore.QAbstractTableModel):
@@ -263,8 +269,7 @@ class ProjectModel(BaseTreeModel):
 
         return QVariant(data)
 
-    @staticmethod
-    def flags(index: QModelIndex) -> QtItemFlags:
+    def flags(self, index: QModelIndex) -> QtItemFlags:
         """Return the flags of an item at the specified ModelIndex"""
         if not index.isValid():
             return QtItemFlags.NoItemFlags
@@ -321,73 +326,76 @@ class ChannelListModel(BaseTreeModel):
     """
     Tree type model for displaying/plotting data channels.
     This model supports drag and drop internally.
+
+    Attributes
+    ----------
+    _plots : dict(int, ChannelListHeader)
+        Mapping of plot index to the associated Tree Item of type
+        ChannelListHeader
+    channels : dict(str, DataChannel)
+        Mapping of DataChannel UID to DataChannel
+    _default : ChannelListHeader
+        The default container for channels if they are not assigned to a plot
+    plotOverflow : pyqtSignal(str)
+        Signal emitted when drop operation would result in too many children,
+        ChannelListHeader.uid is passed.
+    channelChanged : pyqtSignal(int, DataChannel)
+        Signal emitted when DataChannel has been dropped to new parent/header
+        Emits index of new header, and the DataChannel that was changed.
+
     """
 
     plotOverflow = pyqtSignal(str)  # type: pyqtBoundSignal
-    # signal(int: new index, int: old index, DataChannel)
-    # return -1 if item removed from plots to available list
-    channelChanged = pyqtSignal(int, int, DataChannel)  # type: pyqtBoundSignal
+    channelChanged = pyqtSignal(int, DataChannel)  # type: pyqtBoundSignal
 
     def __init__(self, channels: List[DataChannel], plots: int, parent=None):
-        """
-        Init sets up a model with n+1 top-level headers where n = plots.
-        Each plot has a header that channels can then be dragged to from the
-        available channel list.
-        The available channels list (displayed below the plot headers is
-        constructed from the list of channels supplied.
-        The plot headers limit the number of items that can be children to 2,
-        this is so that the MatplotLib plotting canvas can display a left and
-        right Y axis scale for each plot.
-
-        Parameters
-        ----------
-        channels : List[DataChannel]
-        plots
-        parent
-        """
-        super().__init__(TreeLabelItem('Channel Selection'), parent=parent)
-        # It might be worthwhile to create a dedicated plot TreeItem for comp
+        super().__init__(BaseTreeItem(gen_uuid('base')), parent=parent)
         self._plots = {}
-        self._child_limit = 2
         for i in range(plots):
-            plt_label = TreeLabelItem('Plot {}'.format(i), True, 2)
-            self._plots[i] = plt_label
-            self.root.append_child(plt_label)
-        self._available = TreeLabelItem('Available Channels')
-        self._channels = {}
-        # for channel in channels:
-        #     self._available.append_child(channel)
-        #     self._channels[channel.uid] = channel
-        self._build_model(channels)
-        self.root.append_child(self._available)
+            plt_header = ChannelListHeader(i, ctype='Plot', max_children=2)
+            self._plots[i] = plt_header
+            self.root.append_child(plt_header)
 
-    def _build_model(self, channels: List[DataChannel]):
+        self._default = ChannelListHeader()
+        self.root.append_child(self._default)
+
+        self.channels = self._build_model(channels)
+
+    def _build_model(self, channels: list) -> Dict[str, DataChannel]:
         """Build the model representation"""
-        for channel in channels:  # type: DataChannel
-            self._channels[channel.uid] = channel
-            if channel.plotted != -1:
-                self._plots[channel.plotted].append_child(channel)
-            else:
-                self._available.append_child(channel)
+        rv = {}
+        for dc in channels:  # type: DataChannel
+            rv[dc.uid] = dc
+            if dc.index == -1:
+                self._default.append_child(dc)
+                continue
+            try:
+                self._plots[dc.index].append_child(dc)
+            except KeyError:
+                self.log.warning('Channel {} could not be plotted, plot does '
+                                 'not exist'.format(dc.uid))
+                dc.plot(None)
+                self._default.append_child(dc)
+        return rv
 
-    def append_channel(self, channel: DataChannel):
-        self._available.append_child(channel)
-        self._channels[channel.uid] = channel
+    def clear(self):
+        """Remove all channels from the model"""
+        for dc in self.channels.values():
+            dc.orphan()
+        self.channels = None
+        self.update()
 
-    def remove_channel(self, uid: str) -> bool:
-        if uid not in self._channels:
-            return False
-        cn = self._channels[uid]  # type: DataChannel
-        cn_parent = cn.parent
-        cn_parent.remove_child(cn)
-        del self._channels[uid]
-        return True
+    def set_channels(self, channels: list):
+        self.clear()
+        self.channels = self._build_model(channels)
+        self.update()
 
     def move_channel(self, uid, index) -> bool:
         """Move channel specified by uid to parent at index"""
+        raise NotImplementedError("Method not yet implemented or required.")
 
     def update(self) -> None:
-        """Update the model layout."""
+        """Update the models view layout."""
         self.layoutAboutToBeChanged.emit()
         self.layoutChanged.emit()
 
@@ -416,53 +424,94 @@ class ChannelListModel(BaseTreeModel):
     def dropMimeData(self, data: QMimeData, action, row, col,
                      parent: QModelIndex) -> bool:
         """
-        Called when data is dropped into the model.
-        This model accepts only Move actions, and expects the data to be
-        textual, containing the UID of the DataChannel that is being dropped.
-        This method will also check to see that a drop will not violate the
-        _child_limit, as we want to limit the number of children to 2 for any
-        plot, allowing us to display twin y-axis scales.
+        Called by the Q*x*View when a Mime Data object is dropped within its
+        frame.
+        This model supports only the Qt.MoveAction, and will reject any others.
+        This method will check several properties before accepting/executing
+        the drop action.
+
+          - Verify that action == Qt.MoveAction
+          - Ensure data.hasText() is True
+          - Lookup the channel referenced by data, ensure it exists
+          - Check that the destination (parent) will not exceed its max_child
+            limit if the drop is accepted.
+
+        Also note that if a channel is somehow dropped to an invalid index,
+        it will simply be added back to the default container (Available
+        Channels)
+
+        Parameters
+        ----------
+        data : QMimeData
+            A QMimeData object containing text data with a DataChannel UID
+        action : Qt.DropActions
+            An Enum/Flag passed by the View. Must be of value Qt::MoveAction
+        row, col : int
+            Row and column of the parent that the data has been dropped on/in.
+            If row and col are both -1, the data has been dropped directly on
+            the parent.
+        parent : QModelIndex
+            The QModelIndex of the model item that the data has been dropped
+            in or on.
+
+        Returns
+        -------
+        result : bool
+            True on sucessful drop.
+            False if drop is rejected.
+            Failure may be due to the parent having too many children,
+            or the data did not have a properly encoded UID string, or the
+            UID could not be looked up in the model channels.
+
         """
         if action != QtCore.Qt.MoveAction:
             return False
         if not data.hasText():
             return False
 
-        drop_object = self._channels.get(data.text(), None)  # type: DataChannel
-        if drop_object is None:
+        dc = self.channels.get(data.text(), None)  # type: DataChannel
+        if dc is None:
             return False
 
         if not parent.isValid():
-            if row == -1:
-                p_item = self._available
-                drop_object.plotted = False
-                drop_object.axes = -1
+            # An invalid parent can be caused if an item is dropped between
+            # headers, as its parent is then the root object. In this case
+            # try to get the header it was dropped under from the _plots map.
+            # If we can get a valid ChannelListHeader, set destination to
+            # that, and recreate the parent QModelIndex to point refer to the
+            # new destination.
+            if row-1 in self._plots:
+                destination = self._plots[row-1]
+                parent = self.index(row-1, 0)
             else:
-                p_item = self.root.child(row-1)
+                # Otherwise if the object was in the _default header, and is
+                # dropped in an invalid manner, don't remove and re-add it to
+                # the _default, just abort the move.
+                if dc.parent == self._default:
+                    return False
+                destination = self._default
+                parent = self.index(self._default.row(), 0)
         else:
-            p_item = parent.internalPointer()  # type: TreeLabelItem
-        if p_item.child_count() >= self._child_limit:
-            if p_item != self._available:
-                self.plotOverflow.emit(p_item.uid)
-                return False
+            destination = parent.internalPointer()
 
-        # Remove the object to be dropped from its previous parent
-        drop_parent = drop_object.parent
-        drop_parent.remove_child(drop_object)
-        self.beginInsertRows(parent, row, row)
-        # For simplicity, simply append as the sub-order doesn't matter
-        drop_object.axes = p_item.row()
-        p_item.append_child(drop_object)
+        if destination.max_children is not None and (
+                destination.child_count() + 1 > destination.max_children):
+            self.plotOverflow.emit(destination.uid)
+            return False
+
+        old_index = self.index(dc.parent.row(), 0)
+        # Remove channel from old parent/header
+        self.beginRemoveRows(old_index, dc.row(), dc.row())
+        dc.orphan()
+        self.endRemoveRows()
+
+        # Add channel to new parent/header
+        n_row = destination.child_count()
+        self.beginInsertRows(parent, n_row, n_row)
+        destination.append_child(dc)
         self.endInsertRows()
-        if drop_parent is self._available:
-            old_row = -1
-        else:
-            old_row = drop_parent.row()
-        if p_item is self._available:
-            row = -1
-        else:
-            row = p_item.row()
-        self.channelChanged.emit(row, old_row, drop_object)
+
+        self.channelChanged.emit(destination.index, dc)
         self.update()
         return True
 
@@ -472,17 +521,39 @@ class ChannelListModel(BaseTreeModel):
         Queried when Mime data is dragged over/into the model. Returns 
         True if the data can be dropped. Does not guarantee that it will be 
         accepted.
+        
+        This method simply checks that the data has text within it.
+        
+        Returns
+        -------
+        canDrop : bool
+            True if data can be dropped at the hover location.
+            False if the data cannot be dropped at the location.
         """
         if data.hasText():
             return True
         return False
 
-    def mimeData(self, indexes):
-        """Get the mime encoded data for selected index."""
+    def mimeData(self, indexes) -> QMimeData:
+        """
+        Create a QMimeData object for the item(s) specified by indexes.
+
+        This model simply encodes the UID of the selected item (index 0 of
+        indexes - single selection only), into text/plain MIME object.
+
+        Parameters
+        ----------
+        indexes : list(QModelIndex)
+            List of QModelIndexes of the selected model items.
+
+        Returns
+        -------
+        QMimeData
+            text/plain QMimeData object, containing model item UID.
+
+        """
         index = indexes[0]
         item_uid = index.internalPointer().uid
-        print("UID for picked item: ", item_uid)
-        print("Picked item label: ", index.internalPointer().label)
         data = QMimeData()
         data.setText(item_uid)
         return data

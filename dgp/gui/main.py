@@ -22,7 +22,7 @@ from dgp.gui.utils import (ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP,
 from dgp.gui.dialogs import (AddFlight, CreateProject, InfoDialog,
                              AdvancedImport)
 from dgp.gui.models import TableModel, ProjectModel
-from dgp.gui.widgets import FlightTab
+from dgp.gui.widgets import FlightTab, TabWorkspace
 
 
 # Load .ui form
@@ -92,7 +92,8 @@ class MainWindow(QMainWindow, main_window):
             'Desktop')
 
         # Issue #50 Flight Tabs
-        self._tabs = self.tab_workspace  # type: QTabWidget
+        self._tabs = self.tab_workspace  # type: TabWorkspace
+        # self._tabs = CustomTabWidget()
         self._open_tabs = {}  # Track opened tabs by {uid: tab_widget, ...}
         self._context_tree = self.contextual_tree  # type: QTreeView
         self._context_tree.setRootIsDecorated(False)
@@ -174,6 +175,7 @@ class MainWindow(QMainWindow, main_window):
 
     def write_console(self, text, level):
         """PyQt Slot: Logs a message to the GUI console"""
+        # TODO: log_color is defined elsewhere, use it.
         log_color = {'DEBUG': QColor('DarkBlue'), 'INFO': QColor('Green'),
                      'WARNING': QColor('Red'), 'ERROR': QColor('Pink'),
                      'CRITICAL': QColor('Orange')}.get(level.upper(),
@@ -219,7 +221,7 @@ class MainWindow(QMainWindow, main_window):
         self._tabs.setCurrentIndex(t_idx)
 
     def _tab_closed(self, index: int):
-        # TODO: This will handle close requests for a tab
+        # TODO: Should we delete the tab, or pop it off the stack to a cache?
         self.log.warning("Tab close requested for tab: {}".format(index))
         flight_id = self._tabs.widget(index).flight.uid
         self._tabs.removeTab(index)
