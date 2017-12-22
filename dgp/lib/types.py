@@ -1,5 +1,6 @@
 # coding: utf-8
 
+import json
 from abc import ABCMeta, abstractmethod
 from collections import namedtuple
 from typing import Union, Generator, List
@@ -112,7 +113,7 @@ class BaseTreeItem(AbstractTreeItem):
         self._uid = uid
         self._parent = parent
         self._children = []
-        self._child_map = {}  # Used for fast lookup by UID
+        # self._child_map = {}  # Used for fast lookup by UID
         if parent is not None:
             parent.append_child(self)
 
@@ -149,22 +150,32 @@ class BaseTreeItem(AbstractTreeItem):
     def data(self, role: QtDataRoles):
         raise NotImplementedError("data(role) must be implemented in subclass.")
 
-    def child(self, index: Union[int, str]):
-        if isinstance(index, str):
-            return self._child_map[index]
+    def child(self, index: int) -> AbstractTreeItem:
         return self._children[index]
 
-    def append_child(self, child: AbstractTreeItem) -> None:
+    def get_child(self, uid: str) -> 'BaseTreeItem':
+        """Get a child by UID reference."""
+        for child in self._children:
+            if child.uid == uid:
+                return child
+
+    def append_child(self, child: AbstractTreeItem) -> str:
         """
         Appends a child AbstractTreeItem to this object. An object that is
         not an instance of AbstractTreeItem will be rejected and an Assertion
         Error will be raised.
         Likewise if a child already exists within this object, it will
         silently continue without duplicating the child.
+
         Parameters
         ----------
         child: AbstractTreeItem
             Child AbstractTreeItem to append to this object.
+
+        Returns
+        -------
+        str:
+            UID of appended child
 
         Raises
         ------
@@ -172,24 +183,19 @@ class BaseTreeItem(AbstractTreeItem):
             If child is not an instance of AbstractTreeItem, an Assertion
             Error is raised, and the child will not be appended to this object.
         """
-        assert isinstance(child, AbstractTreeItem)
+        assert isinstance(child, BaseTreeItem)
         if child in self._children:
             # Appending same child should have no effect
-            return
+            return child.uid
         child.parent = self
         self._children.append(child)
-        self._child_map[child.uid] = child
         self.update()
+        return child.uid
 
-    def remove_child(self, child: Union[AbstractTreeItem, str]):
-        # Allow children to be removed by UID
-        if isinstance(child, str):
-            child = self._child_map[child]
+    def remove_child(self, child: AbstractTreeItem):
         if child not in self._children:
             return False
-            raise ValueError("Child does not exist for this parent")
         child.parent = None
-        del self._child_map[child.uid]
         self._children.remove(child)
         self.update()
         return True
@@ -200,7 +206,6 @@ class BaseTreeItem(AbstractTreeItem):
             return True
         print("Inserting ATI child at index: ", index)
         self._children.insert(index, child)
-        self._child_map[child.uid] = child
         self.update()
         return True
 
@@ -238,10 +243,16 @@ class BaseTreeItem(AbstractTreeItem):
             self.parent.update(**kwargs)
 
 
+_style_roles = {QtDataRoles.BackgroundRole: 'bg',
+                QtDataRoles.ForegroundRole: 'fg',
+                QtDataRoles.DecorationRole: 'icon',
+                QtDataRoles.FontRole: 'font'}
+
+
 class TreeItem(BaseTreeItem):
     """
-    TreeItem extends BaseTreeItem and adds some extra convenience methods (
-    __str__, __len__, __iter__, __getitem__, __contains__), as well as
+    TreeItem extends BaseTreeItem and adds some extra convenience methods
+    (__str__, __len__, __iter__, __getitem__, __contains__), as well as
     defining a default data() method which can apply styles set via the style
     property in this class.
     """
@@ -249,10 +260,6 @@ class TreeItem(BaseTreeItem):
     def __init__(self, uid: str, parent: AbstractTreeItem=None):
         super().__init__(uid, parent)
         self._style = {}
-        self._style_roles = {QtDataRoles.BackgroundRole: 'bg',
-                             QtDataRoles.ForegroundRole: 'fg',
-                             QtDataRoles.DecorationRole: 'icon',
-                             QtDataRoles.FontRole: 'font'}
 
     def __str__(self):
         return "<TreeItem(uid={})>".format(self.uid)
@@ -303,8 +310,8 @@ class TreeItem(BaseTreeItem):
         # Allow style specification by QtDataRole or by name e.g. 'bg', 'fg'
         if role in self._style:
             return self._style[role]
-        if role in self._style_roles:
-            key = self._style_roles[role]
+        if role in _style_roles:
+            key = _style_roles[role]
             return self._style.get(key, None)
         return None
 
@@ -536,4 +543,3 @@ class DataChannel(BaseTreeItem):
             return res
         except ValueError:
             return False
-

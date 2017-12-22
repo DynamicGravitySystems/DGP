@@ -113,7 +113,7 @@ class PlotTab(WorkspaceWidget):
         flight = self._flight
         if info.uid in [x.uid for x in flight.lines]:
             if info.action == 'modify':
-                line = flight.lines[info.uid]
+                line = flight.lines.get_child(info.uid)
                 line.start = info.start
                 line.stop = info.stop
                 line.label = info.label
