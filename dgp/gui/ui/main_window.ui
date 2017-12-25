@@ -82,7 +82,8 @@
     <property name="title">
      <string>Project</string>
     </property>
-    <addaction name="action_import_data"/>
+    <addaction name="action_import_grav"/>
+    <addaction name="action_import_gps"/>
     <addaction name="action_add_flight"/>
     <addaction name="action_add_meter"/>
     <addaction name="action_project_info"/>
@@ -189,9 +190,9 @@
         </widget>
        </item>
        <item row="4" column="0">
-        <widget class="QPushButton" name="prj_import_data">
+        <widget class="QPushButton" name="prj_import_gps">
          <property name="text">
-          <string>Import Data</string>
+          <string>Import GPS</string>
          </property>
          <property name="icon">
           <iconset resource="resources.qrc">
@@ -200,9 +201,9 @@
         </widget>
        </item>
        <item row="4" column="1">
-        <widget class="QPushButton" name="prj_reset_channels">
+        <widget class="QPushButton" name="prj_import_grav">
          <property name="text">
-          <string>Reset Channels</string>
+          <string>Import Gravity</string>
          </property>
         </widget>
        </item>
@@ -648,6 +649,16 @@
    </property>
    <property name="shortcut">
     <string>Alt+3</string>
+   </property>
+  </action>
+  <action name="action_import_gps">
+   <property name="text">
+    <string>Import GPS</string>
+   </property>
+  </action>
+  <action name="action_import_grav">
+   <property name="text">
+    <string>Import Gravity</string>
    </property>
   </action>
  </widget>

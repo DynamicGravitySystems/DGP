@@ -144,7 +144,11 @@ class MainWindow(QMainWindow, main_window):
         self.action_file_save.triggered.connect(self.save_project)
 
         # Project Menu Actions #
-        self.action_import_data.triggered.connect(self.import_data_dialog)
+        # self.action_import_data.triggered.connect(self.import_data_dialog)
+        self.action_import_grav.triggered.connect(
+            lambda: self.import_data_dialog('gravity'))
+        self.action_import_gps.triggered.connect(
+            lambda: self.import_data_dialog('gps'))
         self.action_add_flight.triggered.connect(self.add_flight_dialog)
 
         # Project Tree View Actions #
@@ -152,7 +156,11 @@ class MainWindow(QMainWindow, main_window):
 
         # Project Control Buttons #
         self.prj_add_flight.clicked.connect(self.add_flight_dialog)
-        self.prj_import_data.clicked.connect(self.import_data_dialog)
+        # self.prj_import_data.clicked.connect(self.import_data_dialog)
+        self.prj_import_gps.clicked.connect(
+            lambda: self.import_data_dialog('gps'))
+        self.prj_import_grav.clicked.connect(
+            lambda: self.import_data_dialog('gravity'))
 
         # Tab Browser Actions #
         self.tab_workspace.currentChanged.connect(self._tab_changed)
@@ -313,10 +321,10 @@ class MainWindow(QMainWindow, main_window):
     # Project dialog functions
     #####
 
-    def import_data_dialog(self) -> None:
+    def import_data_dialog(self, dtype=None) -> None:
         """Load data file (GPS or Gravity) using a background Thread, then hand
         it off to the project."""
-        dialog = AdvancedImport(self.project, self.current_flight)
+        dialog = AdvancedImport(self.project, self.current_flight, dtype=dtype)
         if dialog.exec_():
             path, dtype, fields, flight = dialog.content
             self.import_data(path, dtype, flight, fields=fields)

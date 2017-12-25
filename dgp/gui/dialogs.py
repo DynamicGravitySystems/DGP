@@ -6,7 +6,7 @@ import datetime
 import pathlib
 from typing import Union, List
 
-from PyQt5 import Qt
+import PyQt5.Qt as Qt
 import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtCore as QtCore
 from PyQt5.uic import loadUiType
@@ -19,6 +19,7 @@ from dgp.lib.etc import gen_uuid
 
 data_dialog, _ = loadUiType('dgp/gui/ui/data_import_dialog.ui')
 advanced_import, _ = loadUiType('dgp/gui/ui/advanced_data_import.ui')
+edit_view, _ = loadUiType('dgp/gui/ui/edit_import_view.ui')
 flight_dialog, _ = loadUiType('dgp/gui/ui/add_flight_dialog.ui')
 project_dialog, _ = loadUiType('dgp/gui/ui/project_dialog.ui')
 info_dialog, _ = loadUiType('dgp/gui/ui/info_dialog.ui')
@@ -122,8 +123,52 @@ class ImportData(QtWidgets.QDialog, data_dialog):
         return self.path, self.dtype, self.flight
 
 
+class EditImportView(QtWidgets.QDialog, edit_view):
+    """
+    Take lines of data with corresponding fields and populate custom Table Model
+    Fields can be exchanged via a custom Selection Delegate, which provides a
+    drop-down combobox of available fields.
+    """
+    def __init__(self, data, fields, parent):
+        flags = Qt.Qt.FramelessWindowHint
+        super().__init__(parent=parent, flags=flags)
+        self.setupUi(self)
+        self._base_h = self.height()
+        self._base_w = self.width()
+        self._view = self.table_col_edit  # type: QtWidgets.QTableView
+
+        self.setup_model(fields, data)
+        self.btn_reset.clicked.connect(lambda: self.setup_model(fields, data))
+
+    @property
+    def columns(self):
+        return self._view.model().get_row(0)
+
+    def setup_model(self, fields, data):
+        delegate = SelectionDelegate(fields)
+
+        model = TableModel(fields, editheader=True)
+        model.append(*fields)
+        for line in data:
+            model.append(*line)
+
+        self._view.setModel(model)
+        self._view.setItemDelegate(delegate)
+        self._view.resizeColumnsToContents()
+
+        width = self._base_w
+        for idx in range(model.columnCount()):
+            width += self._view.columnWidth(idx)
+
+        height = self._base_h - 100
+        for idx in range(model.rowCount()):
+            height += self._view.rowHeight(idx)
+
+        self.resize(self.width(), height)
+
+
 class AdvancedImport(QtWidgets.QDialog, advanced_import):
-    def __init__(self, project, flight, parent=None):
+    def __init__(self, project, flight, dtype='gravity', parent=None):
         """
 
         Parameters
@@ -138,9 +183,12 @@ class AdvancedImport(QtWidgets.QDialog, advanced_import):
         super().__init__(parent=parent)
         self.setupUi(self)
         self._preview_limit = 5
-        self._project = project
+        # self._project = project
         self._path = None
         self._flight = flight
+        self._cols = None
+        self._dtype = dtype
+        self.setWindowTitle("Import {}".format(dtype.capitalize()))
 
         for flt in project.flights:
             self.combo_flights.addItem(flt.name, flt)
@@ -149,71 +197,65 @@ class AdvancedImport(QtWidgets.QDialog, advanced_import):
                 self.combo_flights.setCurrentIndex(self.combo_flights.count()-1)
 
         # Signals/Slots
-        self.line_path.textChanged.connect(self._preview)
         self.btn_browse.clicked.connect(self.browse_file)
-        self.btn_setcols.clicked.connect(self._capture)
-        self.btn_reload.clicked.connect(lambda: self._preview(self._path))
+        self.btn_edit_cols.clicked.connect(self._edit_cols)
+
+        self.browse_file()
 
     @property
     def content(self) -> (str, str, List, prj.Flight):
-        return self._path, self._dtype(), self._capture(), self._flight
+        return self._path, self._dtype, self._cols, self._flight
+
+    @property
+    def path(self):
+        return self._path
 
     def accept(self) -> None:
         self._flight = self.combo_flights.currentData()
         super().accept()
         return
 
-    def _capture(self) -> Union[None, List]:
-        table = self.table_preview  # type: QtWidgets.QTableView
-        model = table.model()  # type: TableModel
-        if model is None:
-            return None
-        print("Row 0 {}".format(model.get_row(0)))
-        fields = model.get_row(0)
-        return fields
-
-    def _dtype(self):
-        return {'GPS': 'gps', 'Gravity': 'gravity'}.get(
-            self.group_dtype.checkedButton().text().replace('&', ''), 'gravity')
-
-    def _preview(self, path: str):
-        if path is None:
+    def _edit_cols(self):
+        if self.path is None:
             return
-        path = pathlib.Path(path)
-        if not path.exists():
-            print("Path doesn't exist")
-            return
+
         lines = []
-        with path.open('r') as fd:
+        with open(self.path, mode='r') as fd:
             for i, line in enumerate(fd):
-                cells = line.split(',')
-                lines.append(cells)
-                if i >= self._preview_limit:
+                lines.append(line.split(','))
+                if i == self._preview_limit:
                     break
 
-        dtype = self._dtype()
-        if dtype == 'gravity':
+        if self._cols is not None:
+            fields = self._cols
+        elif self._dtype == 'gravity':
             fields = ['gravity', 'long', 'cross', 'beam', 'temp', 'status',
                       'pressure', 'Etemp', 'GPSweek', 'GPSweekseconds']
-        elif dtype == 'gps':
-            fields = ['mdy', 'hms', 'latitude', 'longitude', 'ell_ht',
-                      'ortho_ht', 'num_sats', 'pdop']
+        elif self._dtype == 'gps':
+            fields = ['mdy', 'hms', 'lat', 'long', 'ell_ht']
         else:
-            return
-        delegate = SelectionDelegate(fields)
-        model = TableModel(fields, editheader=True)
-        model.append(*fields)
-        for line in lines:
-            model.append(*line)
-        self.table_preview.setModel(model)
-        self.table_preview.setItemDelegate(delegate)
+            fields = []
+
+        dlg = EditImportView(lines, fields=fields, parent=self)
+
+        if dlg.exec_():
+            self._cols = dlg.columns
+            print("Columns from edit: {}".format(self._cols))
 
     def browse_file(self):
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self, "Select Data File", os.getcwd(), "Data (*.dat *.csv *.txt)")
+            self, "Select {} Data File".format(self._dtype.capitalize()),
+            os.getcwd(), "Data (*.dat *.csv *.txt)")
         if path:
             self.line_path.setText(str(path))
             self._path = path
+            stats = os.stat(path)
+            self.label_fsize.setText("{:.3f} MiB".format(stats.st_size/1048576))
+            lines = 0
+            with open(path) as fd:
+                for _ in fd:
+                    lines += 1
+            self.field_line_count.setText("{}".format(lines))
 
 
 class AddFlight(QtWidgets.QDialog, flight_dialog):
@@ -291,7 +333,8 @@ class CreateProject(QtWidgets.QDialog, project_dialog):
 
         self.prj_create.clicked.connect(self.create_project)
         self.prj_browse.clicked.connect(self.select_dir)
-        self.prj_desktop.clicked.connect(self._select_desktop)
+        desktop = pathlib.Path().home().joinpath('Desktop')
+        self.prj_dir.setText(str(desktop))
 
         self._project = None
 
@@ -341,17 +384,12 @@ class CreateProject(QtWidgets.QDialog, project_dialog):
             path = pathlib.Path(self.prj_dir.text()).joinpath(name)
             if not path.exists():
                 path.mkdir(parents=True)
-            self._project = prj.AirborneProject(path, name,
-                                                self.prj_description.toPlainText().rstrip())
+            self._project = prj.AirborneProject(path, name)
         else:
             self.log.error("Invalid Project Type (Not Implemented)")
             return
 
         self.accept()
-
-    def _select_desktop(self):
-        path = pathlib.Path().home().joinpath('Desktop')
-        self.prj_dir.setText(str(path))
 
     def select_dir(self):
         path = QtWidgets.QFileDialog.getExistingDirectory(
@@ -372,12 +410,12 @@ class InfoDialog(QtWidgets.QDialog, info_dialog):
         self.setModel(self._model)
         self.updates = None
 
-    def setModel(self, model):
+    def setModel(self, model: QtCore.QAbstractTableModel):
         table = self.table_info  # type: QtWidgets.QTableView
         table.setModel(model)
         table.resizeColumnsToContents()
         width = 50
-        for col_idx in range(table.colorCount()):
+        for col_idx in range(model.columnCount()):
             width += table.columnWidth(col_idx)
         self.resize(width, self.height())
 
