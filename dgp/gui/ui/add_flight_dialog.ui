@@ -6,14 +6,14 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>650</width>
-    <height>650</height>
+    <width>550</width>
+    <height>466</height>
    </rect>
   </property>
   <property name="maximumSize">
    <size>
-    <width>10000</width>
-    <height>10000</height>
+    <width>16777215</width>
+    <height>16777215</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -23,231 +23,247 @@
    <iconset resource="resources.qrc">
     <normaloff>:/images/assets/flight_icon.png</normaloff>:/images/assets/flight_icon.png</iconset>
   </property>
-  <layout class="QFormLayout" name="formLayout">
-   <item row="0" column="0">
-    <widget class="QLabel" name="label_name">
-     <property name="text">
-      <string>Flight Name (Reference)*</string>
-     </property>
-     <property name="buddy">
-      <cstring>text_name</cstring>
-     </property>
-    </widget>
-   </item>
-   <item row="0" column="1">
-    <widget class="QLineEdit" name="text_name"/>
-   </item>
-   <item row="1" column="0">
-    <widget class="QLabel" name="label_date">
-     <property name="text">
-      <string>Flight Date</string>
-     </property>
-     <property name="buddy">
-      <cstring>date_flight</cstring>
-     </property>
-    </widget>
-   </item>
-   <item row="1" column="1">
-    <widget class="QDateEdit" name="date_flight">
-     <property name="displayFormat">
-      <string>yyyy-MM-dd</string>
-     </property>
-     <property name="calendarPopup">
-      <bool>true</bool>
-     </property>
-     <property name="date">
-      <date>
-       <year>2017</year>
-       <month>1</month>
-       <day>1</day>
-      </date>
-     </property>
-    </widget>
-   </item>
-   <item row="2" column="0">
-    <widget class="QLabel" name="label_meter">
-     <property name="text">
-      <string>Gravity Meter</string>
-     </property>
-     <property name="buddy">
-      <cstring>combo_meter</cstring>
-     </property>
-    </widget>
-   </item>
-   <item row="2" column="1">
-    <widget class="QComboBox" name="combo_meter"/>
-   </item>
-   <item row="3" column="0">
-    <widget class="QLabel" name="label_uuid">
-     <property name="text">
-      <string>Flight UUID</string>
-     </property>
-    </widget>
-   </item>
-   <item row="3" column="1">
-    <widget class="QLineEdit" name="text_uuid">
-     <property name="enabled">
-      <bool>false</bool>
-     </property>
-     <property name="readOnly">
-      <bool>true</bool>
-     </property>
-    </widget>
-   </item>
-   <item row="4" column="0">
-    <widget class="QLabel" name="label_gravity">
-     <property name="text">
-      <string>Gravity Data</string>
-     </property>
-     <property name="buddy">
-      <cstring>path_gravity</cstring>
-     </property>
-    </widget>
-   </item>
-   <item row="4" column="1">
-    <layout class="QHBoxLayout" name="gravity_layout">
-     <item>
-      <widget class="QLineEdit" name="path_gravity">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-         <horstretch>2</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
+  <property name="sizeGripEnabled">
+   <bool>true</bool>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <layout class="QFormLayout" name="form_input_layout">
+     <item row="1" column="0">
+      <widget class="QLabel" name="label_name">
+       <property name="text">
+        <string>Flight Name (Reference)*</string>
        </property>
-       <property name="baseSize">
-        <size>
-         <width>200</width>
-         <height>0</height>
-        </size>
+       <property name="buddy">
+        <cstring>text_name</cstring>
        </property>
       </widget>
      </item>
-     <item>
-      <widget class="QPushButton" name="browse_gravity">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="maximumSize">
-        <size>
-         <width>16777215</width>
-         <height>16777215</height>
-        </size>
-       </property>
-       <property name="baseSize">
-        <size>
-         <width>50</width>
-         <height>0</height>
-        </size>
-       </property>
-       <property name="toolTip">
-        <string>Browse</string>
-       </property>
-       <property name="statusTip">
-        <string>Browse</string>
-       </property>
+     <item row="1" column="1">
+      <widget class="QLineEdit" name="text_name"/>
+     </item>
+     <item row="2" column="0">
+      <widget class="QLabel" name="label_date">
        <property name="text">
-        <string>...</string>
+        <string>Flight Date</string>
+       </property>
+       <property name="buddy">
+        <cstring>date_flight</cstring>
        </property>
       </widget>
+     </item>
+     <item row="2" column="1">
+      <widget class="QDateEdit" name="date_flight">
+       <property name="displayFormat">
+        <string>yyyy-MM-dd</string>
+       </property>
+       <property name="calendarPopup">
+        <bool>true</bool>
+       </property>
+       <property name="date">
+        <date>
+         <year>2017</year>
+         <month>1</month>
+         <day>1</day>
+        </date>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="0">
+      <widget class="QLabel" name="label_meter">
+       <property name="text">
+        <string>Gravity Meter</string>
+       </property>
+       <property name="buddy">
+        <cstring>combo_meter</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="0">
+      <widget class="QLabel" name="label_uuid">
+       <property name="text">
+        <string>Flight UUID</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="1">
+      <widget class="QComboBox" name="combo_meter"/>
+     </item>
+     <item row="4" column="1">
+      <widget class="QLineEdit" name="text_uuid">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="0">
+      <widget class="QLabel" name="label_gravity">
+       <property name="text">
+        <string>Gravity Data</string>
+       </property>
+       <property name="buddy">
+        <cstring>path_gravity</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="1">
+      <layout class="QHBoxLayout" name="gravity_layout">
+       <item>
+        <widget class="QLineEdit" name="path_gravity">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+           <horstretch>2</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="baseSize">
+          <size>
+           <width>200</width>
+           <height>0</height>
+          </size>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QToolButton" name="browse_gravity">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>16777215</width>
+           <height>16777215</height>
+          </size>
+         </property>
+         <property name="baseSize">
+          <size>
+           <width>50</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="toolTip">
+          <string>Browse</string>
+         </property>
+         <property name="statusTip">
+          <string>Browse</string>
+         </property>
+         <property name="text">
+          <string>...</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+     <item row="6" column="0">
+      <widget class="QLabel" name="label_gps">
+       <property name="text">
+        <string>GPS Data</string>
+       </property>
+       <property name="buddy">
+        <cstring>path_gps</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="6" column="1">
+      <layout class="QHBoxLayout" name="gps_layout">
+       <item>
+        <widget class="QLineEdit" name="path_gps">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+           <horstretch>2</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="baseSize">
+          <size>
+           <width>200</width>
+           <height>0</height>
+          </size>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QToolButton" name="browse_gps">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>16777215</width>
+           <height>16777215</height>
+          </size>
+         </property>
+         <property name="baseSize">
+          <size>
+           <width>50</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="toolTip">
+          <string>Browse</string>
+         </property>
+         <property name="text">
+          <string>...</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
      </item>
     </layout>
    </item>
-   <item row="5" column="0">
-    <widget class="QLabel" name="label_gps">
-     <property name="text">
-      <string>GPS Data</string>
+   <item>
+    <spacer name="verticalSpacer">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
      </property>
-     <property name="buddy">
-      <cstring>path_gps</cstring>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>40</height>
+      </size>
      </property>
-    </widget>
+    </spacer>
    </item>
-   <item row="5" column="1">
-    <layout class="QHBoxLayout" name="gps_layout">
-     <item>
-      <widget class="QLineEdit" name="path_gps">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-         <horstretch>2</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="baseSize">
-        <size>
-         <width>200</width>
-         <height>0</height>
-        </size>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="browse_gps">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="maximumSize">
-        <size>
-         <width>16777215</width>
-         <height>16777215</height>
-        </size>
-       </property>
-       <property name="baseSize">
-        <size>
-         <width>50</width>
-         <height>0</height>
-        </size>
-       </property>
-       <property name="toolTip">
-        <string>Browse</string>
-       </property>
-       <property name="text">
-        <string>...</string>
-       </property>
-      </widget>
-     </item>
-    </layout>
-   </item>
-   <item row="6" column="0">
+   <item>
     <widget class="QLabel" name="label_flight_param">
      <property name="text">
       <string>Flight Parameters</string>
      </property>
     </widget>
    </item>
-   <item row="8" column="0">
-    <widget class="QDialogButtonBox" name="buttons_dialog">
-     <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-     </property>
-    </widget>
+   <item>
+    <widget class="QTableView" name="flight_params"/>
    </item>
-   <item row="8" column="1">
+   <item>
     <widget class="QLabel" name="label_message">
      <property name="text">
       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;right&quot;&gt;*required fields&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
      </property>
     </widget>
    </item>
-   <item row="7" column="0" colspan="2">
-    <widget class="QTableView" name="flight_params"/>
+   <item>
+    <widget class="QDialogButtonBox" name="buttons_dialog">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
    </item>
   </layout>
  </widget>
  <tabstops>
-  <tabstop>text_name</tabstop>
-  <tabstop>date_flight</tabstop>
-  <tabstop>combo_meter</tabstop>
   <tabstop>path_gravity</tabstop>
   <tabstop>browse_gravity</tabstop>
   <tabstop>path_gps</tabstop>
   <tabstop>browse_gps</tabstop>
-  <tabstop>text_uuid</tabstop>
  </tabstops>
  <resources>
   <include location="resources.qrc"/>
