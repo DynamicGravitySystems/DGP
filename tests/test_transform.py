@@ -12,7 +12,7 @@ from .context import  dgp
 from tests import sample_dir
 from dgp.lib.transform import TransformChain, DataWrapper, Transform
 from dgp.lib.derivatives import Eotvos, CentralDiff2
-from dgp.lib.filters import Filter
+from dgp.lib.filters import FIRlowpassfilter
 import dgp.lib.trajectory_ingestor as ti
 
 from copy import deepcopy
@@ -114,7 +114,7 @@ class TestTransform(unittest.TestCase):
         def lp_filter(data, fc, fs, window):
             return data
 
-        lp = Filter(func=lp_filter, fc=10, fs=100)
+        lp = FIRlowpassfilter(func=lp_filter, fc=10, fs=100)
         self.assertTrue(lp.fc == 10)
         self.assertTrue(lp.fs == 100)
 
@@ -153,7 +153,7 @@ class TestTransform(unittest.TestCase):
 
         freq_before = self._find_comp(sig, fs)
 
-        lp = Filter(fc=5, fs=fs)
+        lp = FIRlowpassfilter(fc=5, fs=fs)
 
         self.assertTrue(lp.window == 'blackman')
 
