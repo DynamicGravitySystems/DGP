@@ -10,8 +10,9 @@ import csv
 
 from .context import  dgp
 from tests import sample_dir
-from dgp.lib.transform import TransformChain, DataWrapper, Filter, Derivative
-from dgp.lib.derivative import Eotvos, CentralDiff2
+from dgp.lib.transform import TransformChain, DataWrapper, Transform
+from dgp.lib.derivatives import Eotvos, CentralDiff2
+from dgp.lib.filters import Filter
 import dgp.lib.trajectory_ingestor as ti
 
 from copy import deepcopy
@@ -113,14 +114,9 @@ class TestTransform(unittest.TestCase):
         def lp_filter(data, fc, fs, window):
             return data
 
-        lp = Filter(func=lp_filter, fc=10, fs=100, typ='low pass')
-
+        lp = Filter(func=lp_filter, fc=10, fs=100)
         self.assertTrue(lp.fc == 10)
         self.assertTrue(lp.fs == 100)
-        self.assertTrue(lp.nyq == lp.fs * 0.5)
-        self.assertTrue(lp.wn == lp.fc / lp.nyq)
-        self.assertTrue(lp.filtertype == 'low pass')
-        self.assertTrue(lp.transformtype == 'filter')
 
         data = np.ones(5)
         res = lp(data)
@@ -136,14 +132,14 @@ class TestTransform(unittest.TestCase):
 
     def test_lp_filter_class(self):
 
-        def lp_filter(data, fc, fs, window):
-            filter_len = 1 / fc
-            nyq = fs / 2.0
-            wn = fc / nyq
-            N = int(2.0 * filter_len * fs)
-            taps = signal.firwin(N, wn, window=window, nyq=nyq)
-            filtered_data = signal.filtfilt(taps, 1.0, data, padtype='even', padlen=80)
-            return filtered_data
+        # def lp_filter(data, fc, fs, window):
+        #     filter_len = 1 / fc
+        #     nyq = fs / 2.0
+        #     wn = fc / nyq
+        #     N = int(2.0 * filter_len * fs)
+        #     taps = signal.firwin(N, wn, window=window, nyq=nyq)
+        #     filtered_data = signal.filtfilt(taps, 1.0, data, padtype='even', padlen=80)
+        #     return filtered_data
 
         # generate a signal
         fs = 100 # Hz
@@ -156,7 +152,8 @@ class TestTransform(unittest.TestCase):
             sig += np.sin(2 * np.pi * f * t )
 
         freq_before = self._find_comp(sig, fs)
-        lp = Filter(func=lp_filter, fc=5, fs=fs, typ='low pass')
+
+        lp = Filter(fc=5, fs=fs)
 
         self.assertTrue(lp.window == 'blackman')
 
@@ -164,6 +161,7 @@ class TestTransform(unittest.TestCase):
         freq_after = self._find_comp(filtered_sig, fs)
         self.assertTrue(freq_after == [1.2, 3])
 
+    # @unittest.skip("tempo")
     def test_transform_eotvos(self):
         """Test Eotvos function against corrections generated with MATLAB program."""
         # Ensure gps_fields are ordered correctly relative to test file
