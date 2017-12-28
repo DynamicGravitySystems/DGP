@@ -158,6 +158,8 @@ class BaseTreeItem(AbstractTreeItem):
         for child in self._children:
             if child.uid == uid:
                 return child
+        else:
+            raise KeyError("Child UID does not exist.")
 
     def append_child(self, child: AbstractTreeItem) -> str:
         """
@@ -275,6 +277,8 @@ class TreeItem(BaseTreeItem):
         """Permit child access by ordered index, or UID"""
         if not isinstance(key, (int, str)):
             raise ValueError("Key must be int or str type")
+        if isinstance(key, str):
+            return self.get_child(key)
         return self.child(key)
 
     def __contains__(self, item: AbstractTreeItem):

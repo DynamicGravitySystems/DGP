@@ -48,7 +48,7 @@ class TestModels(unittest.TestCase):
         self.assertEqual(ti.indexof(child), 0)
         child1 = types.TreeItem("uid456", parent=ti)
         self.assertEqual(child1.parent, ti)
-        self.assertEqual(child1, ti.child("uid456"))
+        self.assertEqual(child1, ti.get_child("uid456"))
         self.assertEqual(child1.row(), 1)
 
     def test_tree_iter(self):
@@ -99,7 +99,7 @@ class TestModels(unittest.TestCase):
         self.ti.append_child(self.child0)
         self.ti.append_child(self.child1)
         self.assertEqual(len(self.ti), 2)
-        self.ti.remove_child(self.uid_ch0)
+        self.ti.remove_child(self.child0)
         self.assertEqual(len(self.ti), 1)
 
     def test_tree_contains(self):

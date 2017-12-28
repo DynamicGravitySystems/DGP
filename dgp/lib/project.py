@@ -539,7 +539,7 @@ class AirborneProject(GravityProject):
         self.get_child(self._flight_uid).remove_child(flight)
 
     def get_flight(self, uid):
-        return self.get_child(self._flight_uid).child(uid)
+        return self.get_child(self._flight_uid).get_child(uid)
 
     @property
     def count_flights(self):
