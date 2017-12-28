@@ -8,10 +8,37 @@ Library for data transformation classes
 from copy import deepcopy
 from pandas import DataFrame
 import inspect
+from functools import wraps
 
 from dgp.lib.etc import gen_uuid, dedup_dict
 
 transform_class_dict = {}
+
+def createtransformclass(class_id):
+    def decorator(func):
+        sig = inspect.signature(func)
+        var_list = []
+        for param in sig.parameters.values():
+        # positional arguments only for data
+        # kwonly args for other parameters
+            if param.kind == param.KEYWORD_ONLY:
+                if param.default is not param.empty:
+                    var_list.append((param.name, param.default))
+                else:
+                    var_list.append(param.name)
+        def class_func(self, *args, **kwargs):
+            return func(*args, **kwargs)
+
+        cls = type(class_id, (Transform,),
+                   dict(func=class_func, var_list=var_list))
+        transform_class_dict[class_id] = cls
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return cls(*args, **kwargs)
+        return wrapper
+    return decorator
+
 
 class RegisterTransformClass:
     """
@@ -83,7 +110,6 @@ class Transform:
         # identify arguments that are instance variables
         argspec = inspect.getfullargspec(self.func)
         keywords = {}
-
         for arg in self.var_list:
             if isinstance(arg, tuple):
                 name = arg[0]
@@ -96,7 +122,6 @@ class Transform:
         # override keywords explicitly set in function call
         for k, v in kwargs.items():
             keywords[k] = v
-
         return self.func(*args, **keywords)
 
     def __str__(self):
@@ -143,14 +168,14 @@ class TransformChain:
             self._ordering.insert(d[uid], uid)
         return self.ordering
 
-    def apply(self, df):
+    def apply(self, df, **kwargs):
         """
         Makes a deep copy of the target DataFrame and applies the transforms in
         the order specified.
         """
         df_cp = deepcopy(df)
         for uid in self._ordering:
-            df_cp = self._transforms[uid](df_cp)
+            df_cp = self._transforms[uid](df_cp, **kwargs)
         return df_cp
 
     def __len__(self):
