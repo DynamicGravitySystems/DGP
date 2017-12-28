@@ -16,6 +16,7 @@ from PyQt5.uic import loadUiType
 
 import dgp.lib.project as prj
 import dgp.lib.types as types
+import dgp.lib.enums as enums
 from dgp.gui.loader import LoadFile
 from dgp.gui.utils import (ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP,
                            get_project_file)
@@ -158,9 +159,9 @@ class MainWindow(QMainWindow, main_window):
         self.prj_add_flight.clicked.connect(self.add_flight_dialog)
         # self.prj_import_data.clicked.connect(self.import_data_dialog)
         self.prj_import_gps.clicked.connect(
-            lambda: self.import_data_dialog('gps'))
+            lambda: self.import_data_dialog(enums.DataTypes.TRAJECTORY))
         self.prj_import_grav.clicked.connect(
-            lambda: self.import_data_dialog('gravity'))
+            lambda: self.import_data_dialog(enums.DataTypes.GRAVITY))
 
         # Tab Browser Actions #
         self.tab_workspace.currentChanged.connect(self._tab_changed)

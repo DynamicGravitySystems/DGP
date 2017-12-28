@@ -1,6 +1,7 @@
 # coding: utf-8
 
 import os
+import io
 import logging
 import datetime
 import pathlib
@@ -12,7 +13,10 @@ import PyQt5.QtCore as QtCore
 from PyQt5.uic import loadUiType
 
 import dgp.lib.project as prj
-from dgp.gui.models import TableModel, SelectionDelegate
+import dgp.lib.enums as enums
+import dgp.lib.gravity_ingestor as gi
+import dgp.lib.trajectory_ingestor as ti
+from dgp.gui.models import TableModel, TableModel2, ComboEditDelegate
 from dgp.gui.utils import ConsoleHandler, LOG_COLOR_MAP
 from dgp.lib.etc import gen_uuid
 
@@ -27,14 +31,121 @@ line_label_dialog, _ = loadUiType('dgp/gui/ui/set_line_label.ui')
 
 
 class BaseDialog(QtWidgets.QDialog):
-    def __init__(self):
-        self.log = logging.getLogger(__name__)
-        error_handler = ConsoleHandler(self.write_error)
-        error_handler.setFormatter(logging.Formatter('%(levelname)s: '
-                                                     '%(message)s'))
-        error_handler.setLevel(logging.DEBUG)
-        self.log.addHandler(error_handler)
-        pass
+    """
+    BaseDialog is an attempt to standardize some common features in the
+    program dialogs.
+    Currently this class provides a standard logging interface - allowing the
+    programmer to send logging messages to a GUI receiver (any widget with a
+    setText method) via the self.log attribute
+    """
+
+    def __init__(self, msg_recvr: str=None, parent=None, flags=0):
+        super().__init__(parent=parent, flags=flags | Qt.Qt.Dialog)
+        self._log = logging.getLogger(self.__class__.__name__)
+        self._target = msg_recvr
+
+    @property
+    def log(self):
+        return self._log
+
+    @property
+    def msg_target(self) -> QtWidgets.QWidget:
+        """
+        Raises
+        ------
+        AttributeError:
+            Raised if target is invalid attribute of the UI class.
+
+        Returns
+        -------
+        QWidget
+
+        """
+        return self.__getattribute__(self._target)
+
+    def color_label(self, lbl_txt, color='red'):
+        """
+        Locate and highlight a label in this dialog, searching first by the
+        label attribute name, then by performing a slower text matching
+        iterative search through all objects in the dialog.
+
+        Parameters
+        ----------
+        lbl_txt
+        color
+
+        """
+        try:
+            lbl = self.__getattribute__(lbl_txt)
+            lbl.setStyleSheet('color: {}'.format(color))
+        except AttributeError:
+            for k, v in self.__dict__.items():
+                if not isinstance(v, QtWidgets.QLabel):
+                    continue
+                if v.text() == lbl_txt:
+                    v.setStyleSheet('color: {}'.format(color))
+
+    def show_message(self, message, buddy_label=None, log=None, hl_color='red',
+                     msg_color='black', target=None):
+        """
+
+        Parameters
+        ----------
+        message : str
+            Message to display in dialog msg_target Widget, or specified target
+        buddy_label : str, Optional
+            Specify a label containing *buddy_label* text that should be
+            highlighted in relation to this message. e.g. When warning user
+            that a TextEdit box has not been filled, pass the name of the
+            associated label to turn it red to draw attention.
+        log : int, Optional
+            Optional, log the supplied message to the logging provider at the
+            given logging level (int or logging module constant)
+        hl_color : str, Optional
+            Optional ovveride color to highlight buddy_label with, defaults red
+        msg_color : str, Optional
+            Optional ovveride color to display message with
+        target : str, Optional
+            Send the message to the target specified here instead of any
+            target specified at class instantiation.
+
+        """
+        if log is not None:
+            self.log.log(level=log, msg=message)
+
+        if target is None:
+            target = self.msg_target
+        else:
+            target = self.__getattribute__(target)
+
+        try:
+            target.setText(message)
+            target.setStyleSheet('color: {clr}'.format(clr=msg_color))
+        except AttributeError:
+            self.log.error("Invalid target for show_message, must support "
+                           "setText attribute.")
+
+        if buddy_label is not None:
+            self.color_label(buddy_label, color=hl_color)
+
+    def show_error(self, message):
+        """Logs and displays error message in error dialog box"""
+        self.log.error(message)
+        dlg = QtWidgets.QMessageBox(parent=self)
+        dlg.setStandardButtons(QtWidgets.QMessageBox.Ok)
+        dlg.setText(message)
+        dlg.setIcon(QtWidgets.QMessageBox.Critical)
+        dlg.exec_()
+
+    def validate_not_empty(self, terminator='*'):
+        """Validate that any labels with Widget buddies are not empty e.g.
+        QLineEdit fields.
+        Labels are only checked if their text value ends with the terminator,
+        default '*'
+
+        If any widgets are empty, the label buddy attribute names are
+        returned in a list.
+        """
 
 
 class ImportData(QtWidgets.QDialog, data_dialog):
@@ -123,72 +234,134 @@ class ImportData(QtWidgets.QDialog, data_dialog):
         return self.path, self.dtype, self.flight
 
 
-class EditImportView(QtWidgets.QDialog, edit_view):
+class EditImportView(BaseDialog, edit_view):
     """
     Take lines of data with corresponding fields and populate custom Table Model
     Fields can be exchanged via a custom Selection Delegate, which provides a
     drop-down combobox of available fields.
+
+    Parameters
+    ----------
+    data
+
+    dtype
+
+    parent
+
     """
-    def __init__(self, data, fields, parent):
+    def __init__(self, data, dtype, parent=None):
         flags = Qt.Qt.FramelessWindowHint
-        super().__init__(parent=parent, flags=flags)
+        super().__init__('label_msg', parent=parent, flags=flags)
         self.setupUi(self)
         self._base_h = self.height()
         self._base_w = self.width()
-        self._view = self.table_col_edit  # type: QtWidgets.QTableView
 
-        self.setup_model(fields, data)
-        self.btn_reset.clicked.connect(lambda: self.setup_model(fields, data))
+        self._view = self.table_col_edit  # type: QtWidgets.QTableView
+        self._view.setContextMenuPolicy(Qt.Qt.CustomContextMenu)
+        self._view.customContextMenuRequested.connect(self._view_context_menu)
+
+        self._model = None
+
+        # Set up Field Set selection QComboBox
+        self._cfs = self.cob_field_set  # type: QtWidgets.QComboBox
+        if dtype == enums.DataTypes.TRAJECTORY:
+            for fset in enums.GPSFields:
+                self._cfs.addItem(str(fset.name).upper(), fset)
+        self._cfs.currentIndexChanged.connect(self._fset_changed)
+
+        self._setup_model(data, self._cfs.currentData().value)
+        self.btn_reset.clicked.connect(
+            lambda: self._setup_model(data, self._cfs.currentData().value))
 
     @property
     def columns(self):
-        return self._view.model().get_row(0)
+        return self.model.header_row()
 
-    def setup_model(self, fields, data):
-        delegate = SelectionDelegate(fields)
+    @property
+    def model(self) -> TableModel2:
+        return self._model
 
-        model = TableModel(fields, editheader=True)
-        model.append(*fields)
-        for line in data:
-            model.append(*line)
+    def accept(self):
+        self.show_error("Test Error")
+        super().accept()
+
+    def _view_context_menu(self, point: Qt.QPoint):
+        row = self._view.rowAt(point.y())
+        col = self._view.columnAt(point.x())
+        if -1 < col < self._view.model().columnCount() and row == 0:
+            menu = QtWidgets.QMenu()
+            action = QtWidgets.QAction("Custom Value", parent=menu)
+            action.triggered.connect(
+                lambda: print("Value is: ", self.model.value_at(row, col)))
+            menu.addAction(action)
+            menu.exec_(self._view.mapToGlobal(point))
+
+    def _fset_changed(self, index):
+        curr_fset = self._cfs.currentData().value
+        self._view.model().set_row(0, curr_fset)
+
+    def _setup_model(self, data, field_set: set):
+        delegate = ComboEditDelegate()
+
+        header = list(field_set)
+        # TODO: Data needs to be sanitized at some stage for \n and whitespace
+        while len(header) < len(data[0]):
+            header.append('<None>')
+
+        dcopy = [header]
+        dcopy.extend(data)
+
+        model = TableModel2(dcopy)
 
         self._view.setModel(model)
         self._view.setItemDelegate(delegate)
         self._view.resizeColumnsToContents()
 
+        # Resize dialog to fit sample dataset
         width = self._base_w
         for idx in range(model.columnCount()):
             width += self._view.columnWidth(idx)
 
-        height = self._base_h - 100
+        height = self._base_h - 75
         for idx in range(model.rowCount()):
             height += self._view.rowHeight(idx)
 
+        self._model = model
         self.resize(self.width(), height)
 
 
-class AdvancedImport(QtWidgets.QDialog, advanced_import):
-    def __init__(self, project, flight, dtype='gravity', parent=None):
-        """
+class AdvancedImport(BaseDialog, advanced_import):
+    """
 
-        Parameters
-        ----------
-        project : GravityProject
-            Parent project
-        flight : Flight
-            Currently selected flight when Import button was clicked
-        parent : QWidget
-            Parent Widget
-        """
-        super().__init__(parent=parent)
+    Parameters
+    ----------
+    project : GravityProject
+        Parent project
+    flight : Flight
+        Currently selected flight when Import button was clicked
+    dtype : dgp.lib.enums.DataTypes
+
+    parent : QWidget
+        Parent Widget
+    """
+    def __init__(self, project, flight, dtype=None, parent=None):
+        super().__init__(msg_recvr='label_msg', parent=parent)
         self.setupUi(self)
+
         self._preview_limit = 5
-        # self._project = project
         self._path = None
         self._flight = flight
         self._cols = None
-        self._dtype = dtype
-        self.setWindowTitle("Import {}".format(dtype.capitalize()))
+        if dtype is None:
+            self._dtype = enums.DataTypes.GRAVITY
+        else:
+            self._dtype = dtype
+        print("Initialized with dtype: ", self._dtype)
+
+        self._file_filter = "(*.csv *.dat *.txt)"
+        self._base_dir = '.'
+        self._sample = None
+        self.setWindowTitle("Import {}".format(dtype.name.capitalize()))
 
         for flt in project.flights:
             self.combo_flights.addItem(flt.name, flt)
@@ -197,65 +370,97 @@ class AdvancedImport(QtWidgets.QDialog, advanced_import):
                 self.combo_flights.setCurrentIndex(self.combo_flights.count()-1)
 
         # Signals/Slots
-        self.btn_browse.clicked.connect(self.browse_file)
+        self.btn_browse.clicked.connect(self.browse)
         self.btn_edit_cols.clicked.connect(self._edit_cols)
 
-        self.browse_file()
+        self.browse()
 
     @property
     def content(self) -> (str, str, List, prj.Flight):
-        return self._path, self._dtype, self._cols, self._flight
+        return self._path, self._dtype.name, self._cols, self._flight
 
     @property
     def path(self):
         return self._path
 
+    # TODO: Data verification (basic check that values exist?)
     def accept(self) -> None:
-        self._flight = self.combo_flights.currentData()
-        super().accept()
+        if self._path is None:
+            self.show_message("Path cannot be empty", 'Path*')
+        else:
+            self._flight = self.combo_flights.currentData()
+            super().accept()
         return
 
     def _edit_cols(self):
         if self.path is None:
+            # This shouldn't happen as the button should be disabled
+            self.show_message("Path cannot be empty", 'Path*',
+                              log=logging.WARNING)
             return
 
-        lines = []
+        data = []
         with open(self.path, mode='r') as fd:
             for i, line in enumerate(fd):
-                lines.append(line.split(','))
+                line = str(line).rstrip()
+                data.append(line.split(','))
                 if i == self._preview_limit:
                     break
 
-        if self._cols is not None:
-            fields = self._cols
-        elif self._dtype == 'gravity':
-            fields = ['gravity', 'long', 'cross', 'beam', 'temp', 'status',
-                      'pressure', 'Etemp', 'GPSweek', 'GPSweekseconds']
-        elif self._dtype == 'gps':
-            fields = ['mdy', 'hms', 'lat', 'long', 'ell_ht']
-        else:
-            fields = []
-
-        dlg = EditImportView(lines, fields=fields, parent=self)
+        dlg = EditImportView(data, dtype=self._dtype, parent=self)
 
         if dlg.exec_():
             self._cols = dlg.columns
-            print("Columns from edit: {}".format(self._cols))
+            self.show_message("Data Columns Updated", msg_color='Brown')
 
-    def browse_file(self):
+    def browse(self):
+        title = "Select {typ} Data File".format(typ=self._dtype.name)
+        filt = "{typ} Data {ffilt}".format(typ=self._dtype.name,
+                                           ffilt=self._file_filter)
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self, "Select {} Data File".format(self._dtype.capitalize()),
-            os.getcwd(), "Data (*.dat *.csv *.txt)")
-        if path:
-            self.line_path.setText(str(path))
-            self._path = path
-            stats = os.stat(path)
-            self.label_fsize.setText("{:.3f} MiB".format(stats.st_size/1048576))
-            lines = 0
-            with open(path) as fd:
-                for _ in fd:
-                    lines += 1
-            self.field_line_count.setText("{}".format(lines))
+            parent=self, caption=title, directory=self._base_dir, filter=filt,
+            options=QtWidgets.QFileDialog.ReadOnly)
+        if not path:
+            return
+
+        self.line_path.setText(str(path))
+        self._path = path
+        st_size_mib = os.stat(path).st_size / 1048576
+        self.field_fsize.setText("{:.3f} MiB".format(st_size_mib))
+
+        count = 0
+        sbuf = io.StringIO()
+        with open(path) as fd:
+            data = [fd.readline() for _ in range(self._preview_limit)]
+            count += self._preview_limit
+
+            last_line = None
+            for line in fd:
+                count += 1
+                last_line = line
+
+            data.append(last_line)
+            print(data)
+
+        col_count = len(data[0].split(','))
+        self.field_col_count.setText(str(col_count))
+
+        sbuf.writelines(data)
+        sbuf.seek(0)
+
+        df = None
+        if self._dtype == enums.DataTypes.GRAVITY:
+            df = gi.read_at1a(sbuf)
+        elif self._dtype == enums.DataTypes.TRAJECTORY:
+            # TODO: Implement this
+            pass
+            # df = ti.import_trajectory(sbuf, )
+
+        print("Ingested df: ")
+        if df is not None: print(df)
+
+        self.field_line_count.setText("{}".format(count))
+        self.btn_edit_cols.setEnabled(True)
 
 
 class AddFlight(QtWidgets.QDialog, flight_dialog):
@@ -319,77 +524,72 @@ class AddFlight(QtWidgets.QDialog, flight_dialog):
         return None
 
 
-class CreateProject(QtWidgets.QDialog, project_dialog):
+class CreateProject(BaseDialog, project_dialog):
     def __init__(self, *args):
-        super().__init__(*args)
+        super().__init__(msg_recvr='label_msg', *args)
         self.setupUi(self)
 
-        self.log = logging.getLogger(__name__)
-        error_handler = ConsoleHandler(self.write_error)
-        error_handler.setFormatter(logging.Formatter('%(levelname)s: '
-                                                     '%(message)s'))
-        error_handler.setLevel(logging.DEBUG)
-        self.log.addHandler(error_handler)
+        self._project = None
 
-        self.prj_create.clicked.connect(self.create_project)
         self.prj_browse.clicked.connect(self.select_dir)
         desktop = pathlib.Path().home().joinpath('Desktop')
         self.prj_dir.setText(str(desktop))
-
-        self._project = None
 
         # Populate the type selection list
         flt_icon = Qt.QIcon(':images/assets/flight_icon.png')
         boat_icon = Qt.QIcon(':images/assets/boat_icon.png')
         dgs_airborne = Qt.QListWidgetItem(flt_icon, 'DGS Airborne',
                                           self.prj_type_list)
-        dgs_airborne.setData(QtCore.Qt.UserRole, 'dgs_airborne')
+        dgs_airborne.setData(QtCore.Qt.UserRole, enums.ProjectTypes.AIRBORNE)
         self.prj_type_list.setCurrentItem(dgs_airborne)
         dgs_marine = Qt.QListWidgetItem(boat_icon, 'DGS Marine',
                                         self.prj_type_list)
-        dgs_marine.setData(QtCore.Qt.UserRole, 'dgs_marine')
+        dgs_marine.setData(QtCore.Qt.UserRole, enums.ProjectTypes.MARINE)
 
-    def write_error(self, msg, level=None) -> None:
-        self.label_required.setText(msg)
-        self.label_required.setStyleSheet('color: ' + LOG_COLOR_MAP[level])
-
-    def create_project(self):
+    def accept(self):
         """
-        Called upon 'Create' button push, do some basic validation of fields then
-        accept() if required fields are filled, otherwise color the labels red
-        :return: None
+        Called upon 'Create' button push, do some basic validation of fields
+        then accept() if required fields are filled, otherwise color the
+        labels red and display a warning message.
         """
-        required_fields = {'prj_name': 'label_name', 'prj_dir': 'label_dir'}
 
-        invalid_input = False
-        for attr in required_fields.keys():
-            if not self.__getattribute__(attr).text():
-                self.__getattribute__(required_fields[attr]).setStyleSheet(
-                    'color: red')
-                invalid_input = True
-            else:
-                self.__getattribute__(required_fields[attr]).setStyleSheet(
-                    'color: black')
+        invld_fields = []
+        for attr, label in self.__dict__.items():
+            if not isinstance(label, QtWidgets.QLabel):
+                continue
+            text = str(label.text())
+            if text.endswith('*'):
+                buddy = label.buddy()
+                if buddy and not buddy.text():
+                    label.setStyleSheet('color: red')
+                    invld_fields.append(text)
+                elif buddy:
+                    label.setStyleSheet('color: black')
 
-        if not pathlib.Path(self.prj_dir.text()).exists():
-            invalid_input = True
-            self.label_dir.setStyleSheet('color: red')
-            self.log.error("Invalid Directory")
-
-        if invalid_input:
+        base_path = pathlib.Path(self.prj_dir.text())
+        if not base_path.exists():
+            self.show_message("Invalid Directory - Does not Exist",
+                              buddy_label='label_dir')
             return
 
-        if self.prj_type_list.currentItem().data(QtCore.Qt.UserRole) == 'dgs_airborne':
+        if invld_fields:
+            self.show_message('Verify that all fields are filled.')
+            return
+
+        # TODO: Future implementation for Project types other than DGS AT1A
+        cdata = self.prj_type_list.currentItem().data(QtCore.Qt.UserRole)
+        if cdata == enums.ProjectTypes.AIRBORNE:
             name = str(self.prj_name.text()).rstrip()
             path = pathlib.Path(self.prj_dir.text()).joinpath(name)
             if not path.exists():
                 path.mkdir(parents=True)
             self._project = prj.AirborneProject(path, name)
         else:
-            self.log.error("Invalid Project Type (Not Implemented)")
+            self.show_message("Invalid Project Type (Not yet implemented)",
+                              log=logging.WARNING, msg_color='red')
             return
 
-        self.accept()
+        super().accept()
 
     def select_dir(self):
         path = QtWidgets.QFileDialog.getExistingDirectory(

@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>303</width>
-    <height>272</height>
+    <width>304</width>
+    <height>296</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -34,14 +34,28 @@
     </widget>
    </item>
    <item>
-    <widget class="QCheckBox" name="check_has_header">
-     <property name="toolTip">
-      <string>Check to skip first line in file</string>
-     </property>
-     <property name="text">
-      <string>Has header</string>
-     </property>
-    </widget>
+    <layout class="QHBoxLayout" name="hbox_tools">
+     <item>
+      <widget class="QCheckBox" name="chb_has_header">
+       <property name="toolTip">
+        <string>Check to skip first line in file</string>
+       </property>
+       <property name="text">
+        <string>Has header</string>
+       </property>
+      </widget>
+     </item>
+     <item alignment="Qt::AlignRight">
+      <widget class="QLabel" name="label">
+       <property name="text">
+        <string>Field Set:</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="cob_field_set"/>
+     </item>
+    </layout>
    </item>
    <item>
     <widget class="QTableView" name="table_col_edit">
@@ -63,7 +77,14 @@
     </widget>
    </item>
    <item>
-    <layout class="QHBoxLayout" name="horizontalLayout">
+    <widget class="QLabel" name="label_msg">
+     <property name="text">
+      <string/>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="hbox_dlg_btns">
      <item>
       <widget class="QPushButton" name="btn_reset">
        <property name="sizePolicy">

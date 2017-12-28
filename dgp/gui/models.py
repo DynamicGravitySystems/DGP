@@ -73,11 +73,6 @@ class TableModel(QtCore.QAbstractTableModel):
     def updates(self):
         return self._updates
 
-    @property
-    def data(self):
-        # TODO: Work on some sort of mapping to map column headers to row values
-        return self._rows
-
     # Required implementations of super class (for a basic, non-editable table)
 
     def rowCount(self, parent=None, *args, **kwargs):
@@ -91,7 +86,7 @@ class TableModel(QtCore.QAbstractTableModel):
             try:
                 return self._rows[index.row()][index.column()]
             except IndexError:
-                return None
+                return QtCore.QVariant()
         return QtCore.QVariant()
 
     def flags(self, index: QModelIndex):
@@ -105,7 +100,8 @@ class TableModel(QtCore.QAbstractTableModel):
 
     def headerData(self, section, orientation, role=None):
         if role == QtCore.Qt.DisplayRole and orientation == QtCore.Qt.Horizontal:
-            return self._cols[section]
+            return QVariant(section)
+            # return self._cols[section]
 
     # Required implementations of super class for editable table
 
@@ -115,6 +111,81 @@ class TableModel(QtCore.QAbstractTableModel):
         though (yet)"""
         if index.isValid() and role == QtCore.Qt.ItemIsEditable:
             self._rows[index.row()][index.column()] = value
+            self.dataChanged.emit(index, index)
+            return True
+        else:
+            return False
+
+
+class TableModel2(QtCore.QAbstractTableModel):
+    """Simple table model of key: value pairs.
+    Parameters
+    ----------
+    data : List
+    2D List of data by rows/columns, data[0] is assumed to contain the column
+    headers for the data.
+    """
+
+    def __init__(self, data, parent=None):
+        super().__init__(parent=parent)
+
+        self._data = data
+
+    def header_row(self):
+        return self._data[0]
+
+    def value_at(self, row, col):
+        return self._data[row][col]
+
+    def set_row(self, index, values):
+        try:
+            nvals = list(values)
+            while len(nvals) < self.columnCount():
+                nvals.append(' ')
+            self._data[index] = nvals
+        except IndexError:
+            print("Unable to set data at index: ", index)
+            return False
+        self.dataChanged.emit(self.index(index, 0),
+                              self.index(index, len(self._data[index])))
+        return True
+
+    # Required implementations of super class (for a basic, non-editable table)
+
+    def rowCount(self, parent=None, *args, **kwargs):
+        return len(self._data)
+
+    def columnCount(self, parent=None, *args, **kwargs):
+        return len(self._data[0])
+
+    def data(self, index: QModelIndex, role=None):
+        if role == QtCore.Qt.DisplayRole or role == QtCore.Qt.EditRole:
+            try:
+                val = self._data[index.row()][index.column()]
+                return val
+            except IndexError:
+                return QtCore.QVariant()
+        return QtCore.QVariant()
+
+    def flags(self, index: QModelIndex):
+        flags = QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
+        if index.row() == 0:
+            # Allow editing of first row (Column headers)
+            flags = flags | QtCore.Qt.ItemIsEditable
+        return flags
+
+    def headerData(self, section, orientation, role=None):
+        if role == QtCore.Qt.DisplayRole and orientation == QtCore.Qt.Horizontal:
+            return QtCore.QVariant()
+
+    # Required implementations of super class for editable table
+
+    def setData(self, index: QtCore.QModelIndex, value, role=None):
+        """Basic implementation of editable model. This doesn't propagate the
+        changes to the underlying object upon which the model was based
+        though (yet)"""
+        if index.isValid() and role == QtCore.Qt.ItemIsEditable:
+            self._data[index.row()][index.column()] = value
             self.dataChanged.emit(index, index)
             return True
         else:
@@ -277,47 +348,91 @@ class ProjectModel(BaseTreeModel):
         return QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
 
 
-# QStyledItemDelegate
-class SelectionDelegate(Qt.QStyledItemDelegate):
+class ComboEditDelegate(Qt.QStyledItemDelegate):
     """Used by the Advanced Import Dialog to enable column selection/setting."""
-    def __init__(self, choices, parent=None):
+    def __init__(self, options=None, parent=None):
         super().__init__(parent=parent)
-        self._choices = choices
+        self._options = options
+
+    @property
+    def options(self):
+        return self._options
+
+    @options.setter
+    def options(self, value):
+        self._options = list(value)
 
     def createEditor(self, parent: QWidget, option: Qt.QStyleOptionViewItem,
                      index: QModelIndex) -> QWidget:
-        """Creates the editor widget to display in the view"""
+        """
+        Create the Editor widget. The widget will be populated with data in
+        the setEditorData method, which is called by the view immediately
+        after creation of the editor.
+
+        Parameters
+        ----------
+        parent
+        option
+        index
+
+        Returns
+        -------
+        QWidget
+
+        """
         editor = QComboBox(parent)
         editor.setFrame(False)
-        for choice in sorted(self._choices):
-            editor.addItem(choice)
         return editor
 
     def setEditorData(self, editor: QWidget, index: QModelIndex) -> None:
-        """Set the value displayed in the editor widget based on the model data
-        at the index"""
-        combobox = editor  # type: QComboBox
+        """
+        Sets the options in the supplied editor widget. This delegate class
+        expects a QComboBox widget, and will populate the combobox with
+        options supplied by the self.options property, or will construct them
+        from the current row if self.options is None.
+
+        Parameters
+        ----------
+        editor
+        index
+
+        Returns
+        -------
+
+        """
+        if not isinstance(editor, QComboBox):
+            print("Unexpected editor type.")
+            return
         value = str(index.model().data(index, QtDataRoles.EditRole))
-        index = combobox.findText(value)  # returns -1 if value not found
-        if index != -1:
-            combobox.setCurrentIndex(index)
+        if self.options is None:
+            # Construct set of choices by scanning columns at the current row
+            model = index.model()
+            row = index.row()
+            self.options = {model.data(model.index(row, c), QtDataRoles.EditRole)
+                            for c in range(model.columnCount())}
+
+        for choice in sorted(self.options):
+            editor.addItem(choice)
+
+        index = editor.findText(value, flags=Qt.Qt.MatchExactly)
+        if editor.currentIndex() == index:
+            return
+        elif index == -1:
+            # -1 is returned by findText if text is not found
+            # In this case add the value to list of options in combobox
+            editor.addItem(value)
+            editor.setCurrentIndex(editor.count() - 1)
         else:
-            combobox.addItem(value)
-            combobox.setCurrentIndex(combobox.count() - 1)
+            editor.setCurrentIndex(index)
 
     def setModelData(self, editor: QWidget, model: QAbstractItemModel,
                      index: QModelIndex) -> None:
         combobox = editor  # type: QComboBox
         value = str(combobox.currentText())
-        row = index.row()
-        for c in range(model.columnCount()):
-            mindex = model.index(row, c)
-            data = str(model.data(mindex, QtCore.Qt.DisplayRole))
-            if data == value:
-                model.setData(mindex, '<Unassigned>', QtCore.Qt.EditRole)
         model.setData(index, value, QtCore.Qt.EditRole)
 
-    def updateEditorGeometry(self, editor: QWidget, option: Qt.QStyleOptionViewItem,
+    def updateEditorGeometry(self, editor: QWidget,
+                             option: Qt.QStyleOptionViewItem,
                              index: QModelIndex) -> None:
         editor.setGeometry(option.rect)
 

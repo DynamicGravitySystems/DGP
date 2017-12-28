@@ -286,6 +286,13 @@
        </item>
       </layout>
      </item>
+     <item alignment="Qt::AlignLeft">
+      <widget class="QLabel" name="label_msg">
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
+     </item>
      <item>
       <layout class="QVBoxLayout" name="vbox_advanced_controls">
        <item>
@@ -313,7 +320,7 @@
         </spacer>
        </item>
        <item>
-        <widget class="QPushButton" name="prj_cancel">
+        <widget class="QPushButton" name="btn_cancel">
          <property name="sizePolicy">
           <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
            <horstretch>0</horstretch>
@@ -338,7 +345,7 @@
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="prj_create">
+        <widget class="QPushButton" name="btn_create">
          <property name="sizePolicy">
           <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
            <horstretch>0</horstretch>
@@ -369,7 +376,7 @@
   </layout>
  </widget>
  <tabstops>
-  <tabstop>prj_create</tabstop>
+  <tabstop>btn_create</tabstop>
   <tabstop>prj_type_list</tabstop>
  </tabstops>
  <resources>
@@ -377,7 +384,7 @@
  </resources>
  <connections>
   <connection>
-   <sender>prj_cancel</sender>
+   <sender>btn_cancel</sender>
    <signal>clicked()</signal>
    <receiver>Dialog</receiver>
    <slot>reject()</slot>
@@ -405,6 +412,22 @@
     <hint type="destinationlabel">
      <x>526</x>
      <y>405</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>btn_create</sender>
+   <signal>clicked()</signal>
+   <receiver>Dialog</receiver>
+   <slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>851</x>
+     <y>427</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>449</x>
+     <y>224</y>
     </hint>
    </hints>
   </connection>
