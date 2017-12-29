@@ -250,6 +250,7 @@ class MainWindow(QMainWindow, main_window):
         self._context_tree.setModel(model)
         self._context_tree.expandAll()
 
+    @autosave
     def data_added(self, flight: prj.Flight, src: types.DataSource) -> None:
         """
         Register a new data file with a flight and updates the Flight UI
@@ -285,8 +286,8 @@ class MainWindow(QMainWindow, main_window):
         dialog.setValue(0)
         return dialog
 
-    def import_data(self, path: pathlib.Path, dtype: str, flight: prj.Flight,
-                    fields=None):
+    def import_data(self, path: pathlib.Path, dtype: enums.DataTypes,
+                    flight: prj.Flight, fields=None):
         """
         Load data of dtype from path, using a threaded loader class
         Upon load the data file should be registered with the specified flight.
@@ -302,8 +303,10 @@ class MainWindow(QMainWindow, main_window):
 
         loader.data.connect(lambda ds: self.data_added(flight, ds))
         loader.progress.connect(progress.setValue)
-        loader.loaded.connect(self.save_project)
-        loader.loaded.connect(progress.close)
+        loader.error.connect(lambda x: progress.close())
+        loader.error.connect(lambda x: self.save_project())
+        # loader.loaded.connect(self.save_project)
+        # loader.loaded.connect(progress.close)
 
         loader.start()
 
@@ -322,14 +325,13 @@ class MainWindow(QMainWindow, main_window):
     # Project dialog functions
     #####
 
-    def import_data_dialog(self, dtype=None) -> None:
+    def import_data_dialog(self, dtype=None) -> bool:
         """Load data file (GPS or Gravity) using a background Thread, then hand
         it off to the project."""
-        dialog = AdvancedImport(self.project, self.current_flight, dtype=dtype)
-        if dialog.exec_():
-            path, dtype, fields, flight = dialog.content
-            self.import_data(path, dtype, flight, fields=fields)
-        return
+        dialog = AdvancedImport(self.project, self.current_flight,
+                                dtype=dtype, parent=self)
+        dialog.data.connect(lambda flt, ds: self.data_added(flt, ds))
+        return dialog.exec_()
 
     def new_project_dialog(self) -> QMainWindow:
         new_window = True
@@ -421,6 +423,13 @@ class ProjectTreeView(QTreeView):
         info_action.triggered.connect(info_slot)
         plot_action = QAction("Plot in new window")
         plot_action.triggered.connect(plot_slot)
+        if isinstance(context_focus, types.DataSource):
+            data_action = QAction("Set Active Data File")
+            # TODO: Work on this later, it breaks plotter currently
+            # data_action.triggered.connect(
+            #     lambda item: context_focus.__setattr__('active', True)
+            # )
+            menu.addAction(data_action)
 
         menu.addAction(info_action)
         menu.addAction(plot_action)
@@ -434,6 +443,11 @@ class ProjectTreeView(QTreeView):
         if not (isinstance(item, prj.Flight)
                 or isinstance(item, prj.GravityProject)):
             return
+        for name, attr in item.__class__.__dict__.items():
+            if isinstance(attr, property):
+                print("Have property bound to {}".format(name))
+                print("Value is: {}".format(item.__getattribute__(name)))
+
         model = TableModel(['Key', 'Value'])
         model.set_object(item)
         dialog = InfoDialog(model, parent=self)

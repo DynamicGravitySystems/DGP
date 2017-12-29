@@ -69,24 +69,28 @@ def _extract_bits(bitfield, columns=None, as_bool=False):
         return df
 
 
-def read_at1a(path, fields=None, fill_with_nans=True, interp=False):
+def read_at1a(path, fields=None, fill_with_nans=True, interp=False,
+              skiprows=None):
     """
     Read and parse gravity data file from DGS AT1A (Airborne) meter.
 
     CSV Columns:
-        gravity, long, cross, beam, temp, status, pressure, Etemp, GPSweek, GPSweekseconds
+        gravity, long, cross, beam, temp, status, pressure, Etemp, GPSweek,
+        GPSweekseconds
 
     Parameters
     ----------
     path : str
         Filesystem path to gravity data file
     fields: List
-        Optional List of fields to specify when importing the data, otherwise defaults are assumed
+        Optional List of fields to specify when importing the data, otherwise
+        defaults are assumed.
         This can be used if the data file has fields in an abnormal order
     fill_with_nans : boolean, default True
         Fills time gaps with NaNs for all fields
     interp : boolean, default False
         Interpolate all NaNs for fields of type numpy.number
+    skiprows
 
     Returns
     -------
@@ -97,7 +101,8 @@ def read_at1a(path, fields=None, fill_with_nans=True, interp=False):
         fields = ['gravity', 'long', 'cross', 'beam', 'temp', 'status', 'pressure', 'Etemp', 'GPSweek',
                   'GPSweekseconds']
 
-    df = pd.read_csv(path, header=None, engine='c', na_filter=False)
+    df = pd.read_csv(path, header=None, engine='c', na_filter=False,
+                     skiprows=skiprows)
     df.columns = fields
 
     # expand status field

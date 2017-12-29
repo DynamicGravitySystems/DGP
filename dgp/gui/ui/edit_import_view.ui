@@ -17,7 +17,7 @@
    </sizepolicy>
   </property>
   <property name="windowTitle">
-   <string>Dialog</string>
+   <string>Data Preview</string>
   </property>
   <property name="sizeGripEnabled">
    <bool>true</bool>
@@ -35,6 +35,16 @@
    </item>
    <item>
     <layout class="QHBoxLayout" name="hbox_tools">
+     <item>
+      <widget class="QToolButton" name="btn_autosize">
+       <property name="toolTip">
+        <string>Autosize Column Widths</string>
+       </property>
+       <property name="text">
+        <string>&lt;&gt;</string>
+       </property>
+      </widget>
+     </item>
      <item>
       <widget class="QCheckBox" name="chb_has_header">
        <property name="toolTip">
@@ -72,7 +82,10 @@
       <set>QAbstractItemView::AnyKeyPressed|QAbstractItemView::DoubleClicked|QAbstractItemView::EditKeyPressed|QAbstractItemView::SelectedClicked</set>
      </property>
      <attribute name="horizontalHeaderVisible">
-      <bool>false</bool>
+      <bool>true</bool>
+     </attribute>
+     <attribute name="horizontalHeaderStretchLastSection">
+      <bool>true</bool>
      </attribute>
     </widget>
    </item>
@@ -172,6 +185,22 @@
     <hint type="destinationlabel">
      <x>274</x>
      <y>174</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>btn_autosize</sender>
+   <signal>clicked()</signal>
+   <receiver>table_col_edit</receiver>
+   <slot>resizeColumnsToContents()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>24</x>
+     <y>38</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>151</x>
+     <y>146</y>
     </hint>
    </hints>
   </connection>

@@ -49,13 +49,20 @@ class MeterTypes(enum.Enum):
 
 class DataTypes(enum.Enum):
     """Gravity/Trajectory Data Types"""
-    # TODO: Add different GPS format enums
     GRAVITY = 'gravity'
     TRAJECTORY = 'trajectory'
-    AT1A = 'at1a'
-    AT1M = 'at1m'
-    ZLS = 'zls'
-    TAGS = 'tags'
+
+
+class GravityTypes(enum.Enum):
+    # TODO: add set of fields specific to each dtype
+    AT1A = ('gravity', 'long', 'cross', 'beam', 'temp', 'status', 'pressure',
+            'Etemp', 'GPSweek', 'GPSweekseconds')
+    AT1M = ('at1m',)
+    ZLS = ('line_name', 'year', 'day', 'hour', 'minute', 'second', 'sensor',
+           'spring_tension', 'cross_coupling', 'raw_beam', 'vcc', 'al', 'ax',
+           've2', 'ax2', 'xacc2', 'lacc2', 'xacc', 'lacc', 'par_port',
+           'platform_period')
+    TAGS = ('tags', )
 
 
 class GPSFields(enum.Enum):
