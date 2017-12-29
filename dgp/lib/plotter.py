@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import QSizePolicy, QMenu, QAction, QWidget, QToolBar
 from PyQt5.QtCore import pyqtSignal, QMimeData
 from PyQt5.QtGui import QCursor, QDropEvent, QDragEnterEvent, QDragMoveEvent
 import PyQt5.QtCore as QtCore
+import PyQt5.QtWidgets as QtWidgets
 from matplotlib.backends.backend_qt5agg import (
    FigureCanvasQTAgg as FigureCanvas, NavigationToolbar2QT as NavigationToolbar)
 from matplotlib.figure import Figure
@@ -27,7 +28,6 @@ from matplotlib.text import Annotation
 import numpy as np
 
 from dgp.lib.project import Flight
-from dgp.gui.dialogs import SetLineLabelDialog
 import dgp.lib.types as types
 
 
@@ -315,7 +315,7 @@ class PatchGroup:
     """
     Contain related patches that are cloned across multiple sub-plots
     """
-    def __init__(self, label: str=None, uid=None, parent=None):
+    def __init__(self, label: str='', uid=None, parent=None):
         self.parent = parent  # type: AxesGroup
         if uid is not None:
             self.uid = uid
@@ -721,13 +721,33 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         self._pop_menu = QMenu(self)
         self._pop_menu.addAction(
             QAction('Remove', self, triggered=self._remove_patch))
-        # self._pop_menu.addAction(QAction('Set Label', self,
-        #     triggered=self._label_patch))
         self._pop_menu.addAction(
             QAction('Set Label', self, triggered=self._label_patch))
 
+        self._rs_timer = QtCore.QTimer(self)
+        self._rs_timer.timeout.connect(self.resizeDone)
+        self._toolbar = None
+
     def __len__(self):
         return len(self._plots)
+
+    def resizeEvent(self, event):
+        """
+        Here we override the resizeEvent handler in order to hide the plot
+        and toolbar widgets when the window is being resized (for performance
+        reasons).
+        self._rs_timer is started with the specified timeout (in ms), at which
+        time the widgets are shown again (resizeDone method). Thus if a user is
+        dragging the window size handle, and stops for 250ms, the contents
+        will be re-drawn, then rehidden again when the user continues resizing.
+        """
+        self._rs_timer.start(200)
+        self.hide()
+        super().resizeEvent(event)
+
+    def resizeDone(self):
+        self._rs_timer.stop()
+        self.show()
 
     @property
     def axes(self):
@@ -806,22 +826,25 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         """PyQtSlot:
         Called by QAction menu item to add a label to the currently selected
         PatchGroup"""
-        if self.ax_grp.active is not None:
-            pg = self.ax_grp.active
-            if pg.label is not None:
-                dialog = SetLineLabelDialog(pg.label)
-            else:
-                dialog = SetLineLabelDialog(None)
-            if dialog.exec_():
-                label = dialog.label_text
-            else:
-                return
+        if self.ax_grp.active is None:
+            return
 
-            pg.set_label(label)
-            update = LineUpdate(flight_id=self._flight.uid, action='modify',
-                                uid=pg.uid, start=pg.start(), stop=pg.stop(),
-                                label=pg.label)
-            self.line_changed.emit(update)
+        pg = self.ax_grp.active
+        # Replace custom SetLineLabelDialog with builtin QInputDialog
+        text, ok = QtWidgets.QInputDialog.getText(self,
+                                                   "Enter Label",
+                                                   "Line Label:",
+                                                   text=pg.label)
+        if not ok:
+            self.ax_grp.deselect()
+            return
+
+        label = str(text).strip()
+        pg.set_label(label)
+        update = LineUpdate(flight_id=self._flight.uid, action='modify',
+                            uid=pg.uid, start=pg.start(), stop=pg.stop(),
+                            label=pg.label)
+        self.line_changed.emit(update)
         self.ax_grp.deselect()
         self.draw()
         return
@@ -1160,9 +1183,11 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         QtWidgets.QToolBar
             Matplotlib Qt Toolbar used to control this plot instance
         """
-        toolbar = NavigationToolbar(self, parent=parent)
+        if self._toolbar is None:
+            toolbar = NavigationToolbar(self, parent=parent)
 
-        toolbar.actions()[0].triggered.connect(self.home)
-        toolbar.actions()[4].triggered.connect(self.toggle_pan)
-        toolbar.actions()[5].triggered.connect(self.toggle_zoom)
-        return toolbar
+            toolbar.actions()[0].triggered.connect(self.home)
+            toolbar.actions()[4].triggered.connect(self.toggle_pan)
+            toolbar.actions()[5].triggered.connect(self.toggle_zoom)
+            self._toolbar = toolbar
+        return self._toolbar

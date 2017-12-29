@@ -41,9 +41,16 @@ class WorkspaceWidget(QWidget):
         super().__init__(parent, **kwargs)
         self.label = label
         self._uid = gen_uuid('ww')
-        # self._layout = layout
         self._context_model = None
-        # self.setLayout(self._layout)
+        self._plot = None
+
+    @property
+    def plot(self) -> LineGrabPlot:
+        return self._plot
+
+    @plot.setter
+    def plot(self, value):
+        self._plot = value
 
     def data_modified(self, action: str, uid: str):
         pass
@@ -70,12 +77,12 @@ class PlotTab(WorkspaceWidget):
         self.log = logging.getLogger('PlotTab')
 
         vlayout = QVBoxLayout()
-        self._plot = LineGrabPlot(flight, axes)
-        self._plot.line_changed.connect(self._on_modified_line)
+        self.plot = LineGrabPlot(flight, axes)
+        self.plot.line_changed.connect(self._on_modified_line)
         self._flight = flight
 
-        vlayout.addWidget(self._plot)
-        vlayout.addWidget(self._plot.get_toolbar())
+        vlayout.addWidget(self.plot)
+        vlayout.addWidget(self.plot.get_toolbar(), alignment=Qt.AlignBottom)
         self.setLayout(vlayout)
         self._apply_state()
         self._init_model()
@@ -87,18 +94,18 @@ class PlotTab(WorkspaceWidget):
         state = self._flight.get_plot_state()
         draw = False
         for dc in state:
-            self._plot.add_series(dc, dc.plotted)
+            self.plot.add_series(dc, dc.plotted)
 
         for line in self._flight.lines:
-            self._plot.add_patch(line.start, line.stop, line.uid,
+            self.plot.add_patch(line.start, line.stop, line.uid,
                                  label=line.label)
             draw = True
         if draw:
-            self._plot.draw()
+            self.plot.draw()
 
     def _init_model(self):
         channels = self._flight.channels
-        plot_model = models.ChannelListModel(channels, len(self._plot))
+        plot_model = models.ChannelListModel(channels, len(self.plot))
         plot_model.plotOverflow.connect(self._too_many_children)
         plot_model.channelChanged.connect(self._on_channel_changed)
         plot_model.update()
@@ -138,10 +145,11 @@ class PlotTab(WorkspaceWidget):
         self.log.info("Channel change request: new index: {}".format(new))
 
         self.log.debug("Moving series on plot")
-        self._plot.remove_series(channel)
+        self.plot.remove_series(channel)
         if new != -1:
-            self._plot.add_series(channel, new)
+            self.plot.add_series(channel, new)
         else:
+            pass
             print("destination is -1")
         self.model.update()
 
