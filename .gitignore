@@ -1,8 +1,17 @@
+# Ignored file extensions
 *.idea
+*.pdf
 *.pyc
 *.pyo
+*.coverage
+*.vsdx
+
+# Ignored directories
 __pycache__/
 scratch/
-*.pdf
 venv/
-*.coverage
+docs/build/
+
+# Specific Directives
+dgp/gui/ui/*.py
+examples/local*

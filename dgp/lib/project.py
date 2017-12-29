@@ -3,7 +3,6 @@
 import pickle
 import pathlib
 import logging
-from typing import Union, Type
 from datetime import datetime
 
 from pandas import DataFrame
@@ -11,6 +10,7 @@ from pandas import DataFrame
 from dgp.gui.qtenum import QtItemFlags, QtDataRoles
 from dgp.lib.meterconfig import MeterConfig, AT1Meter
 from dgp.lib.etc import gen_uuid
+import dgp.lib.enums as enums
 import dgp.lib.types as types
 import dgp.lib.datamanager as dm
 
@@ -324,8 +324,6 @@ class Flight(types.TreeItem):
         self._data_uid = self.append_child(Container(ctype=types.DataSource,
                                                      parent=self,
                                                      name='Data Files'))
-        # self.append_child(self._lines)
-        # self.append_child(self._data)
 
     def data(self, role):
         if role == QtDataRoles.ToolTipRole:
@@ -344,6 +342,8 @@ class Flight(types.TreeItem):
         """Return data channels as list of DataChannel objects"""
         rv = []
         for source in self.get_child(self._data_uid):  # type: types.DataSource
+            # TODO: Work on active sources later
+            # if source is None or not source.active:
             rv.extend(source.get_channels())
         return rv
 
@@ -355,9 +355,12 @@ class Flight(types.TreeItem):
         """Register a data file for use by this Flight"""
         _log.info("Flight {} registering data source: {} UID: {}".format(
             self.name, datasrc.filename, datasrc.uid))
+        datasrc.flight = self
         self.get_child(self._data_uid).append_child(datasrc)
-        # self._data.append_child(datasrc)
-        # TODO: Set channels within source to plotted if in default plot dict
+        # TODO: Hold off on this - breaks plot when we change source
+        # print("Setting new Dsrc to active")
+        # datasrc.active = True
+        # self.update()
 
     def add_line(self, start: datetime, stop: datetime, uid=None):
         """Add a flight line to the flight by start/stop index and sequence
@@ -415,7 +418,7 @@ class Container(types.TreeItem):
     # Arbitrary list of permitted types
     ctypes = {Flight, MeterConfig, types.FlightLine, types.DataSource}
 
-    def __init__(self, ctype, parent, *args, **kwargs):
+    def __init__(self, ctype, parent=None, **kwargs):
         """
         Defines a generic container designed for use with models.ProjectModel,
         implementing the required functions to display and contain child

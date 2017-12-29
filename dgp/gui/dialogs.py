@@ -146,93 +146,9 @@ class BaseDialog(QtWidgets.QDialog):
         """
 
 
-class ImportData(QtWidgets.QDialog, data_dialog):
-    """
-    Rationalization:
-    This dialog will be used to import gravity and/or GPS data.
-    A drop down box will be populated with the available project flights into
-    which the data will be associated
-    User will specify wheter the data is a gravity or gps file (TODO: maybe we
-    can programatically determine the type)
-    User will specify file path
-
-    This class does not handle the actual loading of data, it only sets up the
-    parameters (path, type etc) for the calling class to do the loading.
-    """
-    def __init__(self, project: prj.AirborneProject=None, flight:
-                 prj.Flight=None, *args):
-        super().__init__(*args)
-        self.setupUi(self)
-
-        # Setup button actions
-        self.button_browse.clicked.connect(self.browse_file)
-        self.buttonBox.accepted.connect(self.accept)
-
-        dgsico = Qt.QIcon(':images/assets/geoid_icon.png')
-
-        self.setWindowIcon(dgsico)
-        self.path = None
-        self.dtype = None
-        self.flight = flight
-
-        for flight in project.flights:
-            self.combo_flights.addItem(flight.name, flight.uid)
-            # scroll to this item if it matches self.flight
-            if flight == self.flight:
-                self.combo_flights.setCurrentIndex(self.combo_flights.count()-1)
-        for meter in project.meters:
-            self.combo_meters.addItem(meter.name)
-
-        self.file_model = Qt.QFileSystemModel()
-        self.init_tree()
-
-    def init_tree(self):
-        self.file_model.setRootPath(os.getcwd())
-        self.file_model.setNameFilters(["*.csv", "*.dat"])
-
-        self.tree_directory.setModel(self.file_model)
-        self.tree_directory.scrollTo(self.file_model.index(os.getcwd()))
-
-        self.tree_directory.resizeColumnToContents(0)
-        for i in range(1, 4):  # Remove size/date/type columns from view
-            self.tree_directory.hideColumn(i)
-        self.tree_directory.clicked.connect(self.select_tree_file)
-
-    def select_tree_file(self, index):
-        path = pathlib.Path(self.file_model.filePath(index))
-        # TODO: Verify extensions for selected files before setting below
-        if path.is_file():
-            self.field_path.setText(str(path.resolve()))
-            self.path = path
-        else:
-            return
-
-    def browse_file(self):
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self, "Select Data File", os.getcwd(), "Data (*.dat *.csv)")
-        if path:
-            self.path = pathlib.Path(path)
-            self.field_path.setText(self.path.name)
-            index = self.file_model.index(str(self.path.resolve()))
-            self.tree_directory.scrollTo(self.file_model.index(
-                str(self.path.resolve())))
-            self.tree_directory.setCurrentIndex(index)
-
-    def accept(self):
-        # '&' is used to set text hints in the GUI
-        self.dtype = {'G&PS Data': 'gps', '&Gravity Data': 'gravity'}.get(
-            self.group_radiotype.checkedButton().text(), 'gravity')
-        self.flight = self.combo_flights.currentData()
-        if self.path is None:
-            return
-        super().accept()
-
-    @property
-    def content(self) -> (pathlib.Path, str, prj.Flight):
-        return self.path, self.dtype, self.flight
-
-
 class EditImportView(BaseDialog, edit_view):
+    # TODO: Provide method of saving custom changes to columns between
+    # re-opening of this dialog. Perhaps under custom combo-box item.
     """
     Take lines of data with corresponding fields and populate custom Table Model
     Fields can be exchanged via a custom Selection Delegate, which provides a
@@ -711,31 +627,3 @@ class InfoDialog(QtWidgets.QDialog, info_dialog):
     def accept(self):
         self.updates = self._model.updates
         super().accept()
-
-
-class SetLineLabelDialog(QtWidgets.QDialog, line_label_dialog):
-    def __init__(self, label):
-        super().__init__()
-        self.setupUi(self)
-
-        self._label = label
-
-        if self._label is not None:
-            self.label_txt.setText(self._label)
-        self.button_box.accepted.connect(self.accept)
-        self.button_box.rejected.connect(self.reject)
-
-    def accept(self):
-        text = self.label_txt.text().strip()
-        if text:
-            self._label = text
-        else:
-            self._label = None
-        super().accept()
-
-    def reject(self):
-        super().reject()
-
-    @property
-    def label_text(self):
-        return self._label

@@ -3,13 +3,14 @@
 import json
 from abc import ABCMeta, abstractmethod
 from collections import namedtuple
-from typing import Union, Generator, List
+from typing import Union, Generator, List, Iterable
 
 from pandas import Series, DataFrame
 
 from dgp.lib.etc import gen_uuid
 from dgp.gui.qtenum import QtItemFlags, QtDataRoles
 import dgp.lib.datamanager as dm
+import dgp.lib.enums as enums
 
 """
 Dynamic Gravity Processor (DGP) :: lib/types.py
@@ -60,7 +61,7 @@ class AbstractTreeItem(metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def children(self):
+    def children(self) -> Iterable['AbstractTreeItem']:
         pass
 
     @abstractmethod
@@ -139,7 +140,7 @@ class BaseTreeItem(AbstractTreeItem):
             return
         assert isinstance(value, AbstractTreeItem)
         self._parent = value
-        self.update()
+        # self.update()
 
     @property
     def children(self) -> Generator[AbstractTreeItem, None, None]:
@@ -439,13 +440,43 @@ class DataSource(BaseTreeItem):
         Data type (i.e. GPS/Gravity) of the data pointed to by this object.
 
     """
-    def __init__(self, uid, filename: str, fields: List[str], dtype: str):
+    def __init__(self, uid, filename: str, fields: List[str],
+                 dtype: enums.DataTypes):
         """Create a DataSource item with UID matching the managed file UID
         that it points to."""
         super().__init__(uid)
         self.filename = filename
         self.fields = fields
         self.dtype = dtype
+        self._flight = None
+        self._active = False
+
+    @property
+    def flight(self):
+        return self._flight
+
+    @flight.setter
+    def flight(self, value):
+        self._flight = value
+
+    @property
+    def active(self):
+        return self._active
+
+    @active.setter
+    def active(self, value: bool):
+        """Iterate through siblings and deactivate any other sibling of same
+        dtype if setting this sibling to active."""
+        print("Trying to set self to active")
+        if value:
+            for child in self.parent.children:  # type: DataSource
+                if child is self:
+                    continue
+                if child.dtype == self.dtype and child.active:
+                    child.active = False
+            self._active = True
+        else:
+            self._active = False
 
     def get_channels(self) -> List['DataChannel']:
         """
@@ -478,10 +509,12 @@ class DataSource(BaseTreeItem):
 
     def data(self, role: QtDataRoles):
         if role == QtDataRoles.DisplayRole:
-            return "{dtype}: {fname}".format(dtype=self.dtype,
+            return "{dtype}: {fname}".format(dtype=self.dtype.name.capitalize(),
                                              fname=self.filename)
         if role == QtDataRoles.ToolTipRole:
             return "UID: {}".format(self.uid)
+        if role == QtDataRoles.DecorationRole and self.active:
+            return ':images/assets/geoid_icon.png'
 
     def children(self):
         return []
@@ -531,6 +564,8 @@ class DataChannel(BaseTreeItem):
             return self.label
         if role == QtDataRoles.UserRole:
             return self.field
+        if role == QtDataRoles.ToolTipRole:
+            return self._source.filename
         return None
 
     def flags(self):

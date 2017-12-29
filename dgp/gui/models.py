@@ -130,6 +130,7 @@ class TableModel2(QtCore.QAbstractTableModel):
         super().__init__(parent=parent)
 
         self._data = data
+        self._header_index = True
 
     def header_row(self):
         return self._data[0]
@@ -176,15 +177,17 @@ class TableModel2(QtCore.QAbstractTableModel):
 
     def headerData(self, section, orientation, role=None):
         if role == QtCore.Qt.DisplayRole and orientation == QtCore.Qt.Horizontal:
+            if self._header_index:
+                return section
             return QtCore.QVariant()
 
     # Required implementations of super class for editable table
 
-    def setData(self, index: QtCore.QModelIndex, value, role=None):
+    def setData(self, index: QtCore.QModelIndex, value, role=QtCore.Qt.EditRole):
         """Basic implementation of editable model. This doesn't propagate the
         changes to the underlying object upon which the model was based
         though (yet)"""
-        if index.isValid() and role == QtCore.Qt.ItemIsEditable:
+        if index.isValid() and role == QtCore.Qt.EditRole:
             self._data[index.row()][index.column()] = value
             self.dataChanged.emit(index, index)
             return True
@@ -411,7 +414,7 @@ class ComboEditDelegate(Qt.QStyledItemDelegate):
             self.options = {model.data(model.index(row, c), QtDataRoles.EditRole)
                             for c in range(model.columnCount())}
 
-        for choice in sorted(self.options):
+        for choice in self.options:
             editor.addItem(choice)
 
         index = editor.findText(value, flags=Qt.Qt.MatchExactly)
@@ -501,6 +504,7 @@ class ChannelListModel(BaseTreeModel):
         self.update()
 
     def set_channels(self, channels: list):
+        print("Trying to set CLM channels")
         self.clear()
         self.channels = self._build_model(channels)
         self.update()
