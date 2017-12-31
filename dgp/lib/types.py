@@ -513,8 +513,11 @@ class DataSource(BaseTreeItem):
                                              fname=self.filename)
         if role == QtDataRoles.ToolTipRole:
             return "UID: {}".format(self.uid)
-        if role == QtDataRoles.DecorationRole and self.active:
-            return ':images/assets/geoid_icon.png'
+        if role == QtDataRoles.DecorationRole:
+            if self.dtype == enums.DataTypes.GRAVITY:
+                return ':icons/grav'
+            if self.dtype == enums.DataTypes.TRAJECTORY:
+                return ':icons/gps'
 
     def children(self):
         return []

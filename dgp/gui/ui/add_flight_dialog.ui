@@ -20,8 +20,8 @@
    <string>Add Flight</string>
   </property>
   <property name="windowIcon">
-   <iconset resource="resources.qrc">
-    <normaloff>:/images/assets/flight_icon.png</normaloff>:/images/assets/flight_icon.png</iconset>
+   <iconset resource="resources/resources.qrc">
+    <normaloff>:/icons/airborne</normaloff>:/icons/airborne</iconset>
   </property>
   <property name="sizeGripEnabled">
    <bool>true</bool>
@@ -266,7 +266,7 @@
   <tabstop>browse_gps</tabstop>
  </tabstops>
  <resources>
-  <include location="resources.qrc"/>
+  <include location="resources/resources.qrc"/>
  </resources>
  <connections>
   <connection>

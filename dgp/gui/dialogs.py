@@ -305,6 +305,9 @@ class AdvancedImport(BaseDialog, advanced_import):
         self._flight = flight
         self._custom_cols = None
         self._dtype = dtype
+        icon = {enums.DataTypes.GRAVITY: ':icons/gravity',
+                enums.DataTypes.TRAJECTORY: ':icons/gps'}[dtype]
+        self.setWindowIcon(Qt.QIcon(icon))
 
         self._file_filter = "(*.csv *.dat *.txt)"
         self._base_dir = '.'
@@ -541,8 +544,8 @@ class CreateProject(BaseDialog, project_dialog):
         self.prj_dir.setText(str(desktop))
 
         # Populate the type selection list
-        flt_icon = Qt.QIcon(':images/assets/flight_icon.png')
-        boat_icon = Qt.QIcon(':images/assets/boat_icon.png')
+        flt_icon = Qt.QIcon(':icons/airborne')
+        boat_icon = Qt.QIcon(':icons/marine')
         dgs_airborne = Qt.QListWidgetItem(flt_icon, 'DGS Airborne',
                                           self.prj_type_list)
         dgs_airborne.setData(QtCore.Qt.UserRole, enums.ProjectTypes.AIRBORNE)

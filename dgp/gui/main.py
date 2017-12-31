@@ -79,11 +79,11 @@ class MainWindow(QMainWindow, main_window):
             }
             QTreeView::branch:closed:has-children {
                 background: none;
-                image: url(:/images/assets/branch-closed.png);
+                image: url(:/icons/chevron-right);
             }
             QTreeView::branch:open:has-children {
                 background: none;
-                image: url(:/images/assets/branch-open.png);
+                image: url(:/icons/chevron-down);
             }
         """)
 

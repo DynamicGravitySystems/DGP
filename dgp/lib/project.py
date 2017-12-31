@@ -303,8 +303,8 @@ class Flight(types.TreeItem):
 
         self.name = name
         self._project = project
-        self._icon = ':images/assets/flight_icon.png'
-        self.style = {'icon': ':images/assets/flight_icon.png',
+        self._icon = ':/icons/airborne'
+        self.style = {'icon': ':/icons/airborne',
                       QtDataRoles.BackgroundRole: 'LightGray'}
         self.meter = meter
         self.date = kwargs.get('date', datetime.today())
@@ -455,7 +455,7 @@ class Container(types.TreeItem):
         # assert parent is not None
         self._ctype = ctype
         self._name = kwargs.get('name', self._ctype.__name__)
-        _icon = ':/images/assets/folder_open.png'
+        _icon = ':/icons/folder_open.png'
         self.style = {QtDataRoles.DecorationRole: _icon,
                       QtDataRoles.BackgroundRole: 'LightBlue'}
 

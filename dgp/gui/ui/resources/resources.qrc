@@ -1,0 +1,19 @@
+<RCC>
+  <qresource prefix="icons">
+    <file>AutosizeStretch_16x.png</file>
+    <file>folder_open.png</file>
+    <file>meter_config.png</file>
+    <file>new_file.png</file>
+    <file>save_project.png</file>
+    <file alias="gps">gps_icon.png</file>
+    <file alias="gravity">grav_icon.png</file>
+    <file alias="dgs">dgs_icon.xpm</file>
+    <file alias="marine">boat_icon.png</file>
+    <file alias="airborne">plane_icon.png</file>
+    <file alias="chevron-down">tree-view/3x/chevron-down@3x.png</file>
+    <file alias="chevron-right">tree-view/3x/chevron-right@3x.png</file>
+  </qresource>
+  <qresource prefix="images">
+    <file alias="geoid">geoid.png</file>
+  </qresource>
+</RCC>

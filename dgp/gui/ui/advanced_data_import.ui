@@ -26,8 +26,8 @@
    <string>Advanced Import</string>
   </property>
   <property name="windowIcon">
-   <iconset resource="resources.qrc">
-    <normaloff>:/images/assets/folder_open.png</normaloff>:/images/assets/folder_open.png</iconset>
+   <iconset resource="resources/resources.qrc">
+    <normaloff>:/icons/new_file.png</normaloff>:/icons/new_file.png</iconset>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <property name="spacing">
@@ -380,7 +380,7 @@
         <string>Edit Columns</string>
        </property>
        <property name="icon">
-        <iconset resource="resources.qrc">
+        <iconset>
          <normaloff>:/images/assets/meter_config.png</normaloff>:/images/assets/meter_config.png</iconset>
        </property>
       </widget>
@@ -432,7 +432,7 @@
   </layout>
  </widget>
  <resources>
-  <include location="resources.qrc"/>
+  <include location="resources/resources.qrc"/>
  </resources>
  <connections>
   <connection>

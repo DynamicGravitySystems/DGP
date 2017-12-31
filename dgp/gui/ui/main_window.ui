@@ -20,8 +20,8 @@
    <string>Dynamic Gravity Processor</string>
   </property>
   <property name="windowIcon">
-   <iconset resource="resources.qrc">
-    <normaloff>:/images/assets/geoid_icon.png</normaloff>:/images/assets/geoid_icon.png</iconset>
+   <iconset resource="resources/resources.qrc">
+    <normaloff>:/images/geoid</normaloff>:/images/geoid</iconset>
   </property>
   <property name="tabShape">
    <enum>QTabWidget::Triangular</enum>
@@ -173,8 +173,8 @@
           <string>Add Flight</string>
          </property>
          <property name="icon">
-          <iconset resource="resources.qrc">
-           <normaloff>:/images/assets/flight_icon.png</normaloff>:/images/assets/flight_icon.png</iconset>
+          <iconset resource="resources/resources.qrc">
+           <normaloff>:/icons/airborne</normaloff>:/icons/airborne</iconset>
          </property>
         </widget>
        </item>
@@ -184,8 +184,8 @@
           <string>Add Meter</string>
          </property>
          <property name="icon">
-          <iconset resource="resources.qrc">
-           <normaloff>:/images/assets/meter_config.png</normaloff>:/images/assets/meter_config.png</iconset>
+          <iconset resource="resources/resources.qrc">
+           <normaloff>:/icons/meter_config.png</normaloff>:/icons/meter_config.png</iconset>
          </property>
         </widget>
        </item>
@@ -195,8 +195,8 @@
           <string>Import GPS</string>
          </property>
          <property name="icon">
-          <iconset resource="resources.qrc">
-           <normaloff>:/images/assets/geoid_icon.png</normaloff>:/images/assets/geoid_icon.png</iconset>
+          <iconset resource="resources/resources.qrc">
+           <normaloff>:/icons/gps</normaloff>:/icons/gps</iconset>
          </property>
         </widget>
        </item>
@@ -204,6 +204,16 @@
         <widget class="QPushButton" name="prj_import_grav">
          <property name="text">
           <string>Import Gravity</string>
+         </property>
+         <property name="icon">
+          <iconset resource="resources/resources.qrc">
+           <normaloff>:/icons/gravity</normaloff>:/icons/gravity</iconset>
+         </property>
+         <property name="iconSize">
+          <size>
+           <width>16</width>
+           <height>16</height>
+          </size>
          </property>
         </widget>
        </item>
@@ -253,7 +263,8 @@
    <addaction name="separator"/>
    <addaction name="action_add_flight"/>
    <addaction name="action_add_meter"/>
-   <addaction name="action_import_data"/>
+   <addaction name="action_import_gps"/>
+   <addaction name="action_import_grav"/>
    <addaction name="separator"/>
   </widget>
   <widget class="QDockWidget" name="info_dock">
@@ -559,8 +570,8 @@
   </action>
   <action name="action_file_new">
    <property name="icon">
-    <iconset resource="resources.qrc">
-     <normaloff>:/images/assets/new_project.png</normaloff>:/images/assets/new_project.png</iconset>
+    <iconset resource="resources/resources.qrc">
+     <normaloff>:/icons/new_file.png</normaloff>:/icons/new_file.png</iconset>
    </property>
    <property name="text">
     <string>New Project...</string>
@@ -571,8 +582,8 @@
   </action>
   <action name="action_file_open">
    <property name="icon">
-    <iconset resource="resources.qrc">
-     <normaloff>:/images/assets/folder_open.png</normaloff>:/images/assets/folder_open.png</iconset>
+    <iconset resource="resources/resources.qrc">
+     <normaloff>:/icons/folder_open.png</normaloff>:/icons/folder_open.png</iconset>
    </property>
    <property name="text">
     <string>Open Project</string>
@@ -583,8 +594,8 @@
   </action>
   <action name="action_file_save">
    <property name="icon">
-    <iconset resource="resources.qrc">
-     <normaloff>:/images/assets/save_project.png</normaloff>:/images/assets/save_project.png</iconset>
+    <iconset resource="resources/resources.qrc">
+     <normaloff>:/icons/save_project.png</normaloff>:/icons/save_project.png</iconset>
    </property>
    <property name="text">
     <string>Save Project</string>
@@ -595,8 +606,8 @@
   </action>
   <action name="action_add_flight">
    <property name="icon">
-    <iconset resource="resources.qrc">
-     <normaloff>:/images/assets/flight_icon.png</normaloff>:/images/assets/flight_icon.png</iconset>
+    <iconset resource="resources/resources.qrc">
+     <normaloff>:/icons/airborne</normaloff>:/icons/airborne</iconset>
    </property>
    <property name="text">
     <string>Add Flight</string>
@@ -607,8 +618,8 @@
   </action>
   <action name="action_add_meter">
    <property name="icon">
-    <iconset resource="resources.qrc">
-     <normaloff>:/images/assets/meter_config.png</normaloff>:/images/assets/meter_config.png</iconset>
+    <iconset resource="resources/resources.qrc">
+     <normaloff>:/icons/meter_config.png</normaloff>:/icons/meter_config.png</iconset>
    </property>
    <property name="text">
     <string>Add Meter</string>
@@ -618,23 +629,15 @@
    </property>
   </action>
   <action name="action_project_info">
+   <property name="icon">
+    <iconset resource="resources/resources.qrc">
+     <normaloff>:/icons/dgs</normaloff>:/icons/dgs</iconset>
+   </property>
    <property name="text">
     <string>Project Info...</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+I</string>
-   </property>
-  </action>
-  <action name="action_import_data">
-   <property name="icon">
-    <iconset resource="resources.qrc">
-     <normaloff>:/images/assets/geoid_icon.png</normaloff>:/images/assets/geoid_icon.png</iconset>
-   </property>
-   <property name="text">
-    <string>Import Data</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+O</string>
    </property>
   </action>
   <action name="action_info_dock">
@@ -652,11 +655,19 @@
    </property>
   </action>
   <action name="action_import_gps">
+   <property name="icon">
+    <iconset resource="resources/resources.qrc">
+     <normaloff>:/icons/gps</normaloff>:/icons/gps</iconset>
+   </property>
    <property name="text">
     <string>Import GPS</string>
    </property>
   </action>
   <action name="action_import_grav">
+   <property name="icon">
+    <iconset resource="resources/resources.qrc">
+     <normaloff>:/icons/gravity</normaloff>:/icons/gravity</iconset>
+   </property>
    <property name="text">
     <string>Import Gravity</string>
    </property>
@@ -674,7 +685,7 @@
   <tabstop>prj_add_flight</tabstop>
  </tabstops>
  <resources>
-  <include location="resources.qrc"/>
+  <include location="resources/resources.qrc"/>
  </resources>
  <connections>
   <connection>

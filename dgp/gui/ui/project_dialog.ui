@@ -38,8 +38,8 @@
    <string>Create New Project</string>
   </property>
   <property name="windowIcon">
-   <iconset resource="resources.qrc">
-    <normaloff>:/images/assets/new_project.png</normaloff>:/images/assets/new_project.png</iconset>
+   <iconset resource="resources/resources.qrc">
+    <normaloff>:/icons/dgs</normaloff>:/icons/dgs</iconset>
   </property>
   <property name="accessibleName">
    <string/>
@@ -380,7 +380,7 @@
   <tabstop>prj_type_list</tabstop>
  </tabstops>
  <resources>
-  <include location="resources.qrc"/>
+  <include location="resources/resources.qrc"/>
  </resources>
  <connections>
   <connection>

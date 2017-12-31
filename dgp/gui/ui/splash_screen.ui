@@ -20,8 +20,8 @@
    <string>Dynamic Gravity Processor</string>
   </property>
   <property name="windowIcon">
-   <iconset resource="resources.qrc">
-    <normaloff>:/images/assets/geoid_icon.png</normaloff>:/images/assets/geoid_icon.png</iconset>
+   <iconset resource="resources/resources.qrc">
+    <normaloff>:/icons/dgs</normaloff>:/icons/dgs</iconset>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
@@ -40,7 +40,7 @@
       <string/>
      </property>
      <property name="pixmap">
-      <pixmap resource="resources.qrc">:/images/assets/geoid_icon.png</pixmap>
+      <pixmap resource="resources/resources.qrc">:/images/geoid</pixmap>
      </property>
      <property name="scaledContents">
       <bool>true</bool>
@@ -230,7 +230,7 @@
   </action>
  </widget>
  <resources>
-  <include location="resources.qrc"/>
+  <include location="resources/resources.qrc"/>
  </resources>
  <connections>
   <connection>

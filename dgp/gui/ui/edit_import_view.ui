@@ -41,7 +41,11 @@
         <string>Autosize Column Widths</string>
        </property>
        <property name="text">
-        <string>&lt;&gt;</string>
+        <string/>
+       </property>
+       <property name="icon">
+        <iconset resource="resources/resources.qrc">
+         <normaloff>:/icons/AutosizeStretch_16x.png</normaloff>:/icons/AutosizeStretch_16x.png</iconset>
        </property>
       </widget>
      </item>
@@ -154,7 +158,9 @@
    </item>
   </layout>
  </widget>
- <resources/>
+ <resources>
+  <include location="resources/resources.qrc"/>
+ </resources>
  <connections>
   <connection>
    <sender>btn_cancel</sender>
