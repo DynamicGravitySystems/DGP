@@ -347,10 +347,6 @@ class Flight(types.TreeItem):
             rv.extend(source.get_channels())
         return rv
 
-    def get_plot_state(self):
-        # Return List[DataChannel if DataChannel is plotted]
-        return [dc for dc in self.channels if dc.plotted]
-
     def register_data(self, datasrc: types.DataSource):
         """Register a data file for use by this Flight"""
         _log.info("Flight {} registering data source: {} UID: {}".format(

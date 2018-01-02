@@ -62,6 +62,8 @@ class TableModel(QtCore.QAbstractTableModel):
     @model_data.setter
     def model_data(self, value):
         self._data = value
+        while len(self._header) < len(self._data[0]):
+            self._header.append('None')
         self.layoutChanged.emit()
 
     def value_at(self, row, col):
@@ -118,7 +120,7 @@ class TableModel(QtCore.QAbstractTableModel):
                 return section
             return QtCore.QVariant()
 
-    # Required implementations of super class for editable table
+    # Required implementations of super class for editable table #############
 
     def setData(self, index: QtCore.QModelIndex, value, role=QtCore.Qt.EditRole):
         """Basic implementation of editable model. This doesn't propagate the
@@ -126,7 +128,8 @@ class TableModel(QtCore.QAbstractTableModel):
         though (yet)"""
         if index.isValid() and role == QtCore.Qt.EditRole:
             self._header[index.column()] = value
-            self.dataChanged.emit(index, index)
+            idx = self.index(0, index.column())
+            self.dataChanged.emit(idx, idx)
             return True
         else:
             return False
@@ -365,11 +368,13 @@ class ComboEditDelegate(Qt.QStyledItemDelegate):
         else:
             editor.setCurrentIndex(index)
 
-    def setModelData(self, editor: QWidget, model: QAbstractItemModel,
+    def setModelData(self, editor: QComboBox, model: QAbstractItemModel,
                      index: QModelIndex) -> None:
-        combobox = editor  # type: QComboBox
-        value = str(combobox.currentText())
-        model.setData(index, value, QtCore.Qt.EditRole)
+        value = str(editor.currentText())
+        try:
+            model.setData(index, value, QtCore.Qt.EditRole)
+        except:
+            _log.exception("Exception setting model data")
 
     def updateEditorGeometry(self, editor: QWidget,
                              option: Qt.QStyleOptionViewItem,
@@ -546,10 +551,14 @@ class ChannelListModel(BaseTreeModel):
         dc.orphan()
         self.endRemoveRows()
 
+        if row == -1:
+            n_row = 0
+        else:
+            n_row = row
         # Add channel to new parent/header
-        n_row = destination.child_count()
         self.beginInsertRows(parent, n_row, n_row)
-        destination.append_child(dc)
+        # destination.append_child(dc)
+        destination.insert_child(dc, n_row)
         self.endInsertRows()
 
         self.channelChanged.emit(destination.index, dc)

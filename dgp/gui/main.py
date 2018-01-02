@@ -8,8 +8,9 @@ from typing import Union
 
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
-from PyQt5.QtWidgets import (QMainWindow, QTabWidget, QAction, QMenu,
-                             QProgressDialog, QFileDialog, QTreeView)
+import PyQt5.QtWidgets as QtWidgets
+from PyQt5.QtWidgets import (QMainWindow, QAction, QMenu, QProgressDialog,
+                             QFileDialog, QTreeView)
 from PyQt5.QtCore import pyqtSignal, pyqtBoundSignal
 from PyQt5.QtGui import QColor
 from PyQt5.uic import loadUiType
@@ -146,10 +147,10 @@ class MainWindow(QMainWindow, main_window):
 
         # Project Menu Actions #
         # self.action_import_data.triggered.connect(self.import_data_dialog)
-        self.action_import_grav.triggered.connect(
-            lambda: self.import_data_dialog('gravity'))
         self.action_import_gps.triggered.connect(
-            lambda: self.import_data_dialog('gps'))
+            lambda: self.import_data_dialog(enums.DataTypes.TRAJECTORY))
+        self.action_import_grav.triggered.connect(
+            lambda: self.import_data_dialog(enums.DataTypes.GRAVITY))
         self.action_add_flight.triggered.connect(self.add_flight_dialog)
 
         # Project Tree View Actions #
@@ -234,7 +235,7 @@ class MainWindow(QMainWindow, main_window):
         self.log.warning("Tab close requested for tab: {}".format(index))
         flight_id = self._tabs.widget(index).flight.uid
         self._tabs.removeTab(index)
-        del self._open_tabs[flight_id]
+        tab = self._open_tabs.pop(flight_id)
 
     def _tab_changed(self, index: int):
         self.log.info("Tab changed to index: {}".format(index))
@@ -267,6 +268,7 @@ class MainWindow(QMainWindow, main_window):
         -------
         None
         """
+        self.log.debug("Registering datasource to flight: {}".format(flight))
         flight.register_data(src)
         if flight.uid not in self._open_tabs:
             # If flight is not opened we don't need to update the plot
@@ -321,11 +323,9 @@ class MainWindow(QMainWindow, main_window):
         else:
             self.log.info("Error saving project.")
 
-    #####
-    # Project dialog functions
-    #####
+    # Project dialog functions ################################################
 
-    def import_data_dialog(self, dtype=None) -> bool:
+    def import_data_dialog(self, dtype=None):
         """Load data file (GPS or Gravity) using a background Thread, then hand
         it off to the project."""
         dialog = AdvancedImport(self.project, self.current_flight,
@@ -335,7 +335,7 @@ class MainWindow(QMainWindow, main_window):
 
     def new_project_dialog(self) -> QMainWindow:
         new_window = True
-        dialog = CreateProject()
+        dialog = CreateProjectDialog()
         if dialog.exec_():
             self.log.info("Creating new project")
             project = dialog.project
@@ -367,16 +367,16 @@ class MainWindow(QMainWindow, main_window):
 
     @autosave
     def add_flight_dialog(self) -> None:
-        dialog = AddFlight(self.project)
+        dialog = AddFlightDialog(self.project)
         if dialog.exec_():
             flight = dialog.flight
             self.log.info("Adding flight {}".format(flight.name))
             self.project.add_flight(flight)
 
-            if dialog.gravity:
-                self.import_data(dialog.gravity, 'gravity', flight)
-            if dialog.gps:
-                self.import_data(dialog.gps, 'gps', flight)
+            # if dialog.gravity:
+            #     self.import_data(dialog.gravity, 'gravity', flight)
+            # if dialog.gps:
+            #     self.import_data(dialog.gps, 'gps', flight)
             self._launch_tab(flight=flight)
             return
         self.log.info("New flight creation aborted.")
@@ -419,7 +419,7 @@ class ProjectTreeView(QTreeView):
         info_slot = functools.partial(self._info_action, context_focus)
         plot_slot = functools.partial(self._plot_action, context_focus)
         menu = QMenu()
-        info_action = QAction("Info")
+        info_action = QAction("Properties")
         info_action.triggered.connect(info_slot)
         plot_action = QAction("Plot in new window")
         plot_action.triggered.connect(plot_slot)
@@ -440,15 +440,18 @@ class ProjectTreeView(QTreeView):
         raise NotImplementedError
 
     def _info_action(self, item):
-        if not (isinstance(item, prj.Flight)
-                or isinstance(item, prj.GravityProject)):
-            return
-        for name, attr in item.__class__.__dict__.items():
-            if isinstance(attr, property):
-                print("Have property bound to {}".format(name))
-                print("Value is: {}".format(item.__getattribute__(name)))
+        # if not (isinstance(item, prj.Flight)
+        #         or isinstance(item, prj.GravityProject)):
+        #     return
+        # for name, attr in item.__class__.__dict__.items():
+        #
+        #     if isinstance(attr, property):
+        #         print("Have property bound to {}".format(name))
+        #         print("Value is: {}".format(item.__getattribute__(name)))
+        dlg = PropertiesDialog(item, parent=self)
+        dlg.exec_()
 
-        model = TableModel(['Key', 'Value'])
-        model.set_object(item)
-        dialog = InfoDialog(model, parent=self)
-        dialog.exec_()
+        # model = TableModel(['Key', 'Value'])
+        # model.set_object(item)
+        # dialog = InfoDialog(model, parent=self)
+        # dialog.exec_()

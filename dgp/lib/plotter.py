@@ -988,6 +988,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         axes.lines.remove(line)
         axes.tick_params('y', colors='black')
         axes.set_ylabel('')
+        axes.relim()
 
         self.ax_grp.rescale_patches()
         del self._lines[dc.uid]

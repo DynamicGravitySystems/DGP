@@ -141,6 +141,7 @@ class BaseDialog(QtWidgets.QDialog):
         dlg.setStandardButtons(QtWidgets.QMessageBox.Ok)
         dlg.setText(message)
         dlg.setIcon(QtWidgets.QMessageBox.Critical)
+        dlg.setWindowTitle("Error")
         dlg.exec_()
 
     def validate_not_empty(self, terminator='*'):
@@ -166,7 +167,11 @@ class EditImportDialog(BaseDialog, edit_view):
         An enumeration consisting of Enumerated items mapped to Field Tuples
         i.e. field_enum.AT1A.value == ('Gravity', 'long', 'cross', ...)
     edit_header : bool
-
+        Allow the header row to be edited if True.
+        Currently there seems to be no reason to permit editing of gravity
+        data files as they are expected to be very uniform. However this is
+        useful with GPS data files where we have seen some columns switched
+        or missing.
     parent :
         Parent Widget to this Dialog
 
@@ -230,7 +235,9 @@ class EditImportDialog(BaseDialog, edit_view):
 
     @property
     def columns(self):
-        return self.model.table_header
+        # TODO: This is still problematic, what happens if a None column is
+        # in the middle of the data set? Cols will be skewed.
+        return [col for col in self.model.table_header if col != 'None']
 
     @property
     def cb_format(self) -> QtWidgets.QComboBox:
@@ -424,6 +431,9 @@ class AdvancedImportDialog(BaseDialog, advanced_import):
     def accept(self) -> None:
         if self.path is None:
             self.show_message(PATH_ERR, 'Path*', color='red')
+            return
+        if self.flight is None:
+            self.show_error("Must select a valid flight to import data.")
             return
 
         super().accept()

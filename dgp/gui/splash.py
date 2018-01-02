@@ -13,7 +13,7 @@ from PyQt5.uic import loadUiType
 
 from dgp.gui.main import MainWindow
 from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, LOG_COLOR_MAP, get_project_file
-from dgp.gui.dialogs import CreateProject
+from dgp.gui.dialogs import CreateProjectDialog
 import dgp.lib.project as prj
 
 splash_screen, _ = loadUiType('dgp/gui/ui/splash_screen.ui')
@@ -116,7 +116,7 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
 
     def new_project(self):
         """Allow the user to create a new project"""
-        dialog = CreateProject()
+        dialog = CreateProjectDialog()
         if dialog.exec_():
             project = dialog.project  # type: prj.AirborneProject
             project.save()

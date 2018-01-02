@@ -1,6 +1,6 @@
 # coding: utf-8
 
-import json
+import logging
 from abc import ABCMeta, abstractmethod
 from collections import namedtuple
 from typing import Union, Generator, List, Iterable
@@ -25,6 +25,7 @@ items for display in a QTreeView widget. The classes themselves are Qt
 agnostic, meaning they can be safely pickled, and there is no dependence on 
 any Qt modules.
 """
+_log = logging.getLogger(__name__)
 
 Location = namedtuple('Location', ['lat', 'long', 'alt'])
 
@@ -132,10 +133,6 @@ class BaseTreeItem(AbstractTreeItem):
     def parent(self, value: AbstractTreeItem):
         """Sets the parent of this object."""
         if value is None:
-            # try:
-            #     self._parent.remove_child(self)
-            # except ValueError:
-            #     print("Couldn't reove self from parent")
             self._parent = None
             return
         assert isinstance(value, AbstractTreeItem)
@@ -207,8 +204,11 @@ class BaseTreeItem(AbstractTreeItem):
         if index == -1:
             self.append_child(child)
             return True
-        print("Inserting ATI child at index: ", index)
-        self._children.insert(index, child)
+        try:
+            self._children.insert(index, child)
+            child.parent = self
+        except IndexError:
+            return False
         self.update()
         return True
 
@@ -226,7 +226,7 @@ class BaseTreeItem(AbstractTreeItem):
         try:
             return self._children.index(child)
         except ValueError:
-            print("Invalid child passed to indexof")
+            _log.exception("Invalid child passed to indexof.")
             return -1
 
     def row(self) -> Union[int, None]:
@@ -467,7 +467,6 @@ class DataSource(BaseTreeItem):
     def active(self, value: bool):
         """Iterate through siblings and deactivate any other sibling of same
         dtype if setting this sibling to active."""
-        print("Trying to set self to active")
         if value:
             for child in self.parent.children:  # type: DataSource
                 if child is self:
@@ -566,5 +565,5 @@ class DataChannel(BaseTreeItem):
         except ValueError:
             return False
         except:
-            print("Unexpected error orphaning child")
+            _log.exception("Unexpected error while orphaning child.")
             return False

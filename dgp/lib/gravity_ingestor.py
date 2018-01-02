@@ -69,7 +69,7 @@ def _extract_bits(bitfield, columns=None, as_bool=False):
         return df
 
 
-def read_at1a(path, fields=None, fill_with_nans=True, interp=False,
+def read_at1a(path, columns=None, fill_with_nans=True, interp=False,
               skiprows=None):
     """
     Read and parse gravity data file from DGS AT1A (Airborne) meter.
@@ -82,7 +82,7 @@ def read_at1a(path, fields=None, fill_with_nans=True, interp=False,
     ----------
     path : str
         Filesystem path to gravity data file
-    fields: List
+    columns: List
         Optional List of fields to specify when importing the data, otherwise
         defaults are assumed.
         This can be used if the data file has fields in an abnormal order
@@ -97,19 +97,20 @@ def read_at1a(path, fields=None, fill_with_nans=True, interp=False,
     pandas.DataFrame
         Gravity data indexed by datetime.
     """
-    if fields is None:
-        fields = ['gravity', 'long', 'cross', 'beam', 'temp', 'status', 'pressure', 'Etemp', 'GPSweek',
-                  'GPSweekseconds']
+    if columns is None:
+        columns = ['gravity', 'long', 'cross', 'beam', 'temp', 'status',
+                   'pressure', 'Etemp', 'GPSweek', 'GPSweekseconds']
 
     df = pd.read_csv(path, header=None, engine='c', na_filter=False,
                      skiprows=skiprows)
-    df.columns = fields
+    df.columns = columns
 
     # expand status field
-    status_field_names = ['clamp', 'unclamp', 'gps_sync', 'feedback', 'reserved1',
-                          'reserved2', 'ad_lock', 'cmd_rcvd', 'nav_mode_1', 'nav_mode_2',
-                          'plat_comm', 'sens_comm', 'gps_input', 'ad_sat',
-                          'long_sat', 'cross_sat', 'on_line']
+    status_field_names = ['clamp', 'unclamp', 'gps_sync', 'feedback',
+                          'reserved1', 'reserved2', 'ad_lock', 'cmd_rcvd',
+                          'nav_mode_1', 'nav_mode_2', 'plat_comm', 'sens_comm',
+                          'gps_input', 'ad_sat', 'long_sat', 'cross_sat',
+                          'on_line']
 
     status = _extract_bits(df['status'], columns=status_field_names,
                            as_bool=True)

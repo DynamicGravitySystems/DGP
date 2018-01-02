@@ -210,7 +210,11 @@ class _DataManager:
             uid = gen_uuid('data_')
         with HDFStore(str(hdf_path)) as hdf, self._registry as reg:
             print("Writing to hdfstore: ", hdf_path)
-            hdf.put(uid, data, format='fixed', data_columns=True)
+            try:
+                hdf.put(uid, data, format='fixed', data_columns=True)
+            except:
+                self.log.exception("Exception writing file to HDF5 store.")
+                return None
             reg['datamap'].update({uid: HDF5})
         return uid
 
