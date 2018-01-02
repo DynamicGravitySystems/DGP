@@ -949,7 +949,6 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
             color = 'blue'
 
         series = dc.series()
-        dc.plot(axes_idx)
         line_artist = axes.plot(series.index, series.values,
                                 color=color, label=dc.label)[0]
 
@@ -982,7 +981,6 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
 
         """
         if dc.uid not in self._lines:
-            _log.warning("Series UID could not be located in plot_lines")
             return
         line = self._lines[dc.uid]  # type: Line2D
 
@@ -994,7 +992,6 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         self.ax_grp.rescale_patches()
         del self._lines[dc.uid]
         del self._series[dc.uid]
-        dc.plot(None)
 
         if not len(self._lines):
             _log.warning("No Lines on any axes.")

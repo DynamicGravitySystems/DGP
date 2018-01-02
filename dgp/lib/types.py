@@ -515,7 +515,7 @@ class DataSource(BaseTreeItem):
             return "UID: {}".format(self.uid)
         if role == QtDataRoles.DecorationRole:
             if self.dtype == enums.DataTypes.GRAVITY:
-                return ':icons/grav'
+                return ':icons/gravity'
             if self.dtype == enums.DataTypes.TRAJECTORY:
                 return ':icons/gps'
 
@@ -528,29 +528,9 @@ class DataChannel(BaseTreeItem):
         super().__init__(gen_uuid('dcn'), parent=parent)
         self.label = label
         self.field = label
-        self._source = source
+        self.source = source
         self.plot_style = ''
         self.units = ''
-        self._plotted = False
-        self._index = -1
-
-    @property
-    def plotted(self):
-        return self._plotted
-
-    @property
-    def index(self):
-        if not self._plotted:
-            return -1
-        return self._index
-
-    def plot(self, index: Union[int, None]) -> None:
-        if index is None:
-            self._plotted = False
-            self._index = -1
-        else:
-            self._index = index
-            self._plotted = True
 
     def series(self, force=False) -> Series:
         """Return the pandas Series referenced by this DataChannel
@@ -560,7 +540,7 @@ class DataChannel(BaseTreeItem):
             Reserved for future use, force the DataManager to reload the
             Series from disk.
         """
-        return self._source.load(self.field)
+        return self.source.load(self.field)
 
     def data(self, role: QtDataRoles):
         if role == QtDataRoles.DisplayRole:
@@ -568,7 +548,7 @@ class DataChannel(BaseTreeItem):
         if role == QtDataRoles.UserRole:
             return self.field
         if role == QtDataRoles.ToolTipRole:
-            return self._source.filename
+            return self.source.filename
         return None
 
     def flags(self):
@@ -584,4 +564,7 @@ class DataChannel(BaseTreeItem):
             res = parent.remove_child(self)
             return res
         except ValueError:
+            return False
+        except:
+            print("Unexpected error orphaning child")
             return False

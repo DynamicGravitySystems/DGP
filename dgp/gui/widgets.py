@@ -84,37 +84,24 @@ class PlotTab(WorkspaceWidget):
         vlayout.addWidget(self.plot)
         vlayout.addWidget(self.plot.get_toolbar(), alignment=Qt.AlignBottom)
         self.setLayout(vlayout)
-        self._apply_state()
         self._init_model()
-
-    def _apply_state(self) -> None:
-        """
-        Apply saved state to plot based on Flight plot channels.
-        """
-        state = self._flight.get_plot_state()
-        draw = False
-        for dc in state:
-            self.plot.add_series(dc, dc.plotted)
-
-        for line in self._flight.lines:
-            self.plot.add_patch(line.start, line.stop, line.uid,
-                                 label=line.label)
-            draw = True
-        if draw:
-            self.plot.draw()
 
     def _init_model(self):
         channels = self._flight.channels
         plot_model = models.ChannelListModel(channels, len(self.plot))
         plot_model.plotOverflow.connect(self._too_many_children)
         plot_model.channelChanged.connect(self._on_channel_changed)
-        plot_model.update()
+        # plot_model.update()
         self.model = plot_model
 
-    def data_modified(self, action: str, uid: str):
-        self.log.info("Adding channels to model.")
-        channels = self._flight.channels
-        self.model.set_channels(channels)
+    # TODO: Candidate to move into base WorkspaceWidget
+    def data_modified(self, action: str, dsrc: types.DataSource):
+        if action.lower() == 'add':
+            self.log.info("Adding channels to model.")
+            self.model.add_channels(*dsrc.get_channels())
+        if action.lower() == 'remove':
+            self.log.info("Removing channels from model.")
+            self.model.remove_source(dsrc)
 
     def _on_modified_line(self, info: LineUpdate):
         flight = self._flight
@@ -142,15 +129,9 @@ class PlotTab(WorkspaceWidget):
                                    stop=info.stop, label=info.label))
 
     def _on_channel_changed(self, new: int, channel: types.DataChannel):
-        self.log.info("Channel change request: new index: {}".format(new))
-
-        self.log.debug("Moving series on plot")
         self.plot.remove_series(channel)
         if new != -1:
             self.plot.add_series(channel, new)
-        else:
-            pass
-            print("destination is -1")
         self.model.update()
 
     def _too_many_children(self, uid):
@@ -267,8 +248,7 @@ class FlightTab(QWidget):
 
     def new_data(self, dsrc: types.DataSource):
         for tab in [self._plot_tab, self._transform_tab, self._map_tab]:
-            print("Updating tabs")
-            tab.data_modified('add', 'test')
+            tab.data_modified('add', dsrc)
 
     @property
     def flight(self):

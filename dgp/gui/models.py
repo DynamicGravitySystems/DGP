@@ -29,140 +29,77 @@ See Also
 dgp.lib.types.py : Defines many of the objects used within the models
 
 """
+_log = logging.getLogger(__name__)
 
 
 class TableModel(QtCore.QAbstractTableModel):
-    """Simple table model of key: value pairs."""
-
-    def __init__(self, columns, editable=None, editheader=False, parent=None):
-        super().__init__(parent=parent)
-        # TODO: Allow specification of which columns are editable
-        # List of column headers
-        self._cols = columns
-        self._rows = []
-        self._editable = editable
-        self._editheader = editheader
-        self._updates = {}
-
-    def set_object(self, obj):
-        """Populates the model with key, value pairs from the passed objects'
-        __dict__"""
-        for key, value in obj.__dict__.items():
-            self.append(key, value)
-
-    def append(self, *args):
-        """Add a new row of data to the table, trimming input array to length of
-         columns."""
-        if not isinstance(args, list):
-            args = list(args)
-        while len(args) < len(self._cols):
-            # Pad the end
-            args.append(None)
-
-        self._rows.append(args[:len(self._cols)])
-        return True
-
-    def get_row(self, row: int):
-        try:
-            return self._rows[row]
-        except IndexError:
-            print("Invalid row index")
-            return None
-
-    @property
-    def updates(self):
-        return self._updates
-
-    # Required implementations of super class (for a basic, non-editable table)
-
-    def rowCount(self, parent=None, *args, **kwargs):
-        return len(self._rows)
-
-    def columnCount(self, parent=None, *args, **kwargs):
-        return len(self._cols)
-
-    def data(self, index: QModelIndex, role=None):
-        if role == QtCore.Qt.DisplayRole or role == QtCore.Qt.EditRole:
-            try:
-                return self._rows[index.row()][index.column()]
-            except IndexError:
-                return QtCore.QVariant()
-        return QtCore.QVariant()
-
-    def flags(self, index: QModelIndex):
-        flags = QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
-        if index.row() == 0 and self._editheader:
-            flags = flags | QtCore.Qt.ItemIsEditable
-        # Allow the values column to be edited
-        elif self._editable is not None and index.column() in self._editable:
-            flags = flags | QtCore.Qt.ItemIsEditable
-        return flags
-
-    def headerData(self, section, orientation, role=None):
-        if role == QtCore.Qt.DisplayRole and orientation == QtCore.Qt.Horizontal:
-            return QVariant(section)
-            # return self._cols[section]
-
-    # Required implementations of super class for editable table
-
-    def setData(self, index: QtCore.QModelIndex, value: QtCore.QVariant, role=None):
-        """Basic implementation of editable model. This doesn't propagate the
-        changes to the underlying object upon which the model was based
-        though (yet)"""
-        if index.isValid() and role == QtCore.Qt.ItemIsEditable:
-            self._rows[index.row()][index.column()] = value
-            self.dataChanged.emit(index, index)
-            return True
-        else:
-            return False
-
-
-class TableModel2(QtCore.QAbstractTableModel):
     """Simple table model of key: value pairs.
     Parameters
     ----------
-    data : List
-    2D List of data by rows/columns, data[0] is assumed to contain the column
-    headers for the data.
     """
 
-    def __init__(self, data, parent=None):
+    def __init__(self, header, editable_header=False, parent=None):
         super().__init__(parent=parent)
 
-        self._data = data
+        self._header = list(header)
+        self._editable = editable_header
+        self._data = []
         self._header_index = True
 
-    def header_row(self):
-        return self._data[0]
+    @property
+    def table_header(self):
+        return self._header
+
+    @table_header.setter
+    def table_header(self, value):
+        self._header = list(value)
+        self.layoutChanged.emit()
+
+    @property
+    def model_data(self):
+        return self._data
+
+    @model_data.setter
+    def model_data(self, value):
+        self._data = value
+        self.layoutChanged.emit()
 
     def value_at(self, row, col):
         return self._data[row][col]
 
-    def set_row(self, index, values):
+    def set_row(self, row, values):
         try:
-            nvals = list(values)
-            while len(nvals) < self.columnCount():
-                nvals.append(' ')
-            self._data[index] = nvals
+            self._data[row] = values
         except IndexError:
-            print("Unable to set data at index: ", index)
             return False
-        self.dataChanged.emit(self.index(index, 0),
-                              self.index(index, len(self._data[index])))
+        self.dataChanged.emit(self.index(row, 0),
+                              self.index(row, self.columnCount()))
         return True
 
     # Required implementations of super class (for a basic, non-editable table)
 
     def rowCount(self, parent=None, *args, **kwargs):
-        return len(self._data)
+        return len(self._data) + 1
 
     def columnCount(self, parent=None, *args, **kwargs):
-        return len(self._data[0])
+        """Assume all data has same number of columns, but header may differ.
+        Returns the greater of header length or data length."""
+        try:
+            if len(self._data):
+                return max(len(self._data[0]), len(self._header))
+            return len(self._header)
+        except IndexError:
+            return 0
 
     def data(self, index: QModelIndex, role=None):
         if role == QtCore.Qt.DisplayRole or role == QtCore.Qt.EditRole:
+            if index.row() == 0:
+                try:
+                    return self._header[index.column()]
+                except IndexError:
+                    return 'None'
             try:
-                val = self._data[index.row()][index.column()]
+                val = self._data[index.row() - 1][index.column()]
                 return val
             except IndexError:
                 return QtCore.QVariant()
@@ -170,7 +107,7 @@ class TableModel2(QtCore.QAbstractTableModel):
 
     def flags(self, index: QModelIndex):
         flags = QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
-        if index.row() == 0:
+        if index.row() == 0 and self._editable:
             # Allow editing of first row (Column headers)
             flags = flags | QtCore.Qt.ItemIsEditable
         return flags
@@ -188,7 +125,7 @@ class TableModel2(QtCore.QAbstractTableModel):
         changes to the underlying object upon which the model was based
         though (yet)"""
         if index.isValid() and role == QtCore.Qt.EditRole:
-            self._data[index.row()][index.column()] = value
+            self._header[index.column()] = value
             self.dataChanged.emit(index, index)
             return True
         else:
@@ -477,41 +414,26 @@ class ChannelListModel(BaseTreeModel):
         self._default = ChannelListHeader()
         self.root.append_child(self._default)
 
-        self.channels = self._build_model(channels)
+        self.channels = {}
+        self.add_channels(*channels)
 
-    def _build_model(self, channels: list) -> Dict[str, DataChannel]:
+    def add_channels(self, *channels):
         """Build the model representation"""
-        rv = {}
         for dc in channels:  # type: DataChannel
-            rv[dc.uid] = dc
-            if dc.index == -1:
-                self._default.append_child(dc)
-                continue
-            try:
-                self._plots[dc.index].append_child(dc)
-            except KeyError:
-                self.log.warning('Channel {} could not be plotted, plot does '
-                                 'not exist'.format(dc.uid))
-                dc.plot(None)
-                self._default.append_child(dc)
-        return rv
-
-    def clear(self):
-        """Remove all channels from the model"""
-        for dc in self.channels.values():
-            dc.orphan()
-        self.channels = None
+            self.channels[dc.uid] = dc
+            self._default.append_child(dc)
         self.update()
 
-    def set_channels(self, channels: list):
-        print("Trying to set CLM channels")
-        self.clear()
-        self.channels = self._build_model(channels)
-        self.update()
-
-    def move_channel(self, uid, index) -> bool:
-        """Move channel specified by uid to parent at index"""
-        raise NotImplementedError("Method not yet implemented or required.")
+    def remove_source(self, dsrc):
+        for channel in self.channels:  # type: DataChannel
+            _log.debug("Orphaning and removing channel: {name}/{uid}".format(
+                name=channel.label, uid=channel.uid))
+            if channel.source == dsrc:
+                channel.orphan()
+                try:
+                    del self.channels[channel.uid]
+                except KeyError:
+                    pass
 
     def update(self) -> None:
         """Update the models view layout."""
