@@ -1,28 +1,101 @@
 # coding: utf-8
 
-import os
 import unittest
 import numpy as np
 import pandas as pd
-from copy import deepcopy
-from scipy import signal
 import csv
+from copy import deepcopy
 
-from .context import  dgp
+# from .context import  dgp
 from tests import sample_dir
-from dgp.lib.transform import TransformChain, DataWrapper, Transform
+from dgp.lib.transform import (TransformChain, DataWrapper, Transform,
+                               createtransform, transform_registry,
+                               RegisterTransformClass)
 from dgp.lib.derivatives import Eotvos, CentralDiff2
 from dgp.lib.filters import FIRlowpassfilter
 import dgp.lib.trajectory_ingestor as ti
 
-from copy import deepcopy
-
 
 class TestTransform(unittest.TestCase):
-    def test_basic_transform_chain_ops(self):
+
+    def test_createtransform_decorator(self):
+
+        @createtransform
+        def transform1(df, *, a=2, b=3):
+            df['A'] = df['A'] + a * b
+            return df
+
         df = pd.DataFrame({'A': range(11), 'B': range(11)})
 
         tc = TransformChain()
+        tf_inst = transform_registry['transform1']()
+
+        # check transform class instance attributes
+        self.assertTrue(tf_inst.a == 2)
+        self.assertTrue(tf_inst.b == 3)
+
+        tc.addtransform(tf_inst)
+
+        self.assertTrue(len(tc) == 1)
+
+        new_df_A = tc.apply(df)
+
+        df_A1 = deepcopy(df)
+        df_A1['A'] = df_A1['A'] + 2 * 3
+
+        self.assertTrue(new_df_A.equals(df_A1))
+
+        # test change of instance attributes
+        df_A2 = deepcopy(df)
+        df_A2['A'] = df_A2['A'] + 4 * 2
+
+        tf_inst.a = 4
+        tf_inst.b = 2
+        self.assertTrue(tf_inst.a == 4)
+        self.assertTrue(tf_inst.b == 2)
+
+        new_df_A = tc.apply(df)
+
+        self.assertTrue(new_df_A.equals(df_A2))
+
+    def test_transform_subclass(self):
+        @RegisterTransformClass('transform2')
+        class Transform2(Transform):
+            var_list = [('a', 2), ('b', 3)]
+
+            def func(self, df, *, a, b):
+                df['A'] = df['A'] + a * b
+                return df
+
+        df = pd.DataFrame({'A': range(11), 'B': range(11)})
+
+        tf_inst = Transform2()
+
+        # check transform class instance attributes
+        self.assertTrue(tf_inst.a == 2)
+        self.assertTrue(tf_inst.b == 3)
+
+        df_cp = deepcopy(df)
+        new_df_A = tf_inst(df_cp)
+        df_A1 = deepcopy(df)
+        df_A1['A'] = df_A1['A'] + 2 * 3
+
+        self.assertTrue(new_df_A.equals(df_A1))
+
+        # override default keyword values
+        tf_inst = Transform2(a=4, b=2)
+
+        self.assertTrue(tf_inst.a == 4)
+        self.assertTrue(tf_inst.b == 2)
+
+        df_cp = deepcopy(df)
+        new_df_A = tf_inst(df_cp)
+        df_A2 = deepcopy(df)
+        df_A2['A'] = df_A2['A'] + 4 * 2
+
+        self.assertTrue(new_df_A.equals(df_A2))
+
+    def test_basic_transform_chain_ops(self):
 
         def transform1(df):
             df['A'] = df['A'] + 3.
@@ -36,6 +109,8 @@ class TestTransform(unittest.TestCase):
             df = (df + df.shift(1)).dropna()
             return df
 
+        df = pd.DataFrame({'A': range(11), 'B': range(11)})
+        tc = TransformChain()
         tc.addtransform(transform1)
         tc.addtransform(transform2)
         tc.addtransform(transform3)
@@ -161,7 +236,7 @@ class TestTransform(unittest.TestCase):
         freq_after = self._find_comp(filtered_sig, fs)
         self.assertTrue(freq_after == [1.2, 3])
 
-    # @unittest.skip("tempo")
+    @unittest.skip("tempo")
     def test_transform_eotvos(self):
         """Test Eotvos function against corrections generated with MATLAB program."""
         # Ensure gps_fields are ordered correctly relative to test file
