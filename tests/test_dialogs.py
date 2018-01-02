@@ -85,6 +85,16 @@ class TestDialogs(unittest.TestCase):
             self.assertNotEqual(-1, t_dlg.cb_format.findData(fmt))
             t_dlg.format = fmt
             self.assertEqual(fmt, t_dlg.format)
+            col_fmt = t_dlg.params['subtype']
+            self.assertEqual(fmt, col_fmt)
+        t_dlg.format = enums.GPSFields.hms
+
+        # Verify expected output, ordered correctly
+        hms_expected = ['mdy', 'hms', 'lat', 'long', 'ell_ht']
+        self.assertEqual(hms_expected, t_dlg.params['columns'])
+
+
+
 
 
 

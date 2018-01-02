@@ -317,16 +317,15 @@ class AdvancedImportDialog(BaseDialog, advanced_import):
         self.setupUi(self)
 
         self._preview_limit = 5
-        self._params = {}
         self._path = None
         self._dtype = dtype
-        icon = {enums.DataTypes.GRAVITY: ':icons/gravity',
-                enums.DataTypes.TRAJECTORY: ':icons/gps'}[dtype]
-        self.setWindowIcon(Qt.QIcon(icon))
-
         self._file_filter = "(*.csv *.dat *.txt)"
         self._base_dir = '.'
         self._sample = None
+
+        icon = {enums.DataTypes.GRAVITY: ':icons/gravity',
+                enums.DataTypes.TRAJECTORY: ':icons/gps'}[dtype]
+        self.setWindowIcon(Qt.QIcon(icon))
         self.setWindowTitle("Import {}".format(dtype.name.capitalize()))
 
         # Establish field enum based on dtype
@@ -365,7 +364,10 @@ class AdvancedImportDialog(BaseDialog, advanced_import):
 
     @property
     def params(self):
-        return self._params
+        return dict(path=self.path,
+                    subtype=self.format,
+                    skiprows=self.editor.skiprow,
+                    columns=self.editor.columns)
 
     @property
     def editor(self) -> EditImportDialog:
@@ -424,10 +426,6 @@ class AdvancedImportDialog(BaseDialog, advanced_import):
             self.show_message(PATH_ERR, 'Path*', color='red')
             return
 
-        self._params = dict(path=self.path,
-                            subtype=self.format,
-                            skiprows=self.editor.skiprow,
-                            columns=self.editor.columns)
         super().accept()
 
     def _edit(self):

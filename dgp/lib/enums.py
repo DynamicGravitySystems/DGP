@@ -65,10 +65,11 @@ class GravityTypes(enum.Enum):
     TAGS = ('tags', )
 
 
+# TODO: I don't like encoding the field tuples in enum - do a separate lookup?
 class GPSFields(enum.Enum):
-    sow = {'week', 'sow', 'lat', 'long', 'ell_ht'}
-    hms = {'mdy', 'hms', 'lat', 'long', 'ell_ht'}
-    serial = {'datenum', 'lat', 'long', 'ell_ht'}
+    sow = ('week', 'sow', 'lat', 'long', 'ell_ht')
+    hms = ('mdy', 'hms', 'lat', 'long', 'ell_ht')
+    serial = ('datenum', 'lat', 'long', 'ell_ht')
 
 
 class QtItemFlags(enum.IntEnum):
