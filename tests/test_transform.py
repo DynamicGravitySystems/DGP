@@ -10,8 +10,8 @@ from copy import deepcopy
 from tests import sample_dir
 from dgp.lib.transform import (TransformChain, DataWrapper, Transform,
                                createtransform, transform_registry,
-                               registertransformclass)
-from dgp.lib.derivatives import Eotvos, CentralDiff2
+                               register_transform_class)
+# from dgp.lib.derivatives import Eotvos, CentralDiff2
 from dgp.lib.filters import FIRlowpassfilter
 import dgp.lib.trajectory_ingestor as ti
 
@@ -35,7 +35,6 @@ class TestTransform(unittest.TestCase):
         self.assertTrue(tf_inst.b == 3)
 
         tc.addtransform(tf_inst)
-
         self.assertTrue(len(tc) == 1)
 
         new_df_A = tc.apply(df)
@@ -59,11 +58,9 @@ class TestTransform(unittest.TestCase):
         self.assertTrue(new_df_A.equals(df_A2))
 
     def test_transform_subclass(self):
-        @registertransformclass
+        @register_transform_class
         class Transform2(Transform):
-            var_list = [('a', 2), ('b', 3)]
-
-            def func(self, df, *, a, b):
+            def func(self, df, *, a=2, b=3):
                 df['A'] = df['A'] + a * b
                 return df
 
@@ -97,25 +94,61 @@ class TestTransform(unittest.TestCase):
 
         self.assertTrue(new_df_A.equals(df_A2))
 
-    def test_basic_transform_chain_ops(self):
+    def test_transform_exceptions(self):
+        @register_transform_class
+        class Transform3(Transform):
+            def func(self, df, *, a, b):
+                df['A'] = df['A'] + a * b
+                return df
 
+        df = pd.DataFrame({'A': range(11), 'B': range(11)})
+
+        tf_inst = Transform3()
+
+        df_cp = deepcopy(df)
+        with self.assertRaises(ValueError):
+            tf_inst(df_cp)
+
+        new_df_A = tf_inst(df_cp, a=2, b=3)
+        df_A1 = deepcopy(df)
+        df_A1['A'] = df_A1['A'] + 2 * 3
+
+        self.assertTrue(new_df_A.equals(df_A1))
+
+        # override default keyword values
+        tf_inst = Transform3(a=4, b=2)
+
+        self.assertTrue(tf_inst.a == 4)
+        self.assertTrue(tf_inst.b == 2)
+
+        df_cp = deepcopy(df)
+        new_df_A = tf_inst(df_cp)
+        df_A2 = deepcopy(df)
+        df_A2['A'] = df_A2['A'] + 4 * 2
+
+        self.assertTrue(new_df_A.equals(df_A2))
+
+    def test_basic_transform_chain_ops(self):
+        @createtransform
         def transform1(df):
             df['A'] = df['A'] + 3.
             return df
 
+        @createtransform
         def transform2(df):
             df['A'] = df['A'] + df['B']
             return df
 
+        @createtransform
         def transform3(df):
             df = (df + df.shift(1)).dropna()
             return df
 
         df = pd.DataFrame({'A': range(11), 'B': range(11)})
         tc = TransformChain()
-        tc.addtransform(transform1)
-        tc.addtransform(transform2)
-        tc.addtransform(transform3)
+        tc.addtransform(transform1())
+        tc.addtransform(transform2())
+        tc.addtransform(transform3())
 
         self.assertTrue(len(tc) == 3)
 
@@ -129,41 +162,45 @@ class TestTransform(unittest.TestCase):
         self.assertTrue(new_df_A.equals(df_A))
 
         # test reordering
-        reordering = {tc[2]: 0, tc[0]: 2}
+        xforms = tc[::-1]
+        reordering = {tc.ordering[2]: 0, tc.ordering[0]: 2}
         reordered_uids = [tc.ordering[-1], tc.ordering[1], tc.ordering[0]]
         tc.reorder(reordering)
 
         self.assertTrue(tc.ordering == reordered_uids)
 
-        xforms = [transform3, transform2, transform1]
         reordered_xforms = [t for t in tc]
         self.assertTrue(xforms == reordered_xforms)
 
     def test_basic_data_wrapper(self):
 
+        @createtransform
         def transform1a(df):
             df['A'] = df['A'] + 3.
             return df
 
+        @createtransform
         def transform2a(df):
             df['A'] = df['A'] + df['B']
             return df
 
+        @createtransform
         def transform1b(df):
             df['A'] = df['A'] * 3
             return df
 
+        @createtransform
         def transform2b(df):
             df['C'] = df['A'] + df['B'] * 2
             return df
 
         tc_a = TransformChain()
-        tc_a.addtransform(transform1a)
-        tc_a.addtransform(transform2a)
+        tc_a.addtransform(transform1a())
+        tc_a.addtransform(transform2a())
 
         tc_b = TransformChain()
-        tc_b.addtransform(transform1b)
-        tc_b.addtransform(transform2b)
+        tc_b.addtransform(transform1b())
+        tc_b.addtransform(transform2b())
 
         df = pd.DataFrame({'A': range(11), 'B': range(11)})
         wrapper = DataWrapper(df)
@@ -186,12 +223,14 @@ class TestTransform(unittest.TestCase):
         self.assertTrue(df_a.equals(wrapper.modified[tc_a.uid]))
         self.assertTrue(df_b.equals(wrapper.modified[tc_b.uid]))
 
+    # @unittest.skip("tempo")
     def test_simple_filter_class(self):
 
-        def lp_filter(data, fc, fs, window):
+        @createtransform
+        def lp_filter(data, *, fc=10, fs=100, window='blackman'):
             return data
 
-        lp = FIRlowpassfilter(func=lp_filter, fc=10, fs=100)
+        lp = lp_filter()
         self.assertTrue(lp.fc == 10)
         self.assertTrue(lp.fs == 100)
 
@@ -207,6 +246,7 @@ class TestTransform(unittest.TestCase):
         freq = np.unique(np.abs(freqs[ind])) * fs
         return list(freq)
 
+    @unittest.skip("tempo")
     def test_lp_filter_class(self):
 
         # def lp_filter(data, fc, fs, window):

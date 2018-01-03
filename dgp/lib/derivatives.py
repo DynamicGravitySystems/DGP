@@ -9,10 +9,10 @@ Derivative classes
 import numpy as np
 from numpy import array
 
-from dgp.lib.transform import Transform, RegisterTransformClass
+from dgp.lib.transform import Transform, register_transform_class
 
 
-@RegisterTransformClass()
+@register_transform_class
 class CentralDiff2(Transform):
     """
     Central difference of order O(h^4)
@@ -157,7 +157,7 @@ def eotvos(self, lat: array, lon: array, ht: array, derivative: Transform, **kwa
     return E
 
 
-@RegisterTransformClass()
+@register_transform_class
 class Eotvos(Transform):
     """
     Calculate Eotvos Gravity Corrections

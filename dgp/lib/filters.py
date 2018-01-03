@@ -6,18 +6,14 @@ Filter classes
 
 """
 
-import numpy as np
-from numpy import array
 from scipy import signal
 
-from dgp.lib.transform import Transform, RegisterTransformClass
+from dgp.lib.transform import Transform, register_transform_class
 
 
-@RegisterTransformClass()
+@register_transform_class
 class FIRlowpassfilter(Transform):
-    var_list = ['fs', 'fc', ('window', 'blackman')]
-
-    def func(self, data, fc, fs, window):
+    def func(self, data, *, fc, fs, window='blackman'):
         filter_len = 1 / fc
         nyq = fs / 2.0
         wn = fc / nyq
