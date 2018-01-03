@@ -13,7 +13,7 @@ from scipy import signal
 from dgp.lib.transform import Transform, RegisterTransformClass
 
 
-@RegisterTransformClass('firlpfilter')
+@RegisterTransformClass()
 class FIRlowpassfilter(Transform):
     var_list = ['fs', 'fc', ('window', 'blackman')]
 

@@ -10,7 +10,7 @@ from copy import deepcopy
 from tests import sample_dir
 from dgp.lib.transform import (TransformChain, DataWrapper, Transform,
                                createtransform, transform_registry,
-                               RegisterTransformClass)
+                               registertransformclass)
 from dgp.lib.derivatives import Eotvos, CentralDiff2
 from dgp.lib.filters import FIRlowpassfilter
 import dgp.lib.trajectory_ingestor as ti
@@ -59,13 +59,15 @@ class TestTransform(unittest.TestCase):
         self.assertTrue(new_df_A.equals(df_A2))
 
     def test_transform_subclass(self):
-        @RegisterTransformClass('transform2')
+        @registertransformclass
         class Transform2(Transform):
             var_list = [('a', 2), ('b', 3)]
 
             def func(self, df, *, a, b):
                 df['A'] = df['A'] + a * b
                 return df
+
+        self.assertTrue('Transform2' in transform_registry)
 
         df = pd.DataFrame({'A': range(11), 'B': range(11)})
 
