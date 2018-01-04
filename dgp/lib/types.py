@@ -9,8 +9,10 @@ from pandas import Series, DataFrame
 
 from dgp.lib.etc import gen_uuid
 from dgp.gui.qtenum import QtItemFlags, QtDataRoles
-import dgp.lib.datamanager as dm
-import dgp.lib.enums as enums
+from .datamanager import get_manager
+# import dgp.lib.datamanager as dm
+from . import enums
+# import dgp.lib.enums as enums
 
 """
 Dynamic Gravity Processor (DGP) :: lib/types.py
@@ -112,7 +114,7 @@ class BaseTreeItem(AbstractTreeItem):
     AbstractTreeItem to ease futher specialization in subclasses.
     """
     def __init__(self, uid, parent: AbstractTreeItem=None):
-        self._uid = uid
+        self._uid = uid or gen_uuid('bti')
         self._parent = parent
         self._children = []
         # self._child_map = {}  # Used for fast lookup by UID
@@ -359,7 +361,8 @@ class FlightLine(TreeItem):
     and stop index, as well as the reference to the data it relates to.
     This TreeItem does not accept children.
     """
-    def __init__(self, start, stop, sequence, file_ref, uid=None, parent=None):
+    def __init__(self, start, stop, sequence=None, file_ref=None, uid=None,
+                 parent=None):
         super().__init__(uid, parent)
 
         self._start = start
@@ -394,6 +397,14 @@ class FlightLine(TreeItem):
     def stop(self, value):
         self._stop = value
         self.update()
+
+    @property
+    def sequence(self) -> int:
+        return self._sequence
+
+    @sequence.setter
+    def sequence(self, value: int):
+        self._sequence = value
 
     def data(self, role):
         if role == QtDataRoles.DisplayRole:
@@ -501,7 +512,7 @@ class DataSource(BaseTreeItem):
 
     def load(self, field=None) -> Union[Series, DataFrame]:
         """Load data from the DataManager and return the specified field."""
-        data = dm.get_manager().load_data(self.uid)
+        data = get_manager().load_data(self.uid)
         if field is not None:
             return data[field]
         return data

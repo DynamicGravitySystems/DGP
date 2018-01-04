@@ -1,16 +1,17 @@
 # coding: utf-8
 
+import sys
 import pathlib
 import logging
-from typing import List
+import inspect
 
 from PyQt5.QtCore import pyqtSignal, QThread, pyqtBoundSignal
+from pandas import DataFrame
 
 import dgp.lib.types as types
-import dgp.lib.datamanager as dm
-from dgp.lib.enums import DataTypes
-from dgp.lib.gravity_ingestor import read_at1a
-from dgp.lib.trajectory_ingestor import import_trajectory
+import dgp.lib.gravity_ingestor as gi
+import dgp.lib.trajectory_ingestor as ti
+from dgp.lib.enums import DataTypes, GravityTypes
 
 _log = logging.getLogger(__name__)
 

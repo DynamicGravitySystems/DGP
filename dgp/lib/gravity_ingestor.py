@@ -31,7 +31,7 @@ def _extract_bits(bitfield, columns=None, as_bool=False):
 
     Parameters
     ----------
-    bitfields : numpy.array or pandas.Series
+    bitfield : numpy.array or pandas.Series
         16, 32, or 64-bit integers
     columns : list, optional
         If a list is given, then the column names are given to the resulting
@@ -97,9 +97,8 @@ def read_at1a(path, columns=None, fill_with_nans=True, interp=False,
     pandas.DataFrame
         Gravity data indexed by datetime.
     """
-    if columns is None:
-        columns = ['gravity', 'long', 'cross', 'beam', 'temp', 'status',
-                   'pressure', 'Etemp', 'GPSweek', 'GPSweekseconds']
+    columns = columns or ['gravity', 'long', 'cross', 'beam', 'temp', 'status',
+                          'pressure', 'Etemp', 'GPSweek', 'GPSweekseconds']
 
     df = pd.read_csv(path, header=None, engine='c', na_filter=False,
                      skiprows=skiprows)

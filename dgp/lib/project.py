@@ -4,16 +4,15 @@ import pickle
 import pathlib
 import logging
 from datetime import datetime
+from itertools import count
 
 from pandas import DataFrame
 
 from dgp.gui.qtenum import QtItemFlags, QtDataRoles
-from dgp.lib.meterconfig import MeterConfig, AT1Meter
-from dgp.lib.etc import gen_uuid
-import dgp.lib.enums as enums
-import dgp.lib.types as types
-import dgp.lib.datamanager as dm
-
+from .meterconfig import MeterConfig, AT1Meter
+from .etc import gen_uuid
+from .types import DataSource, FlightLine, TreeItem
+from . import datamanager as dm
 """
 Dynamic Gravity Processor (DGP) :: project.py
 License: Apache License V2
@@ -55,6 +54,7 @@ Workflow:
 """
 
 _log = logging.getLogger(__name__)
+DATA_DIR = 'data'
 
 
 def can_pickle(attribute):
@@ -69,15 +69,15 @@ def can_pickle(attribute):
     return True
 
 
-class GravityProject(types.TreeItem):
+class GravityProject(TreeItem):
     """
     GravityProject will be the base class defining common values for both
     airborne and marine gravity survey projects.
     """
     version = 0.2  # Used for future pickling compatibility
 
-    def __init__(self, path: pathlib.Path, name: str="Untitled Project",
-                 description: str=None, model_parent=None):
+    def __init__(self, path: pathlib.Path, name: str, description: str=None,
+                 model_parent=None):
         """
         Initializes a new GravityProject project class
 
@@ -92,10 +92,8 @@ class GravityProject(types.TreeItem):
         """
         super().__init__(gen_uuid('prj'), parent=None)
         self._model_parent = model_parent
-        if isinstance(path, pathlib.Path):
-            self.projectdir = path  # type: pathlib.Path
-        else:
-            self.projectdir = pathlib.Path(path)
+        self.projectdir = pathlib.Path(path)
+
         if not self.projectdir.exists():
             raise FileNotFoundError
 
@@ -103,9 +101,9 @@ class GravityProject(types.TreeItem):
             raise NotADirectoryError
 
         self.name = name
-        self.description = description
+        self.description = description or ''
 
-        dm.init(self.projectdir.joinpath('data'))
+        dm.init(self.projectdir.joinpath(DATA_DIR))
 
         # Store MeterConfig objects in dictionary keyed by the meter name
         self._sensors = {}
@@ -115,7 +113,7 @@ class GravityProject(types.TreeItem):
     def data(self, role: QtDataRoles):
         if role == QtDataRoles.DisplayRole:
             return self.name
-        return None
+        return super().data(role)
 
     @property
     def model(self):
@@ -256,7 +254,7 @@ class GravityProject(types.TreeItem):
         dm.init(self.projectdir.joinpath('data'))
 
 
-class Flight(types.TreeItem):
+class Flight(TreeItem):
     """
     Define a Flight class used to record and associate data with an entire
     survey flight (takeoff -> landing)
@@ -318,12 +316,13 @@ class Flight(types.TreeItem):
         # Issue #36 Plotting data channels
         self._default_plot_map = {'gravity': 0, 'long': 1, 'cross': 1}
 
-        self._lines_uid = self.append_child(Container(ctype=types.FlightLine,
+        self._lines_uid = self.append_child(Container(ctype=FlightLine,
                                                       parent=self,
                                                       name='Flight Lines'))
-        self._data_uid = self.append_child(Container(ctype=types.DataSource,
+        self._data_uid = self.append_child(Container(ctype=DataSource,
                                                      parent=self,
                                                      name='Data Files'))
+        self._line_sequence = count()
 
     def data(self, role):
         if role == QtDataRoles.ToolTipRole:
@@ -334,20 +333,21 @@ class Flight(types.TreeItem):
 
     @property
     def lines(self):
-        return self.get_child(self._lines_uid)
-        # return self._lines
+        for line in sorted(self.get_child(self._lines_uid),
+                           key=lambda x: x.start):
+            yield line
 
     @property
     def channels(self) -> list:
         """Return data channels as list of DataChannel objects"""
         rv = []
-        for source in self.get_child(self._data_uid):  # type: types.DataSource
+        for source in self.get_child(self._data_uid):  # type: DataSource
             # TODO: Work on active sources later
             # if source is None or not source.active:
             rv.extend(source.get_channels())
         return rv
 
-    def register_data(self, datasrc: types.DataSource):
+    def register_data(self, datasrc: DataSource):
         """Register a data file for use by this Flight"""
         _log.info("Flight {} registering data source: {} UID: {}".format(
             self.name, datasrc.filename, datasrc.uid))
@@ -358,15 +358,21 @@ class Flight(types.TreeItem):
         # datasrc.active = True
         # self.update()
 
-    def add_line(self, start: datetime, stop: datetime, uid=None):
+    def add_line(self, line: FlightLine) -> int:
         """Add a flight line to the flight by start/stop index and sequence
-        number"""
-        _log.debug("Adding line to Flight: {}".format(self.name))
+        number.
+
+        Returns
+        -------
+        Sequence number of added line.
+        """
         lines = self.get_child(self._lines_uid)
-        line = types.FlightLine(start, stop, len(lines) + 1, None,
-                                uid=uid, parent=lines)
+        line.sequence = next(self._line_sequence)
         lines.append_child(line)
-        return line
+        return line.sequence
+
+    def get_line(self, uid):
+        return self.get_child(self._lines_uid).get_child(uid)
 
     def remove_line(self, uid):
         """ Remove a flight line """
@@ -410,9 +416,9 @@ class Flight(types.TreeItem):
         self._gpsdata = None
 
 
-class Container(types.TreeItem):
+class Container(TreeItem):
     # Arbitrary list of permitted types
-    ctypes = {Flight, MeterConfig, types.FlightLine, types.DataSource}
+    ctypes = {Flight, MeterConfig, FlightLine, DataSource}
 
     def __init__(self, ctype, parent=None, **kwargs):
         """

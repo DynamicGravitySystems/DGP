@@ -18,12 +18,13 @@ from PyQt5.uic import loadUiType
 import dgp.lib.project as prj
 import dgp.lib.types as types
 import dgp.lib.enums as enums
-from dgp.gui.loader import LoadFile
+import dgp.gui.loader as loader
+import dgp.lib.datamanager as dm
 from dgp.gui.utils import (ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP,
                            get_project_file)
-from dgp.gui.dialogs import (AddFlight, CreateProject, InfoDialog,
-                             AdvancedImport)
-from dgp.gui.models import TableModel, ProjectModel
+from dgp.gui.dialogs import (AddFlightDialog, CreateProjectDialog,
+                             AdvancedImportDialog, PropertiesDialog)
+from dgp.gui.models import ProjectModel
 from dgp.gui.widgets import FlightTab, TabWorkspace
 
 
@@ -64,7 +65,10 @@ class MainWindow(QMainWindow, main_window):
         # Setup logging handler to log to GUI panel
         console_handler = ConsoleHandler(self.write_console)
         console_handler.setFormatter(LOG_FORMAT)
+        sb_handler = ConsoleHandler(self.show_status)
+        sb_handler.setFormatter(logging.Formatter("%(message)s"))
         self.log.addHandler(console_handler)
+        self.log.addHandler(sb_handler)
         self.log.setLevel(logging.DEBUG)
 
         # Setup Project
@@ -92,6 +96,7 @@ class MainWindow(QMainWindow, main_window):
         # self.import_base_path = pathlib.Path('../tests').resolve()
         self.import_base_path = pathlib.Path('~').expanduser().joinpath(
             'Desktop')
+        self._default_status_timeout = 5000  # Status Msg timeout in milli-sec
 
         # Issue #50 Flight Tabs
         self._tabs = self.tab_workspace  # type: TabWorkspace
@@ -195,6 +200,12 @@ class MainWindow(QMainWindow, main_window):
         self.text_console.append(str(text))
         self.text_console.verticalScrollBar().setValue(
             self.text_console.verticalScrollBar().maximum())
+
+    def show_status(self, text, level):
+        """Displays a message in the MainWindow's status bar for specific
+        log level events."""
+        if level.lower() == 'error' or level.lower() == 'info':
+            self.statusBar().showMessage(text, self._default_status_timeout)
 
     def _launch_tab(self, index: QtCore.QModelIndex=None, flight=None) -> None:
         """
@@ -437,7 +448,7 @@ class ProjectTreeView(QTreeView):
         event.accept()
 
     def _plot_action(self, item):
-        raise NotImplementedError
+        return
 
     def _info_action(self, item):
         # if not (isinstance(item, prj.Flight)

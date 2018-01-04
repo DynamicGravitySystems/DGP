@@ -5,7 +5,6 @@ import sys
 
 sys.path.append(os.path.dirname(__file__))
 
-# from dgp import resources_rc
 from dgp import resources_rc
 from PyQt5.QtWidgets import QApplication
 from dgp.gui.splash import SplashScreen

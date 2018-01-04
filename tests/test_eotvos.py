@@ -5,9 +5,10 @@ import unittest
 import numpy as np
 import csv
 
-from .context import  dgp
+from .context import dgp
 from tests import sample_dir
-import dgp.lib.eotvos as eotvos
+from dgp.lib import eotvos
+# import dgp.lib.eotvos as eotvos
 import dgp.lib.trajectory_ingestor as ti
 
 

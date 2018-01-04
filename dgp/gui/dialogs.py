@@ -16,10 +16,7 @@ from PyQt5.uic import loadUiType
 
 import dgp.lib.project as prj
 import dgp.lib.enums as enums
-import dgp.gui.loader as qloader
-from dgp.gui.loader import LoaderThread
 from dgp.gui.models import TableModel, ComboEditDelegate
-from dgp.lib.types import DataSource
 from dgp.lib.etc import gen_uuid
 
 
@@ -751,4 +748,3 @@ class PropertiesDialog(BaseDialog):
                     value = instance.__getattribute__(binding)
                     lbl = "<H3>{}:</H3>".format(str(binding).capitalize())
                     self.form.addRow(lbl, self._build_widget(value))
-
