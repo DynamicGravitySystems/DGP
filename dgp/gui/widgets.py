@@ -78,6 +78,8 @@ class PlotTab(WorkspaceWidget):
 
         vlayout = QVBoxLayout()
         self.plot = LineGrabPlot(flight, axes)
+        for line in flight.lines:
+            self.plot.add_patch(line.start, line.stop, line.uid, line.label)
         self.plot.line_changed.connect(self._on_modified_line)
         self._flight = flight
 
@@ -107,7 +109,7 @@ class PlotTab(WorkspaceWidget):
         flight = self._flight
         if info.uid in [x.uid for x in flight.lines]:
             if info.action == 'modify':
-                line = flight.lines.get_child(info.uid)
+                line = flight.get_line(info.uid)
                 line.start = info.start
                 line.stop = info.stop
                 line.label = info.label
@@ -122,7 +124,8 @@ class PlotTab(WorkspaceWidget):
                                .format(start=info.start, stop=info.stop,
                                        label=info.label))
         else:
-            flight.add_line(info.start, info.stop, uid=info.uid)
+            line = types.FlightLine(info.start, info.stop, uid=info.uid)
+            flight.add_line(line)
             self.log.debug("Added line to flight {flt}: start={start}, "
                            "stop={stop}, label={label}"
                            .format(flt=flight.name, start=info.start,
@@ -131,7 +134,10 @@ class PlotTab(WorkspaceWidget):
     def _on_channel_changed(self, new: int, channel: types.DataChannel):
         self.plot.remove_series(channel)
         if new != -1:
-            self.plot.add_series(channel, new)
+            try:
+                self.plot.add_series(channel, new)
+            except:
+                self.log.exception("Error adding series to plot")
         self.model.update()
 
     def _too_many_children(self, uid):

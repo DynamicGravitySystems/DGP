@@ -262,66 +262,92 @@ class MainWindow(QMainWindow, main_window):
         self._context_tree.setModel(model)
         self._context_tree.expandAll()
 
+    def show_progress_dialog(self, title, start=0, stop=1, label=None,
+                             cancel="Cancel", modal=False,
+                             flags=None) -> QProgressDialog:
+        """Generate a progress bar to show progress on long running event."""
+        if flags is None:
+            flags = (QtCore.Qt.WindowSystemMenuHint |
+                     QtCore.Qt.WindowTitleHint |
+                     QtCore.Qt.WindowMinimizeButtonHint)
+
+        dialog = QProgressDialog(label, cancel, start, stop, self, flags)
+        dialog.setWindowTitle(title)
+        dialog.setModal(modal)
+        dialog.setMinimumDuration(0)
+        # dialog.setCancelButton(None)
+        dialog.setValue(1)
+        dialog.show()
+        return dialog
+
+    def show_progress_status(self, start, stop, label=None) -> QtWidgets.QProgressBar:
+        """Show a progress bar in the windows Status Bar"""
+        label = label or 'Loading'
+        sb = self.statusBar()  # type: QtWidgets.QStatusBar
+        progress = QtWidgets.QProgressBar(self)
+        progress.setRange(start, stop)
+        progress.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+        progress.setToolTip(label)
+        sb.addWidget(progress)
+        return progress
+
     @autosave
-    def data_added(self, flight: prj.Flight, src: types.DataSource) -> None:
-        """
-        Register a new data file with a flight and updates the Flight UI
-        components if the flight is open in a tab.
+    def add_data(self, data, dtype, flight, path):
+        uid = dm.get_manager().save_data(dm.HDF5, data)
+        if uid is None:
+            self.log.error("Error occured writing DataFrame to HDF5 store.")
+            return
 
-        Parameters
-        ----------
-        flight : prj.Flight
-            Flight object with related Gravity and GPS properties to plot
-        src : types.DataSource
-            DataSource object containing pointer and metadata to a DataFrame
-
-        Returns
-        -------
-        None
-        """
-        self.log.debug("Registering datasource to flight: {}".format(flight))
-        flight.register_data(src)
+        cols = list(data.keys())
+        ds = types.DataSource(uid, path, cols, dtype)
+        flight.register_data(ds)
         if flight.uid not in self._open_tabs:
             # If flight is not opened we don't need to update the plot
             return
         else:
             tab = self._open_tabs[flight.uid]  # type: FlightTab
-            tab.new_data(src)  # tell the tab that new data is available
+            tab.new_data(ds)  # tell the tab that new data is available
             return
 
-    def progress_dialog(self, title, start=0, stop=1):
-        """Generate a progress bar to show progress on long running event."""
-        dialog = QProgressDialog(title, "Cancel", start, stop, self)
-        dialog.setWindowTitle("Loading...")
-        dialog.setModal(True)
-        dialog.setMinimumDuration(0)
-        dialog.setCancelButton(None)
-        dialog.setValue(0)
-        return dialog
+    def load_file(self, dtype, flight, **params):
+        """Loads a file in the background by using a QThread
+        Calls :py:class: dgp.ui.loader.LoaderThread to create threaded file
+        loader.
 
-    def import_data(self, path: pathlib.Path, dtype: enums.DataTypes,
-                    flight: prj.Flight, fields=None):
+        Parameters
+        ----------
+        dtype : enums.DataTypes
+
+        flight : prj.Flight
+
+        params : dict
+
+
         """
-        Load data of dtype from path, using a threaded loader class
-        Upon load the data file should be registered with the specified flight.
-        """
-        assert path is not None
-        self.log.info("Importing <{dtype}> from: Path({path}) into"
-                      " <Flight({name})>".format(dtype=dtype, path=str(path),
-                                                 name=flight.name))
+        self.log.debug("Loading {dtype} into {flt}, with params: {param}"
+                       .format(dtype=dtype.name, flt=flight, param=params))
 
-        loader = LoadFile(path, dtype, fields=fields, parent=self)
+        prog = self.show_progress_status(0, 0)
+        prog.setValue(1)
 
-        progress = self.progress_dialog("Loading", 0, 0)
+        def _complete(data):
+            self.add_data(data, dtype, flight, params.get('path', None))
 
-        loader.data.connect(lambda ds: self.data_added(flight, ds))
-        loader.progress.connect(progress.setValue)
-        loader.error.connect(lambda x: progress.close())
-        loader.error.connect(lambda x: self.save_project())
-        # loader.loaded.connect(self.save_project)
-        # loader.loaded.connect(progress.close)
+        def _error(result):
+            err, exc = result
+            prog.close()
+            if err:
+                msg = "Error loading {typ}::{fname}".format(
+                    typ=dtype.name.capitalize(), fname=params.get('path', ''))
+                self.log.error(msg)
+            else:
+                msg = "Loaded {typ}::{fname}".format(
+                    typ=dtype.name.capitalize(), fname=params.get('path', ''))
+                self.log.info(msg)
 
-        loader.start()
+        ld = loader.get_loader(parent=self, dtype=dtype, on_complete=_complete,
+                               on_error=_error, **params)
+        ld.start()
 
     def save_project(self) -> None:
         if self.project is None:
@@ -336,13 +362,26 @@ class MainWindow(QMainWindow, main_window):
 
     # Project dialog functions ################################################
 
-    def import_data_dialog(self, dtype=None):
-        """Load data file (GPS or Gravity) using a background Thread, then hand
-        it off to the project."""
-        dialog = AdvancedImport(self.project, self.current_flight,
-                                dtype=dtype, parent=self)
-        dialog.data.connect(lambda flt, ds: self.data_added(flt, ds))
-        return dialog.exec_()
+    def import_data_dialog(self, dtype=None) -> None:
+        """
+        Launch a dialog window for user to specify path and parameters to
+        load a file of dtype.
+        Params gathered by dialog will be passed to :py:meth: self.load_file
+        which constrcuts the loading thread and performs the import.
+
+        Parameters
+        ----------
+        dtype : enums.DataTypes
+            Data type for which to launch dialog: GRAVITY or TRAJECTORY
+
+        """
+        dialog = AdvancedImportDialog(self.project, self.current_flight,
+                                      dtype=dtype, parent=self)
+        dialog.browse()
+        if dialog.exec_():
+            # TODO: Should path be contained within params or should we take
+            # it as its own parameter
+            self.load_file(dtype, dialog.flight, **dialog.params)
 
     def new_project_dialog(self) -> QMainWindow:
         new_window = True
