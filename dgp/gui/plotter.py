@@ -9,6 +9,7 @@ from dgp.lib.etc import gen_uuid
 import logging
 from collections import namedtuple
 from typing import Dict, Tuple, Union
+from datetime import timedelta
 
 from PyQt5.QtWidgets import QSizePolicy, QMenu, QAction, QWidget, QToolBar
 from PyQt5.QtCore import pyqtSignal, QMimeData
@@ -95,6 +96,18 @@ class AxesGroup:
         # Map ax index to x/y limits of original data
         self._base_ax_limits = {}
 
+        self._xmin = 1
+        self._xmax = 2
+
+    def set_xminmax(self, xmin, xmax):
+        """This isn't ideal but will do until re-write of AxesGroup
+        Set the min/max plot limits based on data, so that we don't have to
+        calculate them within the Axes Group.
+        Used in the go_home method.
+        """
+        self._xmin = xmin
+        self._xmax = max(xmax, self._xmax)
+
     def __contains__(self, item: Axes):
         if item in self.axes.values():
             return True
@@ -115,7 +128,6 @@ class AxesGroup:
         if hasattr(self._selected, item):
             return getattr(self._selected, item)
         else:
-            print("_active is None or doesn't have attribute: ", item)
             return lambda *x, **y: None
 
     @property
@@ -214,9 +226,24 @@ class AxesGroup:
             self._selected.move_patches(dx)
 
     def go_home(self):
-        """Autoscale the axes back to the data limits, and rescale patches."""
+        """Autoscale the axes back to the data limits, and rescale patches.
+
+        Keep in mind that the x-axis is shared, and so only need to be set
+        once if there is data.
+        """
         for ax in self.all_axes:
-            ax.autoscale(True, 'both', False)
+            for line in ax.lines:  # type: Line2D
+                y = line.get_ydata()
+                ax.set_ylim(y.min(), y.max())
+
+        try:
+            print("Setting ax0 xlim to min: {} max: {}".format(self._xmin,
+                                                               self._xmax))
+            self._ax0.xaxis_date()
+            self._ax0.set_xlim(self._xmin, self._xmax)
+        except:
+            _log.exception("Error setting ax0 xlim")
+
         self.rescale_patches()
 
     def rescale_patches(self):
@@ -317,10 +344,7 @@ class PatchGroup:
     """
     def __init__(self, label: str='', uid=None, parent=None):
         self.parent = parent  # type: AxesGroup
-        if uid is not None:
-            self.uid = uid
-        else:
-            self.uid = gen_uuid('ptc')
+        self.uid = uid or gen_uuid('ptc')
         self.label = label
         self.modified = False
         self.animated = False
@@ -635,8 +659,7 @@ class BasePlottingCanvas(FigureCanvas):
     def __init__(self, parent=None, width=8, height=4, dpi=100):
         _log.debug("Initializing BasePlottingCanvas")
 
-        super().__init__(Figure(figsize=(width, height),
-                                dpi=dpi,
+        super().__init__(Figure(figsize=(width, height), dpi=dpi,
                                 tight_layout=True))
 
         self.setParent(parent)
@@ -796,6 +819,9 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
                 plot = self.figure.add_subplot(rows, cols, i, sharex=plots[0])
             else:
                 plot = self.figure.add_subplot(rows, cols, i)  # type: Axes
+                plot.xaxis.set_major_locator(AutoLocator())
+                plot.set_xlim(1, 2)
+                plot.xaxis.set_major_formatter(DateFormatter('%H:%M:%S'))
             if resample:
                 plot.callbacks.connect('xlim_changed', self._xlim_resample)
             plot.callbacks.connect('ylim_changed', self._on_ylim_changed)
@@ -949,6 +975,20 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
             color = 'blue'
 
         series = dc.series()
+        axes.autoscale(False)
+
+        # Testing custom scaling:
+        # This should allow scaling to data without having to worry about
+        # patches
+        dt_margin = timedelta(minutes=2)
+        minx, maxx = series.index.min(), series.index.max()
+        self.ax_grp.set_xminmax(date2num(minx), date2num(maxx))
+        miny, maxy = series.min(), series.max()
+        print("X Values from data: {}, {}".format(minx, maxx))
+        print("Y Values from data: {}, {}".format(miny, maxy))
+        axes.set_xlim(date2num(minx - dt_margin), date2num(maxx + dt_margin))
+        axes.set_ylim(miny * 1.05, maxy * 1.05)
+
         line_artist = axes.plot(series.index, series.values,
                                 color=color, label=dc.label)[0]
 
@@ -962,6 +1002,8 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
 
         self._series[dc.uid] = series  # Store reference to series for resample
         self._lines[dc.uid] = line_artist
+
+        # self.ax_grp.relim()
         self.ax_grp.rescale_patches()
         if draw:
             self.figure.canvas.draw()
@@ -985,10 +1027,11 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         line = self._lines[dc.uid]  # type: Line2D
 
         axes = line.axes
+        axes.autoscale(False)
         axes.lines.remove(line)
         axes.tick_params('y', colors='black')
         axes.set_ylabel('')
-        axes.relim()
+        axes.set_ylim(-1, 1)
 
         self.ax_grp.rescale_patches()
         del self._lines[dc.uid]
@@ -996,8 +1039,8 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
 
         if not len(self._lines):
             _log.warning("No Lines on any axes.")
-            self.axes[0].xaxis.set_major_locator(NullLocator())
-            self.axes[0].xaxis.set_major_formatter(NullFormatter())
+            # self.axes[0].xaxis.set_major_locator(NullLocator())
+            # self.axes[0].xaxis.set_major_formatter(NullFormatter())
 
         self.draw()
 
@@ -1018,12 +1061,10 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
             return
 
         # Else, process the click event
-        _log.debug("Axes Click @ xdata: {}".format(event.xdata))
-
         active = self.ax_grp.select(event.xdata, inner=False)
 
         if not active:
-            _log.info("No patch at location: {}".format(event.xdata))
+            pass
 
         if event.button == 3:
             # Right Click
@@ -1038,8 +1079,6 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
                 # We've selected and activated an existing group
                 return
             # Else: Create a new PatchGroup
-            _log.info("Creating new patch group at: {}".format(event.xdata))
-
             try:
                 pg = self.ax_grp.add_patch(event.xdata)
             except ValueError:
@@ -1189,3 +1228,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
             toolbar.actions()[5].triggered.connect(self.toggle_zoom)
             self._toolbar = toolbar
         return self._toolbar
+
+
+class LineSelectionPlot(BasePlottingCanvas):
+    pass
