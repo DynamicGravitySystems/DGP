@@ -25,7 +25,7 @@ class TestTimeUtils(unittest.TestCase):
         res_unix = tu.leap_seconds(seconds=unixtime)
         res_datetime = tu.leap_seconds(datetime=dt)
         res_date1 = tu.leap_seconds(date=date1)
-        res_date2 = tu.leap_seconds(date=date2)
+        res_date2 = tu.leap_seconds(date=date2, dateformat='%m/%d/%Y')
 
         self.assertEqual(expected1, res_gps)
         self.assertEqual(expected1, res_unix)
@@ -34,10 +34,10 @@ class TestTimeUtils(unittest.TestCase):
         self.assertEqual(expected2, res_date2)
 
         with self.assertRaises(ValueError):
-            res_date3 = tu.leap_seconds(date=date3)
+            tu.leap_seconds(date=date3)
 
         with self.assertRaises(ValueError):
-            res = tu.leap_seconds(minutes=dt)
+            tu.leap_seconds(minutes=dt)
 
     def test_convert_gps_time(self):
         gpsweek = 1959
