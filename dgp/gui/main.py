@@ -110,6 +110,7 @@ class MainWindow(QMainWindow, main_window):
         # Initialize Project Tree Display
         self.project_tree = ProjectTreeView(parent=self, project=self.project)
         self.project_tree.setMinimumWidth(250)
+        self.project_tree.item_removed.connect(self._project_item_removed)
         self.project_dock_grid.addWidget(self.project_tree, 0, 0, 1, 2)
 
     @property
@@ -262,6 +263,30 @@ class MainWindow(QMainWindow, main_window):
         self._context_tree.setModel(model)
         self._context_tree.expandAll()
 
+    def _project_item_removed(self, item: types.BaseTreeItem):
+        print("Got item: ", type(item), " in _prj_item_removed")
+        if isinstance(item, types.DataSource):
+            flt = item.flight
+            print("Dsource flt: ", flt)
+            # Error here, flt.uid is not in open_tabs when it should be.
+            if not flt.uid not in self._open_tabs:
+                print("Flt not in open tabs")
+                return
+            tab = self._open_tabs.get(flt.uid, None)  # type: FlightTab
+            if tab is None:
+                print("tab not open")
+                return
+            try:
+                print("Calling tab.data_deleted")
+                tab.data_deleted(item)
+            except:
+                print("Exception of some sort encountered deleting item")
+            else:
+                print("Data deletion sucessful?")
+
+        else:
+            return
+
     def show_progress_dialog(self, title, start=0, stop=1, label=None,
                              cancel="Cancel", modal=False,
                              flags=None) -> QProgressDialog:
@@ -299,7 +324,8 @@ class MainWindow(QMainWindow, main_window):
             return
 
         cols = list(data.keys())
-        ds = types.DataSource(uid, path, cols, dtype)
+        ds = types.DataSource(uid, path, cols, dtype, x0=data.index.min(),
+                              x1=data.index.max())
         flight.register_data(ds)
         if flight.uid not in self._open_tabs:
             # If flight is not opened we don't need to update the plot
@@ -435,6 +461,8 @@ class MainWindow(QMainWindow, main_window):
 
 # TODO: Move this into new module (e.g. gui/views.py)
 class ProjectTreeView(QTreeView):
+    item_removed = pyqtSignal(types.BaseTreeItem)
+
     def __init__(self, project=None, parent=None):
         super().__init__(parent=parent)
 
@@ -480,6 +508,10 @@ class ProjectTreeView(QTreeView):
             #     lambda item: context_focus.__setattr__('active', True)
             # )
             menu.addAction(data_action)
+            data_delete = QAction("Delete Data File")
+            data_delete.triggered.connect(
+                lambda: self._remove_data_action(context_focus))
+            menu.addAction(data_delete)
 
         menu.addAction(info_action)
         menu.addAction(plot_action)
@@ -490,18 +522,25 @@ class ProjectTreeView(QTreeView):
         return
 
     def _info_action(self, item):
-        # if not (isinstance(item, prj.Flight)
-        #         or isinstance(item, prj.GravityProject)):
-        #     return
-        # for name, attr in item.__class__.__dict__.items():
-        #
-        #     if isinstance(attr, property):
-        #         print("Have property bound to {}".format(name))
-        #         print("Value is: {}".format(item.__getattribute__(name)))
         dlg = PropertiesDialog(item, parent=self)
         dlg.exec_()
 
-        # model = TableModel(['Key', 'Value'])
-        # model.set_object(item)
-        # dialog = InfoDialog(model, parent=self)
-        # dialog.exec_()
+    def _remove_data_action(self, item: types.BaseTreeItem):
+        if not isinstance(item, types.DataSource):
+            return
+        # Confirmation Dialog
+        confirm = QtWidgets.QMessageBox(parent=self.parent())
+        confirm.setStandardButtons(QtWidgets.QMessageBox.Ok)
+        confirm.setText("Are you sure you wish to delete: {}".format(item.filename))
+        confirm.setIcon(QtWidgets.QMessageBox.Question)
+        confirm.setWindowTitle("Confirm Delete")
+        res = confirm.exec_()
+        if res:
+            print("Emitting item_removed signal")
+            self.item_removed.emit(item)
+            print("removing item from its flight")
+            try:
+                item.flight.remove_data(item)
+            except:
+                print("Exception occured removing item from flight")
+

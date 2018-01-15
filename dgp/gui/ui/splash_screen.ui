@@ -21,7 +21,7 @@
   </property>
   <property name="windowIcon">
    <iconset resource="resources/resources.qrc">
-    <normaloff>:/icons/dgs</normaloff>:/icons/dgs</iconset>
+    <normaloff>:/images/geoid</normaloff>:/images/geoid</iconset>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>

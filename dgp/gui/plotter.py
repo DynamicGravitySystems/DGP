@@ -326,6 +326,7 @@ class AxesGroup:
             rect = Rectangle((x0, ylim[0]), width, height*2, alpha=0.1,
                              picker=True, edgecolor='black', linewidth=2)
             patch = ax.add_patch(rect)
+            patch.set_picker(True)
             ax.draw_artist(patch)
             pg.add_patch(i, patch)
 
@@ -666,15 +667,16 @@ class BasePlottingCanvas(FigureCanvas):
         super().setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         super().updateGeometry()
 
+        self.figure.canvas.mpl_connect('pick_event', self.onpick)
         self.figure.canvas.mpl_connect('button_press_event', self.onclick)
         self.figure.canvas.mpl_connect('button_release_event', self.onrelease)
         self.figure.canvas.mpl_connect('motion_notify_event', self.onmotion)
-        self.figure.canvas.mpl_connect('pick_event', self.onpick)
 
     def onclick(self, event: MouseEvent):
         pass
 
     def onpick(self, event: PickEvent):
+        print("On pick called in BasePlottingCanvas")
         pass
 
     def onrelease(self, event: MouseEvent):
@@ -710,6 +712,7 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         # Set initial sub-plot layout
         self._plots = self.set_plots(rows=rows, sharex=True, resample=True)
         self.ax_grp = AxesGroup(*self._plots.values(), twin=True, parent=self)
+        self.figure.canvas.mpl_connect('pick_event', self.onpick)
 
         # Experimental
         self.setAcceptDrops(False)
@@ -1046,6 +1049,9 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
 
     def get_series_by_label(self, label: str):
         pass
+
+    def onpick(self, event: PickEvent):
+        print("Pick event handled for artist: ", event.artist)
 
     def onclick(self, event: MouseEvent):
         if self._zooming or self._panning:

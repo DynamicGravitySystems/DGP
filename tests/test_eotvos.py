@@ -17,19 +17,6 @@ class TestEotvos(unittest.TestCase):
     def setUp(self):
         pass
 
-    @unittest.skip("test_derivative not implemented.")
-    def test_derivative(self):
-        """Test derivation function against table of values calculated in MATLAB"""
-        dlat = []
-        ddlat = []
-        dlon = []
-        ddlon = []
-        dht = []
-        ddht = []
-        # with sample_dir.joinpath('result_derivative.csv').open() as fd:
-        #     reader = csv.DictReader(fd)
-        #     dlat = list(map(lambda line: dlat.append(line['dlat']), reader))
-
     def test_eotvos(self):
         """Test Eotvos function against corrections generated with MATLAB program."""
         # Ensure gps_fields are ordered correctly relative to test file

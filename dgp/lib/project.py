@@ -358,6 +358,9 @@ class Flight(TreeItem):
         # datasrc.active = True
         # self.update()
 
+    def remove_data(self, datasrc: DataSource) -> bool:
+        return self.get_child(self._data_uid).remove_child(datasrc)
+
     def add_line(self, line: FlightLine) -> int:
         """Add a flight line to the flight by start/stop index and sequence
         number.

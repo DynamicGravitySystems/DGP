@@ -430,15 +430,18 @@ class ChannelListModel(BaseTreeModel):
         self.update()
 
     def remove_source(self, dsrc):
+        print("Remove source called in CLM")
         for channel in self.channels:  # type: DataChannel
             _log.debug("Orphaning and removing channel: {name}/{uid}".format(
                 name=channel.label, uid=channel.uid))
             if channel.source == dsrc:
+                self.channelChanged.emit(-1, channel)
                 channel.orphan()
                 try:
                     del self.channels[channel.uid]
                 except KeyError:
                     pass
+        self.update()
 
     def update(self) -> None:
         """Update the models view layout."""

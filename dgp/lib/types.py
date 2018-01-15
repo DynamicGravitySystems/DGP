@@ -406,6 +406,15 @@ class FlightLine(TreeItem):
     def sequence(self, value: int):
         self._sequence = value
 
+    def update_line(self, start=None, stop=None, label=None):
+        """Allow update to one or more line properties while only triggering UI
+        update once."""
+        # TODO: Testing
+        self._start = start or self._start
+        self._stop = stop or self._stop
+        self._label = label or self._label
+        self.update()
+
     def data(self, role):
         if role == QtDataRoles.DisplayRole:
             if self.label:
@@ -452,15 +461,23 @@ class DataSource(BaseTreeItem):
 
     """
     def __init__(self, uid, filename: str, fields: List[str],
-                 dtype: enums.DataTypes):
-        """Create a DataSource item with UID matching the managed file UID
-        that it points to."""
+                 dtype: enums.DataTypes, x0=None, x1=None):
         super().__init__(uid)
         self.filename = filename
         self.fields = fields
         self.dtype = dtype
         self._flight = None
         self._active = False
+
+        self._x0 = x0 or 1
+        self._x1 = x1 or 2
+
+    def delete(self):
+        if self.flight:
+            try:
+                self.flight.remove_data(self)
+            except AttributeError:
+                _log.error("Error removing data source from flight")
 
     @property
     def flight(self):
@@ -487,6 +504,9 @@ class DataSource(BaseTreeItem):
             self._active = True
         else:
             self._active = False
+
+    def get_xlim(self):
+        return self._x0, self._x1
 
     def get_channels(self) -> List['DataChannel']:
         """
@@ -551,6 +571,9 @@ class DataChannel(BaseTreeItem):
             Series from disk.
         """
         return self.source.load(self.field)
+
+    def get_xlim(self):
+        return self.source.get_xlim()
 
     def data(self, role: QtDataRoles):
         if role == QtDataRoles.DisplayRole:

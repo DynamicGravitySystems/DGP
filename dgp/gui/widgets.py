@@ -6,14 +6,14 @@ import logging
 
 from PyQt5.QtGui import (QDropEvent, QDragEnterEvent, QDragMoveEvent,
                          QContextMenuEvent)
-from PyQt5.QtCore import QMimeData, Qt, pyqtSignal, pyqtBoundSignal
+from PyQt5.QtCore import Qt, pyqtSignal, pyqtBoundSignal
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QGridLayout, QTabWidget,
-                             QTreeView, QStackedWidget, QSizePolicy)
+                             QTreeView, QSizePolicy)
 import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtGui as QtGui
 
 
-from dgp.lib.plotter import LineGrabPlot, LineUpdate
+from .plotter import LineGrabPlot, LineUpdate
 from dgp.lib.project import Flight
 import dgp.gui.models as models
 import dgp.lib.types as types
@@ -101,9 +101,11 @@ class PlotTab(WorkspaceWidget):
         if action.lower() == 'add':
             self.log.info("Adding channels to model.")
             self.model.add_channels(*dsrc.get_channels())
-        if action.lower() == 'remove':
+        elif action.lower() == 'remove':
             self.log.info("Removing channels from model.")
             self.model.remove_source(dsrc)
+        else:
+            print("Unexpected action received")
 
     def _on_modified_line(self, info: LineUpdate):
         flight = self._flight
@@ -255,6 +257,11 @@ class FlightTab(QWidget):
     def new_data(self, dsrc: types.DataSource):
         for tab in [self._plot_tab, self._transform_tab, self._map_tab]:
             tab.data_modified('add', dsrc)
+
+    def data_deleted(self, dsrc):
+        for tab in [self._plot_tab]:
+            print("Calling remove for each tab")
+            tab.data_modified('remove', dsrc)
 
     @property
     def flight(self):
