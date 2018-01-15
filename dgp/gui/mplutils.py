@@ -155,6 +155,12 @@ class StackedAxesManager:
     # Experimental
     def add_inset_axes(self, row, position='upper right', height='15%',
                        width='15%', labels=False, **kwargs) -> Axes:
+        """Add an inset axes on the base axes at given row
+        Default is to create an inset axes in the upper right corner, with height and width of 15% of the parent.
+
+        This inset axes can be used for example to show the zoomed-in position of the main graph in relation to the
+        overall data.
+        """
         try:
             return self._inset_axes[row]
         except KeyError:

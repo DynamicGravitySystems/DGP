@@ -359,7 +359,7 @@ class MainWindow(QMainWindow, main_window):
         def _complete(data):
             self.add_data(data, dtype, flight, params.get('path', None))
 
-        def _error(result):
+        def _result(result):
             err, exc = result
             prog.close()
             if err:
@@ -372,7 +372,7 @@ class MainWindow(QMainWindow, main_window):
                 self.log.info(msg)
 
         ld = loader.get_loader(parent=self, dtype=dtype, on_complete=_complete,
-                               on_error=_error, **params)
+                               on_error=_result, **params)
         ld.start()
 
     def save_project(self) -> None:
