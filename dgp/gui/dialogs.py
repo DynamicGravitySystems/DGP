@@ -1,7 +1,6 @@
 # coding: utf-8
 
 import os
-import io
 import csv
 import types
 import logging
@@ -12,7 +11,6 @@ from typing import Union
 import PyQt5.Qt as Qt
 import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtCore as QtCore
-from PyQt5.uic import loadUiType
 
 import dgp.lib.project as prj
 import dgp.lib.enums as enums
@@ -20,11 +18,14 @@ from dgp.gui.models import TableModel, ComboEditDelegate
 from dgp.lib.etc import gen_uuid
 
 
-data_dialog, _ = loadUiType('dgp/gui/ui/data_import_dialog.ui')
-advanced_import, _ = loadUiType('dgp/gui/ui/advanced_data_import.ui')
-edit_view, _ = loadUiType('dgp/gui/ui/edit_import_view.ui')
-flight_dialog, _ = loadUiType('dgp/gui/ui/add_flight_dialog.ui')
-project_dialog, _ = loadUiType('dgp/gui/ui/project_dialog.ui')
+from dgp.gui.ui import add_flight_dialog, advanced_data_import, edit_import_view, project_dialog
+
+
+# data_dialog, _ = loadUiType('dgp/gui/ui/data_import_dialog.ui')
+# advanced_import, _ = loadUiType('dgp/gui/ui/advanced_data_import.ui')
+# edit_view, _ = loadUiType('dgp/gui/ui/edit_import_view.ui')
+# flight_dialog, _ = loadUiType('dgp/gui/ui/add_flight_dialog.ui')
+# project_dialog, _ = loadUiType('dgp/gui/ui/project_dialog.ui')
 
 PATH_ERR = "Path cannot be empty."
 
@@ -152,7 +153,7 @@ class BaseDialog(QtWidgets.QDialog):
         """
 
 
-class EditImportDialog(BaseDialog, edit_view):
+class EditImportDialog(BaseDialog, edit_import_view.Ui_Dialog):
     """
     Take lines of data with corresponding fields and populate custom Table Model
     Fields can be exchanged via a custom Selection Delegate, which provides a
@@ -296,7 +297,7 @@ class EditImportDialog(BaseDialog, edit_view):
             return
 
 
-class AdvancedImportDialog(BaseDialog, advanced_import):
+class AdvancedImportDialog(BaseDialog, advanced_data_import.Ui_AdvancedImportData):
     """
     Provides a dialog for importing Trajectory or Gravity data.
     This dialog computes and displays some basic file information,
@@ -542,7 +543,7 @@ class AdvancedImportDialog(BaseDialog, advanced_import):
             return
 
 
-class AddFlightDialog(QtWidgets.QDialog, flight_dialog):
+class AddFlightDialog(QtWidgets.QDialog, add_flight_dialog.Ui_NewFlight):
     def __init__(self, project, *args):
         super().__init__(*args)
         self.setupUi(self)
@@ -593,7 +594,7 @@ class AddFlightDialog(QtWidgets.QDialog, flight_dialog):
         return None
 
 
-class CreateProjectDialog(BaseDialog, project_dialog):
+class CreateProjectDialog(BaseDialog, project_dialog.Ui_Dialog):
     def __init__(self, *args):
         super().__init__(msg_recvr='label_msg', *args)
         self.setupUi(self)

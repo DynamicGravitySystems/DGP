@@ -92,9 +92,3 @@ class TestDialogs(unittest.TestCase):
         # Verify expected output, ordered correctly
         hms_expected = ['mdy', 'hms', 'lat', 'long', 'ell_ht']
         self.assertEqual(hms_expected, t_dlg.params['columns'])
-
-
-
-
-
-
