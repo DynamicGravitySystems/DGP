@@ -13,7 +13,7 @@ from PyQt5.uic import loadUiType
 
 from dgp.gui.main import MainWindow
 from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, LOG_COLOR_MAP, get_project_file
-from dgp.gui.dialogs import CreateProject
+from dgp.gui.dialogs import CreateProjectDialog
 import dgp.lib.project as prj
 
 splash_screen, _ = loadUiType('dgp/gui/ui/splash_screen.ui')
@@ -41,7 +41,10 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
         # self.dialog_buttons.accepted.connect(self.accept)
         self.btn_newproject.clicked.connect(self.new_project)
         self.btn_browse.clicked.connect(self.browse_project)
-        self.list_projects.currentItemChanged.connect(self.set_selection)
+        self.list_projects.currentItemChanged.connect(
+            lambda item: self.set_selection(item, accept=False))
+        self.list_projects.itemDoubleClicked.connect(
+            lambda item: self.set_selection(item, accept=True))
 
         self.project_path = None  # type: Path
 
@@ -77,23 +80,9 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
 
         self.update_recent_files(self.recent_file,
                                  {project.name: project.projectdir})
-        # Show a progress dialog for loading the project
-        # TODO: This may be obsolete now as plots are not generated on load
-        progress = QtWidgets.QProgressDialog("Loading Project", "Cancel", 0,
-                                             len(project), self)
-        progress.setWindowFlags(QtCore.Qt.Dialog | QtCore.Qt.FramelessWindowHint
-                                | QtCore.Qt.CustomizeWindowHint)
-        progress.setModal(True)
-        progress.setMinimumDuration(0)
-        # Remove the cancel button.
-        progress.setCancelButton(None)
-        progress.setValue(1)  # Set an initial value to show the dialog
 
         main_window = MainWindow(project)
-        main_window.status.connect(progress.setLabelText)
-        main_window.progress.connect(progress.setValue)
         main_window.load()
-        progress.close()
         super().accept()
         return main_window
 
@@ -113,18 +102,21 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
         self.list_projects.setCurrentRow(0)
         return None
 
-    def set_selection(self, item: QtWidgets.QListWidgetItem, *args):
+    def set_selection(self, item: QtWidgets.QListWidgetItem, accept=False):
         """Called when a recent item is selected"""
         self.project_path = get_project_file(item.data(QtCore.Qt.UserRole))
         if not self.project_path:
             item.setText("{} - Project Moved or Deleted"
                          .format(item.data(QtCore.Qt.UserRole)))
+            return
 
         self.log.debug("Project path set to {}".format(self.project_path))
+        if accept:
+            self.accept()
 
     def new_project(self):
         """Allow the user to create a new project"""
-        dialog = CreateProject()
+        dialog = CreateProjectDialog()
         if dialog.exec_():
             project = dialog.project  # type: prj.AirborneProject
             project.save()

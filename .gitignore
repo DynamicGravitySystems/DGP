@@ -1,8 +1,18 @@
+# Ignored file extensions
 *.idea
+*.pdf
 *.pyc
 *.pyo
+*.coverage
+*.vsdx
+
+# Ignored directories
 __pycache__/
 scratch/
-*.pdf
 venv/
-*.coverage
+docs/build/
+
+# Specific Directives
+examples/local*
+tests/sample_data/eotvos_long_result.csv
+tests/sample_data/eotvos_long_input.txt

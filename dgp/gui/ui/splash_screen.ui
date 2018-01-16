@@ -7,15 +7,21 @@
     <x>0</x>
     <y>0</y>
     <width>604</width>
-    <height>561</height>
+    <height>620</height>
    </rect>
+  </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
   </property>
   <property name="windowTitle">
    <string>Dynamic Gravity Processor</string>
   </property>
   <property name="windowIcon">
-   <iconset resource="resources.qrc">
-    <normaloff>:/images/assets/geoid_icon.png</normaloff>:/images/assets/geoid_icon.png</iconset>
+   <iconset resource="resources/resources.qrc">
+    <normaloff>:/images/geoid</normaloff>:/images/geoid</iconset>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
@@ -34,7 +40,7 @@
       <string/>
      </property>
      <property name="pixmap">
-      <pixmap resource="resources.qrc">:/images/assets/geoid_icon.png</pixmap>
+      <pixmap resource="resources/resources.qrc">:/images/geoid</pixmap>
      </property>
      <property name="scaledContents">
       <bool>true</bool>
@@ -52,7 +58,7 @@
     </widget>
    </item>
    <item>
-    <widget class="QGroupBox" name="groupBox">
+    <widget class="QGroupBox" name="group_recent">
      <property name="title">
       <string/>
      </property>
@@ -86,7 +92,7 @@
        </widget>
       </item>
       <item>
-       <widget class="QPushButton" name="pushButton">
+       <widget class="QPushButton" name="btn_clear_recent">
         <property name="baseSize">
          <size>
           <width>100</width>
@@ -102,23 +108,48 @@
     </widget>
    </item>
    <item>
-    <widget class="QListWidget" name="list_projects"/>
+    <widget class="QListWidget" name="list_projects">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+    </widget>
    </item>
    <item>
     <widget class="QGroupBox" name="group_btns">
      <property name="title">
       <string/>
      </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+     <property name="flat">
+      <bool>true</bool>
+     </property>
      <layout class="QHBoxLayout" name="horizontalLayout">
+      <property name="spacing">
+       <number>3</number>
+      </property>
+      <property name="leftMargin">
+       <number>0</number>
+      </property>
+      <property name="rightMargin">
+       <number>0</number>
+      </property>
       <item>
        <widget class="QPushButton" name="btn_newproject">
         <property name="text">
-         <string>&amp;New Project...</string>
+         <string>&amp;New Project</string>
         </property>
        </widget>
       </item>
       <item>
        <widget class="QPushButton" name="btn_browse">
+        <property name="whatsThis">
+         <string>Browse for a project</string>
+        </property>
         <property name="inputMethodHints">
          <set>Qt::ImhNone</set>
         </property>
@@ -128,7 +159,26 @@
        </widget>
       </item>
       <item>
+       <spacer name="horizontalSpacer">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
        <widget class="QLabel" name="label_error">
+        <property name="minimumSize">
+         <size>
+          <width>40</width>
+          <height>0</height>
+         </size>
+        </property>
         <property name="styleSheet">
          <string notr="true">color: rgb(255, 0, 0)</string>
         </property>
@@ -138,7 +188,26 @@
        </widget>
       </item>
       <item>
+       <spacer name="horizontalSpacer_2">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
        <widget class="QDialogButtonBox" name="dialog_buttons">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
         <property name="inputMethodHints">
          <set>Qt::ImhPreferUppercase</set>
         </property>
@@ -161,7 +230,7 @@
   </action>
  </widget>
  <resources>
-  <include location="resources.qrc"/>
+  <include location="resources/resources.qrc"/>
  </resources>
  <connections>
   <connection>

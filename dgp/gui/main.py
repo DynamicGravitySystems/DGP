@@ -8,20 +8,23 @@ from typing import Union
 
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
-from PyQt5.QtWidgets import (QMainWindow, QTabWidget, QAction, QMenu,
-                             QProgressDialog, QFileDialog, QTreeView)
+import PyQt5.QtWidgets as QtWidgets
+from PyQt5.QtWidgets import (QMainWindow, QAction, QMenu, QProgressDialog,
+                             QFileDialog, QTreeView)
 from PyQt5.QtCore import pyqtSignal, pyqtBoundSignal
 from PyQt5.QtGui import QColor
 from PyQt5.uic import loadUiType
 
 import dgp.lib.project as prj
 import dgp.lib.types as types
-from dgp.gui.loader import LoadFile
+import dgp.lib.enums as enums
+import dgp.gui.loader as loader
+import dgp.lib.datamanager as dm
 from dgp.gui.utils import (ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP,
                            get_project_file)
-from dgp.gui.dialogs import (AddFlight, CreateProject, InfoDialog,
-                             AdvancedImport)
-from dgp.gui.models import TableModel, ProjectModel
+from dgp.gui.dialogs import (AddFlightDialog, CreateProjectDialog,
+                             AdvancedImportDialog, PropertiesDialog)
+from dgp.gui.models import ProjectModel
 from dgp.gui.widgets import FlightTab, TabWorkspace
 
 
@@ -62,7 +65,10 @@ class MainWindow(QMainWindow, main_window):
         # Setup logging handler to log to GUI panel
         console_handler = ConsoleHandler(self.write_console)
         console_handler.setFormatter(LOG_FORMAT)
+        sb_handler = ConsoleHandler(self.show_status)
+        sb_handler.setFormatter(logging.Formatter("%(message)s"))
         self.log.addHandler(console_handler)
+        self.log.addHandler(sb_handler)
         self.log.setLevel(logging.DEBUG)
 
         # Setup Project
@@ -78,11 +84,11 @@ class MainWindow(QMainWindow, main_window):
             }
             QTreeView::branch:closed:has-children {
                 background: none;
-                image: url(:/images/assets/branch-closed.png);
+                image: url(:/icons/chevron-right);
             }
             QTreeView::branch:open:has-children {
                 background: none;
-                image: url(:/images/assets/branch-open.png);
+                image: url(:/icons/chevron-down);
             }
         """)
 
@@ -90,6 +96,7 @@ class MainWindow(QMainWindow, main_window):
         # self.import_base_path = pathlib.Path('../tests').resolve()
         self.import_base_path = pathlib.Path('~').expanduser().joinpath(
             'Desktop')
+        self._default_status_timeout = 5000  # Status Msg timeout in milli-sec
 
         # Issue #50 Flight Tabs
         self._tabs = self.tab_workspace  # type: TabWorkspace
@@ -103,6 +110,7 @@ class MainWindow(QMainWindow, main_window):
         # Initialize Project Tree Display
         self.project_tree = ProjectTreeView(parent=self, project=self.project)
         self.project_tree.setMinimumWidth(250)
+        self.project_tree.item_removed.connect(self._project_item_removed)
         self.project_dock_grid.addWidget(self.project_tree, 0, 0, 1, 2)
 
     @property
@@ -144,7 +152,11 @@ class MainWindow(QMainWindow, main_window):
         self.action_file_save.triggered.connect(self.save_project)
 
         # Project Menu Actions #
-        self.action_import_data.triggered.connect(self.import_data_dialog)
+        # self.action_import_data.triggered.connect(self.import_data_dialog)
+        self.action_import_gps.triggered.connect(
+            lambda: self.import_data_dialog(enums.DataTypes.TRAJECTORY))
+        self.action_import_grav.triggered.connect(
+            lambda: self.import_data_dialog(enums.DataTypes.GRAVITY))
         self.action_add_flight.triggered.connect(self.add_flight_dialog)
 
         # Project Tree View Actions #
@@ -152,7 +164,11 @@ class MainWindow(QMainWindow, main_window):
 
         # Project Control Buttons #
         self.prj_add_flight.clicked.connect(self.add_flight_dialog)
-        self.prj_import_data.clicked.connect(self.import_data_dialog)
+        # self.prj_import_data.clicked.connect(self.import_data_dialog)
+        self.prj_import_gps.clicked.connect(
+            lambda: self.import_data_dialog(enums.DataTypes.TRAJECTORY))
+        self.prj_import_grav.clicked.connect(
+            lambda: self.import_data_dialog(enums.DataTypes.GRAVITY))
 
         # Tab Browser Actions #
         self.tab_workspace.currentChanged.connect(self._tab_changed)
@@ -185,6 +201,12 @@ class MainWindow(QMainWindow, main_window):
         self.text_console.append(str(text))
         self.text_console.verticalScrollBar().setValue(
             self.text_console.verticalScrollBar().maximum())
+
+    def show_status(self, text, level):
+        """Displays a message in the MainWindow's status bar for specific
+        log level events."""
+        if level.lower() == 'error' or level.lower() == 'info':
+            self.statusBar().showMessage(text, self._default_status_timeout)
 
     def _launch_tab(self, index: QtCore.QModelIndex=None, flight=None) -> None:
         """
@@ -225,7 +247,7 @@ class MainWindow(QMainWindow, main_window):
         self.log.warning("Tab close requested for tab: {}".format(index))
         flight_id = self._tabs.widget(index).flight.uid
         self._tabs.removeTab(index)
-        del self._open_tabs[flight_id]
+        tab = self._open_tabs.pop(flight_id)
 
     def _tab_changed(self, index: int):
         self.log.info("Tab changed to index: {}".format(index))
@@ -241,62 +263,117 @@ class MainWindow(QMainWindow, main_window):
         self._context_tree.setModel(model)
         self._context_tree.expandAll()
 
-    def data_added(self, flight: prj.Flight, src: types.DataSource) -> None:
-        """
-        Register a new data file with a flight and updates the Flight UI
-        components if the flight is open in a tab.
+    def _project_item_removed(self, item: types.BaseTreeItem):
+        print("Got item: ", type(item), " in _prj_item_removed")
+        if isinstance(item, types.DataSource):
+            flt = item.flight
+            print("Dsource flt: ", flt)
+            # Error here, flt.uid is not in open_tabs when it should be.
+            if not flt.uid not in self._open_tabs:
+                print("Flt not in open tabs")
+                return
+            tab = self._open_tabs.get(flt.uid, None)  # type: FlightTab
+            if tab is None:
+                print("tab not open")
+                return
+            try:
+                print("Calling tab.data_deleted")
+                tab.data_deleted(item)
+            except:
+                print("Exception of some sort encountered deleting item")
+            else:
+                print("Data deletion sucessful?")
 
-        Parameters
-        ----------
-        flight : prj.Flight
-            Flight object with related Gravity and GPS properties to plot
-        src : types.DataSource
-            DataSource object containing pointer and metadata to a DataFrame
+        else:
+            return
 
-        Returns
-        -------
-        None
-        """
-        flight.register_data(src)
+    def show_progress_dialog(self, title, start=0, stop=1, label=None,
+                             cancel="Cancel", modal=False,
+                             flags=None) -> QProgressDialog:
+        """Generate a progress bar to show progress on long running event."""
+        if flags is None:
+            flags = (QtCore.Qt.WindowSystemMenuHint |
+                     QtCore.Qt.WindowTitleHint |
+                     QtCore.Qt.WindowMinimizeButtonHint)
+
+        dialog = QProgressDialog(label, cancel, start, stop, self, flags)
+        dialog.setWindowTitle(title)
+        dialog.setModal(modal)
+        dialog.setMinimumDuration(0)
+        # dialog.setCancelButton(None)
+        dialog.setValue(1)
+        dialog.show()
+        return dialog
+
+    def show_progress_status(self, start, stop, label=None) -> QtWidgets.QProgressBar:
+        """Show a progress bar in the windows Status Bar"""
+        label = label or 'Loading'
+        sb = self.statusBar()  # type: QtWidgets.QStatusBar
+        progress = QtWidgets.QProgressBar(self)
+        progress.setRange(start, stop)
+        progress.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+        progress.setToolTip(label)
+        sb.addWidget(progress)
+        return progress
+
+    @autosave
+    def add_data(self, data, dtype, flight, path):
+        uid = dm.get_manager().save_data(dm.HDF5, data)
+        if uid is None:
+            self.log.error("Error occured writing DataFrame to HDF5 store.")
+            return
+
+        cols = list(data.keys())
+        ds = types.DataSource(uid, path, cols, dtype, x0=data.index.min(),
+                              x1=data.index.max())
+        flight.register_data(ds)
         if flight.uid not in self._open_tabs:
             # If flight is not opened we don't need to update the plot
             return
         else:
             tab = self._open_tabs[flight.uid]  # type: FlightTab
-            tab.new_data(src)  # tell the tab that new data is available
+            tab.new_data(ds)  # tell the tab that new data is available
             return
 
-    def progress_dialog(self, title, start=0, stop=1):
-        """Generate a progress bar to show progress on long running event."""
-        dialog = QProgressDialog(title, "Cancel", start, stop, self)
-        dialog.setWindowTitle("Loading...")
-        dialog.setModal(True)
-        dialog.setMinimumDuration(0)
-        dialog.setCancelButton(None)
-        dialog.setValue(0)
-        return dialog
+    def load_file(self, dtype, flight, **params):
+        """Loads a file in the background by using a QThread
+        Calls :py:class: dgp.ui.loader.LoaderThread to create threaded file
+        loader.
 
-    def import_data(self, path: pathlib.Path, dtype: str, flight: prj.Flight,
-                    fields=None):
+        Parameters
+        ----------
+        dtype : enums.DataTypes
+
+        flight : prj.Flight
+
+        params : dict
+
+
         """
-        Load data of dtype from path, using a threaded loader class
-        Upon load the data file should be registered with the specified flight.
-        """
-        assert path is not None
-        self.log.info("Importing <{dtype}> from: Path({path}) into"
-                      " <Flight({name})>".format(dtype=dtype, path=str(path),
-                                                 name=flight.name))
+        self.log.debug("Loading {dtype} into {flt}, with params: {param}"
+                       .format(dtype=dtype.name, flt=flight, param=params))
 
-        loader = LoadFile(path, dtype, fields=fields, parent=self)
+        prog = self.show_progress_status(0, 0)
+        prog.setValue(1)
 
-        progress = self.progress_dialog("Loading", 0, 0)
+        def _complete(data):
+            self.add_data(data, dtype, flight, params.get('path', None))
 
-        loader.data.connect(lambda ds: self.data_added(flight, ds))
-        loader.progress.connect(progress.setValue)
-        loader.loaded.connect(self.save_project)
-        loader.loaded.connect(progress.close)
+        def _result(result):
+            err, exc = result
+            prog.close()
+            if err:
+                msg = "Error loading {typ}::{fname}".format(
+                    typ=dtype.name.capitalize(), fname=params.get('path', ''))
+                self.log.error(msg)
+            else:
+                msg = "Loaded {typ}::{fname}".format(
+                    typ=dtype.name.capitalize(), fname=params.get('path', ''))
+                self.log.info(msg)
 
-        loader.start()
+        ld = loader.get_loader(parent=self, dtype=dtype, on_complete=_complete,
+                               on_error=_result, **params)
+        ld.start()
 
     def save_project(self) -> None:
         if self.project is None:
@@ -309,22 +386,32 @@ class MainWindow(QMainWindow, main_window):
         else:
             self.log.info("Error saving project.")
 
-    #####
-    # Project dialog functions
-    #####
+    # Project dialog functions ################################################
 
-    def import_data_dialog(self) -> None:
-        """Load data file (GPS or Gravity) using a background Thread, then hand
-        it off to the project."""
-        dialog = AdvancedImport(self.project, self.current_flight)
+    def import_data_dialog(self, dtype=None) -> None:
+        """
+        Launch a dialog window for user to specify path and parameters to
+        load a file of dtype.
+        Params gathered by dialog will be passed to :py:meth: self.load_file
+        which constrcuts the loading thread and performs the import.
+
+        Parameters
+        ----------
+        dtype : enums.DataTypes
+            Data type for which to launch dialog: GRAVITY or TRAJECTORY
+
+        """
+        dialog = AdvancedImportDialog(self.project, self.current_flight,
+                                      dtype=dtype, parent=self)
+        dialog.browse()
         if dialog.exec_():
-            path, dtype, fields, flight = dialog.content
-            self.import_data(path, dtype, flight, fields=fields)
-        return
+            # TODO: Should path be contained within params or should we take
+            # it as its own parameter
+            self.load_file(dtype, dialog.flight, **dialog.params)
 
     def new_project_dialog(self) -> QMainWindow:
         new_window = True
-        dialog = CreateProject()
+        dialog = CreateProjectDialog()
         if dialog.exec_():
             self.log.info("Creating new project")
             project = dialog.project
@@ -356,16 +443,16 @@ class MainWindow(QMainWindow, main_window):
 
     @autosave
     def add_flight_dialog(self) -> None:
-        dialog = AddFlight(self.project)
+        dialog = AddFlightDialog(self.project)
         if dialog.exec_():
             flight = dialog.flight
             self.log.info("Adding flight {}".format(flight.name))
             self.project.add_flight(flight)
 
-            if dialog.gravity:
-                self.import_data(dialog.gravity, 'gravity', flight)
-            if dialog.gps:
-                self.import_data(dialog.gps, 'gps', flight)
+            # if dialog.gravity:
+            #     self.import_data(dialog.gravity, 'gravity', flight)
+            # if dialog.gps:
+            #     self.import_data(dialog.gps, 'gps', flight)
             self._launch_tab(flight=flight)
             return
         self.log.info("New flight creation aborted.")
@@ -374,6 +461,8 @@ class MainWindow(QMainWindow, main_window):
 
 # TODO: Move this into new module (e.g. gui/views.py)
 class ProjectTreeView(QTreeView):
+    item_removed = pyqtSignal(types.BaseTreeItem)
+
     def __init__(self, project=None, parent=None):
         super().__init__(parent=parent)
 
@@ -408,10 +497,21 @@ class ProjectTreeView(QTreeView):
         info_slot = functools.partial(self._info_action, context_focus)
         plot_slot = functools.partial(self._plot_action, context_focus)
         menu = QMenu()
-        info_action = QAction("Info")
+        info_action = QAction("Properties")
         info_action.triggered.connect(info_slot)
         plot_action = QAction("Plot in new window")
         plot_action.triggered.connect(plot_slot)
+        if isinstance(context_focus, types.DataSource):
+            data_action = QAction("Set Active Data File")
+            # TODO: Work on this later, it breaks plotter currently
+            # data_action.triggered.connect(
+            #     lambda item: context_focus.__setattr__('active', True)
+            # )
+            menu.addAction(data_action)
+            data_delete = QAction("Delete Data File")
+            data_delete.triggered.connect(
+                lambda: self._remove_data_action(context_focus))
+            menu.addAction(data_delete)
 
         menu.addAction(info_action)
         menu.addAction(plot_action)
@@ -419,13 +519,28 @@ class ProjectTreeView(QTreeView):
         event.accept()
 
     def _plot_action(self, item):
-        raise NotImplementedError
+        return
 
     def _info_action(self, item):
-        if not (isinstance(item, prj.Flight)
-                or isinstance(item, prj.GravityProject)):
+        dlg = PropertiesDialog(item, parent=self)
+        dlg.exec_()
+
+    def _remove_data_action(self, item: types.BaseTreeItem):
+        if not isinstance(item, types.DataSource):
             return
-        model = TableModel(['Key', 'Value'])
-        model.set_object(item)
-        dialog = InfoDialog(model, parent=self)
-        dialog.exec_()
+        # Confirmation Dialog
+        confirm = QtWidgets.QMessageBox(parent=self.parent())
+        confirm.setStandardButtons(QtWidgets.QMessageBox.Ok)
+        confirm.setText("Are you sure you wish to delete: {}".format(item.filename))
+        confirm.setIcon(QtWidgets.QMessageBox.Question)
+        confirm.setWindowTitle("Confirm Delete")
+        res = confirm.exec_()
+        if res:
+            print("Emitting item_removed signal")
+            self.item_removed.emit(item)
+            print("removing item from its flight")
+            try:
+                item.flight.remove_data(item)
+            except:
+                print("Exception occured removing item from flight")
+

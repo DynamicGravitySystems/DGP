@@ -5,9 +5,10 @@ import unittest
 import numpy as np
 import csv
 
-from .context import  dgp
+from .context import dgp
 from tests import sample_dir
-import dgp.lib.eotvos as eotvos
+from dgp.lib import eotvos
+# import dgp.lib.eotvos as eotvos
 import dgp.lib.trajectory_ingestor as ti
 
 
@@ -15,19 +16,6 @@ class TestEotvos(unittest.TestCase):
     """Test Eotvos correction calculation."""
     def setUp(self):
         pass
-
-    @unittest.skip("test_derivative not implemented.")
-    def test_derivative(self):
-        """Test derivation function against table of values calculated in MATLAB"""
-        dlat = []
-        ddlat = []
-        dlon = []
-        ddlon = []
-        dht = []
-        ddht = []
-        # with sample_dir.joinpath('result_derivative.csv').open() as fd:
-        #     reader = csv.DictReader(fd)
-        #     dlat = list(map(lambda line: dlat.append(line['dlat']), reader))
 
     def test_eotvos(self):
         """Test Eotvos function against corrections generated with MATLAB program."""

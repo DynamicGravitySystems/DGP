@@ -6,14 +6,14 @@ import logging
 
 from PyQt5.QtGui import (QDropEvent, QDragEnterEvent, QDragMoveEvent,
                          QContextMenuEvent)
-from PyQt5.QtCore import QMimeData, Qt, pyqtSignal, pyqtBoundSignal
+from PyQt5.QtCore import Qt, pyqtSignal, pyqtBoundSignal
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QGridLayout, QTabWidget,
-                             QTreeView, QStackedWidget, QSizePolicy)
+                             QTreeView, QSizePolicy)
 import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtGui as QtGui
 
 
-from dgp.lib.plotter import LineGrabPlot, LineUpdate
+from .plotter import LineGrabPlot, LineUpdate
 from dgp.lib.project import Flight
 import dgp.gui.models as models
 import dgp.lib.types as types
@@ -41,9 +41,16 @@ class WorkspaceWidget(QWidget):
         super().__init__(parent, **kwargs)
         self.label = label
         self._uid = gen_uuid('ww')
-        # self._layout = layout
         self._context_model = None
-        # self.setLayout(self._layout)
+        self._plot = None
+
+    @property
+    def plot(self) -> LineGrabPlot:
+        return self._plot
+
+    @plot.setter
+    def plot(self, value):
+        self._plot = value
 
     def data_modified(self, action: str, uid: str):
         pass
@@ -70,50 +77,41 @@ class PlotTab(WorkspaceWidget):
         self.log = logging.getLogger('PlotTab')
 
         vlayout = QVBoxLayout()
-        self._plot = LineGrabPlot(flight, axes)
-        self._plot.line_changed.connect(self._on_modified_line)
+        self.plot = LineGrabPlot(flight, axes)
+        for line in flight.lines:
+            self.plot.add_patch(line.start, line.stop, line.uid, line.label)
+        self.plot.line_changed.connect(self._on_modified_line)
         self._flight = flight
 
-        vlayout.addWidget(self._plot)
-        vlayout.addWidget(self._plot.get_toolbar())
+        vlayout.addWidget(self.plot)
+        vlayout.addWidget(self.plot.get_toolbar(), alignment=Qt.AlignBottom)
         self.setLayout(vlayout)
-        self._apply_state()
         self._init_model()
-
-    def _apply_state(self) -> None:
-        """
-        Apply saved state to plot based on Flight plot channels.
-        """
-        state = self._flight.get_plot_state()
-        draw = False
-        for dc in state:
-            self._plot.add_series(dc, dc.plotted)
-
-        for line in self._flight.lines:
-            self._plot.add_patch(line.start, line.stop, line.uid,
-                                 label=line.label)
-            draw = True
-        if draw:
-            self._plot.draw()
 
     def _init_model(self):
         channels = self._flight.channels
-        plot_model = models.ChannelListModel(channels, len(self._plot))
+        plot_model = models.ChannelListModel(channels, len(self.plot))
         plot_model.plotOverflow.connect(self._too_many_children)
         plot_model.channelChanged.connect(self._on_channel_changed)
-        plot_model.update()
+        # plot_model.update()
         self.model = plot_model
 
-    def data_modified(self, action: str, uid: str):
-        self.log.info("Adding channels to model.")
-        channels = self._flight.channels
-        self.model.set_channels(channels)
+    # TODO: Candidate to move into base WorkspaceWidget
+    def data_modified(self, action: str, dsrc: types.DataSource):
+        if action.lower() == 'add':
+            self.log.info("Adding channels to model.")
+            self.model.add_channels(*dsrc.get_channels())
+        elif action.lower() == 'remove':
+            self.log.info("Removing channels from model.")
+            self.model.remove_source(dsrc)
+        else:
+            print("Unexpected action received")
 
     def _on_modified_line(self, info: LineUpdate):
         flight = self._flight
         if info.uid in [x.uid for x in flight.lines]:
             if info.action == 'modify':
-                line = flight.lines[info.uid]
+                line = flight.get_line(info.uid)
                 line.start = info.start
                 line.stop = info.stop
                 line.label = info.label
@@ -128,21 +126,20 @@ class PlotTab(WorkspaceWidget):
                                .format(start=info.start, stop=info.stop,
                                        label=info.label))
         else:
-            flight.add_line(info.start, info.stop, uid=info.uid)
+            line = types.FlightLine(info.start, info.stop, uid=info.uid)
+            flight.add_line(line)
             self.log.debug("Added line to flight {flt}: start={start}, "
                            "stop={stop}, label={label}"
                            .format(flt=flight.name, start=info.start,
                                    stop=info.stop, label=info.label))
 
     def _on_channel_changed(self, new: int, channel: types.DataChannel):
-        self.log.info("Channel change request: new index: {}".format(new))
-
-        self.log.debug("Moving series on plot")
-        self._plot.remove_series(channel)
+        self.plot.remove_series(channel)
         if new != -1:
-            self._plot.add_series(channel, new)
-        else:
-            print("destination is -1")
+            try:
+                self.plot.add_series(channel, new)
+            except:
+                self.log.exception("Error adding series to plot")
         self.model.update()
 
     def _too_many_children(self, uid):
@@ -259,8 +256,12 @@ class FlightTab(QWidget):
 
     def new_data(self, dsrc: types.DataSource):
         for tab in [self._plot_tab, self._transform_tab, self._map_tab]:
-            print("Updating tabs")
-            tab.data_modified('add', 'test')
+            tab.data_modified('add', dsrc)
+
+    def data_deleted(self, dsrc):
+        for tab in [self._plot_tab]:
+            print("Calling remove for each tab")
+            tab.data_modified('remove', dsrc)
 
     @property
     def flight(self):

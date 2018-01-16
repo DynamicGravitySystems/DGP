@@ -1,59 +1,125 @@
 # coding: utf-8
 
+import sys
 import pathlib
-from typing import List
+import logging
+import inspect
 
 from PyQt5.QtCore import pyqtSignal, QThread, pyqtBoundSignal
+from pandas import DataFrame
 
 import dgp.lib.types as types
-import dgp.lib.datamanager as dm
-from dgp.lib.gravity_ingestor import read_at1a
-from dgp.lib.trajectory_ingestor import import_trajectory
+import dgp.lib.gravity_ingestor as gi
+import dgp.lib.trajectory_ingestor as ti
+from dgp.lib.enums import DataTypes, GravityTypes
+
+_log = logging.getLogger(__name__)
 
 
-class LoadFile(QThread):
-    """
-    LoadFile is a threaded interface used to load and ingest a raw source
-    data file, i.e. gravity or trajectory data.
-    Upon import the data is exported to an HDF5 store for further use by the
-    application.
-    """
-    progress = pyqtSignal(int)  # type: pyqtBoundSignal
-    loaded = pyqtSignal()  # type: pyqtBoundSignal
-    data = pyqtSignal(types.DataSource)  # type: pyqtBoundSignal
+def _not_implemented(*args, **kwargs):
+    """Temporary method, raises NotImplementedError for ingestor methods that
+    have not yet been defined."""
+    raise NotImplementedError()
 
-    def __init__(self, path: pathlib.Path, datatype: str, fields: List=None,
-                 parent=None, **kwargs):
-        super().__init__(parent)
-        self._path = pathlib.Path(path)
-        self._dtype = datatype
-        self._functor = {'gravity': read_at1a,
-                         'gps': import_trajectory}.get(datatype, None)
-        self._fields = fields
+
+# TODO: Work needs to be done on ZLS as the data format is completely different
+# ZLS data is stored in a directory with the filenames delimiting hours
+GRAVITY_INGESTORS = {
+    GravityTypes.AT1A: gi.read_at1a,
+    GravityTypes.AT1M: _not_implemented,
+    GravityTypes.TAGS: _not_implemented,
+    GravityTypes.ZLS: _not_implemented
+}
+
+
+# TODO: I think this class should handle Loading only, and emit a DataFrame
+# We're doing too many things here by having the loader thread also write the
+#  reuslt out. Use another method to generated the DataSource
+class LoaderThread(QThread):
+    result = pyqtSignal(DataFrame)  # type: pyqtBoundSignal
+    error = pyqtSignal(tuple)  # type: pyqtBoundSignal
+
+    def __init__(self, method, path, dtype=None, parent=None, **kwargs):
+        super().__init__(parent=parent)
+        self.log = logging.getLogger(__name__)
+        self._method = method
+        self._dtype = dtype
+        self._kwargs = kwargs
+        self.path = pathlib.Path(path)
 
     def run(self):
-        """Executed on thread.start(), performs long running data load action"""
-        if self._dtype == 'gps':
-            df = self._load_gps()
+        """Called on thread.start()
+        Exceptions must be caught within run, as they fall outside the
+        context of the start() method, and thus cannot be handled properly
+        outside of the thread execution context."""
+        try:
+            df = self._method(self.path, **self._kwargs)
+        except Exception as e:
+            # self.error.emit((True, e))
+            _log.exception("Error loading datafile: {} of type: {}".format(
+                self.path, self._dtype.name))
+            self.error.emit((True, e))
         else:
-            df = self._load_gravity()
-        self.progress.emit(1)
-        # Export data to HDF5, get UID reference to pass along
-        uid = dm.get_manager().save_data(dm.HDF5, df)
-        cols = [col for col in df.keys()]
-        dsrc = types.DataSource(uid, self._path, cols, self._dtype)
-        self.data.emit(dsrc)
-        self.loaded.emit()
+            self.result.emit(df)
+            self.error.emit((False, None))
 
-    def _load_gps(self):
-        if self._fields is not None:
-            fields = self._fields
-        else:
-            fields = ['mdy', 'hms', 'latitude', 'longitude', 'ortho_ht',
-                      'ell_ht', 'num_sats', 'pdop']
-        return import_trajectory(self._path, columns=fields, skiprows=1,
-                                 timeformat='hms')
+    @classmethod
+    def from_gravity(cls, parent, path, subtype=GravityTypes.AT1A, **kwargs):
+        """
+        Convenience method to generate a gravity LoaderThread with appropriate
+        method based on gravity subtype.
 
-    def _load_gravity(self):
-        """Load gravity data using AT1A format"""
-        return read_at1a(self._path, fields=self._fields)
+        Parameters
+        ----------
+        parent
+        path : pathlib.Path
+        subtype
+        kwargs
+
+        Returns
+        -------
+
+        """
+        # Inspect the subtype method and cull invalid parameters
+        method = GRAVITY_INGESTORS[subtype]
+        sig = inspect.signature(method)
+        kwds = {k: v for k, v in kwargs.items() if k in sig.parameters}
+
+        if subtype == GravityTypes.ZLS:
+            # ZLS will inspect entire directory and parse file names
+            path = path.parent
+
+        return cls(method=method, path=path, parent=parent,
+                   dtype=DataTypes.GRAVITY, **kwds)
+
+    @classmethod
+    def from_gps(cls, parent, path, subtype, **kwargs):
+        """
+
+        Parameters
+        ----------
+        parent
+        path
+        subtype
+        kwargs
+
+        Returns
+        -------
+
+        """
+        return cls(method=ti.import_trajectory, path=path, parent=parent,
+                   timeformat=subtype.name.lower(), dtype=DataTypes.TRAJECTORY,
+                   **kwargs)
+
+
+def get_loader(parent, path, dtype, subtype, on_complete, on_error, **kwargs):
+    if dtype == DataTypes.GRAVITY:
+        ld = LoaderThread.from_gravity(parent, path, subtype, **kwargs)
+    else:
+        ld = LoaderThread.from_gps(parent, path, subtype, **kwargs)
+
+    if on_complete is not None and callable(on_complete):
+        ld.result.connect(on_complete)
+    if on_error is not None and callable(on_error):
+        ld.error.connect(on_error)
+    return ld

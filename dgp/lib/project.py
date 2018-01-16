@@ -3,17 +3,16 @@
 import pickle
 import pathlib
 import logging
-from typing import Union, Type
 from datetime import datetime
+from itertools import count
 
 from pandas import DataFrame
 
 from dgp.gui.qtenum import QtItemFlags, QtDataRoles
-from dgp.lib.meterconfig import MeterConfig, AT1Meter
-from dgp.lib.etc import gen_uuid
-import dgp.lib.types as types
-import dgp.lib.datamanager as dm
-
+from .meterconfig import MeterConfig, AT1Meter
+from .etc import gen_uuid
+from .types import DataSource, FlightLine, TreeItem
+from . import datamanager as dm
 """
 Dynamic Gravity Processor (DGP) :: project.py
 License: Apache License V2
@@ -54,6 +53,9 @@ Workflow:
 
 """
 
+_log = logging.getLogger(__name__)
+DATA_DIR = 'data'
+
 
 def can_pickle(attribute):
     """Helper function used by __getstate__ to determine if an attribute
@@ -67,15 +69,15 @@ def can_pickle(attribute):
     return True
 
 
-class GravityProject(types.TreeItem):
+class GravityProject(TreeItem):
     """
     GravityProject will be the base class defining common values for both
     airborne and marine gravity survey projects.
     """
     version = 0.2  # Used for future pickling compatibility
 
-    def __init__(self, path: pathlib.Path, name: str="Untitled Project",
-                 description: str=None, model_parent=None):
+    def __init__(self, path: pathlib.Path, name: str, description: str=None,
+                 model_parent=None):
         """
         Initializes a new GravityProject project class
 
@@ -90,11 +92,8 @@ class GravityProject(types.TreeItem):
         """
         super().__init__(gen_uuid('prj'), parent=None)
         self._model_parent = model_parent
-        self.log = logging.getLogger(__name__)
-        if isinstance(path, pathlib.Path):
-            self.projectdir = path  # type: pathlib.Path
-        else:
-            self.projectdir = pathlib.Path(path)
+        self.projectdir = pathlib.Path(path)
+
         if not self.projectdir.exists():
             raise FileNotFoundError
 
@@ -102,19 +101,19 @@ class GravityProject(types.TreeItem):
             raise NotADirectoryError
 
         self.name = name
-        self.description = description
+        self.description = description or ''
 
-        dm.init(self.projectdir.joinpath('data'))
+        dm.init(self.projectdir.joinpath(DATA_DIR))
 
         # Store MeterConfig objects in dictionary keyed by the meter name
         self._sensors = {}
 
-        self.log.debug("Gravity Project Initialized.")
+        _log.debug("Gravity Project Initialized.")
 
     def data(self, role: QtDataRoles):
         if role == QtDataRoles.DisplayRole:
             return self.name
-        return None
+        return super().data(role)
 
     @property
     def model(self):
@@ -252,11 +251,10 @@ class GravityProject(types.TreeItem):
         None
         """
         self.__dict__.update(state)
-        self.log = logging.getLogger(__name__)
         dm.init(self.projectdir.joinpath('data'))
 
 
-class Flight(types.TreeItem):
+class Flight(TreeItem):
     """
     Define a Flight class used to record and associate data with an entire
     survey flight (takeoff -> landing)
@@ -298,14 +296,13 @@ class Flight(types.TreeItem):
             date : datetime.date
                 Datetime object to  assign to this flight.
         """
-        self.log = logging.getLogger(__name__)
         uid = kwargs.get('uuid', gen_uuid('flt'))
         super().__init__(uid, parent=None)
 
         self.name = name
         self._project = project
-        self._icon = ':images/assets/flight_icon.png'
-        self.style = {'icon': ':images/assets/flight_icon.png',
+        self._icon = ':/icons/airborne'
+        self.style = {'icon': ':/icons/airborne',
                       QtDataRoles.BackgroundRole: 'LightGray'}
         self.meter = meter
         self.date = kwargs.get('date', datetime.today())
@@ -319,12 +316,13 @@ class Flight(types.TreeItem):
         # Issue #36 Plotting data channels
         self._default_plot_map = {'gravity': 0, 'long': 1, 'cross': 1}
 
-        self._lines = Container(ctype=types.FlightLine, parent=self,
-                                name='Flight Lines')
-        self._data = Container(ctype=types.DataSource, parent=self,
-                               name='Data Files')
-        self.append_child(self._lines)
-        self.append_child(self._data)
+        self._lines_uid = self.append_child(Container(ctype=FlightLine,
+                                                      parent=self,
+                                                      name='Flight Lines'))
+        self._data_uid = self.append_child(Container(ctype=DataSource,
+                                                     parent=self,
+                                                     name='Data Files'))
+        self._line_sequence = count()
 
     def data(self, role):
         if role == QtDataRoles.ToolTipRole:
@@ -335,40 +333,55 @@ class Flight(types.TreeItem):
 
     @property
     def lines(self):
-        return self._lines
+        for line in sorted(self.get_child(self._lines_uid),
+                           key=lambda x: x.start):
+            yield line
 
     @property
     def channels(self) -> list:
         """Return data channels as list of DataChannel objects"""
         rv = []
-        for source in self._data:  # type: types.DataSource
+        for source in self.get_child(self._data_uid):  # type: DataSource
+            # TODO: Work on active sources later
+            # if source is None or not source.active:
             rv.extend(source.get_channels())
         return rv
 
-    def get_plot_state(self):
-        # Return List[DataChannel if DataChannel is plotted]
-        return [dc for dc in self.channels if dc.plotted]
-
-    def register_data(self, datasrc: types.DataSource):
+    def register_data(self, datasrc: DataSource):
         """Register a data file for use by this Flight"""
-        self.log.info("Flight {} registering data source: {} UID: {}".format(
+        _log.info("Flight {} registering data source: {} UID: {}".format(
             self.name, datasrc.filename, datasrc.uid))
-        self._data.append_child(datasrc)
-        # TODO: Set channels within source to plotted if in default plot dict
+        datasrc.flight = self
+        self.get_child(self._data_uid).append_child(datasrc)
+        # TODO: Hold off on this - breaks plot when we change source
+        # print("Setting new Dsrc to active")
+        # datasrc.active = True
+        # self.update()
 
-    def add_line(self, start: datetime, stop: datetime, uid=None):
+    def remove_data(self, datasrc: DataSource) -> bool:
+        return self.get_child(self._data_uid).remove_child(datasrc)
+
+    def add_line(self, line: FlightLine) -> int:
         """Add a flight line to the flight by start/stop index and sequence
-        number"""
-        self.log.debug(
-            "Adding line to LineContainer of flight: {}".format(self.name))
-        line = types.FlightLine(start, stop, len(self._lines) + 1, None,
-                                uid=uid, parent=self.lines)
-        self._lines.append_child(line)
-        return line
+        number.
+
+        Returns
+        -------
+        Sequence number of added line.
+        """
+        lines = self.get_child(self._lines_uid)
+        line.sequence = next(self._line_sequence)
+        lines.append_child(line)
+        return line.sequence
+
+    def get_line(self, uid):
+        return self.get_child(self._lines_uid).get_child(uid)
 
     def remove_line(self, uid):
         """ Remove a flight line """
-        self._lines.remove_child(self._lines[uid])
+        lines = self.get_child(self._lines_uid)
+        child = lines.get_child(uid)
+        lines.remove_child(child)
 
     def clear_lines(self):
         """Removes all Lines from Flight"""
@@ -382,11 +395,11 @@ class Flight(types.TreeItem):
         FlightLine : NamedTuple
             Next FlightLine in Flight.lines
         """
-        for line in self._lines:
+        for line in self.get_child(self._lines_uid):
             yield line
 
     def __len__(self):
-        return len(self._lines)
+        return len(self.get_child(self._lines_uid))
 
     def __repr__(self):
         return "{cls}({parent}, {name}, {meter})".format(
@@ -402,16 +415,15 @@ class Flight(types.TreeItem):
 
     def __setstate__(self, state):
         self.__dict__.update(state)
-        self.log = logging.getLogger(__name__)
         self._gravdata = None
         self._gpsdata = None
 
 
-class Container(types.TreeItem):
+class Container(TreeItem):
     # Arbitrary list of permitted types
-    ctypes = {Flight, MeterConfig, types.FlightLine, types.DataSource}
+    ctypes = {Flight, MeterConfig, FlightLine, DataSource}
 
-    def __init__(self, ctype, parent, *args, **kwargs):
+    def __init__(self, ctype, parent=None, **kwargs):
         """
         Defines a generic container designed for use with models.ProjectModel,
         implementing the required functions to display and contain child
@@ -448,7 +460,7 @@ class Container(types.TreeItem):
         # assert parent is not None
         self._ctype = ctype
         self._name = kwargs.get('name', self._ctype.__name__)
-        _icon = ':/images/assets/folder_open.png'
+        _icon = ':/icons/folder_open.png'
         self.style = {QtDataRoles.DecorationRole: _icon,
                       QtDataRoles.BackgroundRole: 'LightBlue'}
 
@@ -489,6 +501,9 @@ class Container(types.TreeItem):
     def __str__(self):
         return str(self._children)
 
+    def __repr__(self):
+        return '<Container of {} uid: {}>'.format(self.ctype, self.uid)
+
 
 class AirborneProject(GravityProject):
     """
@@ -496,8 +511,6 @@ class AirborneProject(GravityProject):
     Airborne survey project with parameters unique to airborne operations,
     and defining flight lines etc.
 
-    This class is iterable, yielding the Flight objects contained within its
-    flights dictionary
     """
 
     def __iter__(self):
@@ -506,14 +519,14 @@ class AirborneProject(GravityProject):
     def __init__(self, path: pathlib.Path, name, description=None, parent=None):
         super().__init__(path, name, description)
 
-        self._flights = Container(ctype=Flight, name="Flights", parent=self)
-        self.append_child(self._flights)
-        self._meters = Container(ctype=MeterConfig, name="Meter Configurations",
-                                 parent=self)
-        self.append_child(self._meters)
+        self._flight_uid = self.append_child(Container(ctype=Flight,
+                                                       name="Flights",
+                                                       parent=self))
+        self._meter_uid = self.append_child(Container(ctype=MeterConfig,
+                                                      name="Meter Configs",
+                                                      parent=self))
 
-        self.log.debug("Airborne project initialized")
-        self.data_map = {}
+        _log.debug("Airborne project initialized")
 
     def data(self, role: QtDataRoles):
         if role == QtDataRoles.DisplayRole:
@@ -528,19 +541,19 @@ class AirborneProject(GravityProject):
 
     def add_flight(self, flight: Flight) -> None:
         flight.parent = self
-        self._flights.append_child(flight)
+        self.get_child(self._flight_uid).append_child(flight)
 
     def remove_flight(self, flight: Flight):
-        self._flights.remove_child(flight)
+        self.get_child(self._flight_uid).remove_child(flight)
 
     def get_flight(self, uid):
-        return self._flights.child(uid)
+        return self.get_child(self._flight_uid).get_child(uid)
 
     @property
     def count_flights(self):
-        return len(self._flights)
+        return len(self.get_child(self._flight_uid))
 
     @property
     def flights(self):
-        for flight in self._flights:
+        for flight in self.get_child(self._flight_uid):
             yield flight

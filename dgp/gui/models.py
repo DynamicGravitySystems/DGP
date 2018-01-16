@@ -29,93 +29,107 @@ See Also
 dgp.lib.types.py : Defines many of the objects used within the models
 
 """
+_log = logging.getLogger(__name__)
 
 
 class TableModel(QtCore.QAbstractTableModel):
-    """Simple table model of key: value pairs."""
+    """Simple table model of key: value pairs.
+    Parameters
+    ----------
+    """
 
-    def __init__(self, columns, editable=None, editheader=False, parent=None):
+    def __init__(self, header, editable_header=False, parent=None):
         super().__init__(parent=parent)
-        # TODO: Allow specification of which columns are editable
-        # List of column headers
-        self._cols = columns
-        self._rows = []
-        self._editable = editable
-        self._editheader = editheader
-        self._updates = {}
 
-    def set_object(self, obj):
-        """Populates the model with key, value pairs from the passed objects'
-        __dict__"""
-        for key, value in obj.__dict__.items():
-            self.append(key, value)
+        self._header = list(header)
+        self._editable = editable_header
+        self._data = []
+        self._header_index = True
 
-    def append(self, *args):
-        """Add a new row of data to the table, trimming input array to length of
-         columns."""
-        if not isinstance(args, list):
-            args = list(args)
-        while len(args) < len(self._cols):
-            # Pad the end
-            args.append(None)
+    @property
+    def table_header(self):
+        return self._header
 
-        self._rows.append(args[:len(self._cols)])
-        return True
+    @table_header.setter
+    def table_header(self, value):
+        self._header = list(value)
+        self.layoutChanged.emit()
 
-    def get_row(self, row: int):
+    @property
+    def model_data(self):
+        return self._data
+
+    @model_data.setter
+    def model_data(self, value):
+        self._data = value
+        while len(self._header) < len(self._data[0]):
+            self._header.append('None')
+        self.layoutChanged.emit()
+
+    def value_at(self, row, col):
+        return self._data[row][col]
+
+    def set_row(self, row, values):
         try:
-            return self._rows[row]
+            self._data[row] = values
         except IndexError:
-            print("Invalid row index")
-            return None
-
-    @property
-    def updates(self):
-        return self._updates
-
-    @property
-    def data(self):
-        # TODO: Work on some sort of mapping to map column headers to row values
-        return self._rows
+            return False
+        self.dataChanged.emit(self.index(row, 0),
+                              self.index(row, self.columnCount()))
+        return True
 
     # Required implementations of super class (for a basic, non-editable table)
 
     def rowCount(self, parent=None, *args, **kwargs):
-        return len(self._rows)
+        return len(self._data) + 1
 
     def columnCount(self, parent=None, *args, **kwargs):
-        return len(self._cols)
+        """Assume all data has same number of columns, but header may differ.
+        Returns the greater of header length or data length."""
+        try:
+            if len(self._data):
+                return max(len(self._data[0]), len(self._header))
+            return len(self._header)
+        except IndexError:
+            return 0
 
     def data(self, index: QModelIndex, role=None):
         if role == QtCore.Qt.DisplayRole or role == QtCore.Qt.EditRole:
+            if index.row() == 0:
+                try:
+                    return self._header[index.column()]
+                except IndexError:
+                    return 'None'
             try:
-                return self._rows[index.row()][index.column()]
+                val = self._data[index.row() - 1][index.column()]
+                return val
             except IndexError:
-                return None
+                return QtCore.QVariant()
         return QtCore.QVariant()
 
     def flags(self, index: QModelIndex):
         flags = QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
-        if index.row() == 0 and self._editheader:
-            flags = flags | QtCore.Qt.ItemIsEditable
-        # Allow the values column to be edited
-        elif self._editable is not None and index.column() in self._editable:
+        if index.row() == 0 and self._editable:
+            # Allow editing of first row (Column headers)
             flags = flags | QtCore.Qt.ItemIsEditable
         return flags
 
     def headerData(self, section, orientation, role=None):
         if role == QtCore.Qt.DisplayRole and orientation == QtCore.Qt.Horizontal:
-            return self._cols[section]
+            if self._header_index:
+                return section
+            return QtCore.QVariant()
 
-    # Required implementations of super class for editable table
+    # Required implementations of super class for editable table #############
 
-    def setData(self, index: QtCore.QModelIndex, value: QtCore.QVariant, role=None):
+    def setData(self, index: QtCore.QModelIndex, value, role=QtCore.Qt.EditRole):
         """Basic implementation of editable model. This doesn't propagate the
         changes to the underlying object upon which the model was based
         though (yet)"""
-        if index.isValid() and role == QtCore.Qt.ItemIsEditable:
-            self._rows[index.row()][index.column()] = value
-            self.dataChanged.emit(index, index)
+        if index.isValid() and role == QtCore.Qt.EditRole:
+            self._header[index.column()] = value
+            idx = self.index(0, index.column())
+            self.dataChanged.emit(idx, idx)
             return True
         else:
             return False
@@ -277,47 +291,93 @@ class ProjectModel(BaseTreeModel):
         return QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
 
 
-# QStyledItemDelegate
-class SelectionDelegate(Qt.QStyledItemDelegate):
+class ComboEditDelegate(Qt.QStyledItemDelegate):
     """Used by the Advanced Import Dialog to enable column selection/setting."""
-    def __init__(self, choices, parent=None):
+    def __init__(self, options=None, parent=None):
         super().__init__(parent=parent)
-        self._choices = choices
+        self._options = options
+
+    @property
+    def options(self):
+        return self._options
+
+    @options.setter
+    def options(self, value):
+        self._options = list(value)
 
     def createEditor(self, parent: QWidget, option: Qt.QStyleOptionViewItem,
                      index: QModelIndex) -> QWidget:
-        """Creates the editor widget to display in the view"""
+        """
+        Create the Editor widget. The widget will be populated with data in
+        the setEditorData method, which is called by the view immediately
+        after creation of the editor.
+
+        Parameters
+        ----------
+        parent
+        option
+        index
+
+        Returns
+        -------
+        QWidget
+
+        """
         editor = QComboBox(parent)
         editor.setFrame(False)
-        for choice in sorted(self._choices):
-            editor.addItem(choice)
         return editor
 
     def setEditorData(self, editor: QWidget, index: QModelIndex) -> None:
-        """Set the value displayed in the editor widget based on the model data
-        at the index"""
-        combobox = editor  # type: QComboBox
+        """
+        Sets the options in the supplied editor widget. This delegate class
+        expects a QComboBox widget, and will populate the combobox with
+        options supplied by the self.options property, or will construct them
+        from the current row if self.options is None.
+
+        Parameters
+        ----------
+        editor
+        index
+
+        Returns
+        -------
+
+        """
+        if not isinstance(editor, QComboBox):
+            print("Unexpected editor type.")
+            return
         value = str(index.model().data(index, QtDataRoles.EditRole))
-        index = combobox.findText(value)  # returns -1 if value not found
-        if index != -1:
-            combobox.setCurrentIndex(index)
+        if self.options is None:
+            # Construct set of choices by scanning columns at the current row
+            model = index.model()
+            row = index.row()
+            self.options = {model.data(model.index(row, c), QtDataRoles.EditRole)
+                            for c in range(model.columnCount())}
+
+        for choice in self.options:
+            editor.addItem(choice)
+
+        index = editor.findText(value, flags=Qt.Qt.MatchExactly)
+        if editor.currentIndex() == index:
+            return
+        elif index == -1:
+            # -1 is returned by findText if text is not found
+            # In this case add the value to list of options in combobox
+            editor.addItem(value)
+            editor.setCurrentIndex(editor.count() - 1)
         else:
-            combobox.addItem(value)
-            combobox.setCurrentIndex(combobox.count() - 1)
+            editor.setCurrentIndex(index)
 
-    def setModelData(self, editor: QWidget, model: QAbstractItemModel,
+    def setModelData(self, editor: QComboBox, model: QAbstractItemModel,
                      index: QModelIndex) -> None:
-        combobox = editor  # type: QComboBox
-        value = str(combobox.currentText())
-        row = index.row()
-        for c in range(model.columnCount()):
-            mindex = model.index(row, c)
-            data = str(model.data(mindex, QtCore.Qt.DisplayRole))
-            if data == value:
-                model.setData(mindex, '<Unassigned>', QtCore.Qt.EditRole)
-        model.setData(index, value, QtCore.Qt.EditRole)
+        value = str(editor.currentText())
+        try:
+            model.setData(index, value, QtCore.Qt.EditRole)
+        except:
+            _log.exception("Exception setting model data")
 
-    def updateEditorGeometry(self, editor: QWidget, option: Qt.QStyleOptionViewItem,
+    def updateEditorGeometry(self, editor: QWidget,
+                             option: Qt.QStyleOptionViewItem,
                              index: QModelIndex) -> None:
         editor.setGeometry(option.rect)
 
@@ -359,40 +419,29 @@ class ChannelListModel(BaseTreeModel):
         self._default = ChannelListHeader()
         self.root.append_child(self._default)
 
-        self.channels = self._build_model(channels)
+        self.channels = {}
+        self.add_channels(*channels)
 
-    def _build_model(self, channels: list) -> Dict[str, DataChannel]:
+    def add_channels(self, *channels):
         """Build the model representation"""
-        rv = {}
         for dc in channels:  # type: DataChannel
-            rv[dc.uid] = dc
-            if dc.index == -1:
-                self._default.append_child(dc)
-                continue
-            try:
-                self._plots[dc.index].append_child(dc)
-            except KeyError:
-                self.log.warning('Channel {} could not be plotted, plot does '
-                                 'not exist'.format(dc.uid))
-                dc.plot(None)
-                self._default.append_child(dc)
-        return rv
-
-    def clear(self):
-        """Remove all channels from the model"""
-        for dc in self.channels.values():
-            dc.orphan()
-        self.channels = None
+            self.channels[dc.uid] = dc
+            self._default.append_child(dc)
         self.update()
 
-    def set_channels(self, channels: list):
-        self.clear()
-        self.channels = self._build_model(channels)
+    def remove_source(self, dsrc):
+        print("Remove source called in CLM")
+        for channel in self.channels:  # type: DataChannel
+            _log.debug("Orphaning and removing channel: {name}/{uid}".format(
+                name=channel.label, uid=channel.uid))
+            if channel.source == dsrc:
+                self.channelChanged.emit(-1, channel)
+                channel.orphan()
+                try:
+                    del self.channels[channel.uid]
+                except KeyError:
+                    pass
         self.update()
-
-    def move_channel(self, uid, index) -> bool:
-        """Move channel specified by uid to parent at index"""
-        raise NotImplementedError("Method not yet implemented or required.")
 
     def update(self) -> None:
         """Update the models view layout."""
@@ -505,10 +554,14 @@ class ChannelListModel(BaseTreeModel):
         dc.orphan()
         self.endRemoveRows()
 
+        if row == -1:
+            n_row = 0
+        else:
+            n_row = row
         # Add channel to new parent/header
-        n_row = destination.child_count()
         self.beginInsertRows(parent, n_row, n_row)
-        destination.append_child(dc)
+        # destination.append_child(dc)
+        destination.insert_child(dc, n_row)
         self.endInsertRows()
 
         self.channelChanged.emit(destination.index, dc)

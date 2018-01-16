@@ -1,14 +1,18 @@
 # coding: utf-8
 
+import logging
 from abc import ABCMeta, abstractmethod
 from collections import namedtuple
-from typing import Union, Generator, List
+from typing import Union, Generator, List, Iterable
 
 from pandas import Series, DataFrame
 
 from dgp.lib.etc import gen_uuid
 from dgp.gui.qtenum import QtItemFlags, QtDataRoles
-import dgp.lib.datamanager as dm
+from .datamanager import get_manager
+# import dgp.lib.datamanager as dm
+from . import enums
+# import dgp.lib.enums as enums
 
 """
 Dynamic Gravity Processor (DGP) :: lib/types.py
@@ -23,6 +27,7 @@ items for display in a QTreeView widget. The classes themselves are Qt
 agnostic, meaning they can be safely pickled, and there is no dependence on 
 any Qt modules.
 """
+_log = logging.getLogger(__name__)
 
 Location = namedtuple('Location', ['lat', 'long', 'alt'])
 
@@ -59,7 +64,7 @@ class AbstractTreeItem(metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def children(self):
+    def children(self) -> Iterable['AbstractTreeItem']:
         pass
 
     @abstractmethod
@@ -109,10 +114,10 @@ class BaseTreeItem(AbstractTreeItem):
     AbstractTreeItem to ease futher specialization in subclasses.
     """
     def __init__(self, uid, parent: AbstractTreeItem=None):
-        self._uid = uid
+        self._uid = uid or gen_uuid('bti')
         self._parent = parent
         self._children = []
-        self._child_map = {}  # Used for fast lookup by UID
+        # self._child_map = {}  # Used for fast lookup by UID
         if parent is not None:
             parent.append_child(self)
 
@@ -130,15 +135,11 @@ class BaseTreeItem(AbstractTreeItem):
     def parent(self, value: AbstractTreeItem):
         """Sets the parent of this object."""
         if value is None:
-            # try:
-            #     self._parent.remove_child(self)
-            # except ValueError:
-            #     print("Couldn't reove self from parent")
             self._parent = None
             return
         assert isinstance(value, AbstractTreeItem)
         self._parent = value
-        self.update()
+        # self.update()
 
     @property
     def children(self) -> Generator[AbstractTreeItem, None, None]:
@@ -149,22 +150,34 @@ class BaseTreeItem(AbstractTreeItem):
     def data(self, role: QtDataRoles):
         raise NotImplementedError("data(role) must be implemented in subclass.")
 
-    def child(self, index: Union[int, str]):
-        if isinstance(index, str):
-            return self._child_map[index]
+    def child(self, index: int) -> AbstractTreeItem:
         return self._children[index]
 
-    def append_child(self, child: AbstractTreeItem) -> None:
+    def get_child(self, uid: str) -> 'BaseTreeItem':
+        """Get a child by UID reference."""
+        for child in self._children:
+            if child.uid == uid:
+                return child
+        else:
+            raise KeyError("Child UID does not exist.")
+
+    def append_child(self, child: AbstractTreeItem) -> str:
         """
         Appends a child AbstractTreeItem to this object. An object that is
         not an instance of AbstractTreeItem will be rejected and an Assertion
         Error will be raised.
         Likewise if a child already exists within this object, it will
         silently continue without duplicating the child.
+
         Parameters
         ----------
         child: AbstractTreeItem
             Child AbstractTreeItem to append to this object.
+
+        Returns
+        -------
+        str:
+            UID of appended child
 
         Raises
         ------
@@ -172,24 +185,19 @@ class BaseTreeItem(AbstractTreeItem):
             If child is not an instance of AbstractTreeItem, an Assertion
             Error is raised, and the child will not be appended to this object.
         """
-        assert isinstance(child, AbstractTreeItem)
+        assert isinstance(child, BaseTreeItem)
         if child in self._children:
             # Appending same child should have no effect
-            return
+            return child.uid
         child.parent = self
         self._children.append(child)
-        self._child_map[child.uid] = child
         self.update()
+        return child.uid
 
-    def remove_child(self, child: Union[AbstractTreeItem, str]):
-        # Allow children to be removed by UID
-        if isinstance(child, str):
-            child = self._child_map[child]
+    def remove_child(self, child: AbstractTreeItem):
         if child not in self._children:
             return False
-            raise ValueError("Child does not exist for this parent")
         child.parent = None
-        del self._child_map[child.uid]
         self._children.remove(child)
         self.update()
         return True
@@ -198,9 +206,11 @@ class BaseTreeItem(AbstractTreeItem):
         if index == -1:
             self.append_child(child)
             return True
-        print("Inserting ATI child at index: ", index)
-        self._children.insert(index, child)
-        self._child_map[child.uid] = child
+        try:
+            self._children.insert(index, child)
+            child.parent = self
+        except IndexError:
+            return False
         self.update()
         return True
 
@@ -218,7 +228,7 @@ class BaseTreeItem(AbstractTreeItem):
         try:
             return self._children.index(child)
         except ValueError:
-            print("Invalid child passed to indexof")
+            _log.exception("Invalid child passed to indexof.")
             return -1
 
     def row(self) -> Union[int, None]:
@@ -238,10 +248,16 @@ class BaseTreeItem(AbstractTreeItem):
             self.parent.update(**kwargs)
 
 
+_style_roles = {QtDataRoles.BackgroundRole: 'bg',
+                QtDataRoles.ForegroundRole: 'fg',
+                QtDataRoles.DecorationRole: 'icon',
+                QtDataRoles.FontRole: 'font'}
+
+
 class TreeItem(BaseTreeItem):
     """
-    TreeItem extends BaseTreeItem and adds some extra convenience methods (
-    __str__, __len__, __iter__, __getitem__, __contains__), as well as
+    TreeItem extends BaseTreeItem and adds some extra convenience methods
+    (__str__, __len__, __iter__, __getitem__, __contains__), as well as
     defining a default data() method which can apply styles set via the style
     property in this class.
     """
@@ -249,10 +265,6 @@ class TreeItem(BaseTreeItem):
     def __init__(self, uid: str, parent: AbstractTreeItem=None):
         super().__init__(uid, parent)
         self._style = {}
-        self._style_roles = {QtDataRoles.BackgroundRole: 'bg',
-                             QtDataRoles.ForegroundRole: 'fg',
-                             QtDataRoles.DecorationRole: 'icon',
-                             QtDataRoles.FontRole: 'font'}
 
     def __str__(self):
         return "<TreeItem(uid={})>".format(self.uid)
@@ -268,6 +280,8 @@ class TreeItem(BaseTreeItem):
         """Permit child access by ordered index, or UID"""
         if not isinstance(key, (int, str)):
             raise ValueError("Key must be int or str type")
+        if isinstance(key, str):
+            return self.get_child(key)
         return self.child(key)
 
     def __contains__(self, item: AbstractTreeItem):
@@ -303,8 +317,8 @@ class TreeItem(BaseTreeItem):
         # Allow style specification by QtDataRole or by name e.g. 'bg', 'fg'
         if role in self._style:
             return self._style[role]
-        if role in self._style_roles:
-            key = self._style_roles[role]
+        if role in _style_roles:
+            key = _style_roles[role]
             return self._style.get(key, None)
         return None
 
@@ -347,7 +361,8 @@ class FlightLine(TreeItem):
     and stop index, as well as the reference to the data it relates to.
     This TreeItem does not accept children.
     """
-    def __init__(self, start, stop, sequence, file_ref, uid=None, parent=None):
+    def __init__(self, start, stop, sequence=None, file_ref=None, uid=None,
+                 parent=None):
         super().__init__(uid, parent)
 
         self._start = start
@@ -381,6 +396,23 @@ class FlightLine(TreeItem):
     @stop.setter
     def stop(self, value):
         self._stop = value
+        self.update()
+
+    @property
+    def sequence(self) -> int:
+        return self._sequence
+
+    @sequence.setter
+    def sequence(self, value: int):
+        self._sequence = value
+
+    def update_line(self, start=None, stop=None, label=None):
+        """Allow update to one or more line properties while only triggering UI
+        update once."""
+        # TODO: Testing
+        self._start = start or self._start
+        self._stop = stop or self._stop
+        self._label = label or self._label
         self.update()
 
     def data(self, role):
@@ -428,13 +460,53 @@ class DataSource(BaseTreeItem):
         Data type (i.e. GPS/Gravity) of the data pointed to by this object.
 
     """
-    def __init__(self, uid, filename: str, fields: List[str], dtype: str):
-        """Create a DataSource item with UID matching the managed file UID
-        that it points to."""
+    def __init__(self, uid, filename: str, fields: List[str],
+                 dtype: enums.DataTypes, x0=None, x1=None):
         super().__init__(uid)
         self.filename = filename
         self.fields = fields
         self.dtype = dtype
+        self._flight = None
+        self._active = False
+
+        self._x0 = x0 or 1
+        self._x1 = x1 or 2
+
+    def delete(self):
+        if self.flight:
+            try:
+                self.flight.remove_data(self)
+            except AttributeError:
+                _log.error("Error removing data source from flight")
+
+    @property
+    def flight(self):
+        return self._flight
+
+    @flight.setter
+    def flight(self, value):
+        self._flight = value
+
+    @property
+    def active(self):
+        return self._active
+
+    @active.setter
+    def active(self, value: bool):
+        """Iterate through siblings and deactivate any other sibling of same
+        dtype if setting this sibling to active."""
+        if value:
+            for child in self.parent.children:  # type: DataSource
+                if child is self:
+                    continue
+                if child.dtype == self.dtype and child.active:
+                    child.active = False
+            self._active = True
+        else:
+            self._active = False
+
+    def get_xlim(self):
+        return self._x0, self._x1
 
     def get_channels(self) -> List['DataChannel']:
         """
@@ -460,17 +532,22 @@ class DataSource(BaseTreeItem):
 
     def load(self, field=None) -> Union[Series, DataFrame]:
         """Load data from the DataManager and return the specified field."""
-        data = dm.get_manager().load_data(self.uid)
+        data = get_manager().load_data(self.uid)
         if field is not None:
             return data[field]
         return data
 
     def data(self, role: QtDataRoles):
         if role == QtDataRoles.DisplayRole:
-            return "{dtype}: {fname}".format(dtype=self.dtype,
+            return "{dtype}: {fname}".format(dtype=self.dtype.name.capitalize(),
                                              fname=self.filename)
         if role == QtDataRoles.ToolTipRole:
             return "UID: {}".format(self.uid)
+        if role == QtDataRoles.DecorationRole:
+            if self.dtype == enums.DataTypes.GRAVITY:
+                return ':icons/gravity'
+            if self.dtype == enums.DataTypes.TRAJECTORY:
+                return ':icons/gps'
 
     def children(self):
         return []
@@ -481,29 +558,9 @@ class DataChannel(BaseTreeItem):
         super().__init__(gen_uuid('dcn'), parent=parent)
         self.label = label
         self.field = label
-        self._source = source
+        self.source = source
         self.plot_style = ''
         self.units = ''
-        self._plotted = False
-        self._index = -1
-
-    @property
-    def plotted(self):
-        return self._plotted
-
-    @property
-    def index(self):
-        if not self._plotted:
-            return -1
-        return self._index
-
-    def plot(self, index: Union[int, None]) -> None:
-        if index is None:
-            self._plotted = False
-            self._index = -1
-        else:
-            self._index = index
-            self._plotted = True
 
     def series(self, force=False) -> Series:
         """Return the pandas Series referenced by this DataChannel
@@ -513,13 +570,18 @@ class DataChannel(BaseTreeItem):
             Reserved for future use, force the DataManager to reload the
             Series from disk.
         """
-        return self._source.load(self.field)
+        return self.source.load(self.field)
+
+    def get_xlim(self):
+        return self.source.get_xlim()
 
     def data(self, role: QtDataRoles):
         if role == QtDataRoles.DisplayRole:
             return self.label
         if role == QtDataRoles.UserRole:
             return self.field
+        if role == QtDataRoles.ToolTipRole:
+            return self.source.filename
         return None
 
     def flags(self):
@@ -536,4 +598,6 @@ class DataChannel(BaseTreeItem):
             return res
         except ValueError:
             return False
-
+        except:
+            _log.exception("Unexpected error while orphaning child.")
+            return False
