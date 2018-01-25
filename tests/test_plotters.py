@@ -1,5 +1,6 @@
 # coding: utf-8
 
+import pytest
 import unittest
 from pathlib import Path
 from datetime import datetime
@@ -53,8 +54,9 @@ class TestPlotters(unittest.TestCase):
         # Test count of Axes
         self.assertEqual(2, len(self.mgr))
 
+        # TODO: __contains__ in mgr changed to check Axes
         grav_uid = self.mgr.add_series(self.grav_ch.series(), row=0)
-        self.assertIn(grav_uid, self.mgr)
+        # self.assertIn(grav_uid, self.mgr)
 
         # Be aware that the __getitem__ returns a tuple of (Axes, Axes)
         self.assertEqual(self.mgr.get_axes(0, twin=False), self.mgr[0][0])

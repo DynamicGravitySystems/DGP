@@ -7,17 +7,21 @@ import logging
 from PyQt5.QtGui import (QDropEvent, QDragEnterEvent, QDragMoveEvent,
                          QContextMenuEvent)
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtBoundSignal
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QGridLayout, QTabWidget,
-                             QTreeView, QSizePolicy)
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
+                             QTabWidget, QTreeView, QSizePolicy)
 import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtGui as QtGui
+import pyqtgraph as pg
+from pyqtgraph.flowchart import Flowchart
 
-
-from .plotter import LineGrabPlot, LineUpdate
-from dgp.lib.project import Flight
 import dgp.gui.models as models
 import dgp.lib.types as types
+from dgp.lib.enums import DataTypes
+from .plotter import LineGrabPlot, LineUpdate
+from dgp.lib.project import Flight
 from dgp.lib.etc import gen_uuid
+from dgp.gui.dialogs import ChannelSelectionDialog
+from dgp.lib.transform import *
 
 
 # Experimenting with drag-n-drop and custom widgets
@@ -37,13 +41,20 @@ class DropTarget(QWidget):
 
 class WorkspaceWidget(QWidget):
     """Base Workspace Tab Widget - Subclass to specialize function"""
-    def __init__(self, label: str, parent=None, **kwargs):
+    def __init__(self, label: str, flight: Flight, parent=None, **kwargs):
         super().__init__(parent, **kwargs)
         self.label = label
+        self._flight = flight
         self._uid = gen_uuid('ww')
-        self._context_model = None
         self._plot = None
 
+    def widget(self):
+        return None
+
+    @property
+    def flight(self) -> Flight:
+        return self._flight
+    
     @property
     def plot(self) -> LineGrabPlot:
         return self._plot
@@ -52,17 +63,8 @@ class WorkspaceWidget(QWidget):
     def plot(self, value):
         self._plot = value
 
-    def data_modified(self, action: str, uid: str):
+    def data_modified(self, action: str, dsrc: types.DataSource):
         pass
-
-    @property
-    def model(self):
-        return self._context_model
-
-    @model.setter
-    def model(self, value):
-        assert isinstance(value, models.BaseTreeModel)
-        self._context_model = value
 
     @property
     def uid(self):
@@ -72,46 +74,80 @@ class WorkspaceWidget(QWidget):
 class PlotTab(WorkspaceWidget):
     """Sub-tab displayed within Flight tab interface. Displays canvas for
     plotting data series."""
-    def __init__(self, flight: Flight, label: str, axes: int, **kwargs):
-        super().__init__(label, **kwargs)
-        self.log = logging.getLogger('PlotTab')
+    defaults = {'gravity': 0, 'long': 1, 'cross': 1}
 
+    def __init__(self, label: str, flight: Flight, axes: int,
+                 plot_default=True, **kwargs):
+        super().__init__(label, flight, **kwargs)
+        self.log = logging.getLogger('PlotTab')
+        self.model = None
+        self._ctrl_widget = None
+        self._axes_count = axes
+        self._setup_ui()
+        self._init_model(plot_default)
+
+    def _setup_ui(self):
         vlayout = QVBoxLayout()
-        self.plot = LineGrabPlot(flight, axes)
-        for line in flight.lines:
+        top_button_hlayout = QHBoxLayout()
+        self._select_channels = QtWidgets.QPushButton("Select Channels")
+        self._select_channels.clicked.connect(self._show_select_dialog)
+        top_button_hlayout.addWidget(self._select_channels,
+                                     alignment=Qt.AlignLeft)
+
+        self._enter_line_selection = QtWidgets.QPushButton("Enter Line "
+                                                           "Selection Mode")
+        top_button_hlayout.addWidget(self._enter_line_selection,
+                                     alignment=Qt.AlignRight)
+        vlayout.addLayout(top_button_hlayout)
+
+        self.plot = LineGrabPlot(self.flight, self._axes_count)
+        for line in self.flight.lines:
             self.plot.add_patch(line.start, line.stop, line.uid, line.label)
         self.plot.line_changed.connect(self._on_modified_line)
-        self._flight = flight
 
         vlayout.addWidget(self.plot)
         vlayout.addWidget(self.plot.get_toolbar(), alignment=Qt.AlignBottom)
         self.setLayout(vlayout)
-        self._init_model()
 
-    def _init_model(self):
-        channels = self._flight.channels
+    def _init_model(self, default_state=False):
+        channels = self.flight.channels
         plot_model = models.ChannelListModel(channels, len(self.plot))
         plot_model.plotOverflow.connect(self._too_many_children)
         plot_model.channelChanged.connect(self._on_channel_changed)
-        # plot_model.update()
         self.model = plot_model
 
-    # TODO: Candidate to move into base WorkspaceWidget
+        if default_state:
+            self.set_defaults(channels)
+
+    def set_defaults(self, channels):
+        for name, plot in self.defaults.items():
+            for channel in channels:
+                if channel.field == name.lower():
+                    self.model.move_channel(channel.uid, plot)
+
+    def _show_select_dialog(self):
+        dlg = ChannelSelectionDialog(parent=self)
+        if self.model is not None:
+            dlg.set_model(self.model)
+        dlg.show()
+
     def data_modified(self, action: str, dsrc: types.DataSource):
         if action.lower() == 'add':
             self.log.info("Adding channels to model.")
-            self.model.add_channels(*dsrc.get_channels())
+            n_channels = dsrc.get_channels()
+            self.model.add_channels(*n_channels)
+            self.set_defaults(n_channels)
         elif action.lower() == 'remove':
             self.log.info("Removing channels from model.")
-            self.model.remove_source(dsrc)
+            # Re-initialize model - source must be removed from flight first
+            self._init_model()
         else:
-            print("Unexpected action received")
+            return
 
     def _on_modified_line(self, info: LineUpdate):
-        flight = self._flight
-        if info.uid in [x.uid for x in flight.lines]:
+        if info.uid in [x.uid for x in self.flight.lines]:
             if info.action == 'modify':
-                line = flight.get_line(info.uid)
+                line = self.flight.get_line(info.uid)
                 line.start = info.start
                 line.stop = info.stop
                 line.label = info.label
@@ -120,17 +156,17 @@ class PlotTab(WorkspaceWidget):
                                .format(start=info.start, stop=info.stop,
                                        label=info.label))
             elif info.action == 'remove':
-                flight.remove_line(info.uid)
+                self.flight.remove_line(info.uid)
                 self.log.debug("Removed line: start={start}, "
                                "stop={stop}, label={label}"
                                .format(start=info.start, stop=info.stop,
                                        label=info.label))
         else:
             line = types.FlightLine(info.start, info.stop, uid=info.uid)
-            flight.add_line(line)
+            self.flight.add_line(line)
             self.log.debug("Added line to flight {flt}: start={start}, "
                            "stop={stop}, label={label}"
-                           .format(flt=flight.name, start=info.start,
+                           .format(flt=self.flight.name, start=info.start,
                                    stop=info.stop, label=info.label))
 
     def _on_channel_changed(self, new: int, channel: types.DataChannel):
@@ -147,64 +183,74 @@ class PlotTab(WorkspaceWidget):
 
 
 class TransformTab(WorkspaceWidget):
-    def __init__(self, flight, label, *args, **kwargs):
-        super().__init__(label)
-        self._flight = flight
-        self._elements = {}
+    def __init__(self, label: str, flight: Flight):
+        super().__init__(label, flight)
+        self._layout = QGridLayout()
+        self.setLayout(self._layout)
 
-        self._setupUi()
-        self._init_model()
+        self.fc = None
+        self.plots = []
+        self._init_flowchart()
+        self.populate_flowchart()
 
-    def _setupUi(self) -> None:
-        """
-        Initialize the UI Components of the Transform Tab.
-        Major components (plot, transform view, info panel) are added to the
-        instance _elements dict.
+    def _init_flowchart(self):
+        fc_terminals = {"Gravity": dict(io='in'),
+                        "Trajectory": dict(io='in'),
+                        "Output": dict(io='out')}
+        fc = Flowchart(library=LIBRARY, terminals=fc_terminals)
+        fc_ctrl_widget = fc.widget()
+        chart_window = fc_ctrl_widget.cwWin
+        # Force the Flowchart pop-out window to close when the main app exits
+        chart_window.setAttribute(Qt.WA_QuitOnClose, False)
 
-        """
-        grid = QGridLayout()
-        transform = QTreeView()
-        transform.setSizePolicy(QSizePolicy.Minimum,
-                                       QSizePolicy.Expanding)
-        info = QtWidgets.QTextEdit()
-        info.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+        fc_ctrl_widget.ui.reloadBtn.setEnabled(False)
+        self._layout.addWidget(fc_ctrl_widget, 0, 0, 2, 1)
 
-        plot = LineGrabPlot(self._flight, 2)
-        plot.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        plot_toolbar = plot.get_toolbar()
+        plot_1 = pg.PlotWidget()
+        self._layout.addWidget(plot_1, 0, 1)
+        plot_2 = pg.PlotWidget()
+        self._layout.addWidget(plot_2, 1, 1)
+        plot_list = {'Top Plot': plot_1, 'Bottom Plot': plot_2}
 
-        # Testing layout
-        btn = QtWidgets.QPushButton("Add")
-        btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
-        btn.pressed.connect(lambda: info.show())
+        plotnode_1 = fc.createNode('PlotWidget', pos=(0, -150))
+        plotnode_1.setPlotList(plot_list)
+        plotnode_1.setPlot(plot_1)
+        plotnode_2 = fc.createNode('PlotWidget', pos=(150, -150))
+        plotnode_2.setPlotList(plot_list)
+        plotnode_2.setPlot(plot_2)
 
-        btn2 = QtWidgets.QPushButton("Remove")
-        btn2.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
-        btn2.pressed.connect(lambda: info.hide())
+        self.plots.append(plotnode_1)
+        self.plots.append(plotnode_2)
+        self.fc = fc
 
-        grid.addWidget(transform, 0, 0)
-        grid.addWidget(btn, 2, 0)
-        grid.addWidget(btn2, 3, 0)
-        grid.addWidget(info, 1, 0)
-        grid.addWidget(plot, 0, 1, 3, 1)
-        grid.addWidget(plot_toolbar, 3, 1)
+    def populate_flowchart(self):
+        """Populate the flowchart/Transform interface with a default
+        'example'/base network of Nodes dependent on available data."""
+        if self.fc is None:
+            return
+        else:
+            fc = self.fc
+        grav = self.flight.get_source(DataTypes.GRAVITY)
+        gps = self.flight.get_source(DataTypes.TRAJECTORY)
+        if grav is not None:
+            fc.setInput(Gravity=grav.load())
+            demux = LIBRARY.getNodeType('LineDemux')('Demux', self.flight)
+            fc.addNode(demux, 'Demux')
 
-        self.setLayout(grid)
+        if gps is not None:
+            fc.setInput(Trajectory=gps.load())
+            eotvos = fc.createNode('Eotvos', pos=(0, 0))
+            fc.connectTerminals(fc['Trajectory'], eotvos['data_in'])
+            fc.connectTerminals(eotvos['data_out'], self.plots[0]['In'])
 
-        elements = {'transform': transform,
-                    'plot': plot,
-                    'toolbar': plot_toolbar,
-                    'info': info}
-        self._elements.update(elements)
-
-    def _init_model(self):
-        channels = self._flight.channels
-        plot_model = models.ChannelListModel(channels, len(self._elements[
-                                                               'plot']))
-        # plot_model.plotOverflow.connect(self._too_many_children)
-        # plot_model.channelChanged.connect(self._on_channel_changed)
-        plot_model.update()
-        self.model = plot_model
+    def data_modified(self, action: str, dsrc: types.DataSource):
+        """Slot: Called when a DataSource has been added/removed from the
+        Flight this tab/workspace is associated with."""
+        if action.lower() == 'add':
+            if dsrc.dtype == DataTypes.TRAJECTORY:
+                self.fc.setInput(Trajectory=dsrc.load())
+            elif dsrc.dtype == DataTypes.GRAVITY:
+                self.fc.setInput(Gravity=dsrc.load())
 
 
 class MapTab(WorkspaceWidget):
@@ -212,6 +258,7 @@ class MapTab(WorkspaceWidget):
 
 
 class FlightTab(QWidget):
+    """Top Level Tab created for each Flight object open in the workspace"""
 
     contextChanged = pyqtSignal(models.BaseTreeModel)  # type: pyqtBoundSignal
 
@@ -221,41 +268,41 @@ class FlightTab(QWidget):
         self._flight = flight
 
         self._layout = QVBoxLayout(self)
+        # _workspace is the inner QTabWidget containing the WorkspaceWidgets
         self._workspace = QTabWidget()
         self._workspace.setTabPosition(QTabWidget.West)
         self._workspace.currentChanged.connect(self._on_changed_context)
         self._layout.addWidget(self._workspace)
 
         # Define Sub-Tabs within Flight space e.g. Plot, Transform, Maps
-        self._plot_tab = PlotTab(flight, "Plot", 3)
-
-        # self._transform_tab = WorkspaceWidget("Transforms")
-        self._transform_tab = TransformTab(flight, "Transforms")
-        self._map_tab = WorkspaceWidget("Map")
-
+        self._plot_tab = PlotTab(label="Plot", flight=flight, axes=3)
         self._workspace.addTab(self._plot_tab, "Plot")
+
+        self._transform_tab = TransformTab("Transforms", flight)
         self._workspace.addTab(self._transform_tab, "Transforms")
-        self._workspace.addTab(self._map_tab, "Map")
+
+        # self._map_tab = WorkspaceWidget("Map")
+        # self._workspace.addTab(self._map_tab, "Map")
 
         self._context_models = {}
 
         self._workspace.setCurrentIndex(0)
         self._plot_tab.update()
 
-    def _init_transform_tab(self):
-        pass
-
-    def _init_map_tab(self):
-        pass
+    def subtab_widget(self):
+        return self._workspace.currentWidget().widget()
 
     def _on_changed_context(self, index: int):
         self.log.debug("Flight {} sub-tab changed to index: {}".format(
             self.flight.name, index))
-        model = self._workspace.currentWidget().model
-        self.contextChanged.emit(model)
+        try:
+            model = self._workspace.currentWidget().model
+            self.contextChanged.emit(model)
+        except AttributeError:
+            pass
 
     def new_data(self, dsrc: types.DataSource):
-        for tab in [self._plot_tab, self._transform_tab, self._map_tab]:
+        for tab in [self._plot_tab, self._transform_tab]:
             tab.data_modified('add', dsrc)
 
     def data_deleted(self, dsrc):
@@ -281,7 +328,7 @@ class FlightTab(QWidget):
         return current_tab.model
 
 
-class CustomTabBar(QtWidgets.QTabBar):
+class _FlightTabBar(QtWidgets.QTabBar):
     """Custom Tab Bar to allow us to implement a custom Context Menu to
     handle right-click events."""
     def __init__(self, parent=None):
@@ -313,9 +360,10 @@ class CustomTabBar(QtWidgets.QTabBar):
         event.accept()
 
 
-class TabWorkspace(QtWidgets.QTabWidget):
+class FlightWorkspace(QtWidgets.QTabWidget):
+    """Custom QTabWidget promoted in main_window.ui supporting a custom
+    TabBar which enables the attachment of custom event actions e.g. right
+    click context-menus for the tab bar buttons."""
     def __init__(self, parent=None):
         super().__init__(parent=parent)
-
-        bar = CustomTabBar()
-        self.setTabBar(bar)
+        self.setTabBar(_FlightTabBar())

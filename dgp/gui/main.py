@@ -2,18 +2,15 @@
 
 import os
 import pathlib
-import functools
 import logging
 from typing import Union
 
 import PyQt5.QtCore as QtCore
-import PyQt5.QtGui as QtGui
 import PyQt5.QtWidgets as QtWidgets
-from PyQt5.QtWidgets import (QMainWindow, QAction, QMenu, QProgressDialog,
-                             QFileDialog, QTreeView)
-from PyQt5.QtCore import pyqtSignal, pyqtBoundSignal
 from PyQt5.QtGui import QColor
-from PyQt5.uic import loadUiType
+from PyQt5.QtCore import pyqtSignal, pyqtBoundSignal
+from PyQt5.QtWidgets import QMainWindow, QProgressDialog, QFileDialog
+
 
 import dgp.lib.project as prj
 import dgp.lib.types as types
@@ -21,15 +18,11 @@ import dgp.lib.enums as enums
 import dgp.gui.loader as loader
 import dgp.lib.datamanager as dm
 from dgp.gui.utils import (ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP,
-                           get_project_file)
+                           LOG_COLOR_MAP, get_project_file)
 from dgp.gui.dialogs import (AddFlightDialog, CreateProjectDialog,
-                             AdvancedImportDialog, PropertiesDialog)
-from dgp.gui.models import ProjectModel
-from dgp.gui.widgets import FlightTab, TabWorkspace
-
-
-# Load .ui form
-main_window, _ = loadUiType('dgp/gui/ui/main_window.ui')
+                             AdvancedImportDialog)
+from dgp.gui.widgets import FlightTab, FlightWorkspace
+from dgp.gui.ui.main_window import Ui_MainWindow
 
 
 def autosave(method):
@@ -46,7 +39,7 @@ def autosave(method):
     return enclosed
 
 
-class MainWindow(QMainWindow, main_window):
+class MainWindow(QMainWindow, Ui_MainWindow):
     """An instance of the Main Program Window"""
 
     # Define signals to allow updating of loading progress
@@ -93,38 +86,30 @@ class MainWindow(QMainWindow, main_window):
         """)
 
         # Initialize Variables
-        # self.import_base_path = pathlib.Path('../tests').resolve()
         self.import_base_path = pathlib.Path('~').expanduser().joinpath(
             'Desktop')
         self._default_status_timeout = 5000  # Status Msg timeout in milli-sec
 
         # Issue #50 Flight Tabs
-        self._tabs = self.tab_workspace  # type: TabWorkspace
-        # self._tabs = CustomTabWidget()
+        self._flight_tabs = self.flight_tabs  # type: FlightWorkspace
+        # self._flight_tabs = CustomTabWidget()
         self._open_tabs = {}  # Track opened tabs by {uid: tab_widget, ...}
-        self._context_tree = self.contextual_tree  # type: QTreeView
-        self._context_tree.setRootIsDecorated(False)
-        self._context_tree.setIndentation(20)
-        self._context_tree.setItemsExpandable(False)
 
         # Initialize Project Tree Display
-        self.project_tree = ProjectTreeView(parent=self, project=self.project)
-        self.project_tree.setMinimumWidth(250)
-        self.project_tree.item_removed.connect(self._project_item_removed)
-        self.project_dock_grid.addWidget(self.project_tree, 0, 0, 1, 2)
+        self.project_tree.set_project(self.project)
 
     @property
     def current_flight(self) -> Union[prj.Flight, None]:
         """Returns the active flight based on which Flight Tab is in focus."""
-        if self._tabs.count() > 0:
-            return self._tabs.currentWidget().flight
+        if self._flight_tabs.count() > 0:
+            return self._flight_tabs.currentWidget().flight
         return None
 
     @property
     def current_tab(self) -> Union[FlightTab, None]:
         """Get the active FlightTab (returns None if no Tabs are open)"""
-        if self._tabs.count() > 0:
-            return self._tabs.currentWidget()
+        if self._flight_tabs.count() > 0:
+            return self._flight_tabs.currentWidget()
         return None
 
     def load(self):
@@ -161,6 +146,7 @@ class MainWindow(QMainWindow, main_window):
 
         # Project Tree View Actions #
         self.project_tree.doubleClicked.connect(self._launch_tab)
+        self.project_tree.item_removed.connect(self._project_item_removed)
 
         # Project Control Buttons #
         self.prj_add_flight.clicked.connect(self.add_flight_dialog)
@@ -171,8 +157,8 @@ class MainWindow(QMainWindow, main_window):
             lambda: self.import_data_dialog(enums.DataTypes.GRAVITY))
 
         # Tab Browser Actions #
-        self.tab_workspace.currentChanged.connect(self._tab_changed)
-        self.tab_workspace.tabCloseRequested.connect(self._tab_closed)
+        self._flight_tabs.currentChanged.connect(self._flight_tab_changed)
+        self._flight_tabs.tabCloseRequested.connect(self._tab_closed)
 
         # Console Window Actions #
         self.combo_console_verbosity.currentIndexChanged[str].connect(
@@ -191,12 +177,7 @@ class MainWindow(QMainWindow, main_window):
 
     def write_console(self, text, level):
         """PyQt Slot: Logs a message to the GUI console"""
-        # TODO: log_color is defined elsewhere, use it.
-        log_color = {'DEBUG': QColor('DarkBlue'), 'INFO': QColor('Green'),
-                     'WARNING': QColor('Red'), 'ERROR': QColor('Pink'),
-                     'CRITICAL': QColor('Orange')}.get(level.upper(),
-                                                       QColor('Black'))
-
+        log_color = QColor(LOG_COLOR_MAP.get(level.lower(), 'black'))
         self.text_console.setTextColor(log_color)
         self.text_console.append(str(text))
         self.text_console.verticalScrollBar().setValue(
@@ -231,7 +212,7 @@ class MainWindow(QMainWindow, main_window):
                 return
             flight = item  # type: prj.Flight
             if flight.uid in self._open_tabs:
-                self._tabs.setCurrentWidget(self._open_tabs[flight.uid])
+                self._flight_tabs.setCurrentWidget(self._open_tabs[flight.uid])
                 self.project_tree.toggle_expand(index)
                 return
 
@@ -239,29 +220,31 @@ class MainWindow(QMainWindow, main_window):
         new_tab = FlightTab(flight)
         new_tab.contextChanged.connect(self._update_context_tree)
         self._open_tabs[flight.uid] = new_tab
-        t_idx = self._tabs.addTab(new_tab, flight.name)
-        self._tabs.setCurrentIndex(t_idx)
+        t_idx = self._flight_tabs.addTab(new_tab, flight.name)
+        self._flight_tabs.setCurrentIndex(t_idx)
 
     def _tab_closed(self, index: int):
         # TODO: Should we delete the tab, or pop it off the stack to a cache?
         self.log.warning("Tab close requested for tab: {}".format(index))
-        flight_id = self._tabs.widget(index).flight.uid
-        self._tabs.removeTab(index)
+        flight_id = self._flight_tabs.widget(index).flight.uid
+        self._flight_tabs.removeTab(index)
         tab = self._open_tabs.pop(flight_id)
 
-    def _tab_changed(self, index: int):
-        self.log.info("Tab changed to index: {}".format(index))
+    def _flight_tab_changed(self, index: int):
+        self.log.info("Flight Tab changed to index: {}".format(index))
         if index == -1:  # If no tabs are displayed
-            self._context_tree.setModel(None)
+            # self._context_tree.setModel(None)
             return
-        tab = self._tabs.widget(index)  # type: FlightTab
-        self._context_tree.setModel(tab.context_model)
-        self._context_tree.expandAll()
+        tab = self._flight_tabs.widget(index)  # type: FlightTab
+        if tab.subtab_widget():
+            print("Active flight subtab has a widget")
+        # self._context_tree.setModel(tab.context_model)
+        # self._context_tree.expandAll()
 
     def _update_context_tree(self, model):
         self.log.debug("Tab subcontext changed. Changing Tree Model")
-        self._context_tree.setModel(model)
-        self._context_tree.expandAll()
+        # self._context_tree.setModel(model)
+        # self._context_tree.expandAll()
 
     def _project_item_removed(self, item: types.BaseTreeItem):
         print("Got item: ", type(item), " in _prj_item_removed")
@@ -457,90 +440,3 @@ class MainWindow(QMainWindow, main_window):
             return
         self.log.info("New flight creation aborted.")
         return
-
-
-# TODO: Move this into new module (e.g. gui/views.py)
-class ProjectTreeView(QTreeView):
-    item_removed = pyqtSignal(types.BaseTreeItem)
-
-    def __init__(self, project=None, parent=None):
-        super().__init__(parent=parent)
-
-        self._project = project
-        self.log = logging.getLogger(__name__)
-
-        self.setMinimumSize(QtCore.QSize(0, 300))
-        self.setAlternatingRowColors(False)
-        self.setAutoExpandDelay(1)
-        self.setExpandsOnDoubleClick(False)
-        self.setRootIsDecorated(False)
-        self.setUniformRowHeights(True)
-        self.setHeaderHidden(True)
-        self.setObjectName('project_tree')
-        self.setContextMenuPolicy(QtCore.Qt.DefaultContextMenu)
-        self._init_model()
-
-    def _init_model(self):
-        """Initialize a new-style ProjectModel from models.py"""
-        model = ProjectModel(self._project, parent=self)
-        self.setModel(model)
-        self.expandAll()
-
-    def toggle_expand(self, index):
-        self.setExpanded(index, (not self.isExpanded(index)))
-
-    def contextMenuEvent(self, event: QtGui.QContextMenuEvent, *args, **kwargs):
-        # get the index of the item under the click event
-        context_ind = self.indexAt(event.pos())
-        context_focus = self.model().itemFromIndex(context_ind)
-
-        info_slot = functools.partial(self._info_action, context_focus)
-        plot_slot = functools.partial(self._plot_action, context_focus)
-        menu = QMenu()
-        info_action = QAction("Properties")
-        info_action.triggered.connect(info_slot)
-        plot_action = QAction("Plot in new window")
-        plot_action.triggered.connect(plot_slot)
-        if isinstance(context_focus, types.DataSource):
-            data_action = QAction("Set Active Data File")
-            # TODO: Work on this later, it breaks plotter currently
-            # data_action.triggered.connect(
-            #     lambda item: context_focus.__setattr__('active', True)
-            # )
-            menu.addAction(data_action)
-            data_delete = QAction("Delete Data File")
-            data_delete.triggered.connect(
-                lambda: self._remove_data_action(context_focus))
-            menu.addAction(data_delete)
-
-        menu.addAction(info_action)
-        menu.addAction(plot_action)
-        menu.exec_(event.globalPos())
-        event.accept()
-
-    def _plot_action(self, item):
-        return
-
-    def _info_action(self, item):
-        dlg = PropertiesDialog(item, parent=self)
-        dlg.exec_()
-
-    def _remove_data_action(self, item: types.BaseTreeItem):
-        if not isinstance(item, types.DataSource):
-            return
-        # Confirmation Dialog
-        confirm = QtWidgets.QMessageBox(parent=self.parent())
-        confirm.setStandardButtons(QtWidgets.QMessageBox.Ok)
-        confirm.setText("Are you sure you wish to delete: {}".format(item.filename))
-        confirm.setIcon(QtWidgets.QMessageBox.Question)
-        confirm.setWindowTitle("Confirm Delete")
-        res = confirm.exec_()
-        if res:
-            print("Emitting item_removed signal")
-            self.item_removed.emit(item)
-            print("removing item from its flight")
-            try:
-                item.flight.remove_data(item)
-            except:
-                print("Exception occured removing item from flight")
-

@@ -1,5 +1,6 @@
 # coding: utf-8
 
+from pyqtgraph.Qt import QtWidgets
 from pyqtgraph.flowchart.library.common import CtrlNode
 
 from scipy import signal
@@ -11,7 +12,8 @@ class FIRLowpassFilter(CtrlNode):
     nodeName = 'FIRLowpassFilter'
     uiTemplate = [
         ('length', 'spin', {'value': 60, 'step': 1, 'bounds': [1, None]}),
-        ('sample', 'spin', {'value': 0.5, 'step': 0.1, 'bounds': [0.0, None]})
+        ('sample', 'spin', {'value': 0.5, 'step': 0.1, 'bounds': [0.0, None]}),
+        ('channel', 'combo', {'values': []})
     ]
 
     def __init__(self, name):
@@ -23,6 +25,13 @@ class FIRLowpassFilter(CtrlNode):
         CtrlNode.__init__(self, name, terminals=terminals)
 
     def process(self, data_in, display=True):
+        if display:
+            self.updateList(data_in)
+
+        channel = self.ctrls['channel'].currentText()
+        if channel is not '':
+            data_in = data_in[channel]
+
         filter_len = self.ctrls['length'].value()
         fs = self.ctrls['sample'].value()
         fc = 1 / filter_len
@@ -33,6 +42,24 @@ class FIRLowpassFilter(CtrlNode):
         filtered_data = signal.filtfilt(taps, 1.0, data_in, padtype='even',
                                         padlen=80)
         return {'data_out': pd.Series(filtered_data, index=data_in.index)}
+
+    def updateList(self, data):
+        # TODO: Work on better update algo
+        if isinstance(data, pd.DataFrame):
+            ctrl = self.ctrls['channel']  # type: QtWidgets.QComboBox
+
+            count = ctrl.count()
+            items = [ctrl.itemText(i) for i in range(count)]
+            opts = [col for col in data if col not in items]
+            if opts:
+                print("updating cbox with: ", opts)
+                ctrl.addItems(opts)
+
+    # def ctrlWidget(self):
+    #     widget = super().ctrlWidget()
+    #     widget.layout().addWidget(self.selection)
+    #     return widget
+
 
 
 # TODO: Do ndarrays with both dimensions greater than 1 work?
