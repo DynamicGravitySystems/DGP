@@ -12,8 +12,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
 import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtGui as QtGui
 import pyqtgraph as pg
-from pyqtgraph.flowchart import Flowchart, Node
-from pyqtgraph.flowchart.library import NodeLibrary, Display
+from pyqtgraph.flowchart import Flowchart
 
 import dgp.gui.models as models
 import dgp.lib.types as types
@@ -22,6 +21,7 @@ from .plotter import LineGrabPlot, LineUpdate
 from dgp.lib.project import Flight
 from dgp.lib.etc import gen_uuid
 from dgp.gui.dialogs import ChannelSelectionDialog
+from dgp.lib.transform import *
 
 
 # Experimenting with drag-n-drop and custom widgets
@@ -63,7 +63,7 @@ class WorkspaceWidget(QWidget):
     def plot(self, value):
         self._plot = value
 
-    def data_modified(self, action: str, uid: str):
+    def data_modified(self, action: str, dsrc: types.DataSource):
         pass
 
     @property
@@ -187,24 +187,22 @@ class PlotTab(WorkspaceWidget):
         self.log.warning("Too many children for plot: {}".format(uid))
 
 
-class DemoTab(WorkspaceWidget):
+class TransformTab(WorkspaceWidget):
     def __init__(self, label: str, flight: Flight):
         super().__init__(label, flight)
         self._layout = QGridLayout()
         self.setLayout(self._layout)
 
-        self.gravity_nodes = NodeLibrary()
-        from dgp.lib.transform.gravity import Eotvos, FreeAirCorrection
-        self.gravity_nodes.addNodeType(Eotvos, [('Gravity', )])
-        self.gravity_nodes.addNodeType(Display.PlotWidgetNode, [('Display', )])
-
+        self.fc = None
         self._init_flowchart()
 
     def _init_flowchart(self):
-        fc_terminals = {"Input": dict(io='in'), "Output": dict(io='out')}
-        fc = Flowchart(library=self.gravity_nodes, terminals=fc_terminals)
+        fc_terminals = {"Gravity": dict(io='in'),
+                        "Trajectory": dict(io='in'),
+                        "Output": dict(io='out')}
+        fc = Flowchart(library=LIBRARY, terminals=fc_terminals)
         fc_ctrl_widget = fc.widget()
-        chart_widget = fc_ctrl_widget.chartWidget
+        # chart_widget = fc_ctrl_widget.chartWidget
 
         fc_ctrl_widget.ui.reloadBtn.setEnabled(False)
         self._layout.addWidget(fc_ctrl_widget, 0, 0, 2, 1)
@@ -223,59 +221,22 @@ class DemoTab(WorkspaceWidget):
         plotnode_2.setPlot(plot_2)
 
         grav = self.flight.get_source(DataTypes.GRAVITY)
-        fc.setInput(Input=grav)
+        gps = self.flight.get_source(DataTypes.TRAJECTORY)
+        if grav is not None:
+            fc.setInput(Gravity=grav.load())
+        if gps is not None:
+            fc.setInput(Trajectory=gps.load())
+            eotvos = fc.createNode('Eotvos', pos=(0, 0))
+            fc.connectTerminals(fc['Trajectory'], eotvos['data_in'])
+            fc.connectTerminals(eotvos['data_out'], plotnode_1['In'])
+        self.fc = fc
 
-    def update_data(self):
-        pass
-
-
-class TransformTab(WorkspaceWidget):
-    def __init__(self, label: str, flight: Flight, *args, **kwargs):
-        super().__init__(label, flight)
-
-        self._elements = {}
-        self._setupUi()
-
-    def _setupUi(self) -> None:
-        """
-        Initialize the UI Components of the Transform Tab.
-        Major components (plot, transform view, info panel) are added to the
-        instance _elements dict.
-
-        """
-        grid = QGridLayout()
-        transform = QTreeView()
-        transform.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding)
-        info = QtWidgets.QTextEdit()
-        info.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
-
-        plot = LineGrabPlot(self.flight, 2)
-        plot.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        plot_toolbar = plot.get_toolbar()
-
-        # Testing layout
-        btn = QtWidgets.QPushButton("Add")
-        btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
-        btn.pressed.connect(lambda: info.show())
-
-        btn2 = QtWidgets.QPushButton("Remove")
-        btn2.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
-        btn2.pressed.connect(lambda: info.hide())
-
-        grid.addWidget(transform, 0, 0)
-        grid.addWidget(btn, 2, 0)
-        grid.addWidget(btn2, 3, 0)
-        grid.addWidget(info, 1, 0)
-        grid.addWidget(plot, 0, 1, 3, 1)
-        grid.addWidget(plot_toolbar, 3, 1)
-
-        self.setLayout(grid)
-
-        elements = {'transform': transform,
-                    'plot': plot,
-                    'toolbar': plot_toolbar,
-                    'info': info}
-        self._elements.update(elements)
+    def data_modified(self, action: str, dsrc: types.DataSource):
+        if action.lower() == 'add':
+            if dsrc.dtype == DataTypes.TRAJECTORY:
+                self.fc.setInput(Trajectory=dsrc.load())
+            elif dsrc.dtype == DataTypes.GRAVITY:
+                self.fc.setInput(Gravity=dsrc.load())
 
 
 class MapTab(WorkspaceWidget):
@@ -302,11 +263,6 @@ class FlightTab(QWidget):
         # Define Sub-Tabs within Flight space e.g. Plot, Transform, Maps
         self._plot_tab = PlotTab(label="Plot", flight=flight, axes=3)
         self._workspace.addTab(self._plot_tab, "Plot")
-
-        # DEMO #####
-        self._demo_tab = DemoTab(label="Demo", flight=flight)
-        self._workspace.addTab(self._demo_tab, "Demo")
-        # END DEMO #
 
         self._transform_tab = TransformTab("Transforms", flight)
         self._workspace.addTab(self._transform_tab, "Transforms")
