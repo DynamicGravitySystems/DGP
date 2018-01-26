@@ -1,5 +1,7 @@
 # coding: utf-8
 
+from .context import dgp, APP
+
 import unittest
 import csv
 from pyqtgraph.flowchart import Flowchart
@@ -18,7 +20,7 @@ from dgp.lib.transform.operators import ScalarMultiply, ConcatenateSeries
 
 class TestGraphNodes(unittest.TestCase):
     def setUp(self):
-        self.app = QtGui.QApplication([])
+        # self.app = QtGui.QApplication([])
         self.fc = Flowchart(terminals={
             'data_in': {'io': 'in'},
             'data_out': {'io': 'out'}
@@ -189,7 +191,8 @@ class TestGraphNodes(unittest.TestCase):
 
 class TestBinaryOpsGraphNodes(unittest.TestCase):
     def setUp(self):
-        self.app = QtGui.QApplication([])
+        # self.app = QtGui.QApplication([])
+        # self.app = QtWidgets.QApplication([])
         self.fc = Flowchart(terminals={
             'A': {'io': 'in'},
             'B': {'io': 'in'},
