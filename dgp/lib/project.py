@@ -12,6 +12,7 @@ from dgp.gui.qtenum import QtItemFlags, QtDataRoles
 from .meterconfig import MeterConfig, AT1Meter
 from .etc import gen_uuid
 from .types import DataSource, FlightLine, TreeItem
+from .enums import DataTypes
 from . import datamanager as dm
 """
 Dynamic Gravity Processor (DGP) :: project.py
@@ -346,6 +347,12 @@ class Flight(TreeItem):
             # if source is None or not source.active:
             rv.extend(source.get_channels())
         return rv
+
+    def get_source(self, dtype: DataTypes) -> DataSource:
+        """Get the first DataSource of type 'dtype'"""
+        for source in self.get_child(self._data_uid):
+            if source.dtype == dtype:
+                return source
 
     def register_data(self, datasrc: DataSource):
         """Register a data file for use by this Flight"""

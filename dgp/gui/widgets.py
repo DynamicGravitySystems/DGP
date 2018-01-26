@@ -11,10 +11,13 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
                              QTabWidget, QTreeView, QSizePolicy)
 import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtGui as QtGui
+import pyqtgraph as pg
 from pyqtgraph.flowchart import Flowchart, Node
+from pyqtgraph.flowchart.library import NodeLibrary, Display
 
 import dgp.gui.models as models
 import dgp.lib.types as types
+from dgp.lib.enums import DataTypes
 from .plotter import LineGrabPlot, LineUpdate
 from dgp.lib.project import Flight
 from dgp.lib.etc import gen_uuid
@@ -187,13 +190,43 @@ class PlotTab(WorkspaceWidget):
 class DemoTab(WorkspaceWidget):
     def __init__(self, label: str, flight: Flight):
         super().__init__(label, flight)
-        vlayout = QVBoxLayout()
+        self._layout = QGridLayout()
+        self.setLayout(self._layout)
 
-        fc = Flowchart(terminals={'FCIn': {'io': 'in'}, 'FCOut': {'io': 'out'}})
-        fc.addNode(Node('Test', terminals={"Data In": {'io': 'in'}}), "First "
-                                                                      "In")
-        vlayout.addWidget(fc.widget())
-        self.setLayout(vlayout)
+        self.gravity_nodes = NodeLibrary()
+        from dgp.lib.transform.gravity import Eotvos, FreeAirCorrection
+        self.gravity_nodes.addNodeType(Eotvos, [('Gravity', )])
+        self.gravity_nodes.addNodeType(Display.PlotWidgetNode, [('Display', )])
+
+        self._init_flowchart()
+
+    def _init_flowchart(self):
+        fc_terminals = {"Input": dict(io='in'), "Output": dict(io='out')}
+        fc = Flowchart(library=self.gravity_nodes, terminals=fc_terminals)
+        fc_ctrl_widget = fc.widget()
+        chart_widget = fc_ctrl_widget.chartWidget
+
+        fc_ctrl_widget.ui.reloadBtn.setEnabled(False)
+        self._layout.addWidget(fc_ctrl_widget, 0, 0, 2, 1)
+
+        plot_1 = pg.PlotWidget()
+        self._layout.addWidget(plot_1, 0, 1)
+        plot_2 = pg.PlotWidget()
+        self._layout.addWidget(plot_2, 1, 1)
+        plot_list = {'Top Plot': plot_1, 'Bottom Plot': plot_2}
+
+        plotnode_1 = fc.createNode('PlotWidget', pos=(0, -150))
+        plotnode_1.setPlotList(plot_list)
+        plotnode_1.setPlot(plot_1)
+        plotnode_2 = fc.createNode('PlotWidget', pos=(150, -150))
+        plotnode_2.setPlotList(plot_list)
+        plotnode_2.setPlot(plot_2)
+
+        grav = self.flight.get_source(DataTypes.GRAVITY)
+        fc.setInput(Input=grav)
+
+    def update_data(self):
+        pass
 
 
 class TransformTab(WorkspaceWidget):
@@ -292,8 +325,11 @@ class FlightTab(QWidget):
     def _on_changed_context(self, index: int):
         self.log.debug("Flight {} sub-tab changed to index: {}".format(
             self.flight.name, index))
-        model = self._workspace.currentWidget().model
-        self.contextChanged.emit(model)
+        try:
+            model = self._workspace.currentWidget().model
+            self.contextChanged.emit(model)
+        except AttributeError:
+            pass
 
     def new_data(self, dsrc: types.DataSource):
         for tab in [self._plot_tab, self._transform_tab]:
