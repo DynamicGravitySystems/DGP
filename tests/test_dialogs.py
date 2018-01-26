@@ -1,6 +1,6 @@
 # coding: utf-8
 
-from .context import dgp
+from .context import dgp, APP
 
 import pathlib
 import tempfile
@@ -26,7 +26,6 @@ class TestDialogs(unittest.TestCase):
                        ['r1h1', 'r1h2', 'r1h3']]
         self.m_grav_path = pathlib.Path('tests/sample_gravity.csv')
         self.m_gps_path = pathlib.Path('tests/sample_trajectory.txt')
-        self.app = QtWidgets.QApplication([])
 
     def test_properties_dialog(self):
         t_dlg = dlg.PropertiesDialog(self.m_flight)
