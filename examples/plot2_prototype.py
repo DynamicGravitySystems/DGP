@@ -16,7 +16,7 @@ from matplotlib.dates import date2num
 
 os.chdir('..')
 import dgp.lib.project as project
-from dgp.gui.plotter2 import FlightLinePlot
+from dgp.gui.plotting.plotter2 import FlightLinePlot
 
 
 class MockDataChannel:

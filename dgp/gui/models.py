@@ -425,11 +425,9 @@ class ChannelListModel(BaseTreeModel):
     def move_channel(self, uid: str, dest_row: int):
         """Used to programatically move a channel by uid to the header at
         index: dest_row"""
-        print("in move_channel")
         channel = self.channels.get(uid, None)
         if channel is None:
             return False
-        print("moving channel: ", channel)
 
         src_index = self.index(channel.parent.row(), 0)
         self.beginRemoveRows(src_index, channel.row(), channel.row())

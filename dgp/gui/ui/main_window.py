@@ -22,7 +22,7 @@ class Ui_MainWindow(object):
         self.horizontalLayout = QtWidgets.QHBoxLayout(self.centralwidget)
         self.horizontalLayout.setContentsMargins(0, 0, 0, 0)
         self.horizontalLayout.setObjectName("horizontalLayout")
-        self.flight_tabs = FlightWorkspace(self.centralwidget)
+        self.flight_tabs = MainWorkspace(self.centralwidget)
         self.flight_tabs.setObjectName("flight_tabs")
         self.horizontalLayout.addWidget(self.flight_tabs)
         MainWindow.setCentralWidget(self.centralwidget)
@@ -50,7 +50,7 @@ class Ui_MainWindow(object):
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.project_dock.sizePolicy().hasHeightForWidth())
         self.project_dock.setSizePolicy(sizePolicy)
-        self.project_dock.setMinimumSize(QtCore.QSize(0, 0))
+        self.project_dock.setMinimumSize(QtCore.QSize(198, 165))
         self.project_dock.setMaximumSize(QtCore.QSize(524287, 524287))
         self.project_dock.setAllowedAreas(QtCore.Qt.LeftDockWidgetArea|QtCore.Qt.RightDockWidgetArea)
         self.project_dock.setObjectName("project_dock")
@@ -322,5 +322,5 @@ class Ui_MainWindow(object):
         self.action_import_grav.setText(_translate("MainWindow", "Import Gravity"))
 
 from dgp.gui.views import ProjectTreeView
-from dgp.gui.widgets import FlightWorkspace
+from dgp.gui.workspace import MainWorkspace
 from dgp import resources_rc

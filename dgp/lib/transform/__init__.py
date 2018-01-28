@@ -1,15 +1,27 @@
 # coding: utf-8
 
+from importlib import import_module
 from pyqtgraph.flowchart.NodeLibrary import NodeLibrary, isNodeClass
-from pyqtgraph.flowchart.library import Display, Data
 
-__all__ = ['derivatives', 'filters', 'gravity', 'operators', 'LIBRARY']
+__all__ = ['LIBRARY']
 
-from . import operators, gravity, derivatives, filters
+# from . import operators, gravity, derivatives, filters, display, timeops
+
+
+_modules = []
+for name in ['operators', 'gravity', 'derivatives', 'filters', 'display',
+             'timeops']:
+    mod = import_module('.%s' % name, __name__)
+    _modules.append(mod)
 
 LIBRARY = NodeLibrary()
-for mod in [operators, gravity, derivatives, filters, Display, Data]:
-    nodes = [getattr(mod, name) for name in dir(mod)
-             if isNodeClass(getattr(mod, name))]
+for mod in _modules:
+    nodes = [attr for attr in mod.__dict__.values() if isNodeClass(attr)]
     for node in nodes:
-        LIBRARY.addNodeType(node, [(mod.__name__.split('.')[-1],)])
+        # Control whether the Node is available to user in Context Menu
+        # TODO: Add class attr to enable/disable display on per Node basis
+        if hasattr(mod, '__displayed__') and not mod.__displayed__:
+            path = []
+        else:
+            path = [(mod.__name__.split('.')[-1].capitalize(),)]
+        LIBRARY.addNodeType(node, path)

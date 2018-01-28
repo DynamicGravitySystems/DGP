@@ -21,7 +21,7 @@ from dgp.gui.utils import (ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP,
                            LOG_COLOR_MAP, get_project_file)
 from dgp.gui.dialogs import (AddFlightDialog, CreateProjectDialog,
                              AdvancedImportDialog)
-from dgp.gui.widgets import FlightTab, FlightWorkspace
+from dgp.gui.workspace import FlightTab
 from dgp.gui.ui.main_window import Ui_MainWindow
 
 
@@ -91,7 +91,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self._default_status_timeout = 5000  # Status Msg timeout in milli-sec
 
         # Issue #50 Flight Tabs
-        self._flight_tabs = self.flight_tabs  # type: FlightWorkspace
+        self._flight_tabs = self.flight_tabs  # type: QtWidgets.QTabWidget
         # self._flight_tabs = CustomTabWidget()
         self._open_tabs = {}  # Track opened tabs by {uid: tab_widget, ...}
 

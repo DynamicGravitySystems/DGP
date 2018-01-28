@@ -41,7 +41,7 @@
      <number>0</number>
     </property>
     <item>
-     <widget class="FlightWorkspace" name="flight_tabs"/>
+     <widget class="MainWorkspace" name="flight_tabs"/>
     </item>
    </layout>
   </widget>
@@ -113,8 +113,8 @@
    </property>
    <property name="minimumSize">
     <size>
-     <width>0</width>
-     <height>0</height>
+     <width>198</width>
+     <height>165</height>
     </size>
    </property>
    <property name="maximumSize">
@@ -625,9 +625,9 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>FlightWorkspace</class>
+   <class>MainWorkspace</class>
    <extends>QTabWidget</extends>
-   <header>dgp.gui.widgets</header>
+   <header>dgp.gui.workspace</header>
    <container>1</container>
   </customwidget>
   <customwidget>

@@ -7,7 +7,8 @@ from itertools import cycle, count, chain
 from typing import Union, Tuple, Dict, List
 from datetime import datetime, timedelta
 
-from PyQt5 import QtCore
+import PyQt5.QtCore as QtCore
+
 from pandas import Series
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
@@ -54,6 +55,11 @@ def _pad(xy0: float, xy1: float, pct=0.05):
     return xy0 - pad, xy1 + pad
 
 
+# TODO: This is not general enough
+# Plan to create a StackedMPLWidget and StackedPGWidget which will contain
+# Matplotlib subplot-Axes or pyqtgraph PlotItems.
+# The xWidget will provide the Qt Widget to be added to the GUI, and provide
+# methods for interacting with plots on specific rows.
 class StackedAxesManager:
     """
     StackedAxesManager is used to generate and manage a subplots on a
@@ -801,3 +807,5 @@ class RectanglePatchGroup:
         ylims = patch.axes.get_ylim()
         cy = ylims[0] + abs(ylims[1] - ylims[0]) * 0.5
         return cx, cy
+
+

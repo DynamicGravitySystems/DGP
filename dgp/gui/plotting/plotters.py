@@ -1,45 +1,318 @@
 # coding: utf-8
 
 """
-Class to handle Matplotlib plotting of data to be displayed in Qt GUI
+Definitions for task specific plot interfaces.
 """
-
-from dgp.lib.etc import gen_uuid
-
 import logging
 from collections import namedtuple
-from typing import Dict, Tuple, Union
+from itertools import count
+from typing import Dict, Tuple, Union, List
 from datetime import timedelta
 
-from PyQt5.QtWidgets import QSizePolicy, QMenu, QAction, QWidget, QToolBar
-from PyQt5.QtCore import pyqtSignal, QMimeData
-from PyQt5.QtGui import QCursor, QDropEvent, QDragEnterEvent, QDragMoveEvent
+import numpy as np
+import pandas as pd
 import PyQt5.QtCore as QtCore
 import PyQt5.QtWidgets as QtWidgets
+
+from PyQt5.QtWidgets import QSizePolicy, QAction, QWidget, QMenu, QToolBar
+from PyQt5.QtCore import pyqtSignal, QMimeData
+from PyQt5.QtGui import QCursor, QDropEvent, QDragEnterEvent, QDragMoveEvent
 from matplotlib.backends.backend_qt5agg import (
-   FigureCanvasQTAgg as FigureCanvas, NavigationToolbar2QT as NavigationToolbar)
+    FigureCanvasQTAgg as FigureCanvas, NavigationToolbar2QT)
 from matplotlib.figure import Figure
-from matplotlib.axes import Axes
-from matplotlib.dates import DateFormatter, num2date, date2num
-from matplotlib.ticker import NullFormatter, NullLocator, AutoLocator
 from matplotlib.backend_bases import MouseEvent, PickEvent
 from matplotlib.patches import Rectangle
+from matplotlib.axes import Axes
+from matplotlib.dates import DateFormatter, num2date, date2num
+from matplotlib.ticker import AutoLocator
 from matplotlib.lines import Line2D
 from matplotlib.text import Annotation
-import numpy as np
 
-from dgp.lib.project import Flight
 import dgp.lib.types as types
+from dgp.lib.project import Flight
+from dgp.lib.types import DataChannel, LineUpdate
+from dgp.lib.etc import gen_uuid
+from .mplutils import *
+from .backends import BasePlot, PYQTGRAPH, MATPLOTLIB, SeriesPlotter
+from .flightregion import LinearFlightRegion
 
+import pyqtgraph as pg
+from pyqtgraph.graphicsItems.LinearRegionItem import LinearRegionItem
 
 _log = logging.getLogger(__name__)
+
+
+class TransformPlot:
+    """Plot interface used for displaying transformation results.
+    May need to display data plotted against time series or scalar series.
+    """
+    def __init__(self, rows=2, cols=1, sharex=True, sharey=False, grid=True,
+                 parent=None):
+        self.widget = BasePlot(backend=PYQTGRAPH, rows=rows, cols=cols,
+                               sharex=sharex, sharey=sharey, grid=grid,
+                               background='w', parent=parent)
+
+    @property
+    def plots(self) -> List[SeriesPlotter]:
+        return self.widget.plots
+
+
+class PqtLineSelectPlot(QtCore.QObject):
+    """New prototype Flight Line selection plot using Pyqtgraph as the
+    backend.
+    Much work to be done here still
+    """
+    line_changed = pyqtSignal(LineUpdate)
+
+    def __init__(self, flight, rows=3, parent=None):
+        super().__init__(parent=parent)
+        self.widget = BasePlot(backend=PYQTGRAPH, rows=rows, cols=1,
+                               sharex=True, grid=True, background='w',
+                               parent=parent)
+        self._flight = flight
+        self.widget.add_onclick_handler(self.onclick)
+        self._lri_id = count(start=1)
+        self._selections = {}
+        self._group_map = {}
+        self._updating = False
+
+        # Rate-limit line updates using a timer.
+        self._line_update = None
+        self._upd_timer = QtCore.QTimer(self)
+        self._upd_timer.setInterval(50)
+        self._upd_timer.timeout.connect(self._update_done)
+
+        self._selecting = False
+
+    def __getattr__(self, item):
+        try:
+            return getattr(self.widget, item)
+        except AttributeError:
+            raise AttributeError("Plot Widget has no Attribute: ", item)
+
+    def __len__(self):
+        return len(self.widget)
+
+    @property
+    def selection_mode(self):
+        return self._selecting
+
+    @selection_mode.setter
+    def selection_mode(self, value):
+        self._selecting = bool(value)
+        for group in self._selections.values():
+            for lfr in group:  # type: LinearFlightRegion
+                lfr.setMovable(value)
+
+    def add_patch(self, *args):
+        return self.add_linked_selection(*args)
+        pass
+
+    @property
+    def plots(self) -> List[SeriesPlotter]:
+        return self.widget.plots
+
+    def _check_proximity(self, x, span, proximity=0.03) -> bool:
+        """
+        Check the proximity of a mouse click at location 'x' in relation to
+        any already existing LinearRegions.
+
+        Parameters
+        ----------
+        x : float
+            Mouse click position in data coordinate
+        span : float
+            X-axis span of the view box
+        proximity : float
+            Proximity as a percentage of the view box span
+
+        Returns
+        -------
+        True if x is not in proximity to any existing LinearRegionItems
+        False if x is within or in proximity to an existing LinearRegionItem
+
+        """
+        prox = span * proximity
+        for group in self._selections.values():
+            lri0 = group[0]  # type: LinearRegionItem
+            lx0, lx1 = lri0.getRegion()
+            if lx0 - prox <= x <= lx1 + prox:
+                print("New point is too close")
+                return False
+        return True
+
+    def onclick(self, ev):
+        event = ev[0]
+        try:
+            pos = event.pos()  # type: pg.Point
+        except AttributeError:
+            # Avoid error when clicking around plot, due to an attempt to
+            #  call mapFromScene on None in pyqtgraph/mouseEvents.py
+            return
+        if event.button() == QtCore.Qt.RightButton:
+            return
+
+        if event.button() == QtCore.Qt.LeftButton:
+            if not self.selection_mode:
+                return
+            p0 = self.plots[0]
+            if p0.vb is None:
+                return
+            event.accept()
+            # Map click location to data coordinates
+            xpos = p0.vb.mapToView(pos).x()
+            v0, v1 = p0.get_xlim()
+            vb_span = v1 - v0
+            if not self._check_proximity(xpos, vb_span):
+                return
+
+            start = xpos - (vb_span * 0.05)
+            stop = xpos + (vb_span * 0.05)
+            self.add_linked_selection(start, stop)
+
+    def add_linked_selection(self, start, stop, uid=None, label=None):
+        """
+        Add a LinearFlightRegion selection across all linked x-axes at xpos
+        """
+
+        if isinstance(start, pd.Timestamp):
+            start = start.value
+        if isinstance(stop, pd.Timestamp):
+            stop = stop.value
+        patch_region = [start, stop]
+
+        lfr_group = []
+        grpid = uid or gen_uuid('flr')
+        update = LineUpdate(self._flight.uid, 'add', grpid,
+                            pd.to_datetime(start), pd.to_datetime(stop), None)
+
+        for i, plot in enumerate(self.plots):
+            lfr = LinearFlightRegion(parent=self)
+            plot.addItem(lfr)
+            lfr.setRegion(patch_region)
+            lfr.setMovable(self._selecting)
+            lfr_group.append(lfr)
+            lfr.sigRegionChanged.connect(self.update)
+            self._group_map[lfr] = grpid
+
+        self._selections[grpid] = lfr_group
+        self.line_changed.emit(update)
+
+    def remove(self, item):
+        if not isinstance(item, LinearFlightRegion):
+            return
+
+        grpid = self._group_map.get(item, None)
+        if grpid is None:
+            return
+        update = LineUpdate(self._flight.uid, 'remove', grpid,
+                            pd.to_datetime(1), pd.to_datetime(1), None)
+        grp = self._selections[grpid]
+        for i, plot in enumerate(self.plots):
+            plot.removeItem(grp[i])
+        self.line_changed.emit(update)
+
+    def update(self, item: LinearRegionItem):
+        """Update other LinearRegionItems in the group of 'item' to match the
+        new region.
+        We must set a flag here as we only want to process updates from the
+        first source - as this update will be called during the update
+        process because LinearRegionItem.setRegion() raises a
+        sigRegionChanged event."""
+        if self._updating:
+            return
+
+        self._upd_timer.start()
+        self._updating = True
+        self._line_update = item
+        new_region = item.getRegion()
+        grpid = self._group_map[item]
+        group = self._selections[grpid]
+        for select in group:  # type: LinearRegionItem
+            if select is item:
+                continue
+            select.setRegion(new_region)
+        self._updating = False
+
+    def _update_done(self):
+        self._upd_timer.stop()
+        x0, x1 = self._line_update.getRegion()
+        uid = self._group_map[self._line_update]
+        update = LineUpdate(self._flight.uid, 'modify', uid, pd.to_datetime(x0),
+                            pd.to_datetime(x1), None)
+        self.line_changed.emit(update)
+        self._line_update = None
+
+
+"""Design Requirements of FlightLinePlot:
+
+Use Case:
+FlightLinePlot (FLP) is designed for a specific use case, where the user may 
+plot raw Gravity and GPS data channels on a synchronized x-axis plot in order to 
+select distinct 'lines' of data (where the Ship or Aircraft has turned to 
+another heading).
+
+Requirements:
+ - Able to display 2-4 plots displayed in a row with a linked x-axis scale.
+ - Each plot must have dual y-axis scales and should limit the number of lines 
+plotted to 1 per y-axis to allow for plotting of different channels of widely 
+varying amplitudes.
+- User can enable a 'line selection mode' which allows the user to 
+graphically specify flight lines through the following functionality:
+ - On click, a new semi-transparent rectangle 'patch' is created across all 
+ visible axes. If there is no patch in the area already.
+ - On drag of a patch, it should follow the mouse, allowing the user to 
+ adjust its position.
+ - On click and drag of the edge of any patch it should resize to the extent 
+ of the movement, allowing the user to resize the patches.
+ - On right-click of a patch, a context menu should be displayed allowing 
+ user to label, or delete, or specify precise (spinbox) x/y limits of the patch
+
+"""
+
+
+class BasePlottingCanvas(FigureCanvas):
+    """
+    BasePlottingCanvas sets up the basic Qt FigureCanvas parameters, and is
+    designed to be subclassed for different plot types.
+    Mouse events are connected to the canvas here, and the handlers should be
+    overriden in sub-classes to provide custom actions.
+    """
+    def __init__(self, parent=None, width=8, height=4, dpi=100):
+        super().__init__(Figure(figsize=(width, height), dpi=dpi,
+                                tight_layout=True))
+
+        self.setParent(parent)
+        super().setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        super().updateGeometry()
+
+        self.figure.canvas.mpl_connect('pick_event', self.onpick)
+        self.figure.canvas.mpl_connect('button_press_event', self.onclick)
+        self.figure.canvas.mpl_connect('button_release_event', self.onrelease)
+        self.figure.canvas.mpl_connect('motion_notify_event', self.onmotion)
+
+    def onclick(self, event: MouseEvent):
+        pass
+
+    def onrelease(self, event: MouseEvent):
+        pass
+
+    def onmotion(self, event: MouseEvent):
+        pass
+
+    def onpick(self, event: PickEvent):
+        pass
+
+
+# This code will eventually be replaced with newer classes based on
+# interoperability between MPL and PQG
 EDGE_PROX = 0.005
 
 # Monkey patch the MPL Nav toolbar home button. We'll provide custom action
 # by attaching a event listener to the toolbar action trigger.
 # Save the default home method in case another plot desires the default behavior
-NT_HOME = NavigationToolbar.home
-NavigationToolbar.home = lambda *args: None
+NT_HOME = NavigationToolbar2QT.home
+NavigationToolbar2QT.home = lambda *args: None
 
 
 class AxesGroup:
@@ -686,10 +959,6 @@ class BasePlottingCanvas(FigureCanvas):
         pass
 
 
-LineUpdate = namedtuple('LineUpdate', ['flight_id', 'action', 'uid', 'start',
-                                       'stop', 'label'])
-
-
 class LineGrabPlot(BasePlottingCanvas, QWidget):
     """
     LineGrabPlot implements BasePlottingCanvas and provides an onclick method to
@@ -861,9 +1130,9 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
         pg = self.ax_grp.active
         # Replace custom SetLineLabelDialog with builtin QInputDialog
         text, ok = QtWidgets.QInputDialog.getText(self,
-                                                   "Enter Label",
-                                                   "Line Label:",
-                                                   text=pg.label)
+                                                  "Enter Label",
+                                                  "Line Label:",
+                                                  text=pg.label)
         if not ok:
             self.ax_grp.deselect()
             return
@@ -1227,14 +1496,10 @@ class LineGrabPlot(BasePlottingCanvas, QWidget):
             Matplotlib Qt Toolbar used to control this plot instance
         """
         if self._toolbar is None:
-            toolbar = NavigationToolbar(self, parent=parent)
+            toolbar = NavigationToolbar2QT(self, parent=parent)
 
             toolbar.actions()[0].triggered.connect(self.home)
             toolbar.actions()[4].triggered.connect(self.toggle_pan)
             toolbar.actions()[5].triggered.connect(self.toggle_zoom)
             self._toolbar = toolbar
         return self._toolbar
-
-
-class LineSelectionPlot(BasePlottingCanvas):
-    pass

@@ -41,7 +41,8 @@ class FIRLowpassFilter(CtrlNode):
         taps = signal.firwin(n, wn, window='blackman', nyq=nyq)
         filtered_data = signal.filtfilt(taps, 1.0, data_in, padtype='even',
                                         padlen=80)
-        return {'data_out': pd.Series(filtered_data, index=data_in.index)}
+        return {'data_out': pd.Series(filtered_data, index=data_in.index,
+                                      name=channel)}
 
     def updateList(self, data):
         # TODO: Work on better update algo
