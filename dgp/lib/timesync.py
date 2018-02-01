@@ -153,11 +153,24 @@ def find_time_delay(s1, s2, datarate=1, resolution: bool=False):
 
 
 def shift_frame(frame, delay):
+    """
+    Shifts time index of a series or frame
+
+    Parameters
+    ----------
+    frame: :obj:`Series` or :obj:`DataFrame`
+        Series or DataFrame to shift
+    delay: float
+        Delay in seconds
+
+    Returns
+    -------
+        :obj:`Series` or :obj:`DataFrame`
+    """
     return frame.tshift(delay * 1e6, freq='U')
 
 
-def shift_frames(gravity: DataFrame, gps: DataFrame, eotvos: DataFrame,
-                 datarate=10) -> DataFrame:
+def shift_frames(gravity, gps, eotvos, datarate=10):
     """
     Synchronize and join a gravity and gps DataFrame (DF) into a single time
     shifted DF.
@@ -189,11 +202,8 @@ def shift_frames(gravity: DataFrame, gps: DataFrame, eotvos: DataFrame,
             set{gravity.columns, gps.columns}
         If gps contains duplicate column names relative to gravity DF, they will
         be suffixed with '_gps'
-
     """
 
-    # eotvos = calc_eotvos(gps['lat'].values, gps['longitude'].values,
-    #                      gps['ell_ht'].values, datarate)
     delay = find_time_delay(gravity['gravity'].values, eotvos, 10)
     time_shift = DateOffset(seconds=delay)
 

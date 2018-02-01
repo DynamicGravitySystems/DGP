@@ -28,6 +28,61 @@ dgp\.lib\.trajectory\_ingestor module
     :undoc-members:
     :show-inheritance:
 
+dgp\.lib\.timesync module
+-------------------------
+
+.. automodule:: dgp.lib.timesync
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+dgp\.lib\.etc module
+--------------------
+
+.. automodule:: dgp.lib.etc
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+dgp\.lib\.transform\.filters module
+-----------------------------------
+
+.. automodule:: dgp.lib.transform.filters
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+dgp\.lib\.transform\.derivatives module
+---------------------------------------
+
+.. automodule:: dgp.lib.transform.derivatives
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+dgp\.lib\.transform\.gravity module
+-----------------------------------
+
+.. automodule:: dgp.lib.transform.gravity
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+dgp\.lib\.transform\.operators module
+-------------------------------------
+
+.. automodule:: dgp.lib.transform.operators
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+dgp\.lib\.transform\.timeops module
+-----------------------------------
+
+.. automodule:: dgp.lib.transform.timeops
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
 Module contents
 ---------------
