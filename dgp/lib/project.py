@@ -14,6 +14,8 @@ from .etc import gen_uuid
 from .types import DataSource, FlightLine, TreeItem
 from .enums import DataTypes
 from . import datamanager as dm
+from .enums import DataTypes
+
 """
 Dynamic Gravity Processor (DGP) :: project.py
 License: Apache License V2
@@ -324,6 +326,8 @@ class Flight(TreeItem):
                                                      parent=self,
                                                      name='Data Files'))
         self._line_sequence = count()
+        self.has_gravity = False
+        self.has_trajectory = False
 
     def data(self, role):
         if role == QtDataRoles.ToolTipRole:
@@ -360,12 +364,24 @@ class Flight(TreeItem):
             self.name, datasrc.filename, datasrc.uid))
         datasrc.flight = self
         self.get_child(self._data_uid).append_child(datasrc)
+
+        # TODO: This check needs to be revised when considering multiple datasets per flight
+        if datasrc.dtype == DataTypes.GRAVITY:
+            self.has_gravity = True
+        elif datasrc.dtype == DataTypes.TRAJECTORY:
+            self.has_trajectory = True
+
         # TODO: Hold off on this - breaks plot when we change source
         # print("Setting new Dsrc to active")
         # datasrc.active = True
         # self.update()
 
     def remove_data(self, datasrc: DataSource) -> bool:
+        # TODO: This check needs to be revised when considering multiple datasets per flight
+        if datasrc.dtype == DataTypes.GRAVITY:
+            self.has_gravity = False
+        elif datasrc.dtype == DataTypes.TRAJECTORY:
+            self.has_trajectory = False
         return self.get_child(self._data_uid).remove_child(datasrc)
 
     def add_line(self, line: FlightLine) -> int:

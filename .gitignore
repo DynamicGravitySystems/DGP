@@ -18,3 +18,5 @@ examples/local*
 tests/sample_data/eotvos_long_result.csv
 tests/sample_data/eotvos_long_input.txt
 dgp/gui/ui/*.py
+build/
+dist/

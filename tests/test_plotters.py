@@ -40,8 +40,8 @@ class TestPlotters(unittest.TestCase):
         self.dsrc = MockDataSource(self.df, 'abc', grav_path.name,
                                    self.df.keys(), DataTypes.GRAVITY, x0, x1)
         self.grav_ch = DataChannel('gravity', self.dsrc)
-        self.cross_ch = DataChannel('cross', self.dsrc)
-        self.long_ch = DataChannel('long', self.dsrc)
+        self.cross_ch = DataChannel('cross_accel', self.dsrc)
+        self.long_ch = DataChannel('long_accel', self.dsrc)
         self.plotter = BasicPlotter(rows=2)
         self.mgr = self.plotter.axmgr
 

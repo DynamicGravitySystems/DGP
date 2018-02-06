@@ -9,7 +9,7 @@ from matplotlib.axes import Axes
 from pyqtgraph.flowchart import Node, Terminal
 from pyqtgraph.flowchart.library.Display import PlotWidgetNode
 
-from ...gui.plotting.backends import SeriesPlotter
+from ...gui.plotting.backends import AbstractSeriesPlotter
 
 """Containing display Nodes to translate between pyqtgraph Flowchart and an
 MPL plot"""
@@ -62,7 +62,7 @@ class PGPlotNode(Node):
         self.color_cycle = cycle([dict(color=(255, 193, 9)),
                                   dict(color=(232, 102, 12)),
                                   dict(color=(183, 12, 232))])
-        self.plot = None  # type: SeriesPlotter
+        self.plot = None  # type: AbstractSeriesPlotter
         self.items = {}  # SourceTerm: PlotItem
 
     def setPlot(self, plot):

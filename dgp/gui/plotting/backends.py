@@ -1,9 +1,9 @@
-# coding: utf-8
+# -*- coding: utf-8 -*-
 
 from abc import ABCMeta, abstractmethod
 from functools import partial, partialmethod
 from itertools import cycle
-from typing import Union
+from typing import Union, Generator
 
 from PyQt5.QtCore import pyqtSignal
 import PyQt5.QtWidgets as QtWidgets
@@ -37,7 +37,7 @@ plot on
 PGWidget will contain a series of PlotItem classes which likewise can be used to 
 plot.
 
-It remains to be seen if the Interface/ABC SeriesPlotter and its descendent 
+It remains to be seen if the Interface/ABC AbstractSeriesPlotter and its descendent 
 classes PlotWidgetWrapper and MPLAxesWrapper are necessary - the intent of 
 these classes was to wrap a PlotItem or Axes and provide a unified standard 
 interface for plotting. However, the Stacked*Widget classes might nicely 
@@ -45,7 +45,7 @@ encapsulate what was intended there.
 """
 __all__ = ['PYQTGRAPH', 'MATPLOTLIB', 'BasePlot', 'StackedMPLWidget',
            'PyQtGridPlotWidget',
-           'SeriesPlotter']
+           'AbstractSeriesPlotter']
 
 PYQTGRAPH = 'pqg'
 MATPLOTLIB = 'mpl'
@@ -195,7 +195,7 @@ class StackedMPLWidget(FigureCanvasQTAgg):
     def __len__(self):
         return len(self._plots)
 
-    def get_plot(self, row) -> 'SeriesPlotter':
+    def get_plot(self, row) -> 'AbstractSeriesPlotter':
         return self.plots[row]
 
     def onclick(self, event: MouseEvent):
@@ -266,7 +266,7 @@ class PyQtGridPlotWidget(GraphicsView):
         return self._plots[row]
 
 
-class SeriesPlotter(metaclass=ABCMeta):
+class AbstractSeriesPlotter(metaclass=ABCMeta):
     """
     Abstract Base Class used to define an interface for different plotter
     wrappers.
@@ -279,11 +279,15 @@ class SeriesPlotter(metaclass=ABCMeta):
 
     def __getattr__(self, item):
         """Passes attribute calls to underlying plotter object if no override
-        in SeriesPlotter implementation."""
+        in AbstractSeriesPlotter implementation."""
         if hasattr(self.plotter, item):
             attr = getattr(self.plotter, item)
             return attr
         raise AttributeError(item)
+
+    @abstractmethod
+    def __len__(self):
+        pass
 
     @property
     @abstractmethod
@@ -329,9 +333,8 @@ class SeriesPlotter(metaclass=ABCMeta):
         pass
 
 
-class PlotWidgetWrapper(SeriesPlotter):
+class PlotWidgetWrapper(AbstractSeriesPlotter):
     def __init__(self, plot: PlotItem):
-
         self._plot = plot
         self._lines = {}  # id(Series): line
         self._data = {}   # id(Series): series
@@ -349,18 +352,15 @@ class PlotWidgetWrapper(SeriesPlotter):
         return self._plot
 
     @property
-    def items(self):
+    def items(self) -> Generator[PlotDataItem, None, None]:
         for item in self._lines.values():
             yield item
 
     def plot(self, x, y, *args, **kwargs):
         if isinstance(x, pd.Series):
-
-            pass
+            self.add_series(x, *args, **kwargs)
         else:
             self._plot.plot(x, y, *args, **kwargs)
-
-        pass
 
     def add_series(self, series: pd.Series, fmter='date', *args, **kwargs):
         """Take in a pandas Series, add it to the plot and retain a
@@ -410,13 +410,16 @@ class PlotWidgetWrapper(SeriesPlotter):
         return self._plotitem.vb.viewRange()[0]
 
 
-class MPLAxesWrapper(SeriesPlotter):
+class MPLAxesWrapper(AbstractSeriesPlotter):
 
     def __init__(self, plot, canvas):
         assert isinstance(plot, Axes)
         self._plot = plot
         self._lines = {}  # id(Series): Line2D
         self._canvas = canvas  # type: FigureCanvas
+
+    def __len__(self):
+        return len(self._lines)
 
     @property
     def plotter(self) -> Axes:

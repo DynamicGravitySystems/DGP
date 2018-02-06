@@ -1,4 +1,4 @@
-# coding: utf-8
+# -*- coding: utf-8 -*-
 
 """
 Definitions for task specific plot interfaces.
@@ -33,13 +33,22 @@ from dgp.lib.project import Flight
 from dgp.lib.types import DataChannel, LineUpdate
 from dgp.lib.etc import gen_uuid
 from .mplutils import *
-from .backends import BasePlot, PYQTGRAPH, MATPLOTLIB, SeriesPlotter
+from .backends import BasePlot, PYQTGRAPH, MATPLOTLIB, AbstractSeriesPlotter
 from .flightregion import LinearFlightRegion
 
 import pyqtgraph as pg
 from pyqtgraph.graphicsItems.LinearRegionItem import LinearRegionItem
 
 _log = logging.getLogger(__name__)
+
+
+"""
+TODO: Many of the classes here are not used, in favor of the PyQtGraph line selection interface.
+Consider whether to remove the obsolete code, or keep it around while the new plot interface
+matures. There are still some quirks and features missing from the PyQtGraph implementation
+that will need to be worked out and properly tested.
+
+"""
 
 
 class TransformPlot:
@@ -53,14 +62,15 @@ class TransformPlot:
                                background='w', parent=parent)
 
     @property
-    def plots(self) -> List[SeriesPlotter]:
+    def plots(self) -> List[AbstractSeriesPlotter]:
         return self.widget.plots
 
 
 class PqtLineSelectPlot(QtCore.QObject):
     """New prototype Flight Line selection plot using Pyqtgraph as the
     backend.
-    Much work to be done here still
+
+    This class supports flight-line selection using PyQtGraph LinearRegionItems
     """
     line_changed = pyqtSignal(LineUpdate)
 
@@ -72,15 +82,14 @@ class PqtLineSelectPlot(QtCore.QObject):
         self._flight = flight
         self.widget.add_onclick_handler(self.onclick)
         self._lri_id = count(start=1)
-        self._selections = {}
-        self._group_map = {}
-        self._updating = False
+        self._selections = {}  # Flight-line 'selection' patches: grpid: group[LinearFlightRegion's]
+        self._updating = False  # Class flag for locking during update
 
         # Rate-limit line updates using a timer.
-        self._line_update = None
-        self._upd_timer = QtCore.QTimer(self)
-        self._upd_timer.setInterval(50)
-        self._upd_timer.timeout.connect(self._update_done)
+        self._line_update = None  # type: LinearFlightRegion
+        self._update_timer = QtCore.QTimer(self)
+        self._update_timer.setInterval(100)
+        self._update_timer.timeout.connect(self._update_done)
 
         self._selecting = False
 
@@ -109,7 +118,7 @@ class PqtLineSelectPlot(QtCore.QObject):
         pass
 
     @property
-    def plots(self) -> List[SeriesPlotter]:
+    def plots(self) -> List[AbstractSeriesPlotter]:
         return self.widget.plots
 
     def _check_proximity(self, x, span, proximity=0.03) -> bool:
@@ -134,6 +143,8 @@ class PqtLineSelectPlot(QtCore.QObject):
         """
         prox = span * proximity
         for group in self._selections.values():
+            if not len(group):
+                continue
             lri0 = group[0]  # type: LinearRegionItem
             lx0, lx1 = lri0.getRegion()
             if lx0 - prox <= x <= lx1 + prox:
@@ -172,7 +183,11 @@ class PqtLineSelectPlot(QtCore.QObject):
 
     def add_linked_selection(self, start, stop, uid=None, label=None):
         """
-        Add a LinearFlightRegion selection across all linked x-axes at xpos
+        Add a LinearFlightRegion selection across all linked x-axes
+        With width ranging from start:stop
+
+        Labelling for the regions is not yet implemented, due to the
+        difficulty of vertically positioning the text. Solution TBD
         """
 
         if isinstance(start, pd.Timestamp):
@@ -188,87 +203,80 @@ class PqtLineSelectPlot(QtCore.QObject):
 
         for i, plot in enumerate(self.plots):
             lfr = LinearFlightRegion(parent=self)
+            lfr.group = grpid
             plot.addItem(lfr)
+            # plot.addItem(lfr.label)
             lfr.setRegion(patch_region)
             lfr.setMovable(self._selecting)
             lfr_group.append(lfr)
             lfr.sigRegionChanged.connect(self.update)
-            self._group_map[lfr] = grpid
+            # self._group_map[lfr] = grpid
 
         self._selections[grpid] = lfr_group
         self.line_changed.emit(update)
 
-    def remove(self, item):
+    def remove(self, item: LinearFlightRegion):
         if not isinstance(item, LinearFlightRegion):
             return
 
-        grpid = self._group_map.get(item, None)
-        if grpid is None:
-            return
+        grpid = item.group
         update = LineUpdate(self._flight.uid, 'remove', grpid,
                             pd.to_datetime(1), pd.to_datetime(1), None)
         grp = self._selections[grpid]
         for i, plot in enumerate(self.plots):
+            plot.removeItem(grp[i].label)
             plot.removeItem(grp[i])
+        del self._selections[grpid]
         self.line_changed.emit(update)
 
-    def update(self, item: LinearRegionItem):
+    def set_label(self, item: LinearFlightRegion, text: str):
+        if not isinstance(item, LinearFlightRegion):
+            return
+        group = self._selections[item.group]
+        for lfr in group:  # type: LinearFlightRegion
+            lfr.set_label(text)
+
+        x0, x1 = item.getRegion()
+        update = LineUpdate(self._flight.uid, 'modify', item.group,
+                            pd.to_datetime(x0), pd.to_datetime(x1), text)
+        self.line_changed.emit(update)
+
+    def update(self, item: LinearFlightRegion):
         """Update other LinearRegionItems in the group of 'item' to match the
         new region.
         We must set a flag here as we only want to process updates from the
         first source - as this update will be called during the update
         process because LinearRegionItem.setRegion() raises a
-        sigRegionChanged event."""
+        sigRegionChanged event.
+
+        A timer (_update_timer) is also used to avoid firing a line update
+        with ever pixel adjustment. _update_done will be called after an elapsed
+        time (100ms default) where there have been no calls to update().
+        """
         if self._updating:
             return
 
-        self._upd_timer.start()
+        self._update_timer.start()
         self._updating = True
         self._line_update = item
         new_region = item.getRegion()
-        grpid = self._group_map[item]
-        group = self._selections[grpid]
-        for select in group:  # type: LinearRegionItem
-            if select is item:
+        group = self._selections[item.group]
+        for lri in group:  # type: LinearFlightRegion
+            if lri is item:
                 continue
-            select.setRegion(new_region)
+            else:
+                lri.setRegion(new_region)
         self._updating = False
 
     def _update_done(self):
-        self._upd_timer.stop()
+        self._update_timer.stop()
         x0, x1 = self._line_update.getRegion()
-        uid = self._group_map[self._line_update]
-        update = LineUpdate(self._flight.uid, 'modify', uid, pd.to_datetime(x0),
-                            pd.to_datetime(x1), None)
+        update = LineUpdate(self._flight.uid, 'modify', self._line_update.group,
+                            pd.to_datetime(x0), pd.to_datetime(x1), None)
         self.line_changed.emit(update)
         self._line_update = None
 
 
-"""Design Requirements of FlightLinePlot:
-
-Use Case:
-FlightLinePlot (FLP) is designed for a specific use case, where the user may 
-plot raw Gravity and GPS data channels on a synchronized x-axis plot in order to 
-select distinct 'lines' of data (where the Ship or Aircraft has turned to 
-another heading).
-
-Requirements:
- - Able to display 2-4 plots displayed in a row with a linked x-axis scale.
- - Each plot must have dual y-axis scales and should limit the number of lines 
-plotted to 1 per y-axis to allow for plotting of different channels of widely 
-varying amplitudes.
-- User can enable a 'line selection mode' which allows the user to 
-graphically specify flight lines through the following functionality:
- - On click, a new semi-transparent rectangle 'patch' is created across all 
- visible axes. If there is no patch in the area already.
- - On drag of a patch, it should follow the mouse, allowing the user to 
- adjust its position.
- - On click and drag of the edge of any patch it should resize to the extent 
- of the movement, allowing the user to resize the patches.
- - On right-click of a patch, a context menu should be displayed allowing 
- user to label, or delete, or specify precise (spinbox) x/y limits of the patch
-
-"""
 
 
 class BasePlottingCanvas(FigureCanvas):
@@ -320,6 +328,9 @@ class AxesGroup:
     AxesGroup conceptually groups a set of sub-plot Axes together, and allows
     for easier operations on multiple Axes at once, especially when dealing
     with plot Patches and Annotations.
+
+
+    Backend: MATPLOTLIB
 
     Parameters
     ----------
@@ -923,42 +934,7 @@ class PatchGroup:
         return cx, cy
 
 
-class BasePlottingCanvas(FigureCanvas):
-    """
-    BasePlottingCanvas sets up the basic Qt FigureCanvas parameters, and is
-    designed to be subclassed for different plot types.
-    Mouse events are connected to the canvas here, and the handlers should be
-    overriden in sub-classes to provide custom actions.
-    """
-    def __init__(self, parent=None, width=8, height=4, dpi=100):
-        _log.debug("Initializing BasePlottingCanvas")
-
-        super().__init__(Figure(figsize=(width, height), dpi=dpi,
-                                tight_layout=True))
-
-        self.setParent(parent)
-        super().setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        super().updateGeometry()
-
-        self.figure.canvas.mpl_connect('pick_event', self.onpick)
-        self.figure.canvas.mpl_connect('button_press_event', self.onclick)
-        self.figure.canvas.mpl_connect('button_release_event', self.onrelease)
-        self.figure.canvas.mpl_connect('motion_notify_event', self.onmotion)
-
-    def onclick(self, event: MouseEvent):
-        pass
-
-    def onpick(self, event: PickEvent):
-        print("On pick called in BasePlottingCanvas")
-        pass
-
-    def onrelease(self, event: MouseEvent):
-        pass
-
-    def onmotion(self, event: MouseEvent):
-        pass
-
-
+# Deprecated in favor of PyQtGraph plot engine for performance
 class LineGrabPlot(BasePlottingCanvas, QWidget):
     """
     LineGrabPlot implements BasePlottingCanvas and provides an onclick method to
