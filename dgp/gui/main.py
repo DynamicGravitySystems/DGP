@@ -26,6 +26,9 @@ from dgp.gui.dialogs import (AddFlightDialog, CreateProjectDialog,
                              AdvancedImportDialog, PropertiesDialog)
 from dgp.gui.models import ProjectModel
 from dgp.gui.widgets import FlightTab, TabWorkspace
+from dgp.lib.etc import align_frames
+from dgp.lib.trajectory_ingestor import TRAJECTORY_INTERP_FIELDS
+from dgp.lib.gravity_ingestor import DGS_AT1A_INTERP_FIELDS
 
 
 # Load .ui form
@@ -316,8 +319,7 @@ class MainWindow(QMainWindow, main_window):
         sb.addWidget(progress)
         return progress
 
-    @autosave
-    def add_data(self, data, dtype, flight, path):
+    def _add_data(self, data, dtype, flight, path):
         uid = dm.get_manager().save_data(dm.HDF5, data)
         if uid is None:
             self.log.error("Error occured writing DataFrame to HDF5 store.")
@@ -327,6 +329,11 @@ class MainWindow(QMainWindow, main_window):
         ds = types.DataSource(uid, path, cols, dtype, x0=data.index.min(),
                               x1=data.index.max())
         flight.register_data(ds)
+        return ds
+
+    @autosave
+    def add_data(self, data, dtype, flight, path):
+        ds = self._add_data(data, dtype, flight, path)
         if flight.uid not in self._open_tabs:
             # If flight is not opened we don't need to update the plot
             return
@@ -358,6 +365,30 @@ class MainWindow(QMainWindow, main_window):
 
         def _complete(data):
             self.add_data(data, dtype, flight, params.get('path', None))
+
+            # align and crop gravity and trajectory frames if both are present
+            if flight.has_trajectory and flight.has_gravity:
+                # get datasource objects
+                gravity = flight.get_source(enums.DataTypes.GRAVITY)
+                trajectory = flight.get_source(enums.DataTypes.TRAJECTORY)
+
+                # align and crop the gravity and trajectory frames
+                fields = DGS_AT1A_INTERP_FIELDS | TRAJECTORY_INTERP_FIELDS
+                new_gravity, new_trajectory = align_frames(gravity.load(),
+                                                           trajectory.load(),
+                                                           interp_only=fields)
+
+                # replace datasource objects
+                ds_attr = {'path': gravity.filename, 'dtype': gravity.dtype}
+                flight.remove_data(gravity)
+                self._add_data(new_gravity, ds_attr['dtype'], flight,
+                               ds_attr['path'])
+
+                ds_attr = {'path': trajectory.filename,
+                           'dtype': trajectory.dtype}
+                flight.remove_data(trajectory)
+                self._add_data(new_trajectory, ds_attr['dtype'], flight,
+                               ds_attr['path'])
 
         def _result(result):
             err, exc = result

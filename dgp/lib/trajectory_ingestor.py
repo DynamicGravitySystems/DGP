@@ -12,6 +12,9 @@ from .time_utils import leap_seconds, convert_gps_time, datenum_to_datetime
 from .etc import interp_nans
 
 
+TRAJECTORY_INTERP_FIELDS = {'lat', 'long', 'ell_ht'}
+
+
 def import_trajectory(filepath, delim_whitespace=False, interval=0,
                       interp=False, is_utc=False, columns=None, skiprows=None,
                       timeformat='sow'):
