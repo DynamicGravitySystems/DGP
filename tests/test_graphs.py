@@ -11,6 +11,7 @@ import numpy as np
 
 from tests import sample_dir
 import dgp.lib.trajectory_ingestor as ti
+import dgp.lib.transform as transform
 from dgp.lib.transform.gravity import (Eotvos, LatitudeCorrection,
                                        FreeAirCorrection)
 from dgp.lib.transform.filters import Detrend
@@ -23,14 +24,6 @@ class TestGraphNodes(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QtGui.QApplication([])
-
-        cls.library = fclib.LIBRARY.copy()
-        cls.library.addNodeType(Eotvos, [('Gravity',)])
-        cls.library.addNodeType(LatitudeCorrection, [('Gravity',)])
-        cls.library.addNodeType(FreeAirCorrection, [('Gravity',)])
-        cls.library.addNodeType(Detrend, [('Filters',)])
-        cls.library.addNodeType(ScalarMultiply, [('Operators',)])
-        cls.library.addNodeType(ConcatenateSeries, [('Operators',)])
 
         # Ensure gps_fields are ordered correctly relative to test file
         gps_fields = ['mdy', 'hms', 'lat', 'long', 'ortho_ht', 'ell_ht',
@@ -50,8 +43,7 @@ class TestGraphNodes(unittest.TestCase):
         self.fc = Flowchart(terminals={
             'data_in': {'io': 'in'},
             'data_out': {'io': 'out'}
-        })
-        self.fc.setLibrary(self.library)
+        }, library=transform.LIBRARY)
 
     def test_eotvos_node(self):
         # TODO: More complete test that spans the range of possible inputs
@@ -202,18 +194,13 @@ class TestBinaryOpsGraphNodes(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QtGui.QApplication([])
-        cls.library = fclib.LIBRARY.copy()
-        cls.library.addNodeType(ConcatenateSeries, [('Operators',)])
-        cls.library.addNodeType(AddSeries, [('Operators',)])
 
     def setUp(self):
         self.fc = Flowchart(terminals={
             'A': {'io': 'in'},
             'B': {'io': 'in'},
             'data_out': {'io': 'out'}
-        })
-
-        self.fc.setLibrary(self.library)
+        }, library=transform.LIBRARY)
 
     @classmethod
     def tearDownClass(cls):
@@ -257,18 +244,13 @@ class TestTimeOpsGraphNodes(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QtGui.QApplication([])
-        cls.library = fclib.LIBRARY.copy()
-        cls.library.addNodeType(ComputeDelay, [('Time Ops',)])
-        cls.library.addNodeType(ShiftFrame, [('Time Ops',)])
 
     def setUp(self):
         self.fc = Flowchart(terminals={
             's1': {'io': 'in'},
             's2': {'io': 'in'},
             'data_out': {'io': 'out'}
-        })
-
-        self.fc.setLibrary(self.library)
+        }, library=transform.LIBRARY)
 
     @classmethod
     def tearDownClass(cls):

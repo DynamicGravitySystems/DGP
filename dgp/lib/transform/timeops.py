@@ -5,6 +5,8 @@ import pandas as pd
 
 from ..timesync import find_time_delay, shift_frame
 
+NODE_TYPE = 'Time Ops'
+
 
 class ComputeDelay(Node):
     nodeName = 'ComputeDelay'

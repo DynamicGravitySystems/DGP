@@ -1,8 +1,10 @@
 # coding: utf-8
 
-from pyqtgraph.flowchart.library.common import CtrlNode, Node
+from pyqtgraph.flowchart.library.common import CtrlNode
 
 import numpy as np
+
+NODE_TYPE = 'Derivatives'
 
 
 def centraldifference(data_in, n=1, order=2, dt=0.1):

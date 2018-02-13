@@ -4,6 +4,8 @@ from pyqtgraph.flowchart.library.common import Node, CtrlNode
 
 import pandas as pd
 
+NODE_TYPE = 'Operators'
+
 
 class ScalarMultiply(CtrlNode):
     nodeName = 'ScalarMultiply'

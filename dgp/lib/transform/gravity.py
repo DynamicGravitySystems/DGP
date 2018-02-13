@@ -8,6 +8,8 @@ from numpy import array
 
 from .derivatives import centraldifference
 
+NODE_TYPE = 'Gravity'
+
 
 class Eotvos(Node):
     """

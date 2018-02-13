@@ -6,6 +6,8 @@ from scipy import signal
 import pandas as pd
 import numpy as np
 
+NODE_TYPE = 'Filters'
+
 
 class FIRLowpassFilter(CtrlNode):
     nodeName = 'FIRLowpassFilter'
