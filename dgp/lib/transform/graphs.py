@@ -1,4 +1,6 @@
 # coding: utf-8
+from collections import OrderedDict
+
 from pyqtgraph.flowchart import Flowchart
 from dgp.lib import transform
 
@@ -106,7 +108,8 @@ def concat_n_series(n, term_prefix='in_', output_term='result'):
     if n < 2:
         raise ValueError('Cannot concatenate fewer than 2 Series')
 
-    terminals = {term_prefix + str(i): {'io': 'in'} for i in range(n)}
+    d = {term_prefix + str(i): {'io': 'in'} for i in range(n)}
+    terminals = OrderedDict(sorted(d.items(), key=lambda x: x[0]))
     inputs = list(terminals.keys())
     terminals[output_term] = {'io': 'out'}
 
