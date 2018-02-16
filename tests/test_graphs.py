@@ -251,11 +251,31 @@ class TestNaryOps(unittest.TestCase):
 
         expected = input_a.astype(np.float64) + input_b.astype(np.float64) + input_c.astype(np.float64)
 
-        fc = graphs.add_n_series([input_a, input_b, input_c])
+        fc = graphs.add_n_series(3)
         result = fc.process(in_0=input_a, in_1=input_b, in_2=input_c)
         res = result['result']
 
         self.assertTrue(res.equals(expected))
+
+    def test_concat_series(self):
+        input_A = pd.Series(np.arange(0, 5), index=['A', 'B', 'C', 'D', 'E'])
+        input_B = pd.Series(np.arange(2, 7), index=['A', 'B', 'C', 'D', 'E'])
+        input_C = pd.Series(np.arange(8, 13), index=['A', 'B', 'C', 'D', 'E'])
+
+        expected = pd.concat([input_A, input_B], axis=1)
+        expected = pd.concat([expected, input_C], axis=1)
+
+        fc = graphs.concat_n_series(3)
+        result = fc.process(in_0=input_A, in_1=input_B, in_2=input_C)
+        res = result['result']
+        print(res)
+        print(expected)
+        self.assertTrue(res.equals(expected))
+
+        # check that the indexes are equal
+        self.assertTrue(input_A.index.identical(res.index))
+        self.assertTrue(input_B.index.identical(res.index))
+
 
 class TestTimeOpsGraphNodes(unittest.TestCase):
     @classmethod
