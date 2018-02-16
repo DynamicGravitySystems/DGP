@@ -4,7 +4,6 @@ import pytest
 import unittest
 import csv
 from pyqtgraph.flowchart import Flowchart
-import pyqtgraph.flowchart.library as fclib
 from pyqtgraph.Qt import QtGui
 import pandas as pd
 import numpy as np
@@ -12,12 +11,8 @@ import numpy as np
 from tests import sample_dir
 import dgp.lib.trajectory_ingestor as ti
 import dgp.lib.transform as transform
-from dgp.lib.transform.gravity import (Eotvos, LatitudeCorrection,
-                                       FreeAirCorrection)
-from dgp.lib.transform.filters import Detrend
-from dgp.lib.transform.operators import (ScalarMultiply, ConcatenateSeries,
-                                         AddSeries)
-from dgp.lib.transform.timeops import ComputeDelay, ShiftFrame
+from dgp.lib.transform import graphs
+
 
 
 class TestGraphNodes(unittest.TestCase):
@@ -239,6 +234,28 @@ class TestBinaryOpsGraphNodes(unittest.TestCase):
         res = result['data_out']
         self.assertTrue(res.equals(expected))
 
+
+class TestNaryOps(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QtGui.QApplication([])
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.app.exit()
+
+    def test_add_n_series(self):
+        input_a = pd.Series(np.arange(0, 5), index=['A', 'B', 'C', 'D', 'E'])
+        input_b = pd.Series(np.arange(2, 7), index=['A', 'B', 'C', 'D', 'E'])
+        input_c = pd.Series(np.arange(8, 13), index=['A', 'B', 'C', 'D', 'E'])
+
+        expected = input_a.astype(np.float64) + input_b.astype(np.float64) + input_c.astype(np.float64)
+
+        fc = graphs.add_series([input_a, input_b, input_c])
+        result = fc.process(in_0=input_a, in_1=input_b, in_2=input_c)
+        res = result['result']
+
+        self.assertTrue(res.equals(expected))
 
 class TestTimeOpsGraphNodes(unittest.TestCase):
     @classmethod

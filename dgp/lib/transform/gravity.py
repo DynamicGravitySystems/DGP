@@ -17,14 +17,14 @@ class Eotvos(Node):
 
         Parameters
         ----------
-            data_in: DataFrame
+            data_in: :obj:`DataFrame`
                 trajectory frame containing latitude, longitude, and
                 height above the ellipsoid
 
         Returns
         -------
-            Series
-                using the index from the input
+            data_out: :obj:`Series`
+                with the index from the input
     """
     nodeName = 'Eotvos'
 
@@ -152,13 +152,13 @@ class LatitudeCorrection(Node):
 
     Parameters
     ----------
-        data_in: DataFrame
+        data_in: :obj:`DataFrame`
             trajectory frame containing latitude, longitude, and
             height above the ellipsoid
 
     Returns
     -------
-        Series
+        data_out: :obj:`Series`
             units are mGal
     """
 
@@ -194,13 +194,13 @@ class FreeAirCorrection(Node):
 
     Parameters
     ----------
-        data_in: :class:`DataFrame`
+        data_in: :obj:`DataFrame`
             trajectory frame containing latitude, longitude, and
             height above the ellipsoid
 
     Returns
     -------
-        :class:`Series`
+        data_out: :obj:`Series`
             units are mGal
     """
 
