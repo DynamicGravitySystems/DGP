@@ -251,7 +251,7 @@ class TestNaryOps(unittest.TestCase):
 
         expected = input_a.astype(np.float64) + input_b.astype(np.float64) + input_c.astype(np.float64)
 
-        fc = graphs.add_series([input_a, input_b, input_c])
+        fc = graphs.add_n_series([input_a, input_b, input_c])
         result = fc.process(in_0=input_a, in_1=input_b, in_2=input_c)
         res = result['result']
 

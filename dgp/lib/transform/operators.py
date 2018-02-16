@@ -76,5 +76,4 @@ class AddSeries(CtrlNode):
         b = self.ctrls['B multiplier'].value()
 
         result = a * A + b * B
-        print(result)
         return {'data_out': result}
