@@ -60,9 +60,7 @@ class TransformWrapper:
 
 
 def add_n_series(n, term_prefix='in_', output_term='result'):
-    # TODO: This function may be unnecessary if terminals can take multiple inputs
     # TODO: Does not currently accommodate multipliers in the sum
-    # TODO: Related: investigate allowedAddOutput arg for Node to add inputs for n-ary ops
     """
     Generates a flowchart to add an arbitrary number of series
 
@@ -88,17 +86,20 @@ def add_n_series(n, term_prefix='in_', output_term='result'):
     terminals = {term_prefix + str(i): {'io': 'in'} for i in range(n)}
     inputs = list(terminals.keys())
     terminals[output_term] = {'io': 'out'}
+    terminals['result_name'] = {'io': 'in'}
 
     fc = Flowchart(terminals=terminals, library=transform.LIBRARY)
     current_node = fc.createNode('AddSeries')
     fc.connectTerminals(fc[inputs[0]], current_node['A'])
     fc.connectTerminals(fc[inputs[1]], current_node['B'])
+    fc.connectTerminals(fc['result_name'], current_node['result_name'])
 
     for k in inputs[2:]:
         next_node = fc.createNode('AddSeries')
         fc.connectTerminals(current_node['data_out'], next_node['A'])
         current_node = next_node
         fc.connectTerminals(fc[k], current_node['B'])
+        fc.connectTerminals(fc['result_name'], current_node['result_name'])
 
     fc.connectTerminals(current_node['data_out'], fc[output_term])
     return fc

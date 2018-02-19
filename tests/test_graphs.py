@@ -185,7 +185,7 @@ class TestGraphNodes(unittest.TestCase):
 
 
 class TestBinaryOpsGraphNodes(unittest.TestCase):
-
+    # TODO: Add tests for series concat column dedup
     @classmethod
     def setUpClass(cls):
         cls.app = QtGui.QApplication([])
@@ -206,7 +206,7 @@ class TestBinaryOpsGraphNodes(unittest.TestCase):
         input_B = pd.Series(np.arange(2, 7), index=['A', 'B', 'C', 'D', 'E'])
         expected = pd.concat([input_A, input_B], axis=1)
 
-        fnode = self.fc.createNode('ConcatenateSeries', pos=(0, 0))
+        fnode = self.fc.createNode('ConcatenateSeries')
         self.fc.connectTerminals(self.fc['A'], fnode['A'])
         self.fc.connectTerminals(self.fc['B'], fnode['B'])
         self.fc.connectTerminals(fnode['data_out'], self.fc['data_out'])
@@ -220,19 +220,41 @@ class TestBinaryOpsGraphNodes(unittest.TestCase):
         self.assertTrue(input_A.index.identical(res.index))
         self.assertTrue(input_B.index.identical(res.index))
 
+
+class TestBinaryMathOpsGraphNodes(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QtGui.QApplication([])
+
+    def setUp(self):
+        self.fc = Flowchart(terminals={
+            'A': {'io': 'in'},
+            'B': {'io': 'in'},
+            'result_name': {'io': 'in'},
+            'data_out': {'io': 'out'}
+        }, library=transform.LIBRARY)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.app.exit()
+
     def test_add_series(self):
         input_a = pd.Series(np.arange(0, 5), index=['A', 'B', 'C', 'D', 'E'])
         input_b = pd.Series(np.arange(2, 7), index=['A', 'B', 'C', 'D', 'E'])
         expected = input_a.astype(np.float64) + input_b.astype(np.float64)
 
-        fnode = self.fc.createNode('AddSeries', pos=(0, 0))
+        fnode = self.fc.createNode('AddSeries')
         self.fc.connectTerminals(self.fc['A'], fnode['A'])
         self.fc.connectTerminals(self.fc['B'], fnode['B'])
+        self.fc.connectTerminals(self.fc['result_name'], fnode['result_name'])
         self.fc.connectTerminals(fnode['data_out'], self.fc['data_out'])
 
-        result = self.fc.process(A=input_a, B=input_b)
+        result_name = 'test'
+        result = self.fc.process(A=input_a, B=input_b, result_name=result_name)
         res = result['data_out']
         self.assertTrue(res.equals(expected))
+        self.assertTrue(res.name == result_name)
 
 
 class TestNaryOps(unittest.TestCase):
@@ -252,12 +274,14 @@ class TestNaryOps(unittest.TestCase):
         expected = input_a.astype(np.float64) + input_b.astype(np.float64) + input_c.astype(np.float64)
 
         fc = graphs.add_n_series(3)
-        result = fc.process(in_0=input_a, in_1=input_b, in_2=input_c)
+        result_name = 'test'
+        result = fc.process(in_0=input_a, in_1=input_b, in_2=input_c, result_name=result_name)
         res = result['result']
 
         self.assertTrue(res.equals(expected))
+        self.assertTrue(res.name == result_name)
 
-    def test_concat_series(self):
+    def test_concat_n_series(self):
         input_A = pd.Series(np.arange(0, 5), index=['A', 'B', 'C', 'D', 'E'])
         input_B = pd.Series(np.arange(2, 7), index=['A', 'B', 'C', 'D', 'E'])
         input_C = pd.Series(np.arange(8, 13), index=['A', 'B', 'C', 'D', 'E'])
