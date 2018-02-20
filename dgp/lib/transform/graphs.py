@@ -1,62 +1,131 @@
 # coding: utf-8
 from collections import OrderedDict
+from copy import deepcopy
 
 from pyqtgraph.flowchart import Flowchart
 from dgp.lib import transform
+from dgp.lib.etc import gen_uuid
 
 
 class TransformWrapper:
     """
-    A container for transformed DataFrames. Multiple transform graphs may
-    be specified and the resultant DataFrames will be held in this class
-    instance.
+    Container for graphs and the resulting DataFrames
     """
-    def __init__(self, gravity, trajectory):
-        self._gdf = gravity
-        self._tdf = trajectory
 
-        self.modified = {}
-        self._transform_graphs = {}
-        self._defaultgraph = None
+    def __init__(self, gravity, trajectory, flowchart):
+        """
+        TransformWrapper _init__ method
 
-    def removegraph(self, uid):
-        del self._transform_graphs[uid]
-        del self.modified[uid]
+        Parameters
+        ----------
+        gravity : :obj:`DataFrame`
+            Sensor data
+        trajectory : :obj:`DataFrame`
+            Trajectory data
+        flowchart : :obj:`FlowChart`
+            Process graph
 
-    def processgraph(self, tg, **kwargs):
-        if not isinstance(tg, Flowchart):
-            raise TypeError('expected an instance or subclass of '
-                            'Flowchart, but got {typ}'
-                            .format(typ=type(tg)))
+        """
+        self._gravity = gravity
+        self._trajectory = trajectory
 
-        if tg.uid not in self._transform_graphs:
-            self._transform_graphs[tg.uid] = tg
-            if self._defaultgraph is None:
-                self._defaultgraph = self._transform_graphs[tg.uid]
-
-        self.modified[tg.uid] = self._transform_graphs[tg.uid].process(**kwargs)
-        return self.modified[tg.uid]
+        self._results = {}
+        self._graphs = {}
+        self._origin_graph = flowchart
+        self._most_recent = None
 
     @property
-    def data(self, reapply=False):
-        if self._defaultgraph is not None:
-            if reapply:
-                return self.processgraph(self._defaultgraph)
-            else:
-                return self.modified[self._defaultgraph.uid]
-        else:
-            return {'gravity': self._gdf, 'trajectory': self._tdf}
+    def graph(self):
+        """ :obj:`FlowChart`: Origina process graph """
+        return self._graph
+
+    @property
+    def most_recent(self):
+        """ :obj:`DataFrame`: Most recent result """
+        if self._most_recent is not None:
+            return self._results[self._most_recent]
 
     @property
     def gravity(self):
-        return self._gdf
+        """ :obj:`DataFrame`: Gravity data """
+        return self._gravity
 
     @property
     def trajectory(self):
-        return self._tdf
+        """ :obj:`DataFrame`: Trajectory data """
+        return self._trajectory
+
+    @property
+    def results(self):
+        """ dict: All results """
+        return self._results
+
+    def get_result(self, uid):
+        """
+        Result of process graph with uid
+
+        Returns
+        -------
+        :obj:`DataFrame`:
+        """
+        if uid in self._results:
+            return self._results[uid]
+
+    def get_graph(self, uid):
+        """
+        Process graph with uid
+
+        Returns
+        -------
+        :obj:`FlowChart`:
+        """
+        if uid in self._graphs:
+            return self._graphs[uid]
+
+    def pop_result(self, id, include_graph=False):
+        """
+        Removes and returns result
+
+        Parameters
+        ----------
+        id: str
+            UID of result to remove
+        include_graph: boolean, optional
+            Pops both result and graph and returns a tuple
+
+        Returns
+        -------
+        :obj:`DataFrame`, tuple(:obj:`DataFrame`, :obj:`FlowChart`)
+        """
+        if include_graph:
+            return self._graphs.pop(id, None), self._results.pop(id, None)
+        else:
+            return self._results.pop(id, None)
+
+    def process_graph(self, id=None, **kwargs):
+        """
+        Process graph
+
+        Processes data through the graph
+
+        Parameters
+        ----------
+        id: str, optional
+            UID for previously graph. If not specified, then a new graph is
+            added and processed.
+
+        """
+        if id is None:
+            uid = gen_uuid('tf')
+            self._graphs = deepcopy(self._graphs)
+        elif id in self._graphs:
+            uid = id
+
+        self._results[uid] = self._graphs[uid].process(**kwargs)
+        return uid
 
     def __len__(self):
-        return len(self.modified.items())
+        return len(self._results.items())
 
 
 def add_n_series(n, term_prefix='in_', output_term='result'):
