@@ -14,7 +14,6 @@ import dgp.lib.transform as transform
 from dgp.lib.transform import graphs
 
 
-
 class TestGraphNodes(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -281,6 +280,42 @@ class TestNaryOps(unittest.TestCase):
         self.assertTrue(res.equals(expected))
         self.assertTrue(res.name == result_name)
 
+    def test_chained_add_n_series(self):
+        fc = Flowchart(terminals={
+            'in_0': {'io': 'in'},
+            'in_1': {'io': 'in'},
+            'in_2': {'io': 'in'},
+            'result_name': {'io': 'in'},
+            'result': {'io': 'out'}
+        }, library=transform.LIBRARY)
+
+        input_a = pd.Series(np.arange(0, 5), index=['A', 'B', 'C', 'D', 'E'])
+        input_b = pd.Series(np.arange(2, 7), index=['A', 'B', 'C', 'D', 'E'])
+        input_c = pd.Series(np.arange(8, 13), index=['A', 'B', 'C', 'D', 'E'])
+
+        expected = input_a.astype(np.float64) + input_b.astype(np.float64) + input_c.astype(np.float64)
+
+        sum1 = graphs.add_n_series(2)
+        fc.addNode(sum1, 'sum1')
+        sum2 = graphs.add_n_series(2)
+        fc.addNode(sum2, 'sum2')
+
+        result_name = 'chained_sum'
+
+        fc.connectTerminals(fc['in_0'], sum1['in_0'])
+        fc.connectTerminals(fc['in_1'], sum1['in_1'])
+        fc.connectTerminals(fc['result_name'], sum1['result_name'])
+        fc.connectTerminals(sum1['result'], sum2['in_0'])
+        fc.connectTerminals(fc['in_2'], sum2['in_1'])
+        fc.connectTerminals(fc['result_name'], sum2['result_name'])
+        fc.connectTerminals(sum2['result'], fc['result'])
+
+        result = fc.process(in_0=input_a, in_1=input_b, in_2=input_c, result_name=result_name)
+        res = result['result']
+
+        self.assertTrue(res.equals(expected))
+        self.assertTrue(res.name == result_name)
+
     def test_concat_n_series(self):
         input_A = pd.Series(np.arange(0, 5), index=['A', 'B', 'C', 'D', 'E'])
         input_B = pd.Series(np.arange(2, 7), index=['A', 'B', 'C', 'D', 'E'])
@@ -292,8 +327,7 @@ class TestNaryOps(unittest.TestCase):
         fc = graphs.concat_n_series(3)
         result = fc.process(in_0=input_A, in_1=input_B, in_2=input_C)
         res = result['result']
-        print(res)
-        print(expected)
+
         self.assertTrue(res.equals(expected))
 
         # check that the indexes are equal
@@ -420,3 +454,27 @@ class TestTimeOpsGraphNodes(unittest.TestCase):
         res = result['data_out']
 
         self.assertTrue(res.equals(expected))
+
+
+class TestBaseGraph(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QtGui.QApplication([])
+
+        # Ensure gps_fields are ordered correctly relative to test file
+        gps_fields = ['mdy', 'hms', 'lat', 'long', 'ortho_ht', 'ell_ht',
+                      'num_stats', 'pdop']
+        cls.data = ti.import_trajectory(
+            'tests/sample_data/eotvos_short_input.txt',
+            columns=gps_fields,
+            skiprows=1,
+            timeformat='hms'
+        )
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.app.exit()
+
+    def test_nominal(self):
+        fc = graphs.base_graph()
+        result = fc.process(trajectory=self.data)

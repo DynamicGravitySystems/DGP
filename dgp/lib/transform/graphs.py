@@ -2,7 +2,7 @@
 from collections import OrderedDict
 from copy import deepcopy
 
-from pyqtgraph.flowchart import Flowchart
+from pyqtgraph.flowchart import Flowchart, Node
 from dgp.lib import transform
 from dgp.lib.etc import gen_uuid
 
@@ -36,7 +36,7 @@ class TransformWrapper:
 
     @property
     def graph(self):
-        """ :obj:`FlowChart`: Origina process graph """
+        """ :obj:`FlowChart`: Original process graph """
         return self._graph
 
     @property
@@ -198,12 +198,33 @@ def concat_n_series(n, term_prefix='in_', output_term='result'):
     return fc
 
 
-def compute_corrections():
+def _string_node(value):
+    class StringNode(Node):
+        nodeName = 'StringNode'
+
+        def __init__(self, name):
+            self.value = None
+            terminals = {
+                'string': dict(io='out'),
+            }
+
+            Node.__init__(self, name, terminals=terminals)
+
+        def process(self, display=True):
+            return {'string': self.value}
+
+    node = StringNode('StringNode')
+    node.value = value
+    return node
+
+
+def base_graph():
     fc = Flowchart(terminals={
         'trajectory': {'io': 'in'},
         'result': {'io': 'out'}
     }, library=transform.LIBRARY)
 
+    # compute corrections
     eotvos = fc.createNode('Eotvos')
     lat_corr = fc.createNode('LatitudeCorrection')
     fac = fc.createNode('FreeAirCorrection')
@@ -212,13 +233,21 @@ def compute_corrections():
     fc.connectTerminals(fc['trajectory'], lat_corr['data_in'])
     fc.connectTerminals(fc['trajectory'], fac['data_in'])
 
+    # sum corrections
     sum_corrections = add_n_series(3)
+    fc.addNode(sum_corrections, 'sum_corrections')
+
+    sum_result_name = _string_node('corrections')
+    fc.addNode(sum_result_name, 'sum_result_name')
 
     fc.connectTerminals(eotvos['data_out'], sum_corrections['in_0'])
     fc.connectTerminals(lat_corr['data_out'], sum_corrections['in_1'])
     fc.connectTerminals(fac['data_out'], sum_corrections['in_2'])
+    fc.connectTerminals(sum_result_name['string'], sum_corrections['result_name'])
 
+    # concatenate individual corrections and sum into single DataFrame
     cat_corrections = concat_n_series(4)
+    fc.addNode(cat_corrections, 'cat_corrections')
 
     fc.connectTerminals(eotvos['data_out'], cat_corrections['in_0'])
     fc.connectTerminals(lat_corr['data_out'], cat_corrections['in_1'])
@@ -228,3 +257,4 @@ def compute_corrections():
     fc.connectTerminals(cat_corrections['result'], fc['result'])
 
     return fc
+
