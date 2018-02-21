@@ -1,11 +1,9 @@
 # coding=utf-8
 
-from collections import defaultdict
-
 
 class Graph:
     def __init__(self):
-        self._graph = defaultdict(list)
+        self._graph = {}
         self._toposort = []
 
     @classmethod
