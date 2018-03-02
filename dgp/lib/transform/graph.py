@@ -11,21 +11,20 @@ class GraphError(Exception):
 
 
 class TransformGraph:
-    # TODO: Use magic methods for math ops where available
-
-    def __init__(self, graph):
-        self._init_graph(graph)
+    def __init__(self, graph=None):
+        if graph is not None:
+            self.transform_graph = graph
+        self._init_graph()
         self._results = None
         self._graph_changed = True
 
-    def _init_graph(self, g):
+    def _init_graph(self):
         """
         Initialize the transform graph
 
         This is an internal method.
         Do not modify the transform graph in place. Instead, use the setter.
         """
-        self._transform_graph = g
         self._graph = self._make_graph()
         self._order = self._graph.topo_sort()
 
@@ -39,11 +38,12 @@ class TransformGraph:
 
         Setter recomputes a topological sorting of the new graph.
         """
-        return self._transform_graph
+        return self.transform_graph
 
     @graph.setter
     def graph(self, g):
-        self._init_graph(g)
+        self.transform_graph = g
+        self._init_graph()
         self._graph_changed = True
 
     @property
@@ -52,10 +52,10 @@ class TransformGraph:
         return self._results
 
     def _make_graph(self):
-        adjacency_list = {k: [] for k in self._transform_graph}
+        adjacency_list = {k: [] for k in self.transform_graph}
 
-        for k in self._transform_graph:
-            node = self._transform_graph[k]
+        for k in self.transform_graph:
+            node = self.transform_graph[k]
             if isinstance(node, tuple):
                 args = list(node[1:])
                 for i in args:
@@ -83,19 +83,19 @@ class TransformGraph:
 
             while order:
                 k = order.pop()
-                node = self._transform_graph[k]
+                node = self.transform_graph[k]
                 if isinstance(node, tuple):
                     f = _tuple_to_func(node)
                     results[k] = f()
                 else:
-                    results[k] = self._transform_graph[k]
+                    results[k] = self.transform_graph[k]
             self._results = results
             self._graph_changed = False
 
         return self._results
 
     def __str__(self):
-        return str(self._transform_graph)
+        return str(self.transform_graph)
 
 
 class Graph:
