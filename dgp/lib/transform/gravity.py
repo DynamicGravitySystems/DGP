@@ -4,10 +4,10 @@ import numpy as np
 import pandas as pd
 from numpy import array
 
-from .derivatives import centraldifference
+from .derivatives import central_difference
 
 
-def eotvos_correction(data_in):
+def eotvos_correction(data_in, dt):
     """
         Eotvos correction
 
@@ -16,29 +16,24 @@ def eotvos_correction(data_in):
             data_in: DataFrame
                 trajectory frame containing latitude, longitude, and
                 height above the ellipsoid
+            dt: float
+                sample period
 
         Returns
         -------
             Series
-                using the index from the input
+                index taken from the input
     """
     lat = np.deg2rad(data_in['lat'].values)
     lon = np.deg2rad(data_in['long'].values)
     ht = data_in['ell_ht'].values
 
-    dlat = centraldifference(lat, n=1, dt=self.dt)
-    ddlat = centraldifference(lat, n=2, dt=self.dt)
-    dlon = centraldifference(lon, n=1, dt=self.dt)
-    ddlon = centraldifference(lon, n=2, dt=self.dt)
-    dht = centraldifference(ht, n=1, dt=self.dt)
-    ddht = centraldifference(ht, n=2, dt=self.dt)
-
-    # dlat = gradient(lat)
-    # ddlat = gradient(dlat)
-    # dlon = gradient(lon)
-    # ddlon = gradient(dlon)
-    # dht = gradient(ht)
-    # ddht = gradient(dht)
+    dlat = central_difference(lat, n=1, dt=dt)
+    ddlat = central_difference(lat, n=2, dt=dt)
+    dlon = central_difference(lon, n=1, dt=dt)
+    ddlon = central_difference(lon, n=2, dt=dt)
+    dht = central_difference(ht, n=1, dt=dt)
+    ddht = central_difference(ht, n=2, dt=dt)
 
     sin_lat = np.sin(lat)
     cos_lat = np.cos(lat)
@@ -46,16 +41,16 @@ def eotvos_correction(data_in):
     cos_2lat = np.cos(2.0 * lat)
 
     # Calculate the r' and its derivatives
-    r_prime = self.a * (1.0 - self.ecc * sin_lat * sin_lat)
-    dr_prime = -self.a * dlat * self.ecc * sin_2lat
-    ddr_prime = (-self.a * ddlat * self.ecc * sin_2lat - 2.0 * self.a *
-                 dlat * dlat * self.ecc * cos_2lat)
+    r_prime = a * (1.0 - ecc * sin_lat * sin_lat)
+    dr_prime = -a * dlat * ecc * sin_2lat
+    ddr_prime = (-a * ddlat * ecc * sin_2lat - 2.0 * a *
+                 dlat * dlat * ecc * cos_2lat)
 
     # Calculate the deviation from the normal and its derivatives
-    D = np.arctan(self.ecc * sin_2lat)
-    dD = 2.0 * dlat * self.ecc * cos_2lat
-    ddD = (2.0 * ddlat * self.ecc * cos_2lat - 4.0 * dlat * dlat *
-           self.ecc * sin_2lat)
+    D = np.arctan(ecc * sin_2lat)
+    dD = 2.0 * dlat * ecc * cos_2lat
+    ddD = (2.0 * ddlat * ecc * cos_2lat - 4.0 * dlat * dlat *
+           ecc * sin_2lat)
 
     # Calculate this value once (used many times)
     sinD = np.sin(D)
@@ -86,15 +81,15 @@ def eotvos_correction(data_in):
 
     # Define w and its derivative
     w = array([
-        (dlon + self.We) * cos_lat,
+        (dlon + We) * cos_lat,
         -dlat,
-        (-(dlon + self.We)) * sin_lat
+        (-(dlon + We)) * sin_lat
     ])
 
     wdot = array([
-        dlon * cos_lat - (dlon + self.We) * dlat * sin_lat,
+        dlon * cos_lat - (dlon + We) * dlat * sin_lat,
         -ddlat,
-        (-ddlon * sin_lat - (dlon + self.We) * dlat * cos_lat)
+        (-ddlon * sin_lat - (dlon + We) * dlat * cos_lat)
     ])
 
     w2_x_rdot = np.cross(2.0 * w, rdot, axis=0)
@@ -103,9 +98,9 @@ def eotvos_correction(data_in):
     wxwxr = np.cross(w, w_x_r, axis=0)
 
     we = array([
-        self.We * cos_lat,
+        We * cos_lat,
         np.zeros(sin_lat.shape),
-        -self.We * sin_lat
+        -We * sin_lat
     ])
 
     wexr = np.cross(we, r, axis=0)
@@ -114,7 +109,7 @@ def eotvos_correction(data_in):
     # Calculate total acceleration for the aircraft
     acc = r2dot + w2_x_rdot + wdot_x_r + wxwxr
 
-    E = (acc[2] - wexwexr[2]) * self.mps2mgal
+    E = (acc[2] - wexwexr[2]) * mps2mgal
     return pd.Series(E, index=data_in.index, name='eotvos')
 
 
