@@ -1,31 +1,54 @@
-# coding=utf-8
+# coding: utf-8
 from copy import copy
 from functools import partial
+from collections.abc import Iterable
+
+
+class GraphError(Exception):
+    def __init__(self, graph, message):
+        self.graph = graph
+        self.message = message
 
 
 class TransformGraph:
     # TODO: Use magic methods for math ops where available
 
     def __init__(self, graph):
-        self._transform_graph = graph
-        self._graph = self._make_graph()
-        self._order = self._graph._toposort()
+        self._init_graph(graph)
         self._results = None
-        self._graph_changed = False
+        self._graph_changed = True
+
+    def _init_graph(self, g):
+        """
+        Initialize the transform graph
+
+        This is an internal method.
+        Do not modify the transform graph in place. Instead, use the setter.
+        """
+        self._transform_graph = g
+        self._graph = self._make_graph()
+        self._order = self._graph.topo_sort()
+
+    @property
+    def order(self):
+        return self._order
 
     @property
     def graph(self):
+        """ iterable: Transform graph
+
+        Setter recomputes a topological sorting of the new graph.
+        """
         return self._transform_graph
 
     @graph.setter
     def graph(self, g):
-        self._transform_graph = g
-        self._graph = self._make_graph()
-        self._order = self._graph._toposort()
+        self._init_graph(g)
         self._graph_changed = True
 
     @property
     def results(self):
+        """ dict: Most recent result"""
         return self._results
 
     def _make_graph(self):
@@ -40,9 +63,8 @@ class TransformGraph:
         return Graph(adjacency_list)
 
     def execute(self):
-        if not self._graph_changed:
-            return self._results
-        else:
+        """ Execute the transform graph """
+        if self._graph_changed:
             order = copy(self._order)
             results = {}
 
@@ -69,7 +91,8 @@ class TransformGraph:
                     results[k] = self._transform_graph[k]
             self._results = results
             self._graph_changed = False
-            return self._results
+
+        return self._results
 
     def __str__(self):
         return str(self._transform_graph)
@@ -77,6 +100,13 @@ class TransformGraph:
 
 class Graph:
     def __init__(self, graph):
+        if not isinstance(graph, Iterable):
+            raise TypeError('Cannot construct graph from type {typ}'
+                            .format(typ=type(graph)))
+
+        if all(isinstance(x, Iterable) and not isinstance(x, (str, bytes, bytearray)) for x in graph):
+            raise TypeError('Graph must contain all iterables')
+
         self._graph = graph
         self._topo = []
 
@@ -94,7 +124,7 @@ class Graph:
         if node in stack:
             return
         elif node in visited:
-            raise Exception('Graph cycle detected.')
+            raise GraphError(self._graph, 'Cycle detected')
 
         visited.append(node)
         for i in self._graph[node]:
@@ -102,7 +132,7 @@ class Graph:
 
         stack.insert(0, node)
 
-    def _toposort(self):
+    def topo_sort(self):
         """
         Topological sorting of the graph
 
