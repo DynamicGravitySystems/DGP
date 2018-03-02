@@ -39,17 +39,17 @@ class TestTransformGraph:
         return graph
 
     def test_init(self, test_input):
-        g = TransformGraph(test_input)
+        g = TransformGraph(graph=test_input)
         assert g.order == ['d', 'c', 'b', 'a']
 
     def test_execute(self, test_input):
-        g = TransformGraph(test_input)
+        g = TransformGraph(graph=test_input)
         res = g.execute()
         expected = {'a': 1, 'b': 2, 'c': 3, 'd': 6}
         assert res == expected
 
     def test_graph_setter(self, test_input):
-        g = TransformGraph(test_input)
+        g = TransformGraph(graph=test_input)
         g.execute()
         new_graph = {'a': 1,
                      'b': 2,
@@ -61,4 +61,28 @@ class TestTransformGraph:
         res = g.execute()
         expected = {'a': 1, 'b': 2, 'c': 3, 'd': 6, 'e': 8}
 
+        assert res == expected
+
+    def test_subclass_noargs(self, test_input):
+        class NewTransformGraph(TransformGraph):
+            transform_graph = test_input
+
+        g = NewTransformGraph()
+        res = g.execute()
+        expected = {'a': 1, 'b': 2, 'c': 3, 'd': 6}
+        assert res == expected
+
+    def test_subclass_args(self):
+        class NewTransformGraph(TransformGraph):
+            def __init__(self, in1, in2):
+                self.transform_graph = {'a': in1,
+                                        'b': in2,
+                                        'c': (add, 'a', 'b'),
+                                        'd': (sum, ['a', 'b', 'c'])
+                                        }
+                super().__init__()
+
+        g = NewTransformGraph(1, 2)
+        res = g.execute()
+        expected = {'a': 1, 'b': 2, 'c': 3, 'd': 6}
         assert res == expected
