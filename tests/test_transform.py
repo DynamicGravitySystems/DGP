@@ -1,7 +1,15 @@
 # coding: utf-8
 import pytest
+from nose.tools import assert_almost_equals
 
 from dgp.lib.transform.graph import Graph, TransformGraph, GraphError
+from dgp.lib.transform.gravity import eotvos_correction, latitude_correction, free_air_correction
+from dgp.lib.transform.operators import concat
+import dgp.lib.trajectory_ingestor as ti
+
+
+from tests import sample_dir
+import csv
 
 
 class TestGraph:
@@ -86,3 +94,90 @@ class TestTransformGraph:
         res = g.execute()
         expected = {'a': 1, 'b': 2, 'c': 3, 'd': 6}
         assert res == expected
+
+
+class TestCorrections:
+    @pytest.fixture
+    def trajectory_data(self):
+        # Ensure gps_fields are ordered correctly relative to test file
+        gps_fields = ['mdy', 'hms', 'lat', 'long', 'ortho_ht', 'ell_ht',
+                      'num_stats', 'pdop']
+        data = ti.import_trajectory(
+            'tests/sample_data/eotvos_short_input.txt',
+            columns=gps_fields,
+            skiprows=1,
+            timeformat='hms'
+        )
+
+        return data
+
+    def test_eotvos_node(self, trajectory_data):
+        # TODO: More complete test that spans the range of possible inputs
+        result_eotvos = []
+        with sample_dir.joinpath('eotvos_short_result.csv').open() as fd:
+            test_data = csv.DictReader(fd)
+            for line in test_data:
+                result_eotvos.append(float(line['Eotvos_full']))
+
+        transform_graph = {'trajectory': trajectory_data,
+                           'eotvos': (eotvos_correction, 'trajectory'),
+                           }
+        g = TransformGraph(graph=transform_graph)
+        eotvos_a = g.execute()
+
+        for i, value in enumerate(eotvos_a):
+            if 1 < i < len(result_eotvos) - 2:
+                try:
+                    assert_almost_equals(value, result_eotvos[i], places=2)
+                except AssertionError:
+                    print("Invalid assertion at data line: {}".format(i))
+                    raise AssertionError
+
+    # def test_free_air_correction(self):
+    #     # TODO: More complete test that spans the range of possible inputs
+    #     s1 = pd.Series([39.9148595446, 39.9148624273], name='lat')
+    #     s2 = pd.Series([1599.197, 1599.147], name='ell_ht')
+    #     test_input = pd.concat([s1, s2], axis=1)
+    #     test_input.index = pd.Index([self.data.index[0], self.data.index[-1]])
+    #
+    #     expected = pd.Series([-493.308594971815, -493.293177069581],
+    #                          index=pd.Index([self.data.index[0],
+    #                                          self.data.index[-1]]),
+    #                          name='fac'
+    #                          )
+    #
+    #     fnode = self.fc.createNode('FreeAirCorrection', pos=(0, 0))
+    #     self.fc.connectTerminals(self.fc['data_in'], fnode['data_in'])
+    #     self.fc.connectTerminals(fnode['data_out'], self.fc['data_out'])
+    #
+    #     result = self.fc.process(data_in=test_input)
+    #     res = result['data_out']
+    #
+    #     np.testing.assert_array_almost_equal(expected, res, decimal=8)
+    #
+    #     # check that the indices are equal
+    #     self.assertTrue(test_input.index.identical(res.index))
+    #
+    # def test_latitude_correction(self):
+    #     test_input = pd.DataFrame([39.9148595446, 39.9148624273])
+    #     test_input.columns = ['lat']
+    #     test_input.index = pd.Index([self.data.index[0], self.data.index[-1]])
+    #
+    #     expected = pd.Series([-980162.105035777, -980162.105292394],
+    #                          index=pd.Index([self.data.index[0],
+    #                                          self.data.index[-1]]),
+    #                          name='lat_corr'
+    #                          )
+    #
+    #     fnode = self.fc.createNode('LatitudeCorrection', pos=(0, 0))
+    #     self.fc.connectTerminals(self.fc['data_in'], fnode['data_in'])
+    #     self.fc.connectTerminals(fnode['data_out'], self.fc['data_out'])
+    #
+    #     result = self.fc.process(data_in=test_input)
+    #     res = result['data_out']
+    #
+    #     np.testing.assert_array_almost_equal(expected, res, decimal=8)
+    #
+    #     # check that the indexes are equal
+    #     self.assertTrue(test_input.index.identical(res.index))
+

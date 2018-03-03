@@ -7,7 +7,7 @@ from numpy import array
 from .derivatives import central_difference
 
 
-def eotvos_correction(data_in, dt):
+def eotvos_correction(data_in):
     """
         Eotvos correction
 
@@ -24,9 +24,18 @@ def eotvos_correction(data_in, dt):
             Series
                 index taken from the input
     """
-    lat = np.deg2rad(data_in['lat'].values)
-    lon = np.deg2rad(data_in['long'].values)
-    ht = data_in['ell_ht'].values
+
+    # constants
+    a = 6378137.0  # Default semi-major axis
+    b = 6356752.3142  # Default semi-minor axis
+    ecc = (a - b) / a  # Eccentricity
+    We = 0.00007292115  # sidereal rotation rate, radians/sec
+    mps2mgal = 100000  # m/s/s to mgal
+    dt = 0.1
+
+    lat = np.deg2rad(data_in['lat'])
+    lon = np.deg2rad(data_in['long'])
+    ht = data_in['ell_ht']
 
     dlat = central_difference(lat, n=1, dt=dt)
     ddlat = central_difference(lat, n=2, dt=dt)
@@ -111,7 +120,6 @@ def eotvos_correction(data_in, dt):
 
     E = (acc[2] - wexwexr[2]) * mps2mgal
     return pd.Series(E, index=data_in.index, name='eotvos')
-
 
 
 def latitude_correction(data_in):

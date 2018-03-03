@@ -57,9 +57,11 @@ class TransformGraph:
         for k in self.transform_graph:
             node = self.transform_graph[k]
             if isinstance(node, tuple):
-                args = list(node[1:])
-                for i in args:
-                    adjacency_list[k] += list(i)
+                for x in node[1:]:
+                    if isinstance(x, str):
+                        adjacency_list[k].append(x)
+                    else:
+                        adjacency_list[k] += x
         return Graph(adjacency_list)
 
     def execute(self):
@@ -78,7 +80,6 @@ class TransformGraph:
                     else:
                         args.append(results[arg])
                 new_tup = tuple([func] + args)
-                print(new_tup)
                 return partial(*new_tup)
 
             while order:
