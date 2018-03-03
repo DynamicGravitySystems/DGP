@@ -157,26 +157,25 @@ class TestCorrections:
         # check that the indices are equal
         assert test_input.index.identical(res['fac'].index)
 
-    # def test_latitude_correction(self):
-    #     test_input = pd.DataFrame([39.9148595446, 39.9148624273])
-    #     test_input.columns = ['lat']
-    #     test_input.index = pd.Index([self.data.index[0], self.data.index[-1]])
-    #
-    #     expected = pd.Series([-980162.105035777, -980162.105292394],
-    #                          index=pd.Index([self.data.index[0],
-    #                                          self.data.index[-1]]),
-    #                          name='lat_corr'
-    #                          )
-    #
-    #     fnode = self.fc.createNode('LatitudeCorrection', pos=(0, 0))
-    #     self.fc.connectTerminals(self.fc['data_in'], fnode['data_in'])
-    #     self.fc.connectTerminals(fnode['data_out'], self.fc['data_out'])
-    #
-    #     result = self.fc.process(data_in=test_input)
-    #     res = result['data_out']
-    #
-    #     np.testing.assert_array_almost_equal(expected, res, decimal=8)
-    #
-    #     # check that the indexes are equal
-    #     self.assertTrue(test_input.index.identical(res.index))
+    def test_latitude_correction(self, trajectory_data):
+        test_input = pd.DataFrame([39.9148595446, 39.9148624273])
+        test_input.columns = ['lat']
+        test_input.index = pd.Index([trajectory_data.index[0], trajectory_data.index[-1]])
+
+        expected = pd.Series([-980162.105035777, -980162.105292394],
+                             index=pd.Index([trajectory_data.index[0],
+                                             trajectory_data.index[-1]]),
+                             name='lat_corr'
+                             )
+
+        transform_graph = {'trajectory': test_input,
+                           'lat_corr': (latitude_correction, 'trajectory'),
+                           }
+        g = TransformGraph(graph=transform_graph)
+        res = g.execute()
+
+        np.testing.assert_array_almost_equal(expected, res['lat_corr'], decimal=8)
+
+        # check that the indexes are equal
+        assert test_input.index.identical(res['lat_corr'].index)
 
