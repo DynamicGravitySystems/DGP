@@ -33,9 +33,9 @@ def eotvos_correction(data_in):
     mps2mgal = 100000  # m/s/s to mgal
     dt = 0.1
 
-    lat = np.deg2rad(data_in['lat'])
-    lon = np.deg2rad(data_in['long'])
-    ht = data_in['ell_ht']
+    lat = np.deg2rad(data_in['lat'].values)
+    lon = np.deg2rad(data_in['long'].values)
+    ht = data_in['ell_ht'].values
 
     dlat = central_difference(lat, n=1, dt=dt)
     ddlat = central_difference(lat, n=2, dt=dt)

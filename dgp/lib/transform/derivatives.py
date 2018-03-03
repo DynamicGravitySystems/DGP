@@ -17,8 +17,7 @@ def central_difference(data_in, n=1, order=2, dt=0.1):
     else:
         raise NotImplementedError
 
-    # return np.pad(dy, (1, 1), 'edge')
-    return dy
+    return np.pad(dy, (1, 1), 'edge')
 
 
 def gradient(data_in, dt=0.1):
