@@ -3,10 +3,10 @@ import pytest
 from nose.tools import assert_almost_equals
 import pandas as pd
 import numpy as np
+from functools import partial
 
 from dgp.lib.transform.graph import Graph, TransformGraph, GraphError
 from dgp.lib.transform.gravity import eotvos_correction, latitude_correction, free_air_correction
-from dgp.lib.transform.operators import concat
 import dgp.lib.trajectory_ingestor as ti
 
 from tests import sample_dir
@@ -178,4 +178,25 @@ class TestCorrections:
 
         # check that the indexes are equal
         assert test_input.index.identical(res['lat_corr'].index)
+
+    def test_partial(self):
+        input_A = pd.Series(np.arange(0, 5), index=['A', 'B', 'C', 'D', 'E'])
+        input_B = pd.Series(np.arange(2, 7), index=['A', 'B', 'C', 'D', 'E'])
+        expected = pd.concat([input_A, input_B], axis=1)
+
+        concat = partial(pd.concat, join='outer', axis=1)
+
+        transform_graph = {'input_a': input_A,
+                           'input_b': input_B,
+                           'result': (concat, ['input_a', 'input_b'])
+                           }
+        g = TransformGraph(graph=transform_graph)
+        result = g.execute()
+        res = result['result']
+
+        assert res.equals(expected)
+
+        # check that the indexes are equal
+        assert input_A.index.identical(res.index)
+        assert input_B.index.identical(res.index)
 
