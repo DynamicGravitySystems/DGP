@@ -4,5 +4,6 @@ import pandas as pd
 from functools import partial
 
 
-def concat():
-    return partial(pd.concat, join='outer', axis=1)
+def named_series(name):
+    return partial(pd.Series, name=name)
+

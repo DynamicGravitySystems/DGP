@@ -7,6 +7,7 @@ from functools import partial
 
 from dgp.lib.transform.graph import Graph, TransformGraph, GraphError
 from dgp.lib.transform.gravity import eotvos_correction, latitude_correction, free_air_correction
+from dgp.lib.transform.transform_graphs import StandardGravityGraph
 import dgp.lib.trajectory_ingestor as ti
 
 from tests import sample_dir
@@ -200,3 +201,16 @@ class TestCorrections:
         assert input_A.index.identical(res.index)
         assert input_B.index.identical(res.index)
 
+    def test_standard_graph(self, trajectory_data):
+        exp_eotvos = eotvos_correction(trajectory_data)
+        exp_lat_corr = latitude_correction(trajectory_data)
+        exp_fac = free_air_correction(trajectory_data)
+        exp_total = pd.Series(sum([exp_eotvos, exp_lat_corr, exp_fac]), name='total_corr')
+
+        expected_frame = pd.concat([exp_eotvos, exp_lat_corr, exp_fac, exp_total],
+                                   axis=1,
+                                   join='outer')
+        g = StandardGravityGraph(trajectory_data)
+        res = g.execute()
+
+        assert res['new_frame'].equals(expected_frame)
