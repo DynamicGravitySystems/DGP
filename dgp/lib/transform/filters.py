@@ -13,7 +13,8 @@ def lp_filter(data_in, filter_len=100, fs=0.1):
     taps = signal.firwin(n, wn, window='blackman')
     filtered_data = signal.filtfilt(taps, 1.0, data_in, padtype='even',
                                     padlen=80)
-    return pd.Series(filtered_data, index=data_in.index)
+    name = 'blackman_' + str(filter_len)
+    return pd.Series(filtered_data, index=data_in.index, name=name)
 
 
 # TODO: Do ndarrays with both dimensions greater than 1 work?
