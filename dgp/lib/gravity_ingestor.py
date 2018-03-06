@@ -141,7 +141,7 @@ def read_at1a(path, columns=None, fill_with_nans=True, interp=False,
     # TODO: Replace interp_nans with pandas interpolate
     if interp:
         numeric = df.select_dtypes(include=[np.number])
-        numeric = numeric.apply(interp_nans)
+        numeric = numeric.interpolate(method='time')
 
         # replace columns
         for col in numeric.columns:
