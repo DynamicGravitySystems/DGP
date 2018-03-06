@@ -1,14 +1,11 @@
 # coding: utf-8
 
-from pyqtgraph.Qt import QtWidgets
-from pyqtgraph.flowchart.library.common import CtrlNode
-
 from scipy import signal
 import pandas as pd
 import numpy as np
 
 
-def lp_filter(data_in, filter_len, fs):
+def lp_filter(data_in, filter_len=100, fs=0.1):
     fc = 1 / filter_len
     nyq = fs / 2
     wn = fc / nyq
@@ -32,4 +29,4 @@ def detrend(data_in, begin, end):
         result = data_in.sub(trend, axis=0)
     else:
         result = data_in - trend
-    return {'data_out': result}
+    return result
