@@ -6,10 +6,8 @@ Library for gravity data import functions
 
 """
 
-import csv
 import numpy as np
 import pandas as pd
-import functools
 import datetime
 import struct
 import fnmatch
@@ -17,7 +15,6 @@ import os
 import re
 
 from .time_utils import convert_gps_time
-from .etc import interp_nans
 
 
 def _extract_bits(bitfield, columns=None, as_bool=False):
@@ -102,8 +99,8 @@ def read_at1a(path, columns=None, fill_with_nans=True, interp=False,
         Gravity data indexed by datetime.
     """
     columns = columns or ['gravity', 'long_accel', 'cross_accel', 'beam',
-                          'temp', 'status', 'pressure', 'Etemp', 'GPSweek',
-                          'GPSweekseconds']
+                          'temp', 'status', 'pressure', 'Etemp', 'gps_week',
+                          'gps_sow']
 
     df = pd.read_csv(path, header=None, engine='c', na_filter=False,
                      skiprows=skiprows)
@@ -123,15 +120,16 @@ def read_at1a(path, columns=None, fill_with_nans=True, interp=False,
     df.drop('status', axis=1, inplace=True)
 
     # create datetime index
-    dt_list = []
-    for (week, sow) in zip(df['GPSweek'], df['GPSweekseconds']):
-        dt_list.append(convert_gps_time(week, sow, format='datetime'))
-
-    df.index = pd.DatetimeIndex(dt_list)
+    dt = convert_gps_time(df['gps_week'], df['gps_sow'], format='datetime')
+    df.index = pd.DatetimeIndex(dt)
 
     if fill_with_nans:
-        # select rows where time is synced with the GPS NMEA
-        df = df.loc[df['gps_sync']]
+        # select rows where time is synced with GPS time
+        # TODO: Does not work. Can show true when time is not synced.
+        # df = df.loc[df['gps_sync']]
+
+        # TODO: This is not perfect either. Sometimes sync of sow lags.
+        df = df.loc[df['gps_week'] > 0]
 
         # fill gaps with NaNs
         interval = '100000U'
@@ -150,7 +148,7 @@ def read_at1a(path, columns=None, fill_with_nans=True, interp=False,
     return df
 
 
-def _parse_ZLS_file_name(filename):
+def _parse_zls_file_name(filename):
     # split by underscore
     fname = [e.split('.') for e in filename.split('_')]
 
@@ -163,7 +161,7 @@ def _parse_ZLS_file_name(filename):
     return c
 
 
-def _read_ZLS_format_file(filepath):
+def _read_zls_format_file(filepath):
     col_names = ['line_name', 'year', 'day', 'hour', 'minute', 'second',
                  'sensor', 'spring_tension', 'cross_coupling',
                  'raw_beam', 'vcc', 'al', 'ax', 've2', 'ax2', 'xacc2',
@@ -223,7 +221,7 @@ def read_zls(dirpath, begin_time=None, end_time=None, excludes=['.*']):
     excludes = r'|'.join([fnmatch.translate(x) for x in excludes]) or r'$.'
 
     # list files in directory
-    files = [_parse_ZLS_file_name(f) for f in os.listdir(dirpath)
+    files = [_parse_zls_file_name(f) for f in os.listdir(dirpath)
              if os.path.isfile(os.path.join(dirpath, f))
              if not re.match(excludes, f)]
 
@@ -253,18 +251,16 @@ def read_zls(dirpath, begin_time=None, end_time=None, excludes=['.*']):
                              .format(begin=begin_time, end=end_time))
 
     # filter file list based on begin and end times
-    files = filter(lambda x: (x >= begin_time and x <= end_time)
-                             or (begin_time >= x and
-                                 begin_time <= x + datetime.timedelta(hours=1))
-                             or (end_time - datetime.timedelta(hours=1) <= x and
-                                 end_time >= x), files)
+    files = filter(lambda x: (begin_time <= x <= end_time)
+                             or (begin_time - datetime.timedelta(hours=1) <= x <= begin_time)
+                             or (end_time - datetime.timedelta(hours=1) <= x <= end_time), files)
 
     # convert to ZLS-type file names
     files = [dt.strftime('%Y_%H.%j') for dt in files]
 
     df = pd.DataFrame()
     for f in files:
-        frame = _read_ZLS_format_file(os.path.join(dirpath, f))
+        frame = _read_zls_format_file(os.path.join(dirpath, f))
         df = pd.concat([df, frame])
 
     df.drop(df.index[df.index < begin_time], inplace=True)
