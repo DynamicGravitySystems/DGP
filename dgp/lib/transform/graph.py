@@ -18,6 +18,33 @@ class TransformGraph:
         self._results = None
         self._graph_changed = True
 
+    @classmethod
+    def run(cls, *args, item=None):
+        """
+        Use the graph as a node in another graph
+
+        Parameters
+        ----------
+        *args
+            arguments to pass to graph initializer
+
+        item: str or list of str
+            keys of the results graph to be returned
+
+        Returns
+        -------
+            Function whose output is the result of the graph according to the
+            keys specified
+        """
+        def func(*args):
+            c = cls(*args)
+            results = c.execute()
+            if item is None:
+                return results
+            else:
+                return results[item]
+        return func
+
     def _init_graph(self):
         """
         Initialize the transform graph
