@@ -132,6 +132,7 @@ def align_frames(frame1, frame2, align_to='left', interp_method='time',
 
 
 def interp_nans(y):
+    # TODO: SettingWithCopyWarning
     nans = np.isnan(y)
     x = lambda z: z.nonzero()[0]
     y[nans] = np.interp(x(nans), x(~nans), y[~nans])
