@@ -11,12 +11,13 @@ class GraphError(Exception):
 
 
 class TransformGraph:
-    def __init__(self, graph=None):
+    def __init__(self, graph=None, verbose=False):
         if graph is not None:
             self.transform_graph = graph
         self._init_graph()
         self._results = None
         self._graph_changed = True
+        self.verbose = verbose
 
     @classmethod
     def run(cls, *args, item=None):
@@ -111,6 +112,8 @@ class TransformGraph:
 
             while order:
                 k = order.pop()
+                if self.verbose:
+                    print('Processing node {k!r}'.format(k=k))
                 node = self.transform_graph[k]
                 if isinstance(node, tuple):
                     f = _tuple_to_func(node)
