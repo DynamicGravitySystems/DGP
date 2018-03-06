@@ -9,20 +9,29 @@ from .derivatives import central_difference
 
 def eotvos_correction(data_in):
     """
-        Eotvos correction
+    Eotvos correction
 
-        Parameters
-        ----------
-            data_in: DataFrame
-                trajectory frame containing latitude, longitude, and
-                height above the ellipsoid
-            dt: float
-                sample period
+    Parameters
+    ----------
+        data_in: DataFrame
+            trajectory frame containing latitude, longitude, and
+            height above the ellipsoid
+        dt: float
+            sample period
 
-        Returns
-        -------
-            Series
-                index taken from the input
+    Returns
+    -------
+        Series
+            index taken from the input
+
+    Notes
+    -----
+    Added to observed gravity when the positive direction of the sensitive axis is
+    down, otherwise, subtracted.
+
+    References
+    ---------
+    Harlan 1968, "Eotvos Corrections for Airborne Gravimetry" JGR 73,n14
     """
 
     # constants
@@ -115,33 +124,39 @@ def eotvos_correction(data_in):
     wexr = np.cross(we, r, axis=0)
     wexwexr = np.cross(we, wexr, axis=0)
 
-    # Calculate total acceleration for the aircraft
+    # total acceleration
     acc = r2dot + w2_x_rdot + wdot_x_r + wxwxr
 
+    # vertical component of aircraft acceleration
     E = (acc[2] - wexwexr[2]) * mps2mgal
     return pd.Series(E, index=data_in.index, name='eotvos')
 
 
 def latitude_correction(data_in):
     """
-       WGS84 latitude correction
+    WGS84 latitude correction
 
-       Accounts for the Earth's elliptical shape and rotation. The gravity value
-       that would be observed if Earth were a perfect, rotating ellipsoid is
-       referred to as normal gravity. Gravity increases with increasing latitude.
-       The correction is added as one moves toward the equator.
+    Accounts for the Earth's elliptical shape and rotation. The gravity value
+    that would be observed if Earth were a perfect, rotating ellipsoid is
+    referred to as normal gravity. Gravity increases with increasing latitude.
+    The correction is added as one moves toward the equator.
 
-       Parameters
-       ----------
-           data_in: DataFrame
-               trajectory frame containing latitude, longitude, and
-               height above the ellipsoid
+    Parameters
+    ----------
+       data_in: DataFrame
+           trajectory frame containing latitude, longitude, and
+           height above the ellipsoid
 
-       Returns
-       -------
-           Series
-               units are mGal
-       """
+    Returns
+    -------
+       :obj:`Series`
+           units are mGal
+
+    Notes
+    -----
+    Added to observed gravity when the positive direction of the sensitive axis is
+    down, otherwise, subtracted.
+    """
     lat = np.deg2rad(data_in['lat'].values)
     sin_lat2 = np.sin(lat) ** 2
     num = 1 + np.float(0.00193185265241) * sin_lat2
@@ -166,12 +181,17 @@ def free_air_correction(data_in):
 
     Returns
     -------
-        :class:`Series`
+        :obj:`Series`
             units are mGal
+
+    Notes
+    -----
+    Added to observed gravity when the positive direction of the sensitive axis is
+    down, otherwise, subtracted.
     """
     lat = np.deg2rad(data_in['lat'].values)
     ht = data_in['ell_ht'].values
     sin_lat2 = np.sin(lat) ** 2
-    fac = -((np.float(0.3087691) - np.float(0.0004398) * sin_lat2) *
-            ht) + np.float(7.2125e-8) * (ht ** 2)
+    fac = ((np.float(0.3087691) - np.float(0.0004398) * sin_lat2) *
+           ht) - np.float(7.2125e-8) * (ht ** 2)
     return pd.Series(fac, index=data_in.index, name='fac')
