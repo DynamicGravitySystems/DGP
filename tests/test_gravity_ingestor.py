@@ -57,7 +57,7 @@ class TestGravityIngestor(unittest.TestCase):
 
     def test_import_at1a_no_fill_nans(self):
         df = gi.read_at1a(os.path.abspath('tests/sample_gravity.csv'), fill_with_nans=False)
-        self.assertEqual(df.shape, (10, 26))
+        self.assertEqual(df.shape, (9, 26))
 
         fields = ['gravity', 'long_accel', 'cross_accel', 'beam', 'temp', 'status', 'pressure', 'Etemp', 'GPSweek', 'GPSweekseconds']
         # Test and verify an arbitrary line of data against the same line in the pandas DataFrame
