@@ -8,7 +8,7 @@ import numpy as np
 
 
 def align_frames(frame1, frame2, align_to='left', interp_method='time',
-                 interp_only=[], fill={}):
+                 interp_only=[], fill={}, item='both'):
     # TODO: Is there a more appropriate place for this function?
     # TODO: Add ability to specify interpolation method per column.
     # TODO: Ensure that dtypes are preserved unless interpolated.
@@ -128,7 +128,12 @@ def align_frames(frame1, frame2, align_to='left', interp_method='time',
     left = left.loc[begin:end]
     right = right.loc[begin:end]
 
-    return left, right
+    if item in ('left', 'l', 'L'):
+        return left
+    elif item in ('right', 'r', 'R'):
+        return right
+    elif item in ('both', 'b', 'B'):
+        return left, right
 
 
 def interp_nans(y):
