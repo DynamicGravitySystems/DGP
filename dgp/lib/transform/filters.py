@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 
 
-def lp_filter(data_in, filter_len=100, fs=0.1):
+def lp_filter(data_in, filter_len=100, fs=10):
     fc = 1 / filter_len
     nyq = fs / 2
     wn = fc / nyq

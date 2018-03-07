@@ -4,7 +4,67 @@ import numpy as np
 import pandas as pd
 from numpy import array
 
-from .derivatives import central_difference
+from .derivatives import central_difference, taylor_fir
+from ..etc import align_frames
+from ..timesync import find_time_delay, shift_frame
+
+# constants
+a = 6378137.0  # Default semi-major axis
+b = 6356752.3142  # Default semi-minor axis
+ecc = (a - b) / a  # Eccentricity
+We = 0.00007292115  # sidereal rotation rate, radians/sec
+mps2mgal = 100000  # m/s/s to mgal
+
+
+def gps_velocities(data_in, differentiator=central_difference):
+    # phi
+    lat = np.deg2rad(data_in['lat'].values)
+
+    # lambda
+    lon = np.deg2rad(data_in['long'].values)
+
+    h = data_in['ell_ht'].values
+
+    cn = a / np.sqrt(1 - (ecc * np.sin(lat))**2)
+    cm = ((1 - ecc**2) / a**2) * cn**3
+    lon_dot = differentiator(lon)
+    lat_dot = differentiator(lat)
+    ve = (cn + h) * np.cos(lat) * lon_dot
+    vn = (cm + h) * lat_dot
+    hdot = differentiator(h)
+    ve_s = pd.Series(ve, name='ve', index=data_in.index)
+    vn_s = pd.Series(vn, name='vn', index=data_in.index)
+    vu_s = pd.Series(hdot, name='vu', index=data_in.index)
+
+    return ve_s, vn_s, vu_s
+
+
+def gps_acceleration(data_in, differentiator=central_difference):
+    h = data_in['ell_ht'].values
+    hddot = differentiator(h, n=2) * mps2mgal
+
+    return pd.Series(hddot, name='gps_accel', index=data_in.index)
+
+
+def fo_eotvos(data_in, differentiator=central_difference):
+    lat = np.deg2rad(data_in['lat'].values)
+    h = data_in['ell_ht'].values
+
+    ve, vn, vu = gps_velocities(data_in, differentiator=differentiator)
+
+    term1 = vn ** 2 / a * (1 - h / a + ecc * (2 - 3 * np.sin(lat) ** 2))
+    term2 = ve ** 2 / a * (1 - h / a - ecc * np.sin(lat) ** 2) + 2 * We * ve * np.cos(lat)
+
+    return (term1 + term2) * mps2mgal
+
+
+def kinematic_accel(data_in):
+    eotvos = fo_eotvos(data_in, differentiator=taylor_fir)
+    gps_accel = gps_acceleration(data_in, differentiator=taylor_fir)
+    gps_accel = gps_accel.iloc[10:-10].copy()
+    eotvos, gps_accel = align_frames(eotvos, gps_accel)
+
+    return eotvos - gps_accel
 
 
 def eotvos_correction(data_in):
@@ -34,12 +94,6 @@ def eotvos_correction(data_in):
     Harlan 1968, "Eotvos Corrections for Airborne Gravimetry" JGR 73,n14
     """
 
-    # constants
-    a = 6378137.0  # Default semi-major axis
-    b = 6356752.3142  # Default semi-minor axis
-    ecc = (a - b) / a  # Eccentricity
-    We = 0.00007292115  # sidereal rotation rate, radians/sec
-    mps2mgal = 100000  # m/s/s to mgal
     dt = 0.1
 
     lat = np.deg2rad(data_in['lat'].values)
