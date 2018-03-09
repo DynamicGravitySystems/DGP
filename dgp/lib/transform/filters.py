@@ -5,7 +5,11 @@ import pandas as pd
 import numpy as np
 
 
-def lp_filter(data_in, filter_len=100, fs=10):
+# TODO: Add Gaussian filter
+# TODO: Add B-spline
+# TODO: Move detrend
+
+def lp_filter(data_in, filter_len=100, fs=1):
     fc = 1 / filter_len
     nyq = fs / 2
     wn = fc / nyq
@@ -13,12 +17,14 @@ def lp_filter(data_in, filter_len=100, fs=10):
     taps = signal.firwin(n, wn, window='blackman')
     filtered_data = signal.filtfilt(taps, 1.0, data_in, padtype='even',
                                     padlen=80)
-    name = 'blackman_' + str(filter_len)
+    name = 'filt_blackman_' + str(filter_len)
     return pd.Series(filtered_data, index=data_in.index, name=name)
 
 
-# TODO: Do ndarrays with both dimensions greater than 1 work?
 def detrend(data_in, begin, end):
+    # TODO: Do ndarrays with both dimensions greater than 1 work?
+
+    # TODO: Duck type this check?
     if isinstance(data_in, pd.DataFrame):
         length = len(data_in.index)
     else:

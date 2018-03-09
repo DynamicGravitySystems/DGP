@@ -44,9 +44,9 @@ class AirbornePost(TransformGraph):
     def demux(self, df, col):
         return df[col]
 
-    # TODO: gravity-gps alignment
     # TODO: What if a function takes a string argument? Use partial for now.
-    # TODO: Little tricky to debug this graphs. Breakpoints? Print statements?
+    # TODO: Little tricky to debug these graphs. Breakpoints? Print statements?
+    # TODO: Fix detrending for a section of flight
     def __init__(self, trajectory, gravity, begin_static, end_static, tie, k):
         self.begin_static = begin_static
         self.end_static = end_static
@@ -69,7 +69,7 @@ class AirbornePost(TransformGraph):
                                 'offset': self.gravity_tie - self.k_factor * self.begin_static,
                                 'abs_grav': (self.add, 'grav_dedrift', 'offset'),
                                 'corrected_grav': (self.corrected_grav, ['total_corr', 'abs_grav']),
-                                'filtered_grav': (lp_filter, 'corrected_grav'),
+                                'filtered_grav': (partial(lp_filter, fs=10), 'corrected_grav'),
                                 'new_frame': (self.concat, ['eotvos', 'lat_corr', 'fac', 'total_corr', 'abs_grav', 'filtered_grav'])
                                 }
         super().__init__()

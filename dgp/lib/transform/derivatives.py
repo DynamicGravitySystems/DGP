@@ -5,6 +5,7 @@ from scipy.signal import convolve
 
 
 def central_difference(data_in, n=1, order=2, dt=0.1):
+    """ central difference differentiator """
     if order == 2:
         # first derivative
         if n == 1:
@@ -21,11 +22,9 @@ def central_difference(data_in, n=1, order=2, dt=0.1):
     return np.pad(dy, (1, 1), 'edge')
 
 
-def gradient(data_in, dt=0.1):
-    return np.gradient(data_in, dt)
-
-
+# TODO: Add option to specify order
 def taylor_fir(data_in, n=1, dt=0.1):
+    """ 10th order Taylor series FIR differentiator """
     coeff = np.array([1 / 1260, -5 / 504, 5 / 84, -5 / 21, 5 / 6, 0, -5 / 6, 5 / 21, -5 / 84, 5 / 504, -1 / 1260])
     x = data_in
     for _ in range(1, n + 1):

@@ -9,7 +9,8 @@ class GraphError(Exception):
         self.graph = graph
         self.message = message
 
-
+# TODO: Better validation and more descriptive error messages to aid debugging
+# TODO: Looping?
 class TransformGraph:
     def __init__(self, graph=None, verbose=False):
         if graph is not None:
