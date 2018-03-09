@@ -32,14 +32,8 @@ class AirbornePost(TransformGraph):
     def total_corr(self, *args):
         return pd.Series(sum(*args), name='total_corr')
 
-    def add(self, a, b):
-        return pd.Series(a + b, name='abs_grav')
-
     def corrected_grav(self, *args):
         return pd.Series(sum(*args), name='corrected_grav')
-
-    def mult(self, a, b):
-        return a * b
 
     def demux(self, df, col):
         return df[col]
@@ -60,14 +54,7 @@ class AirbornePost(TransformGraph):
                                 'lat_corr': (latitude_correction, 'shifted_trajectory'),
                                 'fac': (free_air_correction, 'shifted_trajectory'),
                                 'total_corr': (self.total_corr, ['eotvos', 'lat_corr', 'fac']),
-                                'begin_static': self.begin_static,
-                                'end_static': self.end_static,
-                                'k': self.k_factor,
-                                'gravity_col': (partial(self.demux, col='gravity'), 'shifted_gravity'),
-                                'raw_grav': (self.mult, 'k', 'gravity_col'),
-                                'grav_dedrift': (detrend, 'raw_grav', 'begin_static', 'end_static'),
-                                'offset': self.gravity_tie - self.k_factor * self.begin_static,
-                                'abs_grav': (self.add, 'grav_dedrift', 'offset'),
+                                'abs_grav': (partial(self.demux, col='gravity'), 'shifted_gravity'),
                                 'corrected_grav': (self.corrected_grav, ['total_corr', 'abs_grav']),
                                 'filtered_grav': (partial(lp_filter, fs=10), 'corrected_grav'),
                                 'new_frame': (self.concat, ['eotvos', 'lat_corr', 'fac', 'total_corr', 'abs_grav', 'filtered_grav'])
