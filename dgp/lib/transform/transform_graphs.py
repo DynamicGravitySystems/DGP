@@ -5,7 +5,7 @@ import pandas as pd
 from .graph import TransformGraph
 from .gravity import (eotvos_correction, latitude_correction,
                       free_air_correction, kinematic_accel)
-from .filters import lp_filter, detrend
+from .filters import lp_filter
 from ..timesync import find_time_delay, shift_frame
 from ..etc import align_frames
 
@@ -41,11 +41,9 @@ class AirbornePost(TransformGraph):
     # TODO: What if a function takes a string argument? Use partial for now.
     # TODO: Little tricky to debug these graphs. Breakpoints? Print statements?
     # TODO: Fix detrending for a section of flight
-    def __init__(self, trajectory, gravity, begin_static, end_static, tie, k):
+    def __init__(self, trajectory, gravity, begin_static, end_static):
         self.begin_static = begin_static
         self.end_static = end_static
-        self.gravity_tie = tie
-        self.k_factor = k
         self.transform_graph = {'trajectory': trajectory,
                                 'gravity': gravity,
                                 'shifted_gravity': (SyncGravity.run(item='shifted_gravity'), 'trajectory', 'gravity'),
@@ -57,6 +55,7 @@ class AirbornePost(TransformGraph):
                                 'abs_grav': (partial(self.demux, col='gravity'), 'shifted_gravity'),
                                 'corrected_grav': (self.corrected_grav, ['total_corr', 'abs_grav']),
                                 'filtered_grav': (partial(lp_filter, fs=10), 'corrected_grav'),
-                                'new_frame': (self.concat, ['eotvos', 'lat_corr', 'fac', 'total_corr', 'abs_grav', 'filtered_grav'])
+                                'new_frame': (self.concat, ['eotvos', 'lat_corr', 'fac', 'total_corr', 'abs_grav',
+                                                            'corrected_grav', 'filtered_grav'])
                                 }
         super().__init__()
