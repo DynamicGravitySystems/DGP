@@ -27,7 +27,7 @@ class SyncGravity(TransformGraph):
 
 class AirbornePost(TransformGraph):
 
-    concat = partial(pd.concat, axis=1, join='outer')
+    # concat = partial(pd.concat, axis=1, join='outer')
 
     def total_corr(self, *args):
         return pd.Series(sum(*args), name='total_corr')
@@ -46,16 +46,15 @@ class AirbornePost(TransformGraph):
         self.end_static = end_static
         self.transform_graph = {'trajectory': trajectory,
                                 'gravity': gravity,
-                                'shifted_gravity': (SyncGravity.run(item='shifted_gravity'), 'trajectory', 'gravity'),
-                                'shifted_trajectory': (partial(align_frames, item='r'), 'shifted_gravity', 'trajectory'),
+                                'synced_gravity': (SyncGravity.run(item='shifted_gravity'), 'trajectory', 'gravity'),
+                                'shifted_trajectory': (partial(align_frames, item='r'), 'synced_gravity', 'trajectory'),
+                                'shifted_gravity': (partial(align_frames, item='l'), 'synced_gravity', 'trajectory'),
                                 'eotvos': (eotvos_correction, 'shifted_trajectory'),
                                 'lat_corr': (latitude_correction, 'shifted_trajectory'),
                                 'fac': (free_air_correction, 'shifted_trajectory'),
                                 'total_corr': (self.total_corr, ['eotvos', 'lat_corr', 'fac']),
                                 'abs_grav': (partial(self.demux, col='gravity'), 'shifted_gravity'),
                                 'corrected_grav': (self.corrected_grav, ['total_corr', 'abs_grav']),
-                                'filtered_grav': (partial(lp_filter, fs=10), 'corrected_grav'),
-                                'new_frame': (self.concat, ['eotvos', 'lat_corr', 'fac', 'total_corr', 'abs_grav',
-                                                            'corrected_grav', 'filtered_grav'])
+                                'filtered_grav': (partial(lp_filter, fs=10), 'corrected_grav')
                                 }
         super().__init__()
