@@ -16,7 +16,7 @@ We = 0.00007292115  # sidereal rotation rate, radians/sec
 mps2mgal = 100000  # m/s/s to mgal
 
 
-def gps_velocities(data_in, differentiator=central_difference):
+def gps_velocities(data_in, output='series', differentiator=central_difference):
     # phi
     lat = np.deg2rad(data_in['lat'].values)
 
@@ -32,11 +32,14 @@ def gps_velocities(data_in, differentiator=central_difference):
     ve = (cn + h) * np.cos(lat) * lon_dot
     vn = (cm + h) * lat_dot
     hdot = differentiator(h)
-    ve_s = pd.Series(ve, name='ve', index=data_in.index)
-    vn_s = pd.Series(vn, name='vn', index=data_in.index)
-    vu_s = pd.Series(hdot, name='vu', index=data_in.index)
 
-    return ve_s, vn_s, vu_s
+    if output in ('series', 'Series'):
+        ve_s = pd.Series(ve, name='ve', index=data_in.index)
+        vn_s = pd.Series(vn, name='vn', index=data_in.index)
+        vu_s = pd.Series(hdot, name='vu', index=data_in.index)
+        return ve_s, vn_s, vu_s
+    elif output in ('array', 'Array'):
+        return ve, vn, hdot
 
 
 def gps_acceleration(data_in, differentiator=central_difference):
@@ -61,13 +64,13 @@ def fo_eotvos(data_in, differentiator=central_difference):
 def kinematic_accel(data_in):
     eotvos = fo_eotvos(data_in, differentiator=taylor_fir)
     gps_accel = gps_acceleration(data_in, differentiator=taylor_fir)
-    gps_accel = gps_accel.iloc[10:-10].copy()
+    # gps_accel = gps_accel.iloc[10:-10].copy()
     eotvos, gps_accel = align_frames(eotvos, gps_accel)
 
     return eotvos - gps_accel
 
 
-def eotvos_correction(data_in):
+def eotvos_correction(data_in, differentiator=central_difference):
     """
     Eotvos correction
 
@@ -100,12 +103,12 @@ def eotvos_correction(data_in):
     lon = np.deg2rad(data_in['long'].values)
     ht = data_in['ell_ht'].values
 
-    dlat = central_difference(lat, n=1, dt=dt)
-    ddlat = central_difference(lat, n=2, dt=dt)
-    dlon = central_difference(lon, n=1, dt=dt)
-    ddlon = central_difference(lon, n=2, dt=dt)
-    dht = central_difference(ht, n=1, dt=dt)
-    ddht = central_difference(ht, n=2, dt=dt)
+    dlat = differentiator(lat, n=1, dt=dt)
+    ddlat = differentiator(lat, n=2, dt=dt)
+    dlon = differentiator(lon, n=1, dt=dt)
+    ddlon = differentiator(lon, n=2, dt=dt)
+    dht = differentiator(ht, n=1, dt=dt)
+    ddht = differentiator(ht, n=2, dt=dt)
 
     sin_lat = np.sin(lat)
     cos_lat = np.cos(lat)
@@ -113,10 +116,10 @@ def eotvos_correction(data_in):
     cos_2lat = np.cos(2.0 * lat)
 
     # Calculate the r' and its derivatives
-    r_prime = a * (1.0 - ecc * sin_lat * sin_lat)
+    r_prime = a * (1.0 - ecc * sin_lat ** 2)
     dr_prime = -a * dlat * ecc * sin_2lat
-    ddr_prime = (-a * ddlat * ecc * sin_2lat - 2.0 * a *
-                 dlat * dlat * ecc * cos_2lat)
+    ddr_prime = (-a * ddlat * ecc * sin_2lat - 2.0 * a * (dlat ** 2) *
+                 ecc * cos_2lat)
 
     # Calculate the deviation from the normal and its derivatives
     D = np.arctan(ecc * sin_2lat)
@@ -178,12 +181,15 @@ def eotvos_correction(data_in):
     wexr = np.cross(we, r, axis=0)
     wexwexr = np.cross(we, wexr, axis=0)
 
-    # total acceleration
-    acc = r2dot + w2_x_rdot + wdot_x_r + wxwxr
+    kin_accel = r2dot * mps2mgal
+    eotvos = (w2_x_rdot + wdot_x_r + wxwxr - wexwexr) * mps2mgal
 
-    # vertical component of aircraft acceleration
-    E = (acc[2] - wexwexr[2]) * mps2mgal
-    return pd.Series(E, index=data_in.index, name='eotvos')
+    # acc = r2dot + w2_x_rdot + wdot_x_r + wxwxr
+
+    eotvos = pd.Series(eotvos[2], index=data_in.index, name='eotvos')
+    kin_accel = pd.Series(kin_accel[2], index=data_in.index, name='kin_accel')
+
+    return pd.concat([eotvos, kin_accel], axis=1, join='outer')
 
 
 def latitude_correction(data_in):
