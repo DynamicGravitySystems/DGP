@@ -1,3 +1,7 @@
+./alabaster==0.7.10
+Babel==2.5.0
+certifi==2017.7.27.1
+chardet==3.0.4
 coverage==4.4.1
 matplotlib==2.0.2
 numpy==1.13.1
@@ -9,5 +13,8 @@ sip==4.19.3
 six==1.10.0
 tables==3.4.2
 pyqtgraph==0.10.0
-
 pytest>=3.3.2
+urllib3==1.22
+cartopy==0.15.1
+shapely==1.5.17
+geos==3.5.1
