@@ -1,4 +1,4 @@
-# coding: utf-8
+# -*- coding: utf-8 -*-
 
 import logging
 
@@ -72,10 +72,8 @@ class PlotTab(BaseTab):
     def _toggle_selection(self, state: bool):
         self.plot.selection_mode = state
         if state:
-            # self._toggle_mode.setText("Exit Line Selection Mode")
             self._mode_label.setText("<h2><b>Line Selection Active</b></h2>")
         else:
-            # self._toggle_mode.setText("Enter Line Selection Mode")
             self._mode_label.setText("")
 
     def set_defaults(self, channels):

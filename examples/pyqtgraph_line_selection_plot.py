@@ -10,14 +10,10 @@ import PyQt5.QtWidgets as QtWidgets
 import PyQt5.Qt as Qt
 import numpy as np
 from pandas import Series, DatetimeIndex
-from matplotlib.axes import Axes
-from matplotlib.patches import Rectangle
-from matplotlib.dates import date2num
 
 os.chdir('..')
 import dgp.lib.project as project
 from dgp.gui.plotting.plotters import PqtLineSelectPlot as LineSelectPlot
-from pyqtgraph.graphicsItems.LinearRegionItem import LinearRegionItem
 
 
 class MockDataChannel:
@@ -42,14 +38,6 @@ class PlotExample(QtWidgets.QMainWindow):
 
         self._plot = LineSelectPlot(flight=self._flight, rows=3)
         self._plot.line_changed.connect(lambda upd: print(upd))
-        # self.plot.figure.canvas.mpl_connect('pick_event', lambda x: print(
-        #     "Pick event handled"))
-        # self.plot.mgr = StackedAxesManager(self.plot.figure, rows=2)
-        # self._toolbar = NavToolbar(self.plot, parent=self)
-        # self._toolbar.actions()[0] = QtWidgets.QAction("Reset View")
-        # self._toolbar.actions()[0].triggered.connect(lambda x: print(
-        #     "Action 0 triggered"))
-
         self.setCentralWidget(self._plot.widget)
 
         self.show()
@@ -63,12 +51,6 @@ class PlotExample(QtWidgets.QMainWindow):
         x0, x1 = p0.get_xlim()
         xrng = x1 - x0
         tenpct = xrng * .1
-
-        # lri = LinearRegionItem()
-        # lri.sigRegionChanged.connect(lambda rng: print("LRI Range changed to: ",
-        #                                             rng.getRegion()))
-        # p0.addItem(lri)
-        # lri.setRegion([x0, x0+tenpct])
 
 
 def excepthook(type_, value, traceback_):

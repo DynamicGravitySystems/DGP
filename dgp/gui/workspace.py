@@ -1,5 +1,4 @@
-# coding: utf-8
-
+# -*- coding: utf-8 -*-
 
 import logging
 
@@ -19,8 +18,6 @@ from dgp.lib.project import Flight
 class FlightTab(QWidget):
     """Top Level Tab created for each Flight object open in the workspace"""
 
-    contextChanged = pyqtSignal(models.BaseTreeModel)  # type: pyqtBoundSignal
-
     def __init__(self, flight: Flight, parent=None, flags=0, **kwargs):
         super().__init__(parent=parent, flags=Qt.Widget)
         self.log = logging.getLogger(__name__)
@@ -30,7 +27,6 @@ class FlightTab(QWidget):
         # _workspace is the inner QTabWidget containing the WorkspaceWidgets
         self._workspace = QTabWidget()
         self._workspace.setTabPosition(QTabWidget.West)
-        self._workspace.currentChanged.connect(self._on_changed_context)
         self._layout.addWidget(self._workspace)
 
         # Define Sub-Tabs within Flight space e.g. Plot, Transform, Maps
@@ -43,33 +39,19 @@ class FlightTab(QWidget):
         self._line_proc_tab = LineProcessTab("Line Processing", flight)
         self._workspace.addTab(self._line_proc_tab, "Line Processing")
 
-        # self._map_tab = WorkspaceWidget("Map")
-        # self._workspace.addTab(self._map_tab, "Map")
-
-        self._context_models = {}
-
         self._workspace.setCurrentIndex(0)
         self._plot_tab.update()
 
     def subtab_widget(self):
         return self._workspace.currentWidget().widget()
 
-    def _on_changed_context(self, index: int):
-        self.log.debug("Flight {} sub-tab changed to index: {}".format(
-            self.flight.name, index))
-        try:
-            model = self._workspace.currentWidget().model
-            self.contextChanged.emit(model)
-        except AttributeError:
-            pass
-
     def new_data(self, dsrc: types.DataSource):
         for tab in [self._plot_tab, self._transform_tab]:
             tab.data_modified('add', dsrc)
 
     def data_deleted(self, dsrc):
+        self.log.debug("Notifying tabs of data-source deletion.")
         for tab in [self._plot_tab]:
-            print("Calling remove for each tab")
             tab.data_modified('remove', dsrc)
 
     @property
@@ -79,15 +61,6 @@ class FlightTab(QWidget):
     @property
     def plot(self):
         return self._plot
-
-    @property
-    def context_model(self):
-        """Return the QAbstractModel type for the given context i.e. current
-        sub-tab of this flight. This enables different sub-tabs of a this
-        Flight Tab to specify a tree view model to be displayed as the tabs
-        are switched."""
-        current_tab = self._workspace.currentWidget()  # type: WorkspaceWidget
-        return current_tab.model
 
 
 class _WorkspaceTabBar(QtWidgets.QTabBar):

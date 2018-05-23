@@ -469,7 +469,6 @@ class PatchManager:
                 group.set_edge(edge, 'red', select=False)
                 break
         else:
-            # group.set_edge('', 'black', select=False)
             self.parent.setCursor(QtCore.Qt.PointingHandCursor)
 
         for group in self.patchgroups:

@@ -32,7 +32,6 @@ class ProjectTreeView(QTreeView):
         self.setHeaderHidden(True)
         self.setObjectName('project_tree')
         self.setContextMenuPolicy(QtCore.Qt.DefaultContextMenu)
-        # self._init_model()
 
     def set_project(self, project):
         self._project = project
@@ -86,6 +85,9 @@ class ProjectTreeView(QTreeView):
     def _remove_data_action(self, item: types.BaseTreeItem):
         if not isinstance(item, types.DataSource):
             return
+        self.log.warning("Remove data not yet implemented (bugs to fix)")
+        return
+
         raise NotImplementedError("Remove data not yet implemented.")
         # Confirmation Dialog
         confirm = QtWidgets.QMessageBox(parent=self.parent())
@@ -95,11 +97,9 @@ class ProjectTreeView(QTreeView):
         confirm.setWindowTitle("Confirm Delete")
         res = confirm.exec_()
         if res:
-            print("Emitting item_removed signal")
             self.item_removed.emit(item)
-            print("removing item from its flight")
             try:
                 item.flight.remove_data(item)
             except:
-                print("Exception occured removing item from flight")
+                self.log.exception("Exception occured removing item from flight")
 

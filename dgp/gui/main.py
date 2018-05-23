@@ -11,7 +11,6 @@ from PyQt5.QtGui import QColor
 from PyQt5.QtCore import pyqtSignal, pyqtBoundSignal
 from PyQt5.QtWidgets import QMainWindow, QProgressDialog, QFileDialog
 
-
 import dgp.lib.project as prj
 import dgp.lib.types as types
 import dgp.lib.enums as enums
@@ -94,8 +93,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self._default_status_timeout = 5000  # Status Msg timeout in milli-sec
 
         # Issue #50 Flight Tabs
+        # flight_tabs is a custom Qt Widget (dgp.gui.workspace) promoted within the .ui file
         self._flight_tabs = self.flight_tabs  # type: QtWidgets.QTabWidget
-        # self._flight_tabs = CustomTabWidget()
         self._open_tabs = {}  # Track opened tabs by {uid: tab_widget, ...}
 
         # Initialize Project Tree Display
@@ -140,7 +139,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.action_file_save.triggered.connect(self.save_project)
 
         # Project Menu Actions #
-        # self.action_import_data.triggered.connect(self.import_data_dialog)
         self.action_import_gps.triggered.connect(
             lambda: self.import_data_dialog(enums.DataTypes.TRAJECTORY))
         self.action_import_grav.triggered.connect(
@@ -153,14 +151,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         # Project Control Buttons #
         self.prj_add_flight.clicked.connect(self.add_flight_dialog)
-        # self.prj_import_data.clicked.connect(self.import_data_dialog)
         self.prj_import_gps.clicked.connect(
             lambda: self.import_data_dialog(enums.DataTypes.TRAJECTORY))
         self.prj_import_grav.clicked.connect(
             lambda: self.import_data_dialog(enums.DataTypes.GRAVITY))
 
         # Tab Browser Actions #
-        self._flight_tabs.currentChanged.connect(self._flight_tab_changed)
         self._flight_tabs.tabCloseRequested.connect(self._tab_closed)
 
         # Console Window Actions #
@@ -221,7 +217,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         self.log.info("Launching tab for flight: UID<{}>".format(flight.uid))
         new_tab = FlightTab(flight)
-        new_tab.contextChanged.connect(self._update_context_tree)
         self._open_tabs[flight.uid] = new_tab
         t_idx = self._flight_tabs.addTab(new_tab, flight.name)
         self._flight_tabs.setCurrentIndex(t_idx)
@@ -229,47 +224,23 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def _tab_closed(self, index: int):
         # TODO: Should we delete the tab, or pop it off the stack to a cache?
         self.log.warning("Tab close requested for tab: {}".format(index))
-        flight_id = self._flight_tabs.widget(index).flight.uid
         self._flight_tabs.removeTab(index)
-        tab = self._open_tabs.pop(flight_id)
-
-    def _flight_tab_changed(self, index: int):
-        self.log.info("Flight Tab changed to index: {}".format(index))
-        if index == -1:  # If no tabs are displayed
-            # self._context_tree.setModel(None)
-            return
-        tab = self._flight_tabs.widget(index)  # type: FlightTab
-        if tab.subtab_widget():
-            print("Active flight subtab has a widget")
-        # self._context_tree.setModel(tab.context_model)
-        # self._context_tree.expandAll()
-
-    def _update_context_tree(self, model):
-        self.log.debug("Tab subcontext changed. Changing Tree Model")
-        # self._context_tree.setModel(model)
-        # self._context_tree.expandAll()
 
     def _project_item_removed(self, item: types.BaseTreeItem):
-        print("Got item: ", type(item), " in _prj_item_removed")
         if isinstance(item, types.DataSource):
             flt = item.flight
-            print("Dsource flt: ", flt)
             # Error here, flt.uid is not in open_tabs when it should be.
             if not flt.uid not in self._open_tabs:
-                print("Flt not in open tabs")
                 return
             tab = self._open_tabs.get(flt.uid, None)  # type: FlightTab
             if tab is None:
-                print("tab not open")
                 return
             try:
-                print("Calling tab.data_deleted")
                 tab.data_deleted(item)
             except:
-                print("Exception of some sort encountered deleting item")
+                self.log.exception("Exception of some sort encountered deleting item")
             else:
-                print("Data deletion sucessful?")
-
+                self.log.debug("Data deletion sucessful?")
         else:
             return
 
@@ -407,7 +378,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         Launch a dialog window for user to specify path and parameters to
         load a file of dtype.
         Params gathered by dialog will be passed to :py:meth: self.load_file
-        which constrcuts the loading thread and performs the import.
+        which constructs the loading thread and performs the import.
 
         Parameters
         ----------
@@ -463,6 +434,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.log.info("Adding flight {}".format(flight.name))
             self.project.add_flight(flight)
 
+            # TODO: Need to re-implement this for new data import method
+            # OR - remove the option to add data during flight creation
             # if dialog.gravity:
             #     self.import_data(dialog.gravity, 'gravity', flight)
             # if dialog.gps:

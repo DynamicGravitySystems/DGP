@@ -1,4 +1,4 @@
-# coding: utf-8
+# -*- coding: utf-8 -*-
 
 import os
 import csv
@@ -414,7 +414,6 @@ class AdvancedImportDialog(BaseDialog, advanced_data_import.Ui_AdvancedImportDat
             self.line_path.setText('None')
             return
 
-        print("Raw path value: ", value)
         self._path = pathlib.Path(value)
         self.line_path.setText(str(self._path.resolve()))
         if not self._path.exists():
@@ -499,6 +498,9 @@ class AdvancedImportDialog(BaseDialog, advanced_data_import.Ui_AdvancedImportDat
         self.field_col_count.setText(str(col_count))
 
         self._sample = sample
+
+        # TODO: Determine if this is useful: takes a sample of first <_preview_limit> lines, and the last line
+        # in the file to display as a preview to the user when importing.
 
         # count = 0
         # sbuf = io.StringIO()
