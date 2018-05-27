@@ -422,6 +422,34 @@ class ChannelListModel(BaseTreeModel):
         self.channels = {}
         self.add_channels(*channels)
 
+    def move_channel(self, uid: str, dest_row: int):
+        """Used to programatically move a channel by uid to the header at
+        index: dest_row"""
+        channel = self.channels.get(uid, None)
+        if channel is None:
+            return False
+
+        src_index = self.index(channel.parent.row(), 0)
+        self.beginRemoveRows(src_index, channel.row(), channel.row())
+        channel.orphan()
+        self.endRemoveRows()
+
+        if dest_row == -1:
+            dest = self._plots[0]
+        else:
+            dest = self._plots.get(dest_row, self._default)
+
+        dest_idx = self.index(dest.row(), col=1)
+
+        # Add channel to new parent/header
+        self.beginInsertRows(dest_idx, dest.row(), dest.row())
+        dest.append_child(channel)
+        self.endInsertRows()
+
+        self.channelChanged.emit(dest.index, channel)
+        self.update()
+        return True
+
     def add_channels(self, *channels):
         """Build the model representation"""
         for dc in channels:  # type: DataChannel
@@ -430,7 +458,6 @@ class ChannelListModel(BaseTreeModel):
         self.update()
 
     def remove_source(self, dsrc):
-        print("Remove source called in CLM")
         for channel in self.channels:  # type: DataChannel
             _log.debug("Orphaning and removing channel: {name}/{uid}".format(
                 name=channel.label, uid=channel.uid))
@@ -555,13 +582,10 @@ class ChannelListModel(BaseTreeModel):
         self.endRemoveRows()
 
         if row == -1:
-            n_row = 0
-        else:
-            n_row = row
+            row = 0
         # Add channel to new parent/header
-        self.beginInsertRows(parent, n_row, n_row)
-        # destination.append_child(dc)
-        destination.insert_child(dc, n_row)
+        self.beginInsertRows(parent, row, row)
+        destination.insert_child(dc, row)
         self.endInsertRows()
 
         self.channelChanged.emit(destination.index, dc)

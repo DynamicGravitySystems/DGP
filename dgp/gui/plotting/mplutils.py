@@ -3,10 +3,11 @@
 # PROTOTYPE for new Axes Manager class
 
 import logging
-from collections import namedtuple
 from itertools import cycle, count, chain
-from typing import Union, Tuple
+from typing import Union, Tuple, Dict, List
 from datetime import datetime, timedelta
+
+import PyQt5.QtCore as QtCore
 
 from pandas import Series
 from matplotlib.figure import Figure
@@ -16,12 +17,14 @@ from matplotlib.ticker import AutoLocator, ScalarFormatter, Formatter
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch, Rectangle
 from matplotlib.gridspec import GridSpec
+from matplotlib.backend_bases import MouseEvent, PickEvent
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 from dgp.lib.etc import gen_uuid
 
+__all__ = ['StackedAxesManager', 'PatchManager', 'RectanglePatchGroup']
 _log = logging.getLogger(__name__)
-EDGE_PROX = 0.005
+EDGE_PROX = 0.002
 
 """
 Notes/Thoughts WIP:
@@ -52,6 +55,11 @@ def _pad(xy0: float, xy1: float, pct=0.05):
     return xy0 - pad, xy1 + pad
 
 
+# TODO: This is not general enough
+# Plan to create a StackedMPLWidget and StackedPGWidget which will contain
+# Matplotlib subplot-Axes or pyqtgraph PlotItems.
+# The xWidget will provide the Qt Widget to be added to the GUI, and provide
+# methods for interacting with plots on specific rows.
 class StackedAxesManager:
     """
     StackedAxesManager is used to generate and manage a subplots on a
@@ -99,7 +107,7 @@ class StackedAxesManager:
     """
     def __init__(self, figure, rows=1, xformatter=None):
         self.figure = figure
-        self.axes = {}
+        self.axes = {}  # type: Dict[int: (Axes, Axes)]
         self._axes_color = {}
         self._inset_axes = {}
 
@@ -144,12 +152,14 @@ class StackedAxesManager:
         """Return number of primary Axes managed by this Class"""
         return len(self.axes)
 
-    def __contains__(self, uid):
-        """Check if given UID refers to an active Line2D Class"""
-        return uid in self._lines
+    def __contains__(self, axes):
+        flat = chain(*self.axes.values())
+        return axes in flat
 
-    def __getitem__(self, index):
+    def __getitem__(self, index) -> Tuple[Axes, Axes]:
         """Return (Axes, Twin) pair at the given row index."""
+        if index not in self.axes:
+            raise IndexError
         return self.axes[index]
 
     # Experimental
@@ -338,7 +348,7 @@ class StackedAxesManager:
         return self.axes[idx].get_ylim()
 
     # TODO: Resample logic
-    def resample(self, step):
+    def subsample(self, step):
         """Resample all lines in all Axes by slicing with step."""
 
         pass
@@ -380,6 +390,94 @@ class StackedAxesManager:
         self.set_xlim(min_x0, max_x1)
 
 
+class PatchManager:
+    def __init__(self, parent=None):
+        self.patchgroups = []  # type: List[RectanglePatchGroup]
+        self._active = None
+        self._x0 = None  # X location when active group was selected
+        self.parent = parent
+
+    @property
+    def active(self) -> Union[None, 'RectanglePatchGroup']:
+        return self._active
+
+    @property
+    def groups(self):
+        """Return a sorted list of patchgroups by patch x location."""
+        return sorted(self.patchgroups, key=lambda pg: pg.x)
+
+    def valid_click(self, xdata, proximity=0.05):
+        """Return True if xdata is a valid location to place a new patch
+        group, False if it is too close to an existing patch."""
+        pass
+
+    def add_group(self, group: 'RectanglePatchGroup'):
+        self.patchgroups.append(group)
+
+    def select(self, xdata, inner=True) -> bool:
+        self.deselect()
+        for pg in self.groups:
+            if xdata in pg:
+                pg.animate(xdata)
+                self._active = pg
+                self._x0 = xdata
+                break
+        else:
+            self._x0 = None
+
+        return self._active is not None
+
+    def deselect(self) -> None:
+        if self._active is not None:
+            self._active.unanimate()
+        self._active = None
+
+    def rescale_patches(self):
+        for group in self.patchgroups:
+            group.fit_height()
+
+    def onmotion(self, event: MouseEvent) -> None:
+        if event.xdata is None:
+            return
+        if self.active is None:
+            self.highlight_edge(event.xdata)
+            event.canvas.draw()
+        else:
+            dx = event.xdata - self._x0
+            self.active.shift_x(dx)
+
+    def highlight_edge(self, xdata: float) -> None:
+        """
+        Called on motion event if a patch isn't selected. Highlight the edge
+        of a patch if it is under the mouse location.
+        Return all other edges to black
+
+        Parameters
+        ----------
+        xdata : float
+            Mouse x-location in plot data coordinates
+
+        """
+        edge_grp = None
+        self.parent.setCursor(QtCore.Qt.ArrowCursor)
+        for group in self.groups:
+            edge = group.get_edge(xdata, inner=False)
+            if edge in ('left', 'right'):
+
+                edge_grp = group
+                self.parent.setCursor(QtCore.Qt.SizeHorCursor)
+                group.set_edge(edge, 'red', select=False)
+                break
+        else:
+            self.parent.setCursor(QtCore.Qt.PointingHandCursor)
+
+        for group in self.patchgroups:
+            if group is edge_grp:
+                continue
+            else:
+                group.set_edge('', 'black', select=False)
+
+
 class RectanglePatchGroup:
     """
     Group related matplotlib Rectangle Patches which share an x axis on
@@ -398,7 +496,7 @@ class RectanglePatchGroup:
     def __init__(self, *patches, label: str='', uid=None):
         self.uid = uid or gen_uuid('ptc')
         self.label = label
-        self.modified = False
+        self._modified = False
         self.animated = False
 
         self._patches = {i: patch for i, patch in enumerate(patches)}
@@ -411,11 +509,14 @@ class RectanglePatchGroup:
         self._width = 0
         self._stretching = None
 
+        self.fit_height()
+
+    def __contains__(self, x):
+        return self.x <= x <= self.x + self.width
+
     @property
-    def x(self):
-        if self._p0 is None:
-            return None
-        return self._p0.get_x()
+    def modified(self):
+        return self._modified
 
     @property
     def stretching(self):
@@ -426,6 +527,70 @@ class RectanglePatchGroup:
         """Return the width of the patches in this group (all patches have
         same width)"""
         return self._p0.get_width()
+
+    @property
+    def x(self):
+        if self._p0 is None:
+            return None
+        return self._p0.get_x()
+
+    def animate(self, xdata=None) -> None:
+        """
+        Animate all artists contained in this PatchGroup, and record the x
+        location of the group.
+        Matplotlibs Artist.set_animated serves to remove the artists from the
+        canvas bbox, so that we can copy a rasterized bbox of the rest of the
+        canvas and then blit it back as we move or modify the animated artists.
+        This means that a complete redraw only has to be done for the
+        selected artists, not the entire canvas.
+
+        """
+        _log.debug("Animating patches")
+        if self._p0 is None:
+            raise AttributeError("No patches exist")
+        self._x0 = self._p0.get_x()
+        self._width = self._p0.get_width()
+        edge = self.get_edge(xdata, inner=False)
+        self.set_edge(edge, color='red', select=True)
+
+        for i, patch in self._patches.items():  # type: int, Rectangle
+            patch.set_animated(True)
+            try:
+                self._labels[i].set_animated(True)
+            except KeyError:
+                pass
+            canvas = patch.figure.canvas
+            # Need to draw the canvas once after animating to remove the
+            # animated patch from the bbox - but this introduces significant
+            # lag between the mouse click and the beginning of the animation.
+            # canvas.draw()
+            bg = canvas.copy_from_bbox(patch.axes.bbox)
+            self._bgs[i] = bg
+            canvas.restore_region(bg)
+            patch.axes.draw_artist(patch)
+            canvas.blit(patch.axes.bbox)
+
+        self.animated = True
+        return
+
+    def unanimate(self) -> None:
+        if not self.animated:
+            return
+        for patch in self._patches.values():
+            patch.set_animated(False)
+        for label in self._labels.values():
+            label.set_animated(False)
+
+        self._bgs = {}
+        self._stretching = None
+        self.animated = False
+        self._modified = False
+
+    # def add_patch(self, plot_index: int, patch: Rectangle):
+    #     if not len(self._patches):
+    #         Record attributes of first added patch for reference
+            # self._p0 = patch
+        # self._patches[plot_index] = patch
 
     def hide(self):
         for item in chain(self._patches.values(), self._labels.values()):
@@ -443,11 +608,6 @@ class RectanglePatchGroup:
         width = self._p0.get_width()
         return x0 - prox <= xdata <= x0 + width + prox
 
-    def add_patch(self, plot_index: int, patch: Rectangle):
-        if not len(self._patches):
-            # Record attributes of first added patch for reference
-            self._p0 = patch
-        self._patches[plot_index] = patch
 
     def remove(self):
         """Delete this patch group and associated labels from the axes's"""
@@ -493,58 +653,6 @@ class RectanglePatchGroup:
             if patch.get_edgecolor() != color:
                 patch.set_edgecolor(color)
                 patch.axes.draw_artist(patch)
-            else:
-                break
-
-    def animate(self) -> None:
-        """
-        Animate all artists contained in this PatchGroup, and record the x
-        location of the group.
-        Matplotlibs Artist.set_animated serves to remove the artists from the
-        canvas bbox, so that we can copy a rasterized bbox of the rest of the
-        canvas and then blit it back as we move or modify the animated artists.
-        This means that a complete redraw only has to be done for the
-        selected artists, not the entire canvas.
-
-        """
-        _log.debug("Animating patches")
-        if self._p0 is None:
-            raise AttributeError("No patches exist")
-        self._x0 = self._p0.get_x()
-        self._width = self._p0.get_width()
-
-        for i, patch in self._patches.items():  # type: int, Rectangle
-            patch.set_animated(True)
-            try:
-                self._labels[i].set_animated(True)
-            except KeyError:
-                pass
-            canvas = patch.figure.canvas
-            # Need to draw the canvas once after animating to remove the
-            # animated patch from the bbox - but this introduces significant
-            # lag between the mouse click and the beginning of the animation.
-            # canvas.draw()
-            bg = canvas.copy_from_bbox(patch.axes.bbox)
-            self._bgs[i] = bg
-            canvas.restore_region(bg)
-            patch.axes.draw_artist(patch)
-            canvas.blit(patch.axes.bbox)
-
-        self.animated = True
-        return
-
-    def unanimate(self) -> None:
-        if not self.animated:
-            return
-        for patch in self._patches.values():
-            patch.set_animated(False)
-        for label in self._labels.values():
-            label.set_animated(False)
-
-        self._bgs = {}
-        self._stretching = False
-        self.animated = False
-        return
 
     def set_label(self, label: str, index=None) -> None:
         """
@@ -583,7 +691,17 @@ class RectanglePatchGroup:
                                              va='center',
                                              annotation_clip=False)
             self._labels[i] = annotation
-        self.modified = True
+        self._modified = True
+
+    def fit_height(self) -> None:
+        """Adjust Height based on axes limits"""
+        for i, patch in self._patches.items():
+            ylims = patch.axes.get_ylim()
+            height = abs(ylims[1]) + abs(ylims[0])
+            patch.set_y(ylims[0])
+            patch.set_height(height)
+            patch.axes.draw_artist(patch)
+            self._move_label(i, *self._patch_center(patch))
 
     def shift_x(self, dx) -> None:
         """
@@ -597,7 +715,7 @@ class RectanglePatchGroup:
             group
 
         """
-        if self._stretching is not None:
+        if self._stretching in ('left', 'right'):
             return self._stretch(dx)
         for i in self._patches:
             patch = self._patches[i]  # type: Rectangle
@@ -612,17 +730,7 @@ class RectanglePatchGroup:
             self._move_label(i, cx, cy)
 
             canvas.blit(patch.axes.bbox)
-            self.modified = True
-
-    def fit_height(self) -> None:
-        """Adjust Height based on axes limits"""
-        for i, patch in self._patches.items():
-            ylims = patch.axes.get_ylim()
-            height = abs(ylims[1]) + abs(ylims[0])
-            patch.set_y(ylims[0])
-            patch.set_height(height)
-            patch.axes.draw_artist(patch)
-            self._move_label(i, *self._patch_center(patch))
+            self._modified = True
 
     def _stretch(self, dx) -> None:
         if self._p0 is None:
@@ -645,10 +753,9 @@ class RectanglePatchGroup:
             canvas.restore_region(self._bgs[i])
             axes.draw_artist(patch)
             self._move_label(i, cx, cy)
-
             canvas.blit(axes.bbox)
 
-        self.modified = True
+        self._modified = True
 
     def _move_label(self, index, x, y) -> None:
         """
@@ -699,3 +806,5 @@ class RectanglePatchGroup:
         ylims = patch.axes.get_ylim()
         cy = ylims[0] + abs(ylims[1] - ylims[0]) * 0.5
         return cx, cy
+
+

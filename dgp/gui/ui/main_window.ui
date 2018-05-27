@@ -41,7 +41,7 @@
      <number>0</number>
     </property>
     <item>
-     <widget class="TabWorkspace" name="tab_workspace"/>
+     <widget class="MainWorkspace" name="flight_tabs"/>
     </item>
    </layout>
   </widget>
@@ -113,8 +113,8 @@
    </property>
    <property name="minimumSize">
     <size>
-     <width>359</width>
-     <height>262</height>
+     <width>198</width>
+     <height>165</height>
     </size>
    </property>
    <property name="maximumSize">
@@ -167,39 +167,6 @@
          </property>
         </widget>
        </item>
-       <item row="2" column="0">
-        <widget class="QPushButton" name="prj_add_flight">
-         <property name="text">
-          <string>Add Flight</string>
-         </property>
-         <property name="icon">
-          <iconset resource="resources/resources.qrc">
-           <normaloff>:/icons/airborne</normaloff>:/icons/airborne</iconset>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="1">
-        <widget class="QPushButton" name="prj_add_meter">
-         <property name="text">
-          <string>Add Meter</string>
-         </property>
-         <property name="icon">
-          <iconset resource="resources/resources.qrc">
-           <normaloff>:/icons/meter_config.png</normaloff>:/icons/meter_config.png</iconset>
-         </property>
-        </widget>
-       </item>
-       <item row="4" column="0">
-        <widget class="QPushButton" name="prj_import_gps">
-         <property name="text">
-          <string>Import GPS</string>
-         </property>
-         <property name="icon">
-          <iconset resource="resources/resources.qrc">
-           <normaloff>:/icons/gps</normaloff>:/icons/gps</iconset>
-         </property>
-        </widget>
-       </item>
        <item row="4" column="1">
         <widget class="QPushButton" name="prj_import_grav">
          <property name="text">
@@ -217,27 +184,41 @@
          </property>
         </widget>
        </item>
-       <item row="1" column="0" colspan="2">
-        <widget class="QTreeView" name="contextual_tree">
-         <property name="dragEnabled">
-          <bool>false</bool>
+       <item row="2" column="0">
+        <widget class="QPushButton" name="prj_add_flight">
+         <property name="text">
+          <string>Add Flight</string>
          </property>
-         <property name="dragDropOverwriteMode">
-          <bool>false</bool>
+         <property name="icon">
+          <iconset resource="resources/resources.qrc">
+           <normaloff>:/icons/airborne</normaloff>:/icons/airborne</iconset>
          </property>
-         <property name="dragDropMode">
-          <enum>QAbstractItemView::InternalMove</enum>
-         </property>
-         <property name="defaultDropAction">
-          <enum>Qt::MoveAction</enum>
-         </property>
-         <property name="uniformRowHeights">
-          <bool>true</bool>
-         </property>
-         <attribute name="headerVisible">
-          <bool>false</bool>
-         </attribute>
         </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QPushButton" name="prj_import_gps">
+         <property name="text">
+          <string>Import GPS</string>
+         </property>
+         <property name="icon">
+          <iconset resource="resources/resources.qrc">
+           <normaloff>:/icons/gps</normaloff>:/icons/gps</iconset>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QPushButton" name="prj_add_meter">
+         <property name="text">
+          <string>Add Meter</string>
+         </property>
+         <property name="icon">
+          <iconset resource="resources/resources.qrc">
+           <normaloff>:/icons/meter_config.png</normaloff>:/icons/meter_config.png</iconset>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0" colspan="2">
+        <widget class="ProjectTreeView" name="project_tree"/>
        </item>
       </layout>
      </item>
@@ -276,7 +257,7 @@
    </property>
    <property name="minimumSize">
     <size>
-     <width>644</width>
+     <width>242</width>
      <height>246</height>
     </size>
    </property>
@@ -292,6 +273,9 @@
      <height>0</height>
     </size>
    </property>
+   <property name="floating">
+    <bool>false</bool>
+   </property>
    <property name="features">
     <set>QDockWidget::AllDockWidgetFeatures</set>
    </property>
@@ -299,7 +283,7 @@
     <set>Qt::BottomDockWidgetArea|Qt::TopDockWidgetArea</set>
    </property>
    <property name="windowTitle">
-    <string>Info/Console</string>
+    <string>Console</string>
    </property>
    <attribute name="dockWidgetArea">
     <number>8</number>
@@ -319,7 +303,7 @@
       <number>0</number>
      </property>
      <property name="rightMargin">
-      <number>0</number>
+      <number>5</number>
      </property>
      <property name="bottomMargin">
       <number>0</number>
@@ -327,7 +311,7 @@
      <property name="spacing">
       <number>0</number>
      </property>
-     <item row="0" column="1">
+     <item row="0" column="0">
       <widget class="QFrame" name="console_frame">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
@@ -374,7 +358,7 @@
           <property name="minimumSize">
            <size>
             <width>0</width>
-            <height>100</height>
+            <height>0</height>
            </size>
           </property>
           <property name="maximumSize">
@@ -485,40 +469,6 @@
          </layout>
         </item>
        </layout>
-      </widget>
-     </item>
-     <item row="0" column="0">
-      <widget class="QPlainTextEdit" name="text_info">
-       <property name="enabled">
-        <bool>true</bool>
-       </property>
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
-         <horstretch>1</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="minimumSize">
-        <size>
-         <width>0</width>
-         <height>100</height>
-        </size>
-       </property>
-       <property name="sizeIncrement">
-        <size>
-         <width>1</width>
-         <height>0</height>
-        </size>
-       </property>
-       <property name="readOnly">
-        <bool>true</bool>
-       </property>
-       <property name="plainText">
-        <string/>
-       </property>
-       <property name="placeholderText">
-        <string>Selection Info</string>
-       </property>
       </widget>
      </item>
     </layout>
@@ -675,10 +625,15 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>TabWorkspace</class>
+   <class>MainWorkspace</class>
    <extends>QTabWidget</extends>
-   <header>dgp.gui.widgets</header>
+   <header>dgp.gui.workspace</header>
    <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>ProjectTreeView</class>
+   <extends>QTreeView</extends>
+   <header>dgp.gui.views</header>
   </customwidget>
  </customwidgets>
  <tabstops>
@@ -749,6 +704,22 @@
     <hint type="destinationlabel">
      <x>-1</x>
      <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>btn_clear_console</sender>
+   <signal>clicked()</signal>
+   <receiver>text_console</receiver>
+   <slot>clear()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>62</x>
+     <y>1101</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>750</x>
+     <y>987</y>
     </hint>
    </hints>
   </connection>

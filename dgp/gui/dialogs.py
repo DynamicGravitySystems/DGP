@@ -1,4 +1,4 @@
-# coding: utf-8
+# -*- coding: utf-8 -*-
 
 import os
 import csv
@@ -18,14 +18,8 @@ from dgp.gui.models import TableModel, ComboEditDelegate
 from dgp.lib.etc import gen_uuid
 
 
-from dgp.gui.ui import add_flight_dialog, advanced_data_import, edit_import_view, project_dialog
-
-
-# data_dialog, _ = loadUiType('dgp/gui/ui/data_import_dialog.ui')
-# advanced_import, _ = loadUiType('dgp/gui/ui/advanced_data_import.ui')
-# edit_view, _ = loadUiType('dgp/gui/ui/edit_import_view.ui')
-# flight_dialog, _ = loadUiType('dgp/gui/ui/add_flight_dialog.ui')
-# project_dialog, _ = loadUiType('dgp/gui/ui/project_dialog.ui')
+from dgp.gui.ui import (add_flight_dialog, advanced_data_import,
+                        edit_import_view, project_dialog, channel_select_dialog)
 
 PATH_ERR = "Path cannot be empty."
 
@@ -117,10 +111,14 @@ class BaseDialog(QtWidgets.QDialog):
         if log is not None:
             self.log.log(level=log, msg=message)
 
-        if target is None:
-            target = self.msg_target
-        else:
-            target = self.__getattribute__(target)
+        try:
+            if target is None:
+                target = self.msg_target
+            else:
+                target = self.__getattribute__(target)
+        except AttributeError:
+            self.log.error("No valid target available for show_message.")
+            return
 
         try:
             target.setText(message)
@@ -419,6 +417,7 @@ class AdvancedImportDialog(BaseDialog, advanced_data_import.Ui_AdvancedImportDat
         self._path = pathlib.Path(value)
         self.line_path.setText(str(self._path.resolve()))
         if not self._path.exists():
+            # Throws an OSError with windows network path
             self.log.warning(PATH_ERR)
             self.show_message(PATH_ERR, 'Path*', color='red')
             self.btn_edit_cols.setEnabled(False)
@@ -499,6 +498,9 @@ class AdvancedImportDialog(BaseDialog, advanced_data_import.Ui_AdvancedImportDat
         self.field_col_count.setText(str(col_count))
 
         self._sample = sample
+
+        # TODO: Determine if this is useful: takes a sample of first <_preview_limit> lines, and the last line
+        # in the file to display as a preview to the user when importing.
 
         # count = 0
         # sbuf = io.StringIO()
@@ -592,6 +594,17 @@ class AddFlightDialog(QtWidgets.QDialog, add_flight_dialog.Ui_NewFlight):
         if self._grav_path is not None and len(self._grav_path) > 0:
             return pathlib.Path(self._grav_path)
         return None
+
+
+class ChannelSelectionDialog(BaseDialog,
+                             channel_select_dialog.Ui_ChannelSelection):
+    def __init__(self, parent=None):
+        super().__init__(msg_recvr=None, parent=parent)
+        self.setupUi(self)
+
+    def set_model(self, model):
+        self.channel_treeview.setModel(model)
+        self.channel_treeview.expandAll()
 
 
 class CreateProjectDialog(BaseDialog, project_dialog.Ui_Dialog):

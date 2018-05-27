@@ -3,7 +3,9 @@ import sys
 import uuid
 import logging
 import datetime
+import traceback
 
+from PyQt5 import QtCore
 import PyQt5.QtWidgets as QtWidgets
 import PyQt5.Qt as Qt
 import numpy as np
@@ -11,12 +13,10 @@ from pandas import Series, DatetimeIndex
 from matplotlib.axes import Axes
 from matplotlib.patches import Rectangle
 from matplotlib.dates import date2num
-from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavToolbar
 
 os.chdir('..')
 import dgp.lib.project as project
-import dgp.gui.plotter as plotter
-from dgp.gui.mplutils import StackedAxesManager
+# from dgp.gui.plotting.plotter2 import FlightLinePlot
 
 
 class MockDataChannel:
@@ -39,18 +39,22 @@ class PlotExample(QtWidgets.QMainWindow):
         self.setBaseSize(Qt.QSize(600, 600))
         self._flight = project.Flight(None, 'test')
 
-        self.plot = plotter.BasePlottingCanvas(parent=self)
-        self.plot.figure.canvas.mpl_connect('pick_event', lambda x: print(
-            "Pick event handled"))
-        self.plot.mgr = StackedAxesManager(self.plot.figure, rows=2)
-        self._toolbar = NavToolbar(self.plot, parent=self)
-        self._toolbar.actions()[0] = QtWidgets.QAction("Reset View")
-        self._toolbar.actions()[0].triggered.connect(lambda x: print(
-            "Action 0 triggered"))
+        self._plot = FlightLinePlot(self._flight, parent=self)
+        self._plot.set_mode(grab=True)
+        print("Plot: ", self._plot)
+        # self.plot.figure.canvas.mpl_connect('pick_event', lambda x: print(
+        #     "Pick event handled"))
+        # self.plot.mgr = StackedAxesManager(self.plot.figure, rows=2)
+        # self._toolbar = NavToolbar(self.plot, parent=self)
+        # self._toolbar.actions()[0] = QtWidgets.QAction("Reset View")
+        # self._toolbar.actions()[0].triggered.connect(lambda x: print(
+        #     "Action 0 triggered"))
+
+        self.tb = self._plot.get_toolbar()
 
         plot_layout = QtWidgets.QVBoxLayout()
-        plot_layout.addWidget(self.plot)
-        plot_layout.addWidget(self._toolbar)
+        plot_layout.addWidget(self._plot)
+        plot_layout.addWidget(self.tb)
         c_widget = QtWidgets.QWidget()
         c_widget.setLayout(plot_layout)
 
@@ -101,13 +105,26 @@ class PlotExample(QtWidgets.QMainWindow):
         ins_1 = self.plot.mgr.add_inset_axes(1)
 
 
+def excepthook(type_, value, traceback_):
+    """This allows IDE to properly display unhandled exceptions which are
+    otherwise silently ignored as the application is terminated.
+    Override default excepthook with
+    >>> sys.excepthook = excepthook
+
+    See: http://pyqt.sourceforge.net/Docs/PyQt5/incompatibilities.html
+    """
+    traceback.print_exception(type_, value, traceback_)
+    QtCore.qFatal('')
+
+
 if __name__ == '__main__':
+    sys.excepthook = excepthook
     app = QtWidgets.QApplication(sys.argv)
     _log = logging.getLogger()
     _log.addHandler(logging.StreamHandler(sys.stdout))
     _log.setLevel(logging.DEBUG)
 
     window = PlotExample()
-    window.plot_sin()
+    # window.plot_sin()
     sys.exit(app.exec_())
 

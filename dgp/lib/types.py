@@ -35,6 +35,9 @@ StillReading = namedtuple('StillReading', ['gravity', 'location', 'time'])
 
 DataCurve = namedtuple('DataCurve', ['channel', 'data'])
 
+LineUpdate = namedtuple('LineUpdate', ['flight_id', 'action', 'uid', 'start',
+                                       'stop', 'label'])
+
 
 class AbstractTreeItem(metaclass=ABCMeta):
     """

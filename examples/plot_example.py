@@ -14,7 +14,7 @@ from pandas import Series, DatetimeIndex
 
 os.chdir('..')
 import dgp.lib.project as project
-import dgp.gui.plotter as plotter
+import dgp.gui.plotting.plotter as plotter
 
 
 class MockDataChannel:
