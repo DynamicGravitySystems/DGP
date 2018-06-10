@@ -58,39 +58,3 @@ class AirbornePost(TransformGraph):
                                 'filtered_grav': (partial(lp_filter, fs=10), 'corrected_grav')
                                 }
         super().__init__()
-
-# class ExampleGraph(TransformGraph):
-#     inputs = ('trajectory', 'gravity', 'begin_static', 'end_static')
-#     graph = {
-#         ('gravity', 'trajectory'): (align_frames(item='r'), 'gravity', 'trajectory'),
-#         ('eotvos', 'accel'): (eotvos_correction, 'trajectory'),
-#         'lat_corr': (latitude_correction, 'trajectory'),
-#         'fac': (free_air_correction, 'trajectory'),
-#         'total_corr': (sum, ['eotvos', 'accel', 'lat_corr', 'fac']),
-#         'corrected_grav': (sum, 'total_corr', demux('gravity', 'gravity')),
-#         'filtered_grav': (lp_filter(fs=10), 'corrected_grav')
-#     }
-#
-# @transformgraph
-# def detrend(begin_static, end_static, data_in):
-#     if hasattr(grav, 'index'):
-#         length = len(data_in.index)
-#     else:
-#         length = len(data_in)
-#
-#     trend = np.linspace(begin, end, num=length)
-#     if hasattr(data_in, 'sub'):
-#         trend = pd.Series(trend, index=data_in.index)
-#         result = data_in.sub(trend, axis=0)
-#     else:
-#         result = data_in - trend
-#     return result
-#
-# # TODO: How to deal with keyword args?
-# # should result in
-# class Detrend(TransformGraph):
-#     inputs = ('begin_static', 'end_static', 'data_in')
-#     _func = detrend
-#     graph = {
-#         'result': (detrend, 'begin_static', 'end_static', 'data_in')
-#     }
