@@ -3,7 +3,11 @@ cache: pip
 python:
   - "3.5"
   - "3.6"
+before_install:
+  - sudo apt-get install -y libgeos-dev
+  - sudo apt-get install -y proj-bin
 install:
+  - pip install Cython==0.28.3
   - pip install -r requirements.txt
   - pip install coverage
 before_script:
