@@ -36,7 +36,7 @@ class TestLoader(unittest.TestCase):
 
     def test_load_gravity(self):
         grav_df = gi.read_at1a(str(self.grav_path))
-        self.assertEqual((9, 26), grav_df.shape)
+        self.assertEqual((10, 26), grav_df.shape)
 
         ld = loader.LoaderThread(
             loader.GRAVITY_INGESTORS[loader.GravityTypes.AT1A], self.grav_path,

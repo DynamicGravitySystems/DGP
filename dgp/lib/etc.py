@@ -8,7 +8,7 @@ import numpy as np
 
 
 def align_frames(frame1, frame2, align_to='left', interp_method='time',
-                 interp_only=[], fill={}):
+                 interp_only=None, fill=None, item='both'):
     # TODO: Is there a more appropriate place for this function?
     # TODO: Add ability to specify interpolation method per column.
     # TODO: Ensure that dtypes are preserved unless interpolated.
@@ -65,6 +65,12 @@ def align_frames(frame1, frame2, align_to='left', interp_method='time',
         When frames do not overlap, and if an incorrect `align_to` argument
         is given.
     """
+    if interp_only is None:
+        interp_only = []
+
+    if fill is None:
+        fill = {}
+
     def fill_nans(frame):
         # TODO: Refactor this function to be less repetitive
         if hasattr(frame, 'columns'):
@@ -128,14 +134,33 @@ def align_frames(frame1, frame2, align_to='left', interp_method='time',
     left = left.loc[begin:end]
     right = right.loc[begin:end]
 
-    return left, right
+    if item in ('left', 'l', 'L'):
+        return left
+    elif item in ('right', 'r', 'R'):
+        return right
+    elif item in ('both', 'b', 'B'):
+        return left, right
 
 
 def interp_nans(y):
+    # TODO: SettingWithCopyWarning
     nans = np.isnan(y)
     x = lambda z: z.nonzero()[0]
     y[nans] = np.interp(x(nans), x(~nans), y[~nans])
     return y
+
+
+def dedup_dict(d):
+    t = [(k, d[k]) for k in d]
+    t.sort()
+    res = {}
+
+    for key, val in t:
+        if val in res.values():
+            continue
+        res[key] = val
+
+    return res
 
 
 def gen_uuid(prefix: str=''):

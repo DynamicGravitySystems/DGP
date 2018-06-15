@@ -1,145 +1,198 @@
 # coding: utf-8
 
-from pyqtgraph.flowchart.library.common import Node
-
 import numpy as np
 import pandas as pd
 from numpy import array
 
-from .derivatives import centraldifference
+from .derivatives import central_difference, taylor_fir
+from ..etc import align_frames
+from ..timesync import find_time_delay, shift_frame
+
+# constants
+a = 6378137.0  # Default semi-major axis
+b = 6356752.3142  # Default semi-minor axis
+ecc = (a - b) / a  # Eccentricity
+We = 0.00007292115  # sidereal rotation rate, radians/sec
+mps2mgal = 100000  # m/s/s to mgal
 
 
-class Eotvos(Node):
+def gps_velocities(data_in, output='series', differentiator=central_difference):
+    # phi
+    lat = np.deg2rad(data_in['lat'].values)
+
+    # lambda
+    lon = np.deg2rad(data_in['long'].values)
+
+    h = data_in['ell_ht'].values
+
+    cn = a / np.sqrt(1 - (ecc * np.sin(lat))**2)
+    cm = ((1 - ecc**2) / a**2) * cn**3
+    lon_dot = differentiator(lon)
+    lat_dot = differentiator(lat)
+    ve = (cn + h) * np.cos(lat) * lon_dot
+    vn = (cm + h) * lat_dot
+    hdot = differentiator(h)
+
+    if output in ('series', 'Series'):
+        ve_s = pd.Series(ve, name='ve', index=data_in.index)
+        vn_s = pd.Series(vn, name='vn', index=data_in.index)
+        vu_s = pd.Series(hdot, name='vu', index=data_in.index)
+        return ve_s, vn_s, vu_s
+    elif output in ('array', 'Array'):
+        return ve, vn, hdot
+
+
+def gps_acceleration(data_in, differentiator=central_difference):
+    h = data_in['ell_ht'].values
+    hddot = differentiator(h, n=2) * mps2mgal
+
+    return pd.Series(hddot, name='gps_accel', index=data_in.index)
+
+
+def fo_eotvos(data_in, differentiator=central_difference):
+    lat = np.deg2rad(data_in['lat'].values)
+    h = data_in['ell_ht'].values
+
+    ve, vn, vu = gps_velocities(data_in, differentiator=differentiator)
+
+    term1 = vn ** 2 / a * (1 - h / a + ecc * (2 - 3 * np.sin(lat) ** 2))
+    term2 = ve ** 2 / a * (1 - h / a - ecc * np.sin(lat) ** 2) + 2 * We * ve * np.cos(lat)
+
+    return (term1 + term2) * mps2mgal
+
+
+def kinematic_accel(data_in):
+    eotvos = fo_eotvos(data_in, differentiator=taylor_fir)
+    gps_accel = gps_acceleration(data_in, differentiator=taylor_fir)
+    # gps_accel = gps_accel.iloc[10:-10].copy()
+    eotvos, gps_accel = align_frames(eotvos, gps_accel)
+
+    return eotvos - gps_accel
+
+
+def eotvos_correction(data_in, differentiator=central_difference):
     """
-        Eotvos correction
+    Eotvos correction
 
-        Parameters
-        ----------
-            data_in: DataFrame
-                trajectory frame containing latitude, longitude, and
-                height above the ellipsoid
+    Parameters
+    ----------
+        data_in: DataFrame
+            trajectory frame containing latitude, longitude, and
+            height above the ellipsoid
+        dt: float
+            sample period
 
-        Returns
-        -------
-            Series
-                using the index from the input
+    Returns
+    -------
+        Series
+            index taken from the input
+
+    Notes
+    -----
+    Added to observed gravity when the positive direction of the sensitive axis is
+    down, otherwise, subtracted.
+
+    References
+    ---------
+    Harlan 1968, "Eotvos Corrections for Airborne Gravimetry" JGR 73,n14
     """
-    nodeName = 'Eotvos'
 
-    # constants
-    a = 6378137.0  # Default semi-major axis
-    b = 6356752.3142  # Default semi-minor axis
-    ecc = (a - b) / a  # Eccentricity
-    We = 0.00007292115  # sidereal rotation rate, radians/sec
-    mps2mgal = 100000  # m/s/s to mgal
     dt = 0.1
 
-    def __init__(self, name):
-        terminals = {
-            'data_in': dict(io='in'),
-            'data_out': dict(io='out'),
-        }
+    lat = np.deg2rad(data_in['lat'].values)
+    lon = np.deg2rad(data_in['long'].values)
+    ht = data_in['ell_ht'].values
 
-        Node.__init__(self, name, terminals=terminals)
+    dlat = differentiator(lat, n=1, dt=dt)
+    ddlat = differentiator(lat, n=2, dt=dt)
+    dlon = differentiator(lon, n=1, dt=dt)
+    ddlon = differentiator(lon, n=2, dt=dt)
+    dht = differentiator(ht, n=1, dt=dt)
+    ddht = differentiator(ht, n=2, dt=dt)
 
-    def process(self, data_in, display=True):
-        lat = np.deg2rad(data_in['lat'].values)
-        lon = np.deg2rad(data_in['long'].values)
-        ht = data_in['ell_ht'].values
+    sin_lat = np.sin(lat)
+    cos_lat = np.cos(lat)
+    sin_2lat = np.sin(2.0 * lat)
+    cos_2lat = np.cos(2.0 * lat)
 
-        dlat = centraldifference(lat, n=1, dt=self.dt)
-        ddlat = centraldifference(lat, n=2, dt=self.dt)
-        dlon = centraldifference(lon, n=1, dt=self.dt)
-        ddlon = centraldifference(lon, n=2, dt=self.dt)
-        dht = centraldifference(ht, n=1, dt=self.dt)
-        ddht = centraldifference(ht, n=2, dt=self.dt)
+    # Calculate the r' and its derivatives
+    r_prime = a * (1.0 - ecc * sin_lat ** 2)
+    dr_prime = -a * dlat * ecc * sin_2lat
+    ddr_prime = (-a * ddlat * ecc * sin_2lat - 2.0 * a * (dlat ** 2) *
+                 ecc * cos_2lat)
 
-        # dlat = gradient(lat)
-        # ddlat = gradient(dlat)
-        # dlon = gradient(lon)
-        # ddlon = gradient(dlon)
-        # dht = gradient(ht)
-        # ddht = gradient(dht)
+    # Calculate the deviation from the normal and its derivatives
+    D = np.arctan(ecc * sin_2lat)
+    dD = 2.0 * dlat * ecc * cos_2lat
+    ddD = (2.0 * ddlat * ecc * cos_2lat - 4.0 * dlat * dlat *
+           ecc * sin_2lat)
 
-        sin_lat = np.sin(lat)
-        cos_lat = np.cos(lat)
-        sin_2lat = np.sin(2.0 * lat)
-        cos_2lat = np.cos(2.0 * lat)
+    # Calculate this value once (used many times)
+    sinD = np.sin(D)
+    cosD = np.cos(D)
 
-        # Calculate the r' and its derivatives
-        r_prime = self.a * (1.0 - self.ecc * sin_lat * sin_lat)
-        dr_prime = -self.a * dlat * self.ecc * sin_2lat
-        ddr_prime = (-self.a * ddlat * self.ecc * sin_2lat - 2.0 * self.a *
-                     dlat * dlat * self.ecc * cos_2lat)
+    # Calculate r and its derivatives
+    r = array([
+        -r_prime * sinD,
+        np.zeros(r_prime.size),
+        -r_prime * cosD - ht
+    ])
 
-        # Calculate the deviation from the normal and its derivatives
-        D = np.arctan(self.ecc * sin_2lat)
-        dD = 2.0 * dlat * self.ecc * cos_2lat
-        ddD = (2.0 * ddlat * self.ecc * cos_2lat - 4.0 * dlat * dlat *
-               self.ecc * sin_2lat)
+    rdot = array([
+        (-dr_prime * sinD - r_prime * dD * cosD),
+        np.zeros(r_prime.size),
+        (-dr_prime * cosD + r_prime * dD * sinD - dht)
+    ])
 
-        # Calculate this value once (used many times)
-        sinD = np.sin(D)
-        cosD = np.cos(D)
+    ci = (-ddr_prime * sinD - 2.0 * dr_prime * dD * cosD - r_prime *
+          (ddD * cosD - dD * dD * sinD))
+    ck = (-ddr_prime * cosD + 2.0 * dr_prime * dD * sinD + r_prime *
+          (ddD * sinD + dD * dD * cosD) - ddht)
+    r2dot = array([
+        ci,
+        np.zeros(ci.size),
+        ck
+    ])
 
-        # Calculate r and its derivatives
-        r = array([
-            -r_prime * sinD,
-            np.zeros(r_prime.size),
-            -r_prime * cosD - ht
-        ])
+    # Define w and its derivative
+    w = array([
+        (dlon + We) * cos_lat,
+        -dlat,
+        (-(dlon + We)) * sin_lat
+    ])
 
-        rdot = array([
-            (-dr_prime * sinD - r_prime * dD * cosD),
-            np.zeros(r_prime.size),
-            (-dr_prime * cosD + r_prime * dD * sinD - dht)
-        ])
+    wdot = array([
+        dlon * cos_lat - (dlon + We) * dlat * sin_lat,
+        -ddlat,
+        (-ddlon * sin_lat - (dlon + We) * dlat * cos_lat)
+    ])
 
-        ci = (-ddr_prime * sinD - 2.0 * dr_prime * dD * cosD - r_prime *
-              (ddD * cosD - dD * dD * sinD))
-        ck = (-ddr_prime * cosD + 2.0 * dr_prime * dD * sinD + r_prime *
-              (ddD * sinD + dD * dD * cosD) - ddht)
-        r2dot = array([
-            ci,
-            np.zeros(ci.size),
-            ck
-        ])
+    w2_x_rdot = np.cross(2.0 * w, rdot, axis=0)
+    wdot_x_r = np.cross(wdot, r, axis=0)
+    w_x_r = np.cross(w, r, axis=0)
+    wxwxr = np.cross(w, w_x_r, axis=0)
 
-        # Define w and its derivative
-        w = array([
-            (dlon + self.We) * cos_lat,
-            -dlat,
-            (-(dlon + self.We)) * sin_lat
-        ])
+    we = array([
+        We * cos_lat,
+        np.zeros(sin_lat.shape),
+        -We * sin_lat
+    ])
 
-        wdot = array([
-            dlon * cos_lat - (dlon + self.We) * dlat * sin_lat,
-            -ddlat,
-            (-ddlon * sin_lat - (dlon + self.We) * dlat * cos_lat)
-        ])
+    wexr = np.cross(we, r, axis=0)
+    wexwexr = np.cross(we, wexr, axis=0)
 
-        w2_x_rdot = np.cross(2.0 * w, rdot, axis=0)
-        wdot_x_r = np.cross(wdot, r, axis=0)
-        w_x_r = np.cross(w, r, axis=0)
-        wxwxr = np.cross(w, w_x_r, axis=0)
+    kin_accel = r2dot * mps2mgal
+    eotvos = (w2_x_rdot + wdot_x_r + wxwxr - wexwexr) * mps2mgal
 
-        we = array([
-            self.We * cos_lat,
-            np.zeros(sin_lat.shape),
-            -self.We * sin_lat
-        ])
+    # acc = r2dot + w2_x_rdot + wdot_x_r + wxwxr
 
-        wexr = np.cross(we, r, axis=0)
-        wexwexr = np.cross(we, wexr, axis=0)
+    eotvos = pd.Series(eotvos[2], index=data_in.index, name='eotvos')
+    kin_accel = pd.Series(kin_accel[2], index=data_in.index, name='kin_accel')
 
-        # Calculate total acceleration for the aircraft
-        acc = r2dot + w2_x_rdot + wdot_x_r + wxwxr
-
-        E = (acc[2] - wexwexr[2]) * self.mps2mgal
-        return {'data_out': pd.Series(E, index=data_in.index, name='eotvos')}
+    return pd.concat([eotvos, kin_accel], axis=1, join='outer')
 
 
-class LatitudeCorrection(Node):
+def latitude_correction(data_in):
     """
     WGS84 latitude correction
 
@@ -150,39 +203,29 @@ class LatitudeCorrection(Node):
 
     Parameters
     ----------
-        data_in: DataFrame
-            trajectory frame containing latitude, longitude, and
-            height above the ellipsoid
+       data_in: DataFrame
+           trajectory frame containing latitude, longitude, and
+           height above the ellipsoid
 
     Returns
     -------
-        Series
-            units are mGal
+       :obj:`Series`
+           units are mGal
+
+    Notes
+    -----
+    Added to observed gravity when the positive direction of the sensitive axis is
+    down, otherwise, subtracted.
     """
-
-    nodeName = 'LatitudeCorrection'
-
-    def __init__(self, name):
-        terminals = {
-            'data_in': dict(io='in'),
-            'data_out': dict(io='out'),
-        }
-
-        Node.__init__(self, name, terminals=terminals)
-
-    def process(self, data_in, display=True):
-        lat = np.deg2rad(data_in['lat'].values)
-        sin_lat2 = np.sin(lat) ** 2
-        num = 1 + np.float(0.00193185265241) * sin_lat2
-        den = np.sqrt(1 - np.float(0.00669437999014) * sin_lat2)
-        corr = -np.float(978032.53359) * num / den
-        return {'data_out': pd.Series(corr,
-                                      index=data_in.index,
-                                      name='lat_corr')}
+    lat = np.deg2rad(data_in['lat'].values)
+    sin_lat2 = np.sin(lat) ** 2
+    num = 1 + np.float(0.00193185265241) * sin_lat2
+    den = np.sqrt(1 - np.float(0.00669437999014) * sin_lat2)
+    corr = -np.float(978032.53359) * num / den
+    return pd.Series(corr, index=data_in.index, name='lat_corr')
 
 
-# TODO: Define behavior for incorrectly named and missing columns
-class FreeAirCorrection(Node):
+def free_air_correction(data_in):
     """
     2nd order Free Air Correction
 
@@ -198,26 +241,17 @@ class FreeAirCorrection(Node):
 
     Returns
     -------
-        :class:`Series`
+        :obj:`Series`
             units are mGal
+
+    Notes
+    -----
+    Added to observed gravity when the positive direction of the sensitive axis is
+    down, otherwise, subtracted.
     """
-
-    nodeName = 'FreeAirCorrection'
-
-    def __init__(self, name):
-        terminals = {
-            'data_in': dict(io='in'),
-            'data_out': dict(io='out'),
-        }
-
-        Node.__init__(self, name, terminals=terminals)
-
-    def process(self, data_in, display=True):
-        lat = np.deg2rad(data_in['lat'].values)
-        ht = data_in['ell_ht'].values
-        sin_lat2 = np.sin(lat) ** 2
-        fac = -((np.float(0.3087691) - np.float(0.0004398) * sin_lat2) *
-                ht) + np.float(7.2125e-8) * (ht ** 2)
-        return {'data_out': pd.Series(fac,
-                                      index=data_in.index,
-                                      name='fac')}
+    lat = np.deg2rad(data_in['lat'].values)
+    ht = data_in['ell_ht'].values
+    sin_lat2 = np.sin(lat) ** 2
+    fac = ((np.float(0.3087691) - np.float(0.0004398) * sin_lat2) *
+           ht) - np.float(7.2125e-8) * (ht ** 2)
+    return pd.Series(fac, index=data_in.index, name='fac')

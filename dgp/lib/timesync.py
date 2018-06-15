@@ -148,7 +148,7 @@ def find_time_delay(s1, s2, datarate=1, resolution: bool=False):
         z = np.polyfit(shift[maxi - 1:maxi + 2], corre[maxi - 1:maxi + 2], 2)
 
     dt1 = z[1] / (2 * z[0])
-
+    delay = dt1 / scale
     return dt1 / scale
 
 

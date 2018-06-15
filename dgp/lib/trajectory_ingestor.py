@@ -125,7 +125,7 @@ def import_trajectory(filepath, delim_whitespace=False, interval=0,
 
     if interp:
         numeric = df.select_dtypes(include=[np.number])
-        numeric = numeric.apply(interp_nans)
+        numeric = numeric.interpolate(method='time')
 
         # replace columns
         for col in numeric.columns:
