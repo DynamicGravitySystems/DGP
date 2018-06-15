@@ -1,6 +1,5 @@
 # coding: utf-8
 import pytest
-from nose.tools import assert_almost_equals
 import pandas as pd
 import numpy as np
 from functools import partial
@@ -129,7 +128,7 @@ class TestCorrections:
         for i, value in enumerate(eotvos_a['eotvos']):
             if 1 < i < len(result_eotvos) - 2:
                 try:
-                    assert_almost_equals(value, result_eotvos[i], places=2)
+                    assert value == pytest.approx(result_eotvos[i], rel=1e-2)
                 except AssertionError:
                     print("Invalid assertion at data line: {}".format(i))
                     raise AssertionError
@@ -152,7 +151,7 @@ class TestCorrections:
                            }
         g = TransformGraph(graph=transform_graph)
         res = g.execute()
-        np.testing.assert_array_almost_equal(expected, res['fac'], decimal=8)
+        assert expected == pytest.approx(res['fac'], rel=1e-8)
 
         # check that the indices are equal
         assert test_input.index.identical(res['fac'].index)
@@ -174,7 +173,7 @@ class TestCorrections:
         g = TransformGraph(graph=transform_graph)
         res = g.execute()
 
-        np.testing.assert_array_almost_equal(expected, res['lat_corr'], decimal=8)
+        assert expected == pytest.approx(res['lat_corr'], rel=1e-8)
 
         # check that the indexes are equal
         assert test_input.index.identical(res['lat_corr'].index)
