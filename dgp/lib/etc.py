@@ -144,6 +144,19 @@ def interp_nans(y):
     return y
 
 
+def dedup_dict(d):
+    t = [(k, d[k]) for k in d]
+    t.sort()
+    res = {}
+
+    for key, val in t:
+        if val in res.values():
+            continue
+        res[key] = val
+
+    return res
+
+
 def gen_uuid(prefix: str=''):
     """
     Generate a UUID4 String with optional prefix replacing the first len(prefix)
