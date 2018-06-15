@@ -8,7 +8,7 @@ import numpy as np
 
 
 def align_frames(frame1, frame2, align_to='left', interp_method='time',
-                 interp_only=[], fill={}, item='both'):
+                 interp_only=None, fill=None, item='both'):
     # TODO: Is there a more appropriate place for this function?
     # TODO: Add ability to specify interpolation method per column.
     # TODO: Ensure that dtypes are preserved unless interpolated.
@@ -65,6 +65,12 @@ def align_frames(frame1, frame2, align_to='left', interp_method='time',
         When frames do not overlap, and if an incorrect `align_to` argument
         is given.
     """
+    if interp_only is None:
+        interp_only = []
+
+    if fill is None:
+        fill = {}
+
     def fill_nans(frame):
         # TODO: Refactor this function to be less repetitive
         if hasattr(frame, 'columns'):
