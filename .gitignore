@@ -12,6 +12,7 @@ scratch/
 venv/
 docs/build/
 .cache/
+.pytest_cache/
 
 # Specific Directives
 examples/local*

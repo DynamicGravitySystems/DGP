@@ -65,6 +65,12 @@ class TransformPlot:
     def plots(self) -> List[AbstractSeriesPlotter]:
         return self.widget.plots
 
+    def __getattr__(self, item):
+        try:
+            return getattr(self.widget, item)
+        except AttributeError:
+            raise AttributeError("Plot Widget has no Attribute: ", item)
+
 
 class PqtLineSelectPlot(QtCore.QObject):
     """New prototype Flight Line selection plot using Pyqtgraph as the
