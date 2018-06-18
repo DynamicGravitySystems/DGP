@@ -5,18 +5,16 @@ from PyQt5.QtWidgets import QVBoxLayout, QWidget, QComboBox
 
 import pandas as pd
 import numpy as np
-from pyqtgraph import PlotWidget
 
 from dgp.lib.types import DataSource
 from dgp.lib.transform.transform_graphs import SyncGravity, AirbornePost, TransformGraph
-from dgp.lib.enums import DataTypes
 from dgp.gui.plotting.plotters import TransformPlot
 from . import BaseTab, Flight
 from ..ui.transform_tab_widget import Ui_TransformInterface
 
 
 class TransformWidget(QWidget, Ui_TransformInterface):
-    def __init__(self, flight):
+    def __init__(self, flight: Flight):
         super().__init__()
         self.setupUi(self)
 
@@ -24,10 +22,12 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         self._plot = TransformPlot()
         self.hlayout.addWidget(self._plot.widget, Qt.AlignLeft | Qt.AlignTop)
 
-        self.transform.addItems(['Sync Gravity', 'Airborne Post'])
+        self.cb_line_select.addItem('All')
+        self.cb_line_select.addItems([str(line.start) for line in flight.lines])
+        self.transform.addItems(['Airborne Post'])
 
-        self._trajectory = self._flight.get_source(DataTypes.TRAJECTORY)
-        self._gravity = self._flight.get_source(DataTypes.GRAVITY)
+        self._trajectory = self._flight.trajectory
+        self._gravity = self._flight.gravity
 
         self.bt_execute_transform.clicked.connect(self.execute_transform)
 
@@ -50,14 +50,14 @@ class TransformWidget(QWidget, Ui_TransformInterface):
             print("Running sync grav transform")
         elif c_transform == 'airborne post':
             print("Running airborne post transform")
-            trajectory = self._trajectory.load()
-            graph = AirbornePost(trajectory, self._gravity.load(), 0, 0)
+            graph = AirbornePost(self._trajectory, self._gravity, 0, 0)
             print("Executing graph")
             results = graph.execute()
             print(results.keys())
 
-            time = pd.Series(trajectory.index.astype(np.int64) / 10 ** 9, index=trajectory.index, name='unix_time')
-            output_frame = pd.concat([time, trajectory[['lat', 'long', 'ell_ht']],
+            time = pd.Series(self._trajectory.index.astype(np.int64) / 10 ** 9, index=self._trajectory.index,
+                             name='unix_time')
+            output_frame = pd.concat([time, self._trajectory[['lat', 'long', 'ell_ht']],
                                       results['aligned_eotvos'],
                                       results['aligned_kin_accel'], results['lat_corr'],
                                       results['fac'], results['total_corr'],

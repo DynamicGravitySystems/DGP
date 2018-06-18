@@ -29,7 +29,7 @@ class TestDialogs(unittest.TestCase):
 
     def test_properties_dialog(self):
         t_dlg = dlg.PropertiesDialog(self.m_flight)
-        self.assertEqual(6, t_dlg.form.rowCount())
+        self.assertEqual(8, t_dlg.form.rowCount())
         spy = QtTest.QSignalSpy(t_dlg.accepted)
         self.assertTrue(spy.isValid())
         QTest.mouseClick(t_dlg._btns.button(QtWidgets.QDialogButtonBox.Ok),

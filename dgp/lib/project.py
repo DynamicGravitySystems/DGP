@@ -337,6 +337,20 @@ class Flight(TreeItem):
         return super().data(role)
 
     @property
+    def gravity(self):
+        try:
+            return self.get_source(DataTypes.GRAVITY).load()
+        except AttributeError:
+            return None
+
+    @property
+    def trajectory(self):
+        try:
+            return self.get_source(DataTypes.TRAJECTORY).load()
+        except AttributeError:
+            return None
+
+    @property
     def lines(self):
         for line in sorted(self.get_child(self._lines_uid),
                            key=lambda x: x.start):

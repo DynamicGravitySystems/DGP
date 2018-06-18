@@ -46,7 +46,7 @@
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_2">
        <item>
-        <widget class="QComboBox" name="cb_data_select"/>
+        <widget class="QComboBox" name="cb_line_select"/>
        </item>
        <item>
         <widget class="QComboBox" name="cb_transform_select"/>
