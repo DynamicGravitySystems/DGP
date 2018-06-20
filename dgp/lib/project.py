@@ -13,7 +13,7 @@ from .meterconfig import MeterConfig, AT1Meter
 from .etc import gen_uuid
 from .types import DataSource, FlightLine, TreeItem
 from .enums import DataTypes
-from . import datamanager as dm
+from . import datastore as dm
 from .enums import DataTypes
 
 """

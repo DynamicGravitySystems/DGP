@@ -15,7 +15,7 @@ import dgp.lib.project as prj
 import dgp.lib.types as types
 import dgp.lib.enums as enums
 import dgp.gui.loader as loader
-import dgp.lib.datamanager as dm
+import dgp.lib.datastore as dm
 from dgp.gui.utils import (ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP,
                            LOG_COLOR_MAP, get_project_file)
 from dgp.gui.dialogs import (AddFlightDialog, CreateProjectDialog,
@@ -273,8 +273,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         sb.addWidget(progress)
         return progress
 
-    def _add_data(self, data, dtype, flight, path):
-        uid = dm.get_manager().save_data(dm.HDF5, data)
+    def _add_data(self, data, dtype: enums.DataTypes, flight: prj.Flight, path):
+        uid = dm.get_datastore().save_data(data, flight.uid, dtype.value)
         if uid is None:
             self.log.error("Error occured writing DataFrame to HDF5 store.")
             return
@@ -317,21 +317,20 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         prog = self.show_progress_status(0, 0)
         prog.setValue(1)
 
-        def _complete(data):
+        def _on_complete(data):
             self.add_data(data, dtype, flight, params.get('path', None))
 
             # align and crop gravity and trajectory frames if both are present
-            if flight.has_trajectory and flight.has_gravity:
-                # get datasource objects
-                gravity = flight.get_source(enums.DataTypes.GRAVITY)
-                trajectory = flight.get_source(enums.DataTypes.TRAJECTORY)
-
+            gravity = flight.get_source(enums.DataTypes.GRAVITY)
+            trajectory = flight.get_source(enums.DataTypes.TRAJECTORY)
+            if gravity is not None and trajectory is not None:
                 # align and crop the gravity and trajectory frames
                 fields = DGS_AT1A_INTERP_FIELDS | TRAJECTORY_INTERP_FIELDS
                 new_gravity, new_trajectory = align_frames(gravity.load(),
                                                            trajectory.load(),
                                                            interp_only=fields)
 
+                # TODO: Fix this mess
                 # replace datasource objects
                 ds_attr = {'path': gravity.filename, 'dtype': gravity.dtype}
                 flight.remove_data(gravity)
@@ -356,7 +355,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     typ=dtype.name.capitalize(), fname=params.get('path', ''))
                 self.log.info(msg)
 
-        ld = loader.get_loader(parent=self, dtype=dtype, on_complete=_complete,
+        ld = loader.get_loader(parent=self, dtype=dtype, on_complete=_on_complete,
                                on_error=_result, **params)
         ld.start()
 

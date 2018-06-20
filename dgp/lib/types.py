@@ -9,7 +9,7 @@ from pandas import Series, DataFrame
 
 from dgp.lib.etc import gen_uuid
 from dgp.gui.qtenum import QtItemFlags, QtDataRoles
-from .datamanager import get_manager
+from .datastore import get_datastore
 # import dgp.lib.datamanager as dm
 from . import enums
 # import dgp.lib.enums as enums
@@ -535,7 +535,11 @@ class DataSource(BaseTreeItem):
 
     def load(self, field=None) -> Union[Series, DataFrame]:
         """Load data from the DataManager and return the specified field."""
-        data = get_manager().load_data(self.uid)
+        try:
+            data = get_datastore().load_data(self._flight.uid, self.dtype.value, self.uid)
+        except KeyError:
+            _log.exception("Unable to load data.")
+            return None
         if field is not None:
             return data[field]
         return data
