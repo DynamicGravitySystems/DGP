@@ -26,7 +26,9 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         self._current_dataset = None
 
         # Initialize Models for ComboBoxes
+        # TODO: Ideally the model will come directly from the Flight object - which will simplify updating of state
         self.flight_lines = QStandardItemModel()
+        # self.flight_lines = self._flight._line_model
         self.plot_index = QStandardItemModel()
         self.transform_graphs = QStandardItemModel()
         # Set ComboBox Models
@@ -42,7 +44,7 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         self.lv_channels.setModel(self.channels)
 
         # Populate ComboBox Models
-        self._set_flight_lines()
+        # self._set_flight_lines()
 
         for choice in ['Time', 'Latitude', 'Longitude']:
             item = QStandardItem(choice)
@@ -56,15 +58,20 @@ class TransformWidget(QWidget, Ui_TransformInterface):
             item.setData(method, QtDataRoles.UserRole)
             self.transform_graphs.appendRow(item)
 
-        self._trajectory = self._flight.trajectory
-        self._gravity = self._flight.gravity
-
         self.bt_execute_transform.clicked.connect(self.execute_transform)
         self.bt_line_refresh.clicked.connect(self._set_flight_lines)
         self.bt_select_all.clicked.connect(lambda: self._set_all_channels(Qt.Checked))
         self.bt_select_none.clicked.connect(lambda: self._set_all_channels(Qt.Unchecked))
 
         self.hlayout.addWidget(self._plot.widget, Qt.AlignLeft | Qt.AlignTop)
+
+    @property
+    def raw_gravity(self):
+        return self._flight.gravity
+
+    @property
+    def raw_trajectory(self):
+        return self._flight.trajectory
 
     @property
     def transform(self) -> QComboBox:
@@ -99,39 +106,18 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         """Print out the dictionary transform (or even the raw code) in GUI?"""
         pass
 
-    def _prepare_transform(self, transform: TransformGraph):
-
-        pass
-
-    def _concat_results(self, results: dict):
-        # TODO: How to generalize this for any TransformGraph
-        print(results.keys())
-        trajectory = results['trajectory']
-        time_index = pd.Series(trajectory.index.astype(np.int64) / 10 ** 9, index=trajectory.index,
-                               name='unix_time')
-        output_frame = pd.concat([time_index, trajectory[['lat', 'long', 'ell_ht']],
-                                  results['aligned_eotvos'],
-                                  results['aligned_kin_accel'], results['lat_corr'],
-                                  results['fac'], results['total_corr'],
-                                  results['abs_grav'], results['corrected_grav']],
-                                 axis=1)
-        output_frame.columns = ['unix_time', 'lat', 'lon', 'ell_ht', 'eotvos',
-                                'kin_accel', 'lat_corr', 'fac', 'total_corr',
-                                'vert_accel', 'gravity']
-        return output_frame
-
     def execute_transform(self):
-        if self._trajectory is None or self._gravity is None:
+        if self.raw_trajectory is None or self.raw_gravity is None:
             self.log.warning("Missing trajectory or gravity")
             return
 
         self.log.info("Preparing Transformation Graph")
         transform = self.cb_transform_graphs.currentData(QtDataRoles.UserRole)
 
-        graph = transform(self._trajectory, self._gravity, 0, 0)
+        graph = transform(self.raw_trajectory, self.raw_gravity, 0, 0)
         self.log.info("Executing graph")
         results = graph.execute()
-        result_df = self._concat_results(results)
+        result_df = graph.result_df()
 
         default_channels = ['gravity']
         self.channels.clear()

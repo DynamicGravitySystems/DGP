@@ -1,11 +1,11 @@
-# coding: utf-8
+# -*- coding: utf-8 -*-
 
 import logging
 from typing import List, Dict
 
 import PyQt5.QtCore as QtCore
 import PyQt5.Qt as Qt
-from PyQt5.Qt import QWidget
+from PyQt5.QtWidgets import QWidget
 from PyQt5.QtCore import (QModelIndex, QVariant, QAbstractItemModel,
                           QMimeData, pyqtSignal, pyqtBoundSignal)
 from PyQt5.QtGui import QIcon, QBrush, QColor
@@ -382,7 +382,7 @@ class ComboEditDelegate(Qt.QStyledItemDelegate):
         editor.setGeometry(option.rect)
 
 
-class ChannelListModel(BaseTreeModel):
+class ChannelListTreeModel(BaseTreeModel):
     """
     Tree type model for displaying/plotting data channels.
     This model supports drag and drop internally.

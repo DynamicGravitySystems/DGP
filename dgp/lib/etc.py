@@ -19,7 +19,7 @@ def align_frames(frame1, frame2, align_to='left', interp_method='time',
     ----------
     frame1: :obj:`DataFrame` or :obj:`Series
         Must have a time-like index
-    frame1: :obj:`DataFrame` or :obj:`Series
+    frame2: :obj:`DataFrame` or :obj:`Series
         Must have a time-like index
     align_to: {'left', 'right'}, :obj:`DatetimeIndex`
         Index to which data are aligned.

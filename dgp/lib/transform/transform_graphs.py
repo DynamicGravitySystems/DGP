@@ -1,6 +1,7 @@
 # coding: utf-8
 from functools import partial
 import pandas as pd
+import numpy as np
 
 from .graph import TransformGraph
 from .gravity import (eotvos_correction, latitude_correction,
@@ -14,8 +15,8 @@ from .derivatives import taylor_fir, central_difference
 def demux(df, col):
     return df[col]
 
-class SyncGravity(TransformGraph):
 
+class SyncGravity(TransformGraph):
     # TODO: align_frames only works with this ordering, but should work for either
     def __init__(self, kin_accel, gravity):
         self.transform_graph = {'gravity': gravity,
@@ -24,12 +25,13 @@ class SyncGravity(TransformGraph):
                                 'delay': (find_time_delay, 'kin_accel', 'raw_grav'),
                                 'shifted_gravity': (shift_frame, 'gravity', 'delay'),
                                 }
-
         super().__init__()
+
+    def result_df(self) -> pd.DataFrame:
+        return pd.DataFrame()
 
 
 class AirbornePost(TransformGraph):
-
     # concat = partial(pd.concat, axis=1, join='outer')
 
     def total_corr(self, *args):
@@ -58,3 +60,24 @@ class AirbornePost(TransformGraph):
                                 'filtered_grav': (partial(lp_filter, fs=10), 'corrected_grav')
                                 }
         super().__init__()
+
+    # TODO: Add an empty method to super for descendant implementation?
+    def result_df(self) -> pd.DataFrame:
+        """Concatenate the resultant dictionary into a pandas DataFrame"""
+        if self.results is not None:
+            trajectory = self.results['trajectory']
+            time_index = pd.Series(trajectory.index.astype(np.int64) / 10 ** 9, index=trajectory.index,
+                                   name='unix_time')
+            output_frame = pd.concat([time_index, trajectory[['lat', 'long', 'ell_ht']],
+                                      self.results['aligned_eotvos'],
+                                      self.results['aligned_kin_accel'], self.results['lat_corr'],
+                                      self.results['fac'], self.results['total_corr'],
+                                      self.results['abs_grav'], self.results['corrected_grav']],
+                                     axis=1)
+            output_frame.columns = ['unix_time', 'lat', 'lon', 'ell_ht', 'eotvos',
+                                    'kin_accel', 'lat_corr', 'fac', 'total_corr',
+                                    'vert_accel', 'gravity']
+            return output_frame
+        else:
+            self.execute()
+            return self.result_df()

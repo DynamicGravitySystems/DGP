@@ -10,7 +10,7 @@ from . import BaseTab, Flight
 import dgp.gui.models as models
 import dgp.lib.types as types
 from dgp.gui.dialogs import ChannelSelectionDialog
-from dgp.gui.plotting.plotters import LineGrabPlot, LineUpdate, PqtLineSelectPlot
+from dgp.gui.plotting.plotters import LineUpdate, PqtLineSelectPlot
 
 
 class PlotTab(BaseTab):
@@ -61,7 +61,7 @@ class PlotTab(BaseTab):
 
     def _init_model(self, default_state=False):
         channels = self.flight.channels
-        plot_model = models.ChannelListModel(channels, len(self.plot))
+        plot_model = models.ChannelListTreeModel(channels, len(self.plot))
         plot_model.plotOverflow.connect(self._too_many_children)
         plot_model.channelChanged.connect(self._on_channel_changed)
         self.model = plot_model
@@ -83,6 +83,7 @@ class PlotTab(BaseTab):
                     self.model.move_channel(channel.uid, plot)
 
     def _show_select_dialog(self):
+        # TODO: Check that select dialog not already active
         dlg = ChannelSelectionDialog(parent=self)
         if self.model is not None:
             dlg.set_model(self.model)

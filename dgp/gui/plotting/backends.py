@@ -20,9 +20,6 @@ from pyqtgraph.widgets.GraphicsView import GraphicsView
 from pyqtgraph.graphicsItems.GraphicsLayout import GraphicsLayout
 from pyqtgraph.graphicsItems.AxisItem import AxisItem
 from pyqtgraph.graphicsItems.PlotDataItem import PlotDataItem
-from pyqtgraph.graphicsItems.InfiniteLine import InfiniteLine
-from pyqtgraph.graphicsItems.ViewBox import ViewBox
-from pyqtgraph.graphicsItems.LinearRegionItem import LinearRegionItem
 from pyqtgraph.widgets.PlotWidget import PlotWidget, PlotItem
 from pyqtgraph import SignalProxy
 
@@ -43,25 +40,8 @@ these classes was to wrap a PlotItem or Axes and provide a unified standard
 interface for plotting. However, the Stacked*Widget classes might nicely 
 encapsulate what was intended there.
 """
-__all__ = ['PYQTGRAPH', 'MATPLOTLIB', 'BasePlot', 'StackedMPLWidget',
-           'PyQtGridPlotWidget',
-           'AbstractSeriesPlotter']
-
-PYQTGRAPH = 'pqg'
-MATPLOTLIB = 'mpl'
-
-
-class BasePlot:
-    """Creates a new Plot Widget with the specified backend (Matplotlib,
-    or PyQtGraph), or returns a StackedMPLWidget if none specified."""
-    def __new__(cls, *args, **kwargs):
-        backend = kwargs.get('backend', '')
-        if backend.lower() == PYQTGRAPH:
-            kwargs.pop('backend')
-            # print("Initializing StackedPGWidget with KWArgs: ", kwargs)
-            return PyQtGridPlotWidget(*args, **kwargs)
-        else:
-            return StackedMPLWidget(*args, **kwargs)
+__all__ = ['StackedMPLWidget', 'PyQtGridPlotWidget', 'AbstractSeriesPlotter',
+           'DateAxis']
 
 
 class DateAxis(AxisItem):
@@ -224,11 +204,11 @@ class PyQtGridPlotWidget(GraphicsView):
 
         for row in range(rows):
             for col in range(cols):
-                date_fmtr = None
+                plot_kwargs = dict(row=row, col=col, background=background)
                 if tickFormatter == 'date':
                     date_fmtr = DateAxis(orientation='bottom')
-                plot = self._gl.addPlot(row=row, col=col, background=background,
-                                        axisItems={'bottom': date_fmtr})
+                    plot_kwargs['axisItems'] = {'bottom': date_fmtr}
+                plot = self._gl.addPlot(**plot_kwargs)
                 plot.getAxis('left').setWidth(40)
 
                 if len(self._plots) > 0:
@@ -334,6 +314,7 @@ class AbstractSeriesPlotter(metaclass=ABCMeta):
 
 
 class PlotWidgetWrapper(AbstractSeriesPlotter):
+    """Bridge class wrapper around a PyQtGraph plot object"""
     def __init__(self, plot: PlotItem):
         self._plot = plot
         self._lines = {}  # id(Series): line

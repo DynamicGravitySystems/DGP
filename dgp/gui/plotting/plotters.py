@@ -14,14 +14,13 @@ from PyQt5.QtWidgets import QMenu, QAction
 from PyQt5.QtCore import pyqtSignal
 from dgp.lib.types import LineUpdate
 from dgp.lib.etc import gen_uuid
-from .backends import BasePlot, PYQTGRAPH, AbstractSeriesPlotter
+from .backends import AbstractSeriesPlotter, PyQtGridPlotWidget
 
 import pyqtgraph as pg
 from pyqtgraph.graphicsItems.LinearRegionItem import LinearRegionItem
 from pyqtgraph.graphicsItems.TextItem import TextItem
 
 _log = logging.getLogger(__name__)
-
 
 """
 TODO: Many of the classes here are not used, in favor of the PyQtGraph line selection interface.
@@ -36,11 +35,12 @@ class TransformPlot:
     """Plot interface used for displaying transformation results.
     May need to display data plotted against time series or scalar series.
     """
+    # TODO: Duplication of params? Use kwargs?
     def __init__(self, rows=2, cols=1, sharex=True, sharey=False, grid=True,
-                 parent=None):
-        self.widget = BasePlot(backend=PYQTGRAPH, rows=rows, cols=cols,
-                               sharex=sharex, sharey=sharey, grid=grid,
-                               background='w', parent=parent)
+                 tickformatter=None, parent=None):
+        self.widget = PyQtGridPlotWidget(rows=rows, cols=cols,
+                                         sharex=sharex, sharey=sharey, grid=grid,
+                                         background='w', parent=parent, tickFormatter=tickformatter)
 
     @property
     def plots(self) -> List[AbstractSeriesPlotter]:
@@ -56,6 +56,7 @@ class TransformPlot:
 class LinearFlightRegion(LinearRegionItem):
     """Custom LinearRegionItem class to provide override methods on various
     click events."""
+
     def __init__(self, values=(0, 1), orientation=None, brush=None,
                  movable=True, bounds=None, parent=None, label=None):
         super().__init__(values=values, orientation=orientation, brush=brush,
@@ -120,8 +121,6 @@ class LinearFlightRegion(LinearRegionItem):
         self._grpid = value
 
 
-
-
 class PqtLineSelectPlot(QtCore.QObject):
     """New prototype Flight Line selection plot using Pyqtgraph as the
     backend.
@@ -132,9 +131,11 @@ class PqtLineSelectPlot(QtCore.QObject):
 
     def __init__(self, flight, rows=3, parent=None):
         super().__init__(parent=parent)
-        self.widget = BasePlot(backend=PYQTGRAPH, rows=rows, cols=1,
-                               sharex=True, grid=True, background='w',
-                               parent=parent)
+        # self.widget = BasePlot(backend=PYQTGRAPH, rows=rows, cols=1,
+        #                        sharex=True, grid=True, background='w',
+        #                        parent=parent)
+        self.widget = PyQtGridPlotWidget(rows=rows, cols=1, grid=True, sharex=True,
+                                         background='w', parent=parent)
         self._flight = flight
         self.widget.add_onclick_handler(self.onclick)
         self._lri_id = count(start=1)

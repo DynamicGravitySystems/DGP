@@ -55,8 +55,8 @@ class DataTypes(enum.Enum):
 
 class GravityTypes(enum.Enum):
     # TODO: add set of fields specific to each dtype
-    AT1A = ('gravity', 'long', 'cross', 'beam', 'temp', 'status', 'pressure',
-            'Etemp', 'GPSweek', 'GPSweekseconds')
+    AT1A = ('gravity', 'long_accel', 'cross_accel', 'beam', 'temp', 'status',
+            'pressure', 'Etemp', 'gps_week', 'gps_sow')
     AT1M = ('at1m',)
     ZLS = ('line_name', 'year', 'day', 'hour', 'minute', 'second', 'sensor',
            'spring_tension', 'cross_coupling', 'raw_beam', 'vcc', 'al', 'ax',
