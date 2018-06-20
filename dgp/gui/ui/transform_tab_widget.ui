@@ -46,10 +46,56 @@
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_2">
        <item>
-        <widget class="QComboBox" name="cb_line_select"/>
-       </item>
-       <item>
-        <widget class="QComboBox" name="cb_transform_select"/>
+        <layout class="QFormLayout" name="formLayout">
+         <item row="0" column="0">
+          <widget class="QLabel" name="lbl_flight_lines">
+           <property name="text">
+            <string>Flight Line:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <layout class="QHBoxLayout" name="horizontalLayout">
+           <item>
+            <widget class="QComboBox" name="cb_flight_lines"/>
+           </item>
+           <item>
+            <widget class="QToolButton" name="bt_line_refresh">
+             <property name="toolTip">
+              <string>Refresh</string>
+             </property>
+             <property name="text">
+              <string>...</string>
+             </property>
+             <property name="icon">
+              <iconset resource="resources/resources.qrc">
+               <normaloff>:/images/geoid</normaloff>:/images/geoid</iconset>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="lbl_plot_index">
+           <property name="text">
+            <string>Index:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QComboBox" name="cb_plot_index"/>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="lbl_transform_graphs">
+           <property name="text">
+            <string>Transform:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QComboBox" name="cb_transform_graphs"/>
+         </item>
+        </layout>
        </item>
        <item>
         <widget class="QPushButton" name="bt_execute_transform">
@@ -58,17 +104,56 @@
          </property>
         </widget>
        </item>
+       <item>
+        <widget class="QPushButton" name="bt_export">
+         <property name="enabled">
+          <bool>false</bool>
+         </property>
+         <property name="text">
+          <string>Export</string>
+         </property>
+        </widget>
+       </item>
       </layout>
      </widget>
-     <widget class="QWidget" name="PropertiesTab" native="true">
+     <widget class="QWidget" name="ChannelsTab" native="true">
       <attribute name="title">
-       <string>Properties</string>
+       <string>Channels</string>
       </attribute>
+      <layout class="QVBoxLayout" name="verticalLayout">
+       <item>
+        <widget class="QListView" name="lv_channels">
+         <property name="editTriggers">
+          <set>QAbstractItemView::NoEditTriggers</set>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_2">
+         <item>
+          <widget class="QPushButton" name="bt_select_all">
+           <property name="text">
+            <string>Select All</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="bt_select_none">
+           <property name="text">
+            <string>Deselect All</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+      </layout>
      </widget>
     </widget>
    </item>
   </layout>
  </widget>
- <resources/>
+ <resources>
+  <include location="resources/resources.qrc"/>
+ </resources>
  <connections/>
 </ui>
