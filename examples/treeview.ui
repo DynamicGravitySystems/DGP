@@ -17,6 +17,13 @@
    <item>
     <widget class="QTreeView" name="treeView"/>
    </item>
+   <item>
+    <widget class="QPushButton" name="btn">
+     <property name="text">
+      <string>Click me</string>
+     </property>
+    </widget>
+   </item>
   </layout>
  </widget>
  <resources/>
