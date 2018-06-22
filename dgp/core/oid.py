@@ -20,7 +20,7 @@ class OID:
             assert len(_uid) == 32
         self._base_uuid = _uid or uuid4().hex
         self._group = obj.__class__.__name__[0:5].lower()
-        self._uuid = _uid or '{}_{}'.format(self._group, self._base_uuid)
+        self._uuid = '{}_{}'.format(self._group, self._base_uuid)
         self._tag = tag
         self._pointer = obj
         _registry[self._base_uuid] = self
@@ -50,6 +50,9 @@ class OID:
             return self._base_uuid == other.base_uuid
         except AttributeError:
             return False
+
+    def __hash__(self):
+        return hash(self.base_uuid)
 
     def __del__(self):
         # print("Deleting OID from registry: " + self._base_uuid)

@@ -2,19 +2,20 @@
 
 import sys
 import traceback
+from itertools import count
 from pathlib import Path
+from pprint import pprint
 
 from PyQt5 import QtCore
-from PyQt5.QtGui import QStandardItem, QIcon, QStandardItemModel
+from PyQt5.QtGui import QStandardItemModel
 
-from core.controllers.FlightController import FlightController
-from core.flight import Flight, FlightLine
-from dgp import resources_rc
+from core.controllers.ProjectController import AirborneProjectController
+from core.models.ProjectTreeModel import ProjectTreeModel
+from core.models.flight import Flight, FlightLine, DataFile
+from core.models.project import AirborneProject
 
 from PyQt5.uic import loadUiType
 from PyQt5.QtWidgets import QDialog, QApplication
-from PyQt5.QtCore import QModelIndex, Qt
-
 
 tree_dialog, _ = loadUiType('treeview.ui')
 
@@ -32,6 +33,7 @@ class TreeTest(QDialog, tree_dialog):
         super().__init__(parent=None)
         self.setupUi(self)
         self.treeView.setModel(model)
+        self.treeView.expandAll()
 
 
 def excepthook(type_, value, traceback_):
@@ -47,24 +49,31 @@ def excepthook(type_, value, traceback_):
 
 
 if __name__ == "__main__":
-    flt = Flight('Test Flight')
-    flt.add_flight_line(FlightLine('then', 'now', 1))
-    flt_ctrl = FlightController(flt)
-
-    root_item = QStandardItem("ROOT")
-    # atm = AbstractTreeModel(root_item)
-    atm = QStandardItemModel()
-    atm.appendRow(root_item)
-    flights = QStandardItem("Flights")
-    root_item.appendRow(flights)
-
-    flights.appendRow(flt_ctrl)
-
     sys.excepthook = excepthook
-    app = QApplication([])
-    dlg = TreeTest(atm)
 
-    dlg.btn.clicked.connect(lambda: flt_ctrl.add_flight_line(FlightLine('yesterday', 'today', 2)))
-    # dlg.btn.clicked.connect(lambda: atm.update())
+    project = AirborneProject(name="Test Project", path=Path('.'))
+    flt = Flight('Test Flight')
+    flt.add_flight_line(FlightLine(23, 66, 1))
+    flt.add_child(DataFile('/flights/gravity/1234', 'Test File', 'gravity'))
+    project.add_child(flt)
+
+    prj_item = AirborneProjectController(project)
+
+    model = ProjectTreeModel()
+    model.appendRow(prj_item)
+
+    app = QApplication([])
+    dlg = TreeTest(model)
+
+    counter = count(2)
+
+    def add_line():
+        for fc in prj_item.flight_controllers:
+            fc.add_child(FlightLine(next(counter), next(counter), next(counter)))
+
+
+    dlg.btn.clicked.connect(add_line)
+    dlg.btn_export.clicked.connect(lambda: pprint(project.to_json(indent=4)))
+    dlg.btn_flight.clicked.connect(lambda: prj_item.add_flight(Flight('Flight %d' % next(counter))))
     dlg.show()
     sys.exit(app.exec_())

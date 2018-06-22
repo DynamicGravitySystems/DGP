@@ -15,17 +15,53 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <widget class="QTreeView" name="treeView"/>
+    <widget class="ProjectTreeView" name="treeView">
+     <property name="iconSize">
+      <size>
+       <width>15</width>
+       <height>15</height>
+      </size>
+     </property>
+     <property name="rootIsDecorated">
+      <bool>false</bool>
+     </property>
+     <attribute name="headerVisible">
+      <bool>false</bool>
+     </attribute>
+    </widget>
    </item>
    <item>
     <widget class="QPushButton" name="btn">
      <property name="text">
-      <string>Click me</string>
+      <string>Add Line</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="btn_flight">
+     <property name="text">
+      <string>Add Flight</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="btn_export">
+     <property name="text">
+      <string>Export JSON</string>
      </property>
     </widget>
    </item>
   </layout>
  </widget>
- <resources/>
+ <customwidgets>
+  <customwidget>
+   <class>ProjectTreeView</class>
+   <extends>QTreeView</extends>
+   <header>dgp.core.views.ProjectTreeView</header>
+  </customwidget>
+ </customwidgets>
+ <resources>
+  <include location="../dgp/gui/ui/resources/resources.qrc"/>
+ </resources>
  <connections/>
 </ui>
