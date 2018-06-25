@@ -5,10 +5,13 @@ Unit tests for new Project/Flight data classes, including JSON
 serialization/de-serialization
 """
 import json
+import time
 from pathlib import Path
+from pprint import pprint
 
 import pytest
 from core.models import project, flight
+from core.models.meter import Gravimeter
 
 
 @pytest.fixture()
@@ -46,31 +49,32 @@ def test_flight_actions(make_flight, make_line):
 
     assert not line1.sequence == line2.sequence
 
-    assert 0 == f1.flight_line_count()
-    assert 0 == f1.data_file_count()
+    assert 0 == len(f1.flight_lines)
+    assert 0 == len(f2.flight_lines)
 
-    f1.add_flight_line(line1)
-    assert 1 == f1.flight_line_count()
+    f1.add_child(line1)
+    assert 1 == len(f1.flight_lines)
 
     with pytest.raises(ValueError):
-        f1.add_flight_line('not a flight line')
+        f1.add_child('not a flight line')
 
     assert line1 in f1.flight_lines
 
     f1.remove_child(line1.uid)
     assert line1 not in f1.flight_lines
 
-    f1.add_flight_line(line1)
-    f1.add_flight_line(line2)
+    f1.add_child(line1)
+    f1.add_child(line2)
 
     assert line1 in f1.flight_lines
     assert line2 in f1.flight_lines
-    assert 2 == f1.flight_line_count()
+    assert 2 == len(f1.flight_lines)
 
     assert '<Flight Flight-1 :: %s>' % f1.uid == repr(f1)
 
 
 def test_project_actions():
+    # TODO: test add/get/remove child
     pass
 
 
@@ -139,7 +143,7 @@ def test_project_serialize(make_flight, make_line):
     f1 = make_flight('flt1')  # type: flight.Flight
     line1 = make_line(0, 10)  # type: # flight.FlightLine
     data1 = flight.DataFile('/%s' % f1.uid.base_uuid, 'df1', 'gravity')
-    f1.add_flight_line(line1)
+    f1.add_child(line1)
     f1.add_child(data1)
     prj.add_child(f1)
 
@@ -153,37 +157,58 @@ def test_project_serialize(make_flight, make_line):
 
 
 def test_project_deserialize(make_flight, make_line):
+    attrs = {
+        'attr1': 12345,
+        'attr2': 192.201,
+        'attr3': False,
+        'attr4': "Notes on project"
+
+    }
     prj = project.AirborneProject(name="SerializeTest", path=Path('./prj1'),
                                   description="Test DeSerialize")
 
+    for key, value in attrs.items():
+        prj.set_attr(key, value)
+
+    assert attrs == prj._attributes
+
     f1 = make_flight("Flt1")  # type: flight.Flight
     f2 = make_flight("Flt2")
-    line1 = make_line(0, 10)
+    line1 = make_line(0, 10)  # type: flight.FlightLine
     line2 = make_line(11, 20)
-    f1.add_flight_line(line1)
-    f1.add_flight_line(line2)
+    f1.add_child(line1)
+    f1.add_child(line2)
 
     prj.add_child(f1)
     prj.add_child(f2)
 
+    mtr = Gravimeter('AT1M-X')
+    prj.add_child(mtr)
+
     serialized = prj.to_json(indent=4)
-
+    time.sleep(0.25)  # Fuzz for modification date
     prj_deserialized = project.AirborneProject.from_json(serialized)
-    flt_names = [flt.name for flt in prj_deserialized.flights]
+    re_serialized = prj_deserialized.to_json(indent=4)
+    assert serialized == re_serialized
 
+    assert attrs == prj_deserialized._attributes
     assert prj.creation_time == prj_deserialized.creation_time
 
+    flt_names = [flt.name for flt in prj_deserialized.flights]
     assert "Flt1" in flt_names
     assert "Flt2" in flt_names
 
     f1_reconstructed = prj_deserialized.get_child(f1.uid)
-    assert f1_reconstructed.name == f1.name
-    assert f1_reconstructed.uid == f1.uid
-
     assert f1.uid in [flt.uid for flt in prj_deserialized.flights]
     assert 2 == len(prj_deserialized.flights)
     prj_deserialized.remove_child(f1_reconstructed.uid)
     assert 1 == len(prj_deserialized.flights)
     assert f1.uid not in [flt.uid for flt in prj_deserialized.flights]
+    assert f1_reconstructed.name == f1.name
+    assert f1_reconstructed.uid == f1.uid
 
+    assert f2.uid in [flt.uid for flt in prj_deserialized.flights]
+
+    assert line1.uid in [line.uid for line in f1_reconstructed.flight_lines]
+    assert line2.uid in [line.uid for line in f1_reconstructed.flight_lines]
 

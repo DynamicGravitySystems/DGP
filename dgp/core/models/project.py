@@ -10,38 +10,44 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Any, Dict, Union
 
-from core.oid import OID
-from .flight import Flight
+from ..oid import OID
+from .flight import Flight, FlightLine, DataFile
 from .meter import Gravimeter
+
+klass_map = {'Flight': Flight, 'FlightLine': FlightLine, 'DataFile': DataFile,
+             'Gravimeter': Gravimeter}
 
 
 class ProjectEncoder(json.JSONEncoder):
-    def default(self, o: Any) -> dict:
-        r_dict = {'_type': o.__class__.__name__}
-        for key, value in o.__dict__.items():
-            if isinstance(value, OID) or key == '_uid':
-                r_dict[key] = value.base_uuid
-            elif isinstance(value, Path):
-                r_dict[key] = str(value)
-            elif isinstance(value, datetime):
-                r_dict[key] = value.timestamp()
-            else:
-                r_dict[key] = value
-        return r_dict
+    def default(self, o: Any):
+        if isinstance(o, (AirborneProject, *klass_map.values())):
+            keys = o.__slots__ if hasattr(o, '__slots__') else o.__dict__.keys()
+            attrs = {key.lstrip('_'): getattr(o, key) for key in keys}
+            attrs['_type'] = o.__class__.__name__
+            return attrs
+        if isinstance(o, OID):
+            return o.base_uuid
+        if isinstance(o, Path):
+            return str(o)
+        if isinstance(o, datetime):
+            return o.timestamp()
+
+        return super().default(o)
 
 
 class GravityProject:
-    def __init__(self, name: str, path: Union[Path, str], description: Optional[str]=None,
-                 create_date: Optional[float]=datetime.utcnow().timestamp(), uid: Optional[str]=None, **kwargs):
-        self._uid = OID(self, uid)
+    def __init__(self, name: str, path: Union[Path, str], description: Optional[str] = None,
+                 create_date: Optional[float] = datetime.utcnow().timestamp(), uid: Optional[str] = None, **kwargs):
+        self._uid = OID(self, tag=name, _uid=uid)
         self._name = name
         self._path = path
         self._description = description
         self._create_date = datetime.fromtimestamp(create_date)
-        self._modify_date = datetime.utcnow()
+        self._modify_date = datetime.fromtimestamp(kwargs.get('modify_date',
+                                                              datetime.utcnow().timestamp()))
 
-        self._gravimeters = []  # type: List[Gravimeter]
-        self._attributes = {}  # type: Dict[str, Any]
+        self._gravimeters = kwargs.get('gravimeters', [])  # type: List[Gravimeter]
+        self._attributes = kwargs.get('attributes', {})  # type: Dict[str, Any]
 
     @property
     def uid(self) -> OID:
@@ -51,6 +57,11 @@ class GravityProject:
     def name(self) -> str:
         return self._name
 
+    @name.setter
+    def name(self, value: str) -> None:
+        self._name = value.strip()
+        self._modify()
+
     @property
     def path(self) -> Path:
         return Path(self._path)
@@ -58,6 +69,11 @@ class GravityProject:
     @property
     def description(self) -> str:
         return self._description
+
+    @description.setter
+    def description(self, value: str):
+        self._description = value.strip()
+        self._modify()
 
     @property
     def creation_time(self) -> datetime:
@@ -102,7 +118,11 @@ class GravityProject:
 
     def __getattr__(self, item):
         # Intercept attribute calls that don't exist - proxy to _attributes
-        return self._attributes[item]
+        try:
+            return self._attributes[item]
+        except KeyError:
+            # hasattr/getattr expect an AttributeError if attribute doesn't exist
+            raise AttributeError
 
     def __getitem__(self, item):
         return self._attributes[item]
@@ -114,8 +134,38 @@ class GravityProject:
 
     # Serialization/De-Serialization methods
     @classmethod
+    def object_hook(cls, json_o: Dict):
+        """Object Hook in json.load will iterate upwards from the deepest
+        nested JSON object (dictionary), calling this hook on each, then passing
+        the result up to the next level object.
+        Thus we can re-assemble the entire
+        Project hierarchy given that all classes can be created via their __init__
+        methods (i.e. must accept passing child objects through a parameter)
+
+        The _type attribute is expected (and injected during serialization), for any
+        custom objects which should be processed by the project_hook
+
+        The type of the current project class (or sub-class) is injected into
+        the class map which allows for this object hook to be utilized by any
+        inheritor without modification.
+        """
+        if '_type' in json_o:
+            _type = json_o.pop('_type')
+            if _type == cls.__name__:
+                klass = cls
+            else:
+                klass = klass_map.get(_type, None)
+            if klass is None:
+                raise AttributeError("Unexpected class %s in JSON data. Class is not defined"
+                                     " in class map." % _type)
+            params = {key.lstrip('_'): value for key, value in json_o.items()}
+            return klass(**params)
+        else:
+            return json_o
+
+    @classmethod
     def from_json(cls, json_str: str) -> 'GravityProject':
-        raise NotImplementedError("from_json must be implemented in base class.")
+        return json.loads(json_str, object_hook=cls.object_hook)
 
     def to_json(self, indent=None) -> str:
         return json.dumps(self, cls=ProjectEncoder, indent=indent)
@@ -124,7 +174,7 @@ class GravityProject:
 class AirborneProject(GravityProject):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._flights = []
+        self._flights = kwargs.get('flights', [])
 
     @property
     def flights(self) -> List[Flight]:
@@ -137,7 +187,7 @@ class AirborneProject(GravityProject):
         else:
             super().add_child(child)
 
-    def get_child(self, child_id: OID):
+    def get_child(self, child_id: OID) -> Union[Flight, Gravimeter]:
         try:
             return [flt for flt in self._flights if flt.uid == child_id][0]
         except IndexError:
@@ -150,35 +200,6 @@ class AirborneProject(GravityProject):
         else:
             return super().remove_child(child_id)
 
-    @classmethod
-    def from_json(cls, json_str: str) -> 'AirborneProject':
-        decoded = json.loads(json_str)
-
-        flights = decoded.pop('_flights')
-        meters = decoded.pop('_gravimeters')
-        attrs = decoded.pop('_attributes')
-
-        params = {}
-        for key, value in decoded.items():
-            param_key = key[1:]  # strip leading underscore
-            params[param_key] = value
-
-        klass = cls(**params)
-        for key, value in attrs.items():
-            klass.set_attr(key, value)
-
-        for flight in flights:
-            flt = Flight.from_dict(flight)
-            klass.add_child(flt)
-
-        for meter in meters:
-            mtr = Gravimeter.from_dict(meter)
-            klass.add_child(mtr)
-
-        return klass
-
 
 class MarineProject(GravityProject):
-    @classmethod
-    def from_json(cls, json_str: str) -> 'MarineProject':
-        pass
+    pass
