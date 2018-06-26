@@ -46,8 +46,10 @@ class TreeTest(QDialog, tree_dialog):
 
     def _flight_changed(self, flight: FlightController):
         print("Setting fl model")
-        self._cmodel = flight.get_flight_line_model()
+        self._cmodel = flight.lines_model
         print(self._cmodel)
+        print(self._cmodel.rowCount())
+        print(self._cmodel.item(0))
         self.cb_flight_lines.setModel(self._cmodel)
 
 

@@ -1,6 +1,5 @@
 # coding: utf-8
 
-import sys
 import pathlib
 import logging
 import inspect
@@ -8,10 +7,9 @@ import inspect
 from PyQt5.QtCore import pyqtSignal, QThread, pyqtBoundSignal
 from pandas import DataFrame
 
-import dgp.lib.types as types
 import dgp.lib.gravity_ingestor as gi
 import dgp.lib.trajectory_ingestor as ti
-from dgp.lib.enums import DataTypes, GravityTypes
+from core.types.enumerations import DataTypes, GravityTypes
 
 _log = logging.getLogger(__name__)
 

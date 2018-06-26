@@ -1,20 +1,16 @@
 # coding: utf-8
 
-from .context import dgp
-
 import logging
 import unittest
 from pathlib import Path
 
 import PyQt5.QtWidgets as QtWidgets
-import PyQt5.QtTest as QtTest
 from pandas import DataFrame
 
 import dgp.gui.loader as loader
-import dgp.lib.enums as enums
+import core.types.enumerations as enums
 import dgp.lib.gravity_ingestor as gi
 import dgp.lib.trajectory_ingestor as ti
-import dgp.lib.types as types
 
 
 class TestLoader(unittest.TestCase):

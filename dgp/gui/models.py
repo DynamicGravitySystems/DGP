@@ -3,16 +3,14 @@
 import logging
 from typing import List, Dict
 
-import PyQt5.QtCore as QtCore
-import PyQt5.Qt as Qt
-from PyQt5.QtWidgets import QWidget
+from PyQt5.QtCore import Qt, QAbstractTableModel
+from PyQt5.QtWidgets import QWidget, QStyledItemDelegate, QStyleOptionViewItem
 from PyQt5.QtCore import (QModelIndex, QVariant, QAbstractItemModel,
                           QMimeData, pyqtSignal, pyqtBoundSignal)
 from PyQt5.QtGui import QIcon, QBrush, QColor
 from PyQt5.QtWidgets import QComboBox
 
-from dgp.gui.qtenum import QtDataRoles, QtItemFlags
-from dgp.lib.types import (AbstractTreeItem, BaseTreeItem, TreeItem,
+from dgp.lib.types import (AbstractTreeItem, BaseTreeItem,
                            ChannelListHeader, DataChannel)
 from dgp.lib.etc import gen_uuid
 
@@ -32,7 +30,7 @@ dgp.lib.types.py : Defines many of the objects used within the models
 _log = logging.getLogger(__name__)
 
 
-class TableModel(QtCore.QAbstractTableModel):
+class TableModel(QAbstractTableModel):
     """Simple table model of key: value pairs.
     Parameters
     ----------
@@ -94,7 +92,7 @@ class TableModel(QtCore.QAbstractTableModel):
             return 0
 
     def data(self, index: QModelIndex, role=None):
-        if role == QtCore.Qt.DisplayRole or role == QtCore.Qt.EditRole:
+        if role == Qt.DisplayRole or role == Qt.EditRole:
             if index.row() == 0:
                 try:
                     return self._header[index.column()]
@@ -104,29 +102,29 @@ class TableModel(QtCore.QAbstractTableModel):
                 val = self._data[index.row() - 1][index.column()]
                 return val
             except IndexError:
-                return QtCore.QVariant()
-        return QtCore.QVariant()
+                return QVariant()
+        return QVariant()
 
     def flags(self, index: QModelIndex):
-        flags = QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
+        flags = Qt.ItemIsSelectable | Qt.ItemIsEnabled
         if index.row() == 0 and self._editable:
             # Allow editing of first row (Column headers)
-            flags = flags | QtCore.Qt.ItemIsEditable
+            flags = flags | Qt.ItemIsEditable
         return flags
 
     def headerData(self, section, orientation, role=None):
-        if role == QtCore.Qt.DisplayRole and orientation == QtCore.Qt.Horizontal:
+        if role == Qt.DisplayRole and orientation == Qt.Horizontal:
             if self._header_index:
                 return section
-            return QtCore.QVariant()
+            return QVariant()
 
     # Required implementations of super class for editable table #############
 
-    def setData(self, index: QtCore.QModelIndex, value, role=QtCore.Qt.EditRole):
+    def setData(self, index: QModelIndex, value, role=Qt.EditRole):
         """Basic implementation of editable model. This doesn't propagate the
         changes to the underlying object upon which the model was based
         though (yet)"""
-        if index.isValid() and role == QtCore.Qt.EditRole:
+        if index.isValid() and role == Qt.EditRole:
             self._header[index.column()] = value
             idx = self.index(0, index.column())
             self.dataChanged.emit(idx, idx)
@@ -141,6 +139,7 @@ class BaseTreeModel(QAbstractItemModel):
     QAbstractItemModel.
     Subclasses must provide implementations for update() and data()
     """
+
     def __init__(self, root_item: AbstractTreeItem, parent=None):
         super().__init__(parent=parent)
         self._root = root_item
@@ -149,7 +148,7 @@ class BaseTreeModel(QAbstractItemModel):
     def root(self):
         return self._root
 
-    def parent(self, index: QModelIndex=QModelIndex()) -> QModelIndex:
+    def parent(self, index: QModelIndex = QModelIndex()) -> QModelIndex:
         """
         Returns the parent QModelIndex of the given index. If the object
         referenced by index does not have a parent (i.e. the root node) an
@@ -167,13 +166,13 @@ class BaseTreeModel(QAbstractItemModel):
     def update(self, *args, **kwargs):
         raise NotImplementedError("Update must be implemented by subclass.")
 
-    def data(self, index: QModelIndex, role: QtDataRoles=None):
+    def data(self, index: QModelIndex, role=None):
         raise NotImplementedError("data() must be implemented by subclass.")
 
-    def flags(self, index: QModelIndex) -> QtItemFlags:
+    def flags(self, index: QModelIndex):
         """Return the flags of an item at the specified ModelIndex"""
         if not index.isValid():
-            return QtItemFlags.NoItemFlags
+            return Qt.NoItemFlags
         return index.internalPointer().flags()
 
     @staticmethod
@@ -182,17 +181,16 @@ class BaseTreeModel(QAbstractItemModel):
         return index.internalPointer()
 
     @staticmethod
-    def columnCount(parent: QModelIndex=QModelIndex(), *args, **kwargs):
+    def columnCount(parent: QModelIndex = QModelIndex(), *args, **kwargs):
         return 1
 
-    def headerData(self, section: int, orientation, role:
-                   QtDataRoles=QtDataRoles.DisplayRole):
+    def headerData(self, section: int, orientation, role=Qt.DisplayRole):
         """The Root item is responsible for first row header data"""
-        if orientation == QtCore.Qt.Horizontal and role == QtDataRoles.DisplayRole:
+        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
             return self._root.data(role)
         return QVariant()
 
-    def index(self, row: int, col: int, parent: QModelIndex=QModelIndex(),
+    def index(self, row: int, col: int, parent: QModelIndex = QModelIndex(),
               *args, **kwargs) -> QModelIndex:
         """Return a QModelIndex for the item at the given row and column,
         with the specified parent."""
@@ -210,89 +208,16 @@ class BaseTreeModel(QAbstractItemModel):
         else:
             return QModelIndex()
 
-    def rowCount(self, parent: QModelIndex=QModelIndex(), *args, **kwargs):
+    def rowCount(self, parent: QModelIndex = QModelIndex(), *args, **kwargs):
         # *args and **kwargs are necessary to suppress Qt Warnings
         if parent.isValid():
             return parent.internalPointer().child_count()
         return self._root.child_count()
 
 
-class ProjectModel(BaseTreeModel):
-    """Heirarchial (Tree) Project Model with a single root node."""
-    def __init__(self, project: AbstractTreeItem, parent=None):
-        self.log = logging.getLogger(__name__)
-        super().__init__(TreeItem("root"), parent=parent)
-        # assert isinstance(project, GravityProject)
-        project.model = self
-        self.root.append_child(project)
-        self.layoutChanged.emit()
-        self.log.info("Project Tree Model initialized.")
-
-    def update(self, action=None, obj=None, **kwargs):
-        """
-        This simply emits layout change events to update the view.
-        By calling layoutAboutToBeChanged and layoutChanged, we force an
-        update of the entire layout that uses this model.
-        This may not be as efficient as utilizing the beginInsertRows and
-        endInsertRows signals to specify an exact range to update, but with
-        the amount of data this model expects to handle, this is far less
-        error prone and unnoticable.
-        """
-        self.layoutAboutToBeChanged.emit()
-        self.log.info("ProjectModel Layout Changed")
-        self.layoutChanged.emit()
-        return
-
-    def data(self, index: QModelIndex, role: QtDataRoles=None):
-        """
-        Returns data for the requested index and role.
-        We do some processing here to encapsulate data within Qt Types where
-        necesarry, as TreeItems in general do not import Qt Modules due to
-        the possibilty of pickling them.
-        Parameters
-        ----------
-        index: QModelIndex
-            Model Index of item to retrieve data from
-        role: QtDataRoles
-            Role from the enumerated Qt roles in dgp/gui/qtenum.py
-            (Re-implemented for convenience and portability from PyQt defs)
-        Returns
-        -------
-        QVariant
-            Returns QVariant data depending on specified role.
-            If role is UserRole, the underlying AbstractTreeItem object is
-            returned
-        """
-        if not index.isValid():
-            return QVariant()
-        item = index.internalPointer()  # type: AbstractTreeItem
-        data = item.data(role)
-
-        # To guard against cases where role is not implemented
-        if data is None:
-            return QVariant()
-
-        # Role encapsulation
-        if role == QtDataRoles.UserRole:
-            return item
-        if role == QtDataRoles.DecorationRole:
-            # Construct Decoration object from data
-            return QIcon(data)
-        if role in [QtDataRoles.BackgroundRole, QtDataRoles.ForegroundRole]:
-            return QBrush(QColor(data))
-
-        return QVariant(data)
-
-    def flags(self, index: QModelIndex) -> QtItemFlags:
-        """Return the flags of an item at the specified ModelIndex"""
-        if not index.isValid():
-            return QtItemFlags.NoItemFlags
-        # return index.internalPointer().flags()
-        return QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
-
-
-class ComboEditDelegate(Qt.QStyledItemDelegate):
+class ComboEditDelegate(QStyledItemDelegate):
     """Used by the Advanced Import Dialog to enable column selection/setting."""
+
     def __init__(self, options=None, parent=None):
         super().__init__(parent=parent)
         self._options = options
@@ -305,7 +230,7 @@ class ComboEditDelegate(Qt.QStyledItemDelegate):
     def options(self, value):
         self._options = list(value)
 
-    def createEditor(self, parent: QWidget, option: Qt.QStyleOptionViewItem,
+    def createEditor(self, parent: QWidget, option: QStyleOptionViewItem,
                      index: QModelIndex) -> QWidget:
         """
         Create the Editor widget. The widget will be populated with data in
@@ -346,18 +271,18 @@ class ComboEditDelegate(Qt.QStyledItemDelegate):
         if not isinstance(editor, QComboBox):
             print("Unexpected editor type.")
             return
-        value = str(index.model().data(index, QtDataRoles.EditRole))
+        value = str(index.model().data(index, Qt.EditRole))
         if self.options is None:
             # Construct set of choices by scanning columns at the current row
             model = index.model()
             row = index.row()
-            self.options = {model.data(model.index(row, c), QtDataRoles.EditRole)
+            self.options = {model.data(model.index(row, c), Qt.EditRole)
                             for c in range(model.columnCount())}
 
         for choice in self.options:
             editor.addItem(choice)
 
-        index = editor.findText(value, flags=Qt.Qt.MatchExactly)
+        index = editor.findText(value, flags=Qt.MatchExactly)
         if editor.currentIndex() == index:
             return
         elif index == -1:
@@ -372,12 +297,12 @@ class ComboEditDelegate(Qt.QStyledItemDelegate):
                      index: QModelIndex) -> None:
         value = str(editor.currentText())
         try:
-            model.setData(index, value, QtCore.Qt.EditRole)
+            model.setData(index, value, Qt.EditRole)
         except:
             _log.exception("Exception setting model data")
 
     def updateEditorGeometry(self, editor: QWidget,
-                             option: Qt.QStyleOptionViewItem,
+                             option: QStyleOptionViewItem,
                              index: QModelIndex) -> None:
         editor.setGeometry(option.rect)
 
@@ -475,7 +400,7 @@ class ChannelListTreeModel(BaseTreeModel):
         self.layoutAboutToBeChanged.emit()
         self.layoutChanged.emit()
 
-    def data(self, index: QModelIndex, role: QtDataRoles=None):
+    def data(self, index: QModelIndex, role=None):
         item_data = index.internalPointer().data(role)
         if item_data is None:
             return QVariant()
@@ -484,18 +409,18 @@ class ChannelListTreeModel(BaseTreeModel):
     def flags(self, index: QModelIndex):
         item = index.internalPointer()
         if item == self.root:
-            return QtCore.Qt.NoItemFlags
+            return Qt.NoItemFlags
         if isinstance(item, DataChannel):
-            return (QtCore.Qt.ItemIsDragEnabled | QtCore.Qt.ItemIsSelectable |
-                    QtCore.Qt.ItemIsEnabled)
-        return (QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled |
-                QtCore.Qt.ItemIsDropEnabled)
+            return (Qt.ItemIsDragEnabled | Qt.ItemIsSelectable |
+                    Qt.ItemIsEnabled)
+        return (Qt.ItemIsSelectable | Qt.ItemIsEnabled |
+                Qt.ItemIsDropEnabled)
 
     def supportedDropActions(self):
-        return QtCore.Qt.MoveAction
+        return Qt.MoveAction
 
     def supportedDragActions(self):
-        return QtCore.Qt.MoveAction
+        return Qt.MoveAction
 
     def dropMimeData(self, data: QMimeData, action, row, col,
                      parent: QModelIndex) -> bool:
@@ -540,7 +465,7 @@ class ChannelListTreeModel(BaseTreeModel):
             UID could not be looked up in the model channels.
 
         """
-        if action != QtCore.Qt.MoveAction:
+        if action != Qt.MoveAction:
             return False
         if not data.hasText():
             return False
@@ -556,9 +481,9 @@ class ChannelListTreeModel(BaseTreeModel):
             # If we can get a valid ChannelListHeader, set destination to
             # that, and recreate the parent QModelIndex to point refer to the
             # new destination.
-            if row-1 in self._plots:
-                destination = self._plots[row-1]
-                parent = self.index(row-1, 0)
+            if row - 1 in self._plots:
+                destination = self._plots[row - 1]
+                parent = self.index(row - 1, 0)
             else:
                 # Otherwise if the object was in the _default header, and is
                 # dropped in an invalid manner, don't remove and re-add it to

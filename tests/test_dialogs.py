@@ -1,7 +1,5 @@
 # coding: utf-8
 
-from .context import dgp, APP
-
 import pathlib
 import tempfile
 import unittest
@@ -13,7 +11,7 @@ import PyQt5.QtTest as QtTest
 
 import dgp.gui.dialogs as dlg
 import dgp.lib.project as prj
-import dgp.lib.enums as enums
+import core.types.enumerations as enums
 
 
 class TestDialogs(unittest.TestCase):

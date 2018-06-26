@@ -1,4 +1,4 @@
-# coding: utf-8
+# -*- coding: utf-8 -*-
 
 import logging
 from abc import ABCMeta, abstractmethod
@@ -6,13 +6,10 @@ from collections import namedtuple
 from typing import Union, Generator, List, Iterable
 
 from pandas import Series, DataFrame
+from PyQt5.QtCore import Qt
 
 from dgp.lib.etc import gen_uuid
-from dgp.gui.qtenum import QtItemFlags, QtDataRoles
-from .datastore import get_datastore
-# import dgp.lib.datamanager as dm
-from . import enums
-# import dgp.lib.enums as enums
+from core.types import enumerations
 
 """
 Dynamic Gravity Processor (DGP) :: lib/types.py
@@ -150,7 +147,7 @@ class BaseTreeItem(AbstractTreeItem):
         for child in self._children:
             yield child
 
-    def data(self, role: QtDataRoles):
+    def data(self, role):
         raise NotImplementedError("data(role) must be implemented in subclass.")
 
     def child(self, index: int) -> AbstractTreeItem:
@@ -243,7 +240,7 @@ class BaseTreeItem(AbstractTreeItem):
     def flags(self) -> int:
         """Returns default flags for Tree Items, override this to enable
         custom behavior in the model."""
-        return QtItemFlags.ItemIsSelectable | QtItemFlags.ItemIsEnabled
+        return Qt.ItemIsSelectable | Qt.ItemIsEnabled
 
     def update(self, **kwargs):
         """Propogate update up to the parent that decides to catch it"""
@@ -251,10 +248,10 @@ class BaseTreeItem(AbstractTreeItem):
             self.parent.update(**kwargs)
 
 
-_style_roles = {QtDataRoles.BackgroundRole: 'bg',
-                QtDataRoles.ForegroundRole: 'fg',
-                QtDataRoles.DecorationRole: 'icon',
-                QtDataRoles.FontRole: 'font'}
+_style_roles = {Qt.BackgroundRole: 'bg',
+                Qt.ForegroundRole: 'fg',
+                Qt.DecorationRole: 'icon',
+                Qt.FontRole: 'font'}
 
 
 class TreeItem(BaseTreeItem):
@@ -298,7 +295,7 @@ class TreeItem(BaseTreeItem):
     def style(self, value):
         self._style = value
 
-    def data(self, role: QtDataRoles):
+    def data(self, role):
         """
         Return contextual data based on supplied role.
         If a role is not defined or handled by descendents they should return
@@ -307,15 +304,15 @@ class TreeItem(BaseTreeItem):
         handle common style parameters. Descendant classes should provide
         their own definition to override specific roles, and then call the
         base data() implementation to handle style application. e.g.
-        >>> def data(self, role: QtDataRoles):
-        >>>     if role == QtDataRoles.DisplayRole:
+        >>> def data(self, role):
+        >>>     if role == Qt.DisplayRole:
         >>>         return "Custom Display: " + self.name
         >>>     # Allow base class to apply styles if role not caught above
         >>>     return super().data(role)
         """
-        if role == QtDataRoles.DisplayRole:
+        if role == Qt.DisplayRole:
             return str(self)
-        if role == QtDataRoles.ToolTipRole:
+        if role == Qt.ToolTipRole:
             return self.uid
         # Allow style specification by QtDataRole or by name e.g. 'bg', 'fg'
         if role in self._style:
@@ -349,8 +346,8 @@ class ChannelListHeader(BaseTreeItem):
             return False
         return True
 
-    def data(self, role: QtDataRoles):
-        if role == QtDataRoles.DisplayRole:
+    def data(self, role):
+        if role == Qt.DisplayRole:
             return self.label
         return None
 
@@ -419,13 +416,13 @@ class FlightLine(TreeItem):
         self.update()
 
     def data(self, role):
-        if role == QtDataRoles.DisplayRole:
+        if role == Qt.DisplayRole:
             if self.label:
                 return "Line {lbl} {start} :: {end}".format(lbl=self.label,
                                                             start=self.start,
                                                             end=self.stop)
             return str(self)
-        if role == QtDataRoles.ToolTipRole:
+        if role == Qt.ToolTipRole:
             return "Line UID: " + self.uid
         return super().data(role)
 
@@ -442,126 +439,8 @@ class FlightLine(TreeItem):
             name=name, start=self.start, stop=self.stop)
 
 
-class DataSource(BaseTreeItem):
-    """
-    The DataSource object is designed to hold a reference to a given UID/File
-    that has been imported and stored by the Data Manager.
-    This object provides a method load() that enables the caller to retrieve
-    the data pointed to by this object from the Data Manager.
-
-    As DataSource is derived from BaseTreeItem, it supports being displayed
-    in a QTreeView via an AbstractItemModel derived class.
-
-    Attributes
-    ----------
-    filename : str
-        Record of the canonical path of the original data file.
-    fields : list(str)
-        List containing names of the fields (columns) available from the
-        source data.
-    dtype : str
-        Data type (i.e. GPS/Gravity) of the data pointed to by this object.
-
-    """
-    def __init__(self, uid, filename: str, fields: List[str],
-                 dtype: enums.DataTypes, x0=None, x1=None):
-        super().__init__(uid)
-        self.filename = filename
-        self.fields = fields
-        self.dtype = dtype
-        self._flight = None
-        self._active = False
-
-        self._x0 = x0 or 1
-        self._x1 = x1 or 2
-
-    def delete(self):
-        if self.flight:
-            try:
-                self.flight.remove_data(self)
-            except AttributeError:
-                _log.error("Error removing data source from flight")
-
-    @property
-    def flight(self):
-        return self._flight
-
-    @flight.setter
-    def flight(self, value):
-        self._flight = value
-
-    @property
-    def active(self):
-        return self._active
-
-    @active.setter
-    def active(self, value: bool):
-        """Iterate through siblings and deactivate any other sibling of same
-        dtype if setting this sibling to active."""
-        if value:
-            for child in self.parent.children:  # type: DataSource
-                if child is self:
-                    continue
-                if child.dtype == self.dtype and child.active:
-                    child.active = False
-            self._active = True
-        else:
-            self._active = False
-
-    def get_xlim(self):
-        return self._x0, self._x1
-
-    def get_channels(self) -> List['DataChannel']:
-        """
-        Create a new list of DataChannels.
-
-        Notes
-        -----
-        The reason we construct a new list of new DataChannels instances is
-        due the probability of the DataChannels being used in multiple
-        models.
-
-        If we returned instead a reference to previously created instances,
-        we would unpredictable behavior when their state or parent is modified.
-
-        Returns
-        -------
-        channels : List[DataChannel]
-            List of DataChannels constructed from fields available to this
-            DataSource.
-
-        """
-        return [DataChannel(field, self) for field in self.fields]
-
-    def load(self, field=None) -> Union[Series, DataFrame]:
-        """Load data from the DataManager and return the specified field."""
-        try:
-            data = get_datastore().load_data(self._flight.uid, self.dtype.value, self.uid)
-        except KeyError:
-            _log.exception("Unable to load data.")
-            return None
-        if field is not None:
-            return data[field]
-        return data
-
-    def data(self, role: QtDataRoles):
-        if role == QtDataRoles.DisplayRole:
-            return "{dtype}: {fname}".format(dtype=self.dtype.name.capitalize(),
-                                             fname=self.filename)
-        if role == QtDataRoles.ToolTipRole:
-            return "UID: {}".format(self.uid)
-        if role == QtDataRoles.DecorationRole:
-            if self.dtype == enums.DataTypes.GRAVITY:
-                return ':icons/gravity'
-            if self.dtype == enums.DataTypes.TRAJECTORY:
-                return ':icons/gps'
-
-    def children(self):
-        return []
-
-
 class DataChannel(BaseTreeItem):
-    def __init__(self, label, source: DataSource, parent=None):
+    def __init__(self, label, source, parent=None):
         super().__init__(gen_uuid('dcn'), parent=parent)
         self.label = label
         self.field = label
@@ -582,18 +461,18 @@ class DataChannel(BaseTreeItem):
     def get_xlim(self):
         return self.source.get_xlim()
 
-    def data(self, role: QtDataRoles):
-        if role == QtDataRoles.DisplayRole:
+    def data(self, role):
+        if role == Qt.DisplayRole:
             return self.label
-        if role == QtDataRoles.UserRole:
+        if role == Qt.UserRole:
             return self.field
-        if role == QtDataRoles.ToolTipRole:
+        if role == Qt.ToolTipRole:
             return self.source.filename
         return None
 
     def flags(self):
-        return super().flags() | QtItemFlags.ItemIsDragEnabled | \
-               QtItemFlags.ItemIsDropEnabled
+        return super().flags() | Qt.ItemIsDragEnabled | \
+               Qt.ItemIsDropEnabled
 
     def orphan(self):
         """Remove the current object from its parents' list of children."""

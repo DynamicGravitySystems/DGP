@@ -1,16 +1,15 @@
 # -*- coding: utf-8 -*-
 import logging
 from pathlib import Path
-from typing import Tuple
-from uuid import uuid4
 
 import tables
 from pandas import HDFStore, DataFrame
 
-__all__ = ['HDF5', 'HDFController']
+from ..models.data import DataFile
+
+__all__ = ['HDFController']
 
 # Define Data Types/Extensions
-HDF5 = 'hdf5'
 HDF5_NAME = 'dgpdata.hdf5'
 
 
@@ -34,6 +33,7 @@ class HDFController:
 
     def __init__(self, root_path, mkdir: bool = True):
         self.log = logging.getLogger(__name__)
+        logging.captureWarnings(True)
         self.dir = Path(root_path)
         if not self.dir.exists() and mkdir:
             self.dir.mkdir(parents=True)
@@ -59,8 +59,7 @@ class HDFController:
     def join_path(flightid, grpid, uid):
         return '/'.join(map(str, ['', flightid, grpid, uid]))
 
-    def save_data(self, data: DataFrame, flightid: str, grpid: str,
-                  uid=None, **kwargs) -> Tuple[str, str, str, str]:
+    def save_data(self, data: DataFrame, datafile: DataFile):
         """
         Save a Pandas Series or DataFrame to the HDF5 Store
         Data is added to the local cache, keyed by its generated UID.
@@ -76,39 +75,32 @@ class HDFController:
         ----------
         data: Union[DataFrame, Series]
             Data object to be stored on disk via specified format.
-        flightid: String
-        grpid: String
-            Data group (Gravity/Trajectory etc)
-        uid: String
-        kwargs:
-            Optional Metadata attributes to attach to the data node
+        datafile: DataFile
 
         Returns
         -------
-        str:
-            Generated UID assigned to data object saved.
+        bool:
+            True on sucessful save
+
+        Raises
+        ------
+
         """
 
-        if uid is None:
-            uid = str(uuid4().hex)
-
-        self._cache[uid] = data
-
-        # Generate path as /{flight_uid}/{grp_id}/uid
-        path = self.join_path(flightid, grpid, uid)
+        self._cache[datafile] = data
 
         with HDFStore(str(self.hdf5path)) as hdf:
             try:
-                hdf.put(path, data, format='fixed', data_columns=True)
+                hdf.put(datafile.hdfpath, data, format='fixed', data_columns=True)
             except (IOError, FileNotFoundError, PermissionError):
                 self.log.exception("Exception writing file to HDF5 _store.")
                 raise
             else:
-                self.log.info("Wrote file to HDF5 _store at node: %s", path)
+                self.log.info("Wrote file to HDF5 _store at node: %s", datafile.hdfpath)
 
-        return flightid, grpid, uid, path
+        return True
 
-    def load_data(self, flightid, grpid, uid):
+    def load_data(self, datafile: DataFile) -> DataFrame:
         """
         Load data from a managed repository by UID
         This public method is a dispatch mechanism that calls the relevant
@@ -118,14 +110,10 @@ class HDFController:
 
         Parameters
         ----------
-        flightid: String
-        grpid: String
-        uid: String
-            UID of stored date to retrieve.
 
         Returns
         -------
-        Union[DataFrame, Series, dict]
+        DataFrame
             Data retrieved from _store.
 
         Raises
@@ -134,19 +122,21 @@ class HDFController:
             If data key (/flightid/grpid/uid) does not exist
         """
 
-        if uid in self._cache:
-            self.log.info("Loading data {} from cache.".format(uid))
-            return self._cache[uid]
+        if datafile in self._cache:
+            self.log.info("Loading data {} from cache.".format(datafile.uid))
+            return self._cache[datafile]
         else:
-            path = self.join_path(flightid, grpid, uid)
-            self.log.debug("Loading data %s from hdf5 _store.", path)
+            self.log.debug("Loading data %s from hdf5 _store.", datafile.hdfpath)
 
             with HDFStore(str(self.hdf5path)) as hdf:
-                data = hdf.get(path)
+                data = hdf.get(datafile.hdfpath)
 
             # Cache the data
-            self._cache[uid] = data
+            self._cache[datafile] = data
             return data
+
+    def delete_data(self, file: DataFile) -> bool:
+        raise NotImplementedError
 
     # See https://www.pytables.org/usersguide/libref/file_class.html#tables.File.set_node_attr
     # For more details on setting/retrieving metadata from hdf5 file using pytables
