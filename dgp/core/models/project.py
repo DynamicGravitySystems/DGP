@@ -41,6 +41,7 @@ class GravityProject:
         self._uid = OID(self, tag=name, _uid=uid)
         self._name = name
         self._path = path
+        self._projectfile = 'dgp.json'
         self._description = description
         self._create_date = datetime.fromtimestamp(create_date)
         self._modify_date = datetime.fromtimestamp(kwargs.get('modify_date',
@@ -167,7 +168,15 @@ class GravityProject:
     def from_json(cls, json_str: str) -> 'GravityProject':
         return json.loads(json_str, object_hook=cls.object_hook)
 
-    def to_json(self, indent=None) -> str:
+    def to_json(self, to_file=False, indent=None) -> Union[str, bool]:
+        if to_file:
+            try:
+                with self.path.joinpath(self._projectfile).open('w') as fp:
+                    json.dump(self, fp, cls=ProjectEncoder, indent=indent)
+            except IOError:
+                raise
+            else:
+                return True
         return json.dumps(self, cls=ProjectEncoder, indent=indent)
 
 

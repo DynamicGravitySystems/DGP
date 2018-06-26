@@ -26,7 +26,8 @@ class ProjectTreeView(QTreeView):
         self.setContextMenuPolicy(QtCore.Qt.DefaultContextMenu)
         self._action_refs = []
 
-    def _clear_signal(self, signal: pyqtBoundSignal):
+    @staticmethod
+    def _clear_signal(signal: pyqtBoundSignal):
         while True:
             try:
                 signal.disconnect()
@@ -43,7 +44,7 @@ class ProjectTreeView(QTreeView):
         self.doubleClicked.connect(self._on_double_click)
         self.doubleClicked.connect(self.model().on_double_click)
 
-    @pyqtSlot(QModelIndex)
+    @pyqtSlot(QModelIndex, name='_on_double_click')
     def _on_double_click(self, index: QModelIndex):
         """Selectively expand/collapse an item depending on its active state"""
         item = self.model().itemFromIndex(index)

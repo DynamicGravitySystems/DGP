@@ -19,7 +19,7 @@ class OID:
         if _uid is not None:
             assert len(_uid) == 32
         self._base_uuid = _uid or uuid4().hex
-        self._group = obj.__class__.__name__[0:5].lower()
+        self._group = obj.__class__.__name__[0:6].lower()
         self._uuid = '{}_{}'.format(self._group, self._base_uuid)
         self._tag = tag
         self._pointer = obj

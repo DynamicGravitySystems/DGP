@@ -5,7 +5,7 @@ from PyQt5.QtCore import QObject, QModelIndex, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QStandardItemModel
 
 from core.controllers.FlightController import FlightController
-from core.controllers.common import BaseProjectController
+from core.controllers.BaseProjectController import BaseProjectController
 
 __all__ = ['ProjectTreeModel']
 
@@ -17,6 +17,8 @@ class ProjectTreeModel(QStandardItemModel):
     All signals/events should be connected via the model vs the View itself.
     """
     flight_changed = pyqtSignal(FlightController)
+    # Fired on any project mutation - can be used to autosave
+    project_changed = pyqtSignal()
 
     def __init__(self, root: BaseProjectController, parent: Optional[QObject]=None):
         super().__init__(parent)

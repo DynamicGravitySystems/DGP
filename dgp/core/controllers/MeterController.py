@@ -4,13 +4,14 @@ from typing import Optional
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QStandardItem
 
-from . import common
+from core.controllers.BaseProjectController import BaseProjectController
+from . import Containers
 from core.models.meter import Gravimeter
 
 
 class GravimeterController(QStandardItem):
     def __init__(self, meter: Gravimeter,
-                 controller: Optional[common.BaseProjectController]=None):
+                 controller: Optional[BaseProjectController]=None):
         super().__init__(meter.name)
         self.setEditable(False)
 
@@ -28,7 +29,7 @@ class GravimeterController(QStandardItem):
         return self._meter
 
     @property
-    def controller(self) -> common.BaseProjectController:
+    def controller(self) -> BaseProjectController:
         return self._project_controller
 
     @property
@@ -42,7 +43,7 @@ class GravimeterController(QStandardItem):
         pass
 
     def set_name(self):
-        name = common.get_input("Set Name", "Enter a new name:", self._meter.name)
+        name = Containers.get_input("Set Name", "Enter a new name:", self._meter.name)
         if name:
             self._meter.name = name
             self.setData(name, role=Qt.DisplayRole)

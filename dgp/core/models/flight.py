@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-from pathlib import Path
-from typing import List, Optional, Any, Dict, Union
+from datetime import datetime
+from typing import List, Optional, Union
 
+from core.models.data import DataFile
 from .meter import Gravimeter
 from ..oid import OID
 
@@ -10,7 +11,7 @@ class FlightLine:
     __slots__ = '_uid', '_start', '_stop', '_sequence'
 
     def __init__(self, start: float, stop: float, sequence: int,
-                 uid: Optional[str]=None):
+                 uid: Optional[str] = None):
         self._uid = OID(self, _uid=uid)
 
         self._start = start
@@ -45,51 +46,22 @@ class FlightLine:
         return "Line %d :: %.4f (start)  %.4f (end)" % (self.sequence, self.start, self.stop)
 
 
-class DataFile:
-    __slots__ = '_uid', '_path', '_label', '_group', '_source_path', '_column_format'
-
-    def __init__(self, hdfpath: str, label: str, group: str, source_path: Optional[Path]=None,
-                 uid: Optional[str]=None, **kwargs):
-        self._uid = OID(self, _uid=uid)
-        self._path = hdfpath
-        self._label = label
-        self._group = group
-        self._source_path = source_path
-        self._column_format = None
-
-    def load(self):
-        try:
-            pass
-            # store.load_data()
-        except AttributeError:
-            return None
-        return None
-
-    @property
-    def uid(self) -> OID:
-        return self._uid
-
-    def __str__(self):
-        return "(%s) %s :: %s" % (self._group, self._label, self._path)
-
-
 class Flight:
     """
     Version 2 Flight Class - Designed to be de-coupled from the view implementation
     Define a Flight class used to record and associate data with an entire
     survey flight (takeoff -> landing)
-    This class is iterable, yielding the flightlines named tuple objects from
-    its lines dictionary
     """
-    __slots__ = '_uid', '_name', '_flight_lines', '_data_files', '_meters'
+    __slots__ = '_uid', '_name', '_flight_lines', '_data_files', '_meters', '_date'
 
-    def __init__(self, name: str, uid: Optional[str]=None, **kwargs):
+    def __init__(self, name: str, date: datetime = None, uid: Optional[str] = None, **kwargs):
         self._uid = OID(self, tag=name, _uid=uid)
         self._name = name
 
         self._flight_lines = kwargs.get('flight_lines', [])  # type: List[FlightLine]
         self._data_files = kwargs.get('data_files', [])  # type: List[DataFile]
         self._meters = kwargs.get('meters', [])  # type: List[OID]
+        self._date = date
 
     @property
     def name(self) -> str:
@@ -138,32 +110,3 @@ class Flight:
 
     def __repr__(self) -> str:
         return '<Flight %s :: %s>' % (self.name, self.uid)
-
-    # @classmethod
-    # def from_dict(cls, mapping: Dict[str, Any]) -> 'Flight':
-    #     # assert mapping.pop('_type') == cls.__name__
-    #     flt_lines = mapping.pop('_flight_lines')
-    #     flt_meters = mapping.pop('_meters')
-    #     flt_data = mapping.pop('_data_files')
-    #
-    #     params = {}
-    #     for key, value in mapping.items():
-    #         param_key = key[1:] if key.startswith('_') else key
-    #         params[param_key] = value
-    #
-    #     klass = cls(**params)
-    #     for line in flt_lines:
-    #         # assert 'FlightLine' == line.pop('_type')
-    #         flt_line = FlightLine(**{key[1:]: value for key, value in line.items()})
-    #         klass.add_child(flt_line)
-    #
-    #     for file in flt_data:
-    #         data_file = DataFile(**file)
-    #         klass.add_child(data_file)
-    #
-    #     for meter in flt_meters:
-    #         # Should meters in a flight just be a UID reference to global meter configs?
-    #         meter_cfg = Gravimeter(**meter)
-    #         klass.add_child(meter_cfg)
-    #
-    #     return klass
