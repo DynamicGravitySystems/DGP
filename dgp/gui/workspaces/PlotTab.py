@@ -6,9 +6,10 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout
 import PyQt5.QtWidgets as QtWidgets
 
-from . import BaseTab, Flight
 import dgp.gui.models as models
 import dgp.lib.types as types
+from . import BaseTab
+from core.controllers.FlightController import FlightController
 from dgp.gui.dialogs import ChannelSelectionDialog
 from dgp.gui.plotting.plotters import LineUpdate, PqtLineSelectPlot
 
@@ -19,7 +20,7 @@ class PlotTab(BaseTab):
     _name = "Line Selection"
     defaults = {'gravity': 0, 'long': 1, 'cross': 1}
 
-    def __init__(self, label: str, flight: Flight, axes: int,
+    def __init__(self, label: str, flight: FlightController, axes: int,
                  plot_default=True, **kwargs):
         super().__init__(label, flight, **kwargs)
         self.log = logging.getLogger('PlotTab')
@@ -49,10 +50,10 @@ class PlotTab(BaseTab):
                                      alignment=Qt.AlignRight)
         vlayout.addLayout(top_button_hlayout)
 
-        # self.plot = LineGrabPlot(self.flight, self._axes_count)
         self.plot = PqtLineSelectPlot(flight=self.flight, rows=3)
-        for line in self.flight.lines:
-            self.plot.add_patch(line.start, line.stop, line.uid, line.label)
+        # TODO Renable this
+        # for line in self.flight.lines:
+        #     self.plot.add_patch(line.start, line.stop, line.uid, line.label)
         self.plot.line_changed.connect(self._on_modified_line)
 
         vlayout.addWidget(self.plot.widget)
@@ -60,6 +61,8 @@ class PlotTab(BaseTab):
         self.setLayout(vlayout)
 
     def _init_model(self, default_state=False):
+        # TODO: Reimplement this
+        return
         channels = self.flight.channels
         plot_model = models.ChannelListTreeModel(channels, len(self.plot))
         plot_model.plotOverflow.connect(self._too_many_children)
@@ -89,7 +92,7 @@ class PlotTab(BaseTab):
             dlg.set_model(self.model)
         dlg.show()
 
-    def data_modified(self, action: str, dsrc: types.DataSource):
+    def data_modified(self, action: str, dsrc):
         if action.lower() == 'add':
             self.log.info("Adding channels to model.")
             n_channels = dsrc.get_channels()

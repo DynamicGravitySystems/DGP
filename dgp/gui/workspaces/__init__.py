@@ -2,9 +2,6 @@
 
 from importlib import import_module
 
-from dgp.lib.project import Flight
-from dgp.lib.enums import DataTypes
-
 from .BaseTab import BaseTab
 from .LineTab import LineProcessTab
 from .PlotTab import PlotTab

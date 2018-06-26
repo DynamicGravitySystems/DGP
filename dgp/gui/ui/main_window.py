@@ -98,6 +98,7 @@ class Ui_MainWindow(object):
         self.prj_add_meter.setObjectName("prj_add_meter")
         self.project_dock_grid.addWidget(self.prj_add_meter, 2, 1, 1, 1)
         self.project_tree = ProjectTreeView(self.project_dock_contents)
+        self.project_tree.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.project_tree.setObjectName("project_tree")
         self.project_dock_grid.addWidget(self.project_tree, 1, 0, 1, 2)
         self.verticalLayout_4.addLayout(self.project_dock_grid)
@@ -321,6 +322,6 @@ class Ui_MainWindow(object):
         self.action_import_gps.setText(_translate("MainWindow", "Import GPS"))
         self.action_import_grav.setText(_translate("MainWindow", "Import Gravity"))
 
-from dgp.gui.views import ProjectTreeView
+from dgp.core.views.ProjectTreeView import ProjectTreeView
 from dgp.gui.workspace import MainWorkspace
 from dgp import resources_rc

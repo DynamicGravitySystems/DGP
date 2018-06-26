@@ -8,17 +8,14 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget
 import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtGui as QtGui
 
-
+from core.controllers.FlightController import FlightController
 from .workspaces import *
-import dgp.gui.models as models
-import dgp.lib.types as types
-from dgp.lib.project import Flight
 
 
 class FlightTab(QWidget):
     """Top Level Tab created for each Flight object open in the workspace"""
 
-    def __init__(self, flight: Flight, parent=None, flags=0, **kwargs):
+    def __init__(self, flight, parent=None, flags=0, **kwargs):
         super().__init__(parent=parent, flags=Qt.Widget)
         self.log = logging.getLogger(__name__)
         self._flight = flight
@@ -45,7 +42,7 @@ class FlightTab(QWidget):
     def subtab_widget(self):
         return self._workspace.currentWidget().widget()
 
-    def new_data(self, dsrc: types.DataSource):
+    def new_data(self, dsrc):
         for tab in [self._plot_tab, self._transform_tab]:
             tab.data_modified('add', dsrc)
 
@@ -55,7 +52,7 @@ class FlightTab(QWidget):
             tab.data_modified('remove', dsrc)
 
     @property
-    def flight(self):
+    def flight(self) -> FlightController:
         return self._flight
 
     @property

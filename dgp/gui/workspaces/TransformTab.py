@@ -6,18 +6,15 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QVBoxLayout, QWidget, QComboBox
 
-import pandas as pd
-import numpy as np
-
-from dgp.lib.types import DataSource, QtDataRoles
+from core.controllers.FlightController import FlightController
 from dgp.lib.transform.transform_graphs import SyncGravity, AirbornePost, TransformGraph
 from dgp.gui.plotting.plotters import TransformPlot
-from . import BaseTab, Flight
+from . import BaseTab
 from ..ui.transform_tab_widget import Ui_TransformInterface
 
 
 class TransformWidget(QWidget, Ui_TransformInterface):
-    def __init__(self, flight: Flight):
+    def __init__(self, flight: FlightController):
         super().__init__()
         self.setupUi(self)
         self.log = logging.getLogger(__name__)
@@ -48,14 +45,14 @@ class TransformWidget(QWidget, Ui_TransformInterface):
 
         for choice in ['Time', 'Latitude', 'Longitude']:
             item = QStandardItem(choice)
-            item.setData(0, QtDataRoles.UserRole)
+            item.setData(0, Qt.UserRole)
             self.plot_index.appendRow(item)
 
         self.cb_plot_index.setCurrentIndex(0)
 
         for choice, method in [('Airborne Post', AirbornePost)]:
             item = QStandardItem(choice)
-            item.setData(method, QtDataRoles.UserRole)
+            item.setData(method, Qt.UserRole)
             self.transform_graphs.appendRow(item)
 
         self.bt_execute_transform.clicked.connect(self.execute_transform)
@@ -84,11 +81,11 @@ class TransformWidget(QWidget, Ui_TransformInterface):
     def _set_flight_lines(self):
         self.flight_lines.clear()
         line_all = QStandardItem("All")
-        line_all.setData('all', role=QtDataRoles.UserRole)
+        line_all.setData('all', role=Qt.UserRole)
         self.flight_lines.appendRow(line_all)
         for line in self._flight.lines:
             item = QStandardItem(str(line))
-            item.setData(line, QtDataRoles.UserRole)
+            item.setData(line, Qt.UserRole)
             self.flight_lines.appendRow(item)
 
     def _set_all_channels(self, state=Qt.Checked):
@@ -96,7 +93,7 @@ class TransformWidget(QWidget, Ui_TransformInterface):
             self.channels.item(i).setCheckState(state)
 
     def _update_channel_selection(self, item: QStandardItem):
-        data = item.data(QtDataRoles.UserRole)
+        data = item.data(Qt.UserRole)
         if item.checkState() == Qt.Checked:
             self.plot.add_series(data)
         else:
@@ -112,7 +109,7 @@ class TransformWidget(QWidget, Ui_TransformInterface):
             return
 
         self.log.info("Preparing Transformation Graph")
-        transform = self.cb_transform_graphs.currentData(QtDataRoles.UserRole)
+        transform = self.cb_transform_graphs.currentData(Qt.UserRole)
 
         graph = transform(self.raw_trajectory, self.raw_gravity, 0, 0)
         self.log.info("Executing graph")
@@ -124,7 +121,7 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         for col in result_df.columns:
             item = QStandardItem(col)
             item.setCheckable(True)
-            item.setData(result_df[col], QtDataRoles.UserRole)
+            item.setData(result_df[col], Qt.UserRole)
             self.channels.appendRow(item)
             if col in default_channels:
                 item.setCheckState(Qt.Checked)
@@ -139,14 +136,14 @@ class TransformTab(BaseTab):
     """
     _name = "Transform"
 
-    def __init__(self, label: str, flight: Flight):
+    def __init__(self, label: str, flight):
         super().__init__(label, flight)
 
         self._layout = QVBoxLayout()
         self._layout.addWidget(TransformWidget(flight))
         self.setLayout(self._layout)
 
-    def data_modified(self, action: str, dsrc: DataSource):
+    def data_modified(self, action: str, dsrc):
         """Slot: Called when a DataSource has been added/removed from the
         Flight this tab/workspace is associated with."""
         if action.lower() == 'add':

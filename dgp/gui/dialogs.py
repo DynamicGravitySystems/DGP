@@ -8,15 +8,18 @@ import datetime
 import pathlib
 from typing import Union
 
-import PyQt5.Qt as Qt
 import PyQt5.QtWidgets as QtWidgets
-import PyQt5.QtCore as QtCore
+from PyQt5.QtCore import Qt, QPoint, QModelIndex, QDate
+from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import QListWidgetItem
 
-import dgp.lib.project as prj
-import dgp.lib.enums as enums
+from core.controllers.BaseProjectController import BaseProjectController
+from core.controllers.FlightController import FlightController
+from core.models.flight import Flight
+from core.models.project import AirborneProject
+from core.types import enumerations
 from dgp.gui.models import TableModel, ComboEditDelegate
 from dgp.lib.etc import gen_uuid
-
 
 from dgp.gui.ui import (add_flight_dialog, advanced_data_import,
                         edit_import_view, project_dialog, channel_select_dialog)
@@ -33,8 +36,8 @@ class BaseDialog(QtWidgets.QDialog):
     setText method) via the self.log attribute
     """
 
-    def __init__(self, msg_recvr: str=None, parent=None, flags=0):
-        super().__init__(parent=parent, flags=flags | Qt.Qt.Dialog)
+    def __init__(self, msg_recvr: str = None, parent=None, flags=0):
+        super().__init__(parent=parent, flags=flags | Qt.Dialog)
         self._log = logging.getLogger(self.__class__.__name__)
         self._target = msg_recvr
 
@@ -172,8 +175,10 @@ class EditImportDialog(BaseDialog, edit_import_view.Ui_Dialog):
         Parent Widget to this Dialog
 
     """
+
     def __init__(self, formats, edit_header=False, parent=None):
-        flags = Qt.Qt.Dialog
+        flags = Qt.Dialog
+
         super().__init__('label_msg', parent=parent, flags=flags)
         self.setupUi(self)
         self._base_h = self.height()
@@ -181,7 +186,7 @@ class EditImportDialog(BaseDialog, edit_import_view.Ui_Dialog):
 
         # Configure the QTableView
         self._view = self.table_col_edit  # type: QtWidgets.QTableView
-        self._view.setContextMenuPolicy(Qt.Qt.CustomContextMenu)
+        self._view.setContextMenuPolicy(Qt.CustomContextMenu)
         if edit_header:
             self._view.customContextMenuRequested.connect(self._context_menu)
             self._view.setItemDelegate(ComboEditDelegate())
@@ -257,7 +262,7 @@ class EditImportDialog(BaseDialog, edit_import_view.Ui_Dialog):
     @property
     def model(self) -> TableModel:
         return self._view.model()
-    
+
     @property
     def skiprow(self) -> Union[int, None]:
         """Returns value of UI's 'Has Header' CheckBox to determine if first
@@ -271,7 +276,7 @@ class EditImportDialog(BaseDialog, edit_import_view.Ui_Dialog):
     def skiprow(self, value: bool):
         self.chb_has_header.setChecked(bool(value))
 
-    def _context_menu(self, point: Qt.QPoint):
+    def _context_menu(self, point: QPoint):
         row = self._view.rowAt(point.y())
         col = self._view.columnAt(point.x())
         index = self.model.index(row, col)
@@ -283,9 +288,9 @@ class EditImportDialog(BaseDialog, edit_import_view.Ui_Dialog):
             menu.addAction(action)
             menu.exec_(self._view.mapToGlobal(point))
 
-    def _custom_label(self, index: QtCore.QModelIndex):
+    def _custom_label(self, index: QModelIndex):
         # For some reason QInputDialog.getText does not recognize some kwargs
-        cur_val = index.data(role=QtCore.Qt.DisplayRole)
+        cur_val = index.data(role=Qt.DisplayRole)
         text, ok = QtWidgets.QInputDialog.getText(self,
                                                   "Input Value",
                                                   "Input Custom Value",
@@ -314,49 +319,47 @@ class AdvancedImportDialog(BaseDialog, advanced_data_import.Ui_AdvancedImportDat
         Parent Widget
     """
 
-    def __init__(self, project, flight, dtype=enums.DataTypes.GRAVITY,
+    def __init__(self, project: BaseProjectController, controller: FlightController, data_type: str,
                  parent=None):
         super().__init__(msg_recvr='label_msg', parent=parent)
         self.setupUi(self)
 
         self._preview_limit = 5
         self._path = None
-        self._dtype = dtype
+        self._dtype = data_type
         self._file_filter = "(*.csv *.dat *.txt)"
         self._base_dir = '.'
         self._sample = None
 
-        icon = {enums.DataTypes.GRAVITY: ':icons/gravity',
-                enums.DataTypes.TRAJECTORY: ':icons/gps'}[dtype]
-        self.setWindowIcon(Qt.QIcon(icon))
-        self.setWindowTitle("Import {}".format(dtype.name.capitalize()))
+        icon = {'gravity': ':icons/gravity',
+                'trajectory': ':icons/gps'}.get(data_type.lower(), '')
+        self.setWindowIcon(QIcon(icon))
+        self.setWindowTitle("Import {}".format(data_type.capitalize()))
 
-        # Establish field enum based on dtype
-        self._fields = {enums.DataTypes.GRAVITY: enums.GravityTypes,
-                        enums.DataTypes.TRAJECTORY: enums.GPSFields}[dtype]
+        # Establish field enum based on data_type
+        self._fields = {'gravity': enumerations.GravityTypes,
+                        'trajectory': enumerations.GPSFields}[data_type.lower()]
 
         formats = sorted(self._fields, key=lambda x: x.name)
         for item in formats:
             name = str(item.name).upper()
             self.cb_format.addItem(name, item)
 
-        editable = self._dtype == enums.DataTypes.TRAJECTORY
+        editable = self._dtype == enumerations.DataTypes.TRAJECTORY
         self._editor = EditImportDialog(formats=formats,
                                         edit_header=editable,
                                         parent=self)
 
-        for flt in project.flights:
-            self.combo_flights.addItem(flt.name, flt)
+        self.combo_flights.setModel(project.flight_model)
         if not self.combo_flights.count():
             self.combo_flights.addItem("No Flights Available", None)
 
-        for mtr in project.meters:
-            self.combo_meters.addItem(mtr.name, mtr)
+        self.combo_meters.setModel(project.meter_model)
         if not self.combo_meters.count():
             self.combo_meters.addItem("No Meters Available", None)
 
-        if flight is not None:
-            flt_idx = self.combo_flights.findData(flight)
+        if controller is not None:
+            flt_idx = self.combo_flights.findText(controller.entity.name)
             self.combo_flights.setCurrentIndex(flt_idx)
 
         # Signals/Slots
@@ -367,8 +370,7 @@ class AdvancedImportDialog(BaseDialog, advanced_data_import.Ui_AdvancedImportDat
 
     @property
     def params(self):
-        return dict(path=self.path,
-                    subtype=self.format,
+        return dict(subtype=self.format,
                     skiprows=self.editor.skiprow,
                     columns=self.editor.columns)
 
@@ -398,7 +400,7 @@ class AdvancedImportDialog(BaseDialog, advanced_data_import.Ui_AdvancedImportDat
 
     @property
     def flight(self):
-        return self.combo_flights.currentData()
+        return self.combo_flights.currentData(Qt.UserRole)
 
     @property
     def path(self) -> pathlib.Path:
@@ -532,8 +534,8 @@ class AdvancedImportDialog(BaseDialog, advanced_data_import.Ui_AdvancedImportDat
         #     # df = ti.import_trajectory(sbuf, )
 
     def browse(self):
-        title = "Select {} Data File".format(self._dtype.name.capitalize())
-        filt = "{typ} Data {ffilt}".format(typ=self._dtype.name.capitalize(),
+        title = "Select {} Data File".format(self._dtype.capitalize())
+        filt = "{typ} Data {ffilt}".format(typ=self._dtype.capitalize(),
                                            ffilt=self._file_filter)
         raw_path, _ = QtWidgets.QFileDialog.getOpenFileName(
             parent=self, caption=title, directory=str(self._base_dir),
@@ -553,24 +555,23 @@ class AddFlightDialog(QtWidgets.QDialog, add_flight_dialog.Ui_NewFlight):
         self._flight = None
         self._grav_path = None
         self._gps_path = None
-        self.combo_meter.addItems(project.meters)
-        self.browse_gravity.clicked.connect(lambda: self.browse(
-            field=self.path_gravity))
-        self.browse_gps.clicked.connect(lambda: self.browse(
-            field=self.path_gps))
+        # self.combo_meter.addItems(project.meters)
+        # self.browse_gravity.clicked.connect(lambda: self.browse(
+        #     field=self.path_gravity))
+        # self.browse_gps.clicked.connect(lambda: self.browse(
+        #     field=self.path_gps))
         self.date_flight.setDate(datetime.datetime.today())
         self._uid = gen_uuid('f')
         self.text_uuid.setText(self._uid)
 
     def accept(self):
-        qdate = self.date_flight.date()  # type: QtCore.QDate
-        date = datetime.date(qdate.year(), qdate.month(), qdate.day())
-        self._grav_path = self.path_gravity.text()
-        self._gps_path = self.path_gps.text()
-        self._flight = prj.Flight(self._project, self.text_name.text(),
-                                  self._project.get_meter(
-            self.combo_meter.currentText()), uuid=self._uid, date=date)
-        # print(self.params_model.updates)
+        qdate = self.date_flight.date()  # type: QDate
+        date = datetime.datetime(qdate.year(), qdate.month(), qdate.day())
+
+        # self._grav_path = self.path_gravity.text()
+        # self._gps_path = self.path_gps.text()
+
+        self._flight = Flight(self.text_name.text(), date=date)
         super().accept()
 
     def browse(self, field):
@@ -580,7 +581,7 @@ class AddFlightDialog(QtWidgets.QDialog, add_flight_dialog.Ui_NewFlight):
             field.setText(path)
 
     @property
-    def flight(self):
+    def flight(self) -> Flight:
         return self._flight
 
     @property
@@ -619,15 +620,15 @@ class CreateProjectDialog(BaseDialog, project_dialog.Ui_Dialog):
         self.prj_dir.setText(str(desktop))
 
         # Populate the type selection list
-        flt_icon = Qt.QIcon(':icons/airborne')
-        boat_icon = Qt.QIcon(':icons/marine')
-        dgs_airborne = Qt.QListWidgetItem(flt_icon, 'DGS Airborne',
-                                          self.prj_type_list)
-        dgs_airborne.setData(QtCore.Qt.UserRole, enums.ProjectTypes.AIRBORNE)
+        flt_icon = QIcon(':icons/airborne')
+        boat_icon = QIcon(':icons/marine')
+        dgs_airborne = QListWidgetItem(flt_icon, 'DGS Airborne',
+                                       self.prj_type_list)
+        dgs_airborne.setData(Qt.UserRole, enumerations.ProjectTypes.AIRBORNE)
         self.prj_type_list.setCurrentItem(dgs_airborne)
-        dgs_marine = Qt.QListWidgetItem(boat_icon, 'DGS Marine',
-                                        self.prj_type_list)
-        dgs_marine.setData(QtCore.Qt.UserRole, enums.ProjectTypes.MARINE)
+        dgs_marine = QListWidgetItem(boat_icon, 'DGS Marine',
+                                     self.prj_type_list)
+        dgs_marine.setData(Qt.UserRole, enumerations.ProjectTypes.MARINE)
 
     def accept(self):
         """
@@ -660,13 +661,14 @@ class CreateProjectDialog(BaseDialog, project_dialog.Ui_Dialog):
             return
 
         # TODO: Future implementation for Project types other than DGS AT1A
-        cdata = self.prj_type_list.currentItem().data(QtCore.Qt.UserRole)
-        if cdata == enums.ProjectTypes.AIRBORNE:
+        cdata = self.prj_type_list.currentItem().data(Qt.UserRole)
+        if cdata == enumerations.ProjectTypes.AIRBORNE:
             name = str(self.prj_name.text()).rstrip()
             path = pathlib.Path(self.prj_dir.text()).joinpath(name)
             if not path.exists():
                 path.mkdir(parents=True)
-            self._project = prj.AirborneProject(path, name)
+
+            self._project = AirborneProject(name=name, path=path, description="Not implemented yet in Create Dialog")
         else:
             self.show_message("Invalid Project Type (Not yet implemented)",
                               log=logging.WARNING, color='red')
@@ -700,15 +702,15 @@ class PropertiesDialog(BaseDialog):
 
         self._title = QtWidgets.QLabel('<h1>{cls}: {name}</h1>'.format(
             cls=cls.__class__.__name__, name=name))
-        self._title.setAlignment(Qt.Qt.AlignHCenter)
+        self._title.setAlignment(Qt.AlignHCenter)
         self._form = QtWidgets.QFormLayout()
 
         self._btns = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok)
         self._btns.accepted.connect(self.accept)
 
-        vlayout.addWidget(self._title, alignment=Qt.Qt.AlignTop)
+        vlayout.addWidget(self._title, alignment=Qt.AlignTop)
         vlayout.addLayout(self._form)
-        vlayout.addWidget(self._btns, alignment=Qt.Qt.AlignBottom)
+        vlayout.addWidget(self._btns, alignment=Qt.AlignBottom)
 
         self.setLayout(vlayout)
 

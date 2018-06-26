@@ -47,6 +47,6 @@ def get_project_file(path: Path) -> Union[Path, None]:
     :param path: str or pathlib.Path : Directory path to project
     :return: pathlib.Path : absolute path to *.d2p file if found, else False
     """
-    for child in sorted(path.glob('*.d2p')):
+    for child in sorted(path.glob('*.json')):
         return child.resolve()
     return None
