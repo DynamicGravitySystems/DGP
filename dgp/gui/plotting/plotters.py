@@ -53,74 +53,6 @@ class TransformPlot:
             raise AttributeError("Plot Widget has no Attribute: ", item)
 
 
-class LinearFlightRegion(LinearRegionItem):
-    """Custom LinearRegionItem class to provide override methods on various
-    click events."""
-
-    def __init__(self, values=(0, 1), orientation=None, brush=None,
-                 movable=True, bounds=None, parent=None, label=None):
-        super().__init__(values=values, orientation=orientation, brush=brush,
-                         movable=movable, bounds=bounds)
-
-        self.parent = parent
-        self._grpid = None
-        self._label_text = label or ''
-        self.label = TextItem(text=self._label_text, color=(0, 0, 0),
-                              anchor=(0, 0))
-        # self.label.setPos()
-        self._menu = QMenu()
-        self._menu.addAction(QAction('Remove', self, triggered=self._remove))
-        self._menu.addAction(QAction('Set Label', self,
-                                     triggered=self._getlabel))
-        self.sigRegionChanged.connect(self._move_label)
-
-    def mouseClickEvent(self, ev):
-        if not self.parent.selection_mode:
-            return
-        if ev.button() == QtCore.Qt.RightButton and not self.moving:
-            ev.accept()
-            pos = ev.screenPos().toPoint()
-            pop_point = QtCore.QPoint(pos.x(), pos.y())
-            self._menu.popup(pop_point)
-            return True
-        else:
-            return super().mouseClickEvent(ev)
-
-    def _move_label(self, lfr):
-        x0, x1 = self.getRegion()
-
-        self.label.setPos(x0, 0)
-
-    def _remove(self):
-        try:
-            self.parent.remove(self)
-        except AttributeError:
-            return
-
-    def _getlabel(self):
-        text, result = QtWidgets.QInputDialog.getText(None,
-                                                      "Enter Label",
-                                                      "Line Label:",
-                                                      text=self._label_text)
-        if not result:
-            return
-        try:
-            self.parent.set_label(self, str(text).strip())
-        except AttributeError:
-            return
-
-    def set_label(self, text):
-        self.label.setText(text)
-
-    @property
-    def group(self):
-        return self._grpid
-
-    @group.setter
-    def group(self, value):
-        self._grpid = value
-
-
 class PqtLineSelectPlot(QtCore.QObject):
     """New prototype Flight Line selection plot using Pyqtgraph as the
     backend.
@@ -129,14 +61,10 @@ class PqtLineSelectPlot(QtCore.QObject):
     """
     line_changed = pyqtSignal(LineUpdate)
 
-    def __init__(self, flight, rows=3, parent=None):
+    def __init__(self, rows=3, parent=None):
         super().__init__(parent=parent)
-        # self.widget = BasePlot(backend=PYQTGRAPH, rows=rows, cols=1,
-        #                        sharex=True, grid=True, background='w',
-        #                        parent=parent)
         self.widget = PyQtGridPlotWidget(rows=rows, cols=1, grid=True, sharex=True,
                                          background='w', parent=parent)
-        self._flight = flight
         self.widget.add_onclick_handler(self.onclick)
         self._lri_id = count(start=1)
         self._selections = {}  # Flight-line 'selection' patches: grpid: group[LinearFlightRegion's]

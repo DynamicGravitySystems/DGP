@@ -9,7 +9,7 @@ import PyQt5.QtWidgets as QtWidgets
 import dgp.gui.models as models
 import dgp.lib.types as types
 from . import BaseTab
-from core.controllers.FlightController import FlightController
+from core.controllers.flight_controller import FlightController
 from dgp.gui.dialogs import ChannelSelectionDialog
 from dgp.gui.plotting.plotters import LineUpdate, PqtLineSelectPlot
 

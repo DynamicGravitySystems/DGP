@@ -6,7 +6,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QVBoxLayout, QWidget, QComboBox
 
-from core.controllers.FlightController import FlightController
+from core.controllers.flight_controller import FlightController
 from dgp.lib.transform.transform_graphs import SyncGravity, AirbornePost, TransformGraph
 from dgp.gui.plotting.plotters import TransformPlot
 from . import BaseTab
@@ -23,19 +23,17 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         self._current_dataset = None
 
         # Initialize Models for ComboBoxes
-        # TODO: Ideally the model will come directly from the Flight object - which will simplify updating of state
-        self.flight_lines = QStandardItemModel()
-        # self.flight_lines = self._flight._line_model
         self.plot_index = QStandardItemModel()
         self.transform_graphs = QStandardItemModel()
         # Set ComboBox Models
-        self.cb_flight_lines.setModel(self.flight_lines)
+        self.cb_flight_lines.setModel(self._flight.lines_model)
         self.cb_plot_index.setModel(self.plot_index)
         self.cb_plot_index.currentIndexChanged[int].connect(lambda idx: print("Index changed to %d" % idx))
 
         self.cb_transform_graphs.setModel(self.transform_graphs)
 
         # Initialize model for channels
+        # TODO: This model should be of the transformed dataset not the flight data_model
         self.channels = QStandardItemModel()
         self.channels.itemChanged.connect(self._update_channel_selection)
         self.lv_channels.setModel(self.channels)
@@ -56,7 +54,6 @@ class TransformWidget(QWidget, Ui_TransformInterface):
             self.transform_graphs.appendRow(item)
 
         self.bt_execute_transform.clicked.connect(self.execute_transform)
-        self.bt_line_refresh.clicked.connect(self._set_flight_lines)
         self.bt_select_all.clicked.connect(lambda: self._set_all_channels(Qt.Checked))
         self.bt_select_none.clicked.connect(lambda: self._set_all_channels(Qt.Unchecked))
 
@@ -77,16 +74,6 @@ class TransformWidget(QWidget, Ui_TransformInterface):
     @property
     def plot(self) -> TransformPlot:
         return self._plot
-
-    def _set_flight_lines(self):
-        self.flight_lines.clear()
-        line_all = QStandardItem("All")
-        line_all.setData('all', role=Qt.UserRole)
-        self.flight_lines.appendRow(line_all)
-        for line in self._flight.lines:
-            item = QStandardItem(str(line))
-            item.setData(line, Qt.UserRole)
-            self.flight_lines.appendRow(item)
 
     def _set_all_channels(self, state=Qt.Checked):
         for i in range(self.channels.rowCount()):

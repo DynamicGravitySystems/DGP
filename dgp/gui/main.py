@@ -11,14 +11,14 @@ from PyQt5.QtGui import QColor
 from PyQt5.QtCore import pyqtSignal, pyqtBoundSignal
 from PyQt5.QtWidgets import QMainWindow, QProgressDialog, QFileDialog, QWidget
 
-import core.types.enumerations as enums
-from core.controllers.BaseProjectController import BaseProjectController
-from core.controllers.FlightController import FlightController
-from core.models.ProjectTreeModel import ProjectTreeModel
-from core.models.project import AirborneProject
+import dgp.core.types.enumerations as enums
+from dgp.core.controllers.project_controllers import AirborneProjectController
+from dgp.core.controllers.flight_controller import FlightController
+from dgp.core.models.ProjectTreeModel import ProjectTreeModel
+from dgp.core.models.project import AirborneProject
 from dgp.gui.utils import (ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP,
                            LOG_COLOR_MAP, get_project_file)
-from dgp.gui.dialogs import AddFlightDialog, CreateProjectDialog
+from dgp.gui.dialogs import CreateProjectDialog
 
 from dgp.gui.workspace import FlightTab
 from dgp.gui.ui.main_window import Ui_MainWindow
@@ -45,7 +45,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     status = pyqtSignal(str)  # type: pyqtBoundSignal
     progress = pyqtSignal(int)  # type: pyqtBoundSignal
 
-    def __init__(self, project: BaseProjectController, *args):
+    def __init__(self, project: AirborneProjectController, *args):
         super().__init__(*args)
 
         self.setupUi(self)
@@ -95,23 +95,60 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         # Issue #50 Flight Tabs
         # flight_tabs is a custom Qt Widget (dgp.gui.workspace) promoted within the .ui file
-        self._flight_tabs = self.flight_tabs  # type: QtWidgets.QTabWidget
+        self.flight_tabs: QtWidgets.QTabWidget
         self._open_tabs = {}  # Track opened tabs by {uid: tab_widget, ...}
 
         self._mutated = False
 
+    def _init_slots(self):
+        """Initialize PyQt Signals/Slots for UI Buttons and Menus"""
+
+        # Event Signals #
+        self.project_model.flight_changed.connect(self._flight_changed)
+        self.project_model.project_changed.connect(self._project_mutated)
+
+        # File Menu Actions #
+        self.action_exit.triggered.connect(self.close)
+        self.action_file_new.triggered.connect(self.new_project_dialog)
+        self.action_file_open.triggered.connect(self.open_project_dialog)
+        self.action_file_save.triggered.connect(self.save_project)
+
+        # Project Menu Actions #
+        self.action_import_gps.triggered.connect(
+            lambda: self.project.load_file(enums.DataTypes.TRAJECTORY, ))
+        self.action_import_grav.triggered.connect(
+            lambda: self.project.load_file(enums.DataTypes.GRAVITY, ))
+        self.action_add_flight.triggered.connect(self.project.add_flight)
+        self.action_add_meter.triggered.connect(self.project.add_gravimeter)
+
+        # Project Control Buttons #
+        self.prj_add_flight.clicked.connect(self.project.add_flight)
+        self.prj_add_meter.clicked.connect(self.project.add_gravimeter)
+        self.prj_import_gps.clicked.connect(
+            lambda: self.project.load_file(enums.DataTypes.TRAJECTORY, ))
+        self.prj_import_grav.clicked.connect(
+            lambda: self.project.load_file(enums.DataTypes.GRAVITY, ))
+
+        # Tab Browser Actions #
+        self.flight_tabs.tabCloseRequested.connect(self._tab_closed)
+        self.flight_tabs.currentChanged.connect(self._tab_changed)
+
+        # Console Window Actions #
+        self.combo_console_verbosity.currentIndexChanged[str].connect(
+            self.set_logging_level)
+
     @property
     def current_flight(self):
         """Returns the active flight based on which Flight Tab is in focus."""
-        if self._flight_tabs.count() > 0:
-            return self._flight_tabs.currentWidget().flight
+        if self.flight_tabs.count() > 0:
+            return self.flight_tabs.currentWidget().flight
         return None
 
     @property
     def current_tab(self) -> Union[FlightTab, None]:
         """Get the active FlightTab (returns None if no Tabs are open)"""
-        if self._flight_tabs.count() > 0:
-            return self._flight_tabs.currentWidget()
+        if self.flight_tabs.count() > 0:
+            return self.flight_tabs.currentWidget()
         return None
 
     def load(self):
@@ -128,40 +165,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         except TypeError:
             # This can be safely ignored (no slots were connected)
             pass
-
-    def _init_slots(self):
-        """Initialize PyQt Signals/Slots for UI Buttons and Menus"""
-
-        # File Menu Actions #
-        self.action_exit.triggered.connect(self.close)
-        self.action_file_new.triggered.connect(self.new_project_dialog)
-        self.action_file_open.triggered.connect(self.open_project_dialog)
-        self.action_file_save.triggered.connect(self.save_project)
-
-        # Project Menu Actions #
-        self.action_import_gps.triggered.connect(
-            lambda: self.project.load_file(enums.DataTypes.TRAJECTORY, ))
-        self.action_import_grav.triggered.connect(
-            lambda: self.project.load_file(enums.DataTypes.GRAVITY, ))
-        self.action_add_flight.triggered.connect(self.add_flight_dialog)
-
-        self.project_model.flight_changed.connect(self._flight_changed)
-        self.project_model.project_changed.connect(self._project_mutated)
-
-        # Project Control Buttons #
-        self.prj_add_flight.clicked.connect(self.add_flight_dialog)
-        self.prj_import_gps.clicked.connect(
-            lambda: self.project.load_file(enums.DataTypes.TRAJECTORY, ))
-        self.prj_import_grav.clicked.connect(
-            lambda: self.project.load_file(enums.DataTypes.GRAVITY, ))
-
-        # Tab Browser Actions #
-        self._flight_tabs.tabCloseRequested.connect(self._tab_closed)
-        self._flight_tabs.currentChanged.connect(self._tab_changed)
-
-        # Console Window Actions #
-        self.combo_console_verbosity.currentIndexChanged[str].connect(
-            self.set_logging_level)
 
     def closeEvent(self, *args, **kwargs):
         self.log.info("Saving project and closing.")
@@ -194,12 +197,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     @pyqtSlot(FlightController, name='_flight_changed')
     def _flight_changed(self, flight: FlightController):
         if flight.uid in self._open_tabs:
-            self._flight_tabs.setCurrentWidget(self._open_tabs[flight.uid])
+            self.flight_tabs.setCurrentWidget(self._open_tabs[flight.uid])
         else:
             flt_tab = FlightTab(flight)
             self._open_tabs[flight.uid] = flt_tab
-            idx = self._flight_tabs.addTab(flt_tab, flight.name)
-            self._flight_tabs.setCurrentIndex(idx)
+            idx = self.flight_tabs.addTab(flt_tab, flight.name)
+            self.flight_tabs.setCurrentIndex(idx)
 
     @pyqtSlot(name='_project_mutated')
     def _project_mutated(self):
@@ -210,18 +213,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     @pyqtSlot(int, name='_tab_changed')
     def _tab_changed(self, index: int):
         self.log.debug("Tab index changed to %d", index)
-        current = self._flight_tabs.currentWidget()
+        current = self.flight_tabs.currentWidget()
         if current is not None:
             fc = current.flight  # type: FlightController
-            self.project.set_active(fc, emit=False)
+            self.project.set_active_child(fc, emit=False)
         else:
             self.log.debug("No flight tab open")
 
     @pyqtSlot(int, name='_tab_closed')
     def _tab_closed(self, index: int):
-        # TODO: Should we delete the tab, or pop it off the stack to a cache?
-        self.log.warning("Tab close requested for tab: {}".format(index))
-        self._flight_tabs.removeTab(index)
+        self.log.debug("Tab close requested for tab: {}".format(index))
+        tab = self.flight_tabs.widget(index)  # type: FlightTab
+        del self._open_tabs[tab.uid]
+        self.flight_tabs.removeTab(index)
 
     def show_progress_dialog(self, title, start=0, stop=1, label=None,
                              cancel="Cancel", modal=False,
@@ -252,61 +256,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         sb.addWidget(progress)
         return progress
 
-    # def _add_data(self, data, dtype: enums.DataTypes, flight: prj.Flight, path):
-    #     uid = dm.get_datastore().save_data(data, flight.uid, dtype.value)
-    #     if uid is None:
-    #         self.log.error("Error occured writing DataFrame to HDF5 _store.")
-    #         return
-    #
-    #     cols = list(data.keys())
-    #     ds = types.DataSource(uid, path, cols, dtype, x0=data.index.min(),
-    #                           x1=data.index.max())
-    #     flight.register_data(ds)
-    #     return ds
-
-    # def load_file(self, dtype, flight, **params):
-    #     def _on_complete(data):
-    #         self.add_data(data, dtype, flight, params.get('path', None))
-    #
-    #         # align and crop gravity and trajectory frames if both are present
-    #         gravity = flight.get_source(enums.DataTypes.GRAVITY)
-    #         trajectory = flight.get_source(enums.DataTypes.TRAJECTORY)
-    #         if gravity is not None and trajectory is not None:
-    #             # align and crop the gravity and trajectory frames
-    #             fields = DGS_AT1A_INTERP_FIELDS | TRAJECTORY_INTERP_FIELDS
-    #             new_gravity, new_trajectory = align_frames(gravity.load(),
-    #                                                        trajectory.load(),
-    #                                                        interp_only=fields)
-    #
-    #             # TODO: Fix this mess
-    #             # replace datasource objects
-    #             ds_attr = {'path': gravity.filename, 'dtype': gravity.dtype}
-    #             flight.remove_data(gravity)
-    #             self._add_data(new_gravity, ds_attr['dtype'], flight,
-    #                            ds_attr['path'])
-    #
-    #             ds_attr = {'path': trajectory.filename,
-    #                        'dtype': trajectory.dtype}
-    #             flight.remove_data(trajectory)
-    #             self._add_data(new_trajectory, ds_attr['dtype'], flight,
-    #                            ds_attr['path'])
-    #
-    #     def _result(result):
-    #         err, exc = result
-    #         prog.close()
-    #         if err:
-    #             msg = "Error loading {typ}::{fname}".format(
-    #                 typ=dtype.name.capitalize(), fname=params.get('path', ''))
-    #             self.log.error(msg)
-    #         else:
-    #             msg = "Loaded {typ}::{fname}".format(
-    #                 typ=dtype.name.capitalize(), fname=params.get('path', ''))
-    #             self.log.info(msg)
-    #
-    #     ld = loader.get_loader(parent=self, dtype=dtype, on_complete=_on_complete,
-    #                            on_error=_result, **params)
-    #     ld.start()
-
     def save_project(self) -> None:
         if self.project is None:
             return
@@ -319,27 +268,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.log.info("Error saving project.")
 
     # Project dialog functions ################################################
-
-    # def import_data_dialog(self, dtype=None) -> None:
-    #     """
-    #     Launch a dialog window for user to specify path and parameters to
-    #     load a file of dtype.
-    #     Params gathered by dialog will be passed to :py:meth: self.load_file
-    #     which constructs the loading thread and performs the import.
-    #
-    #     Parameters
-    #     ----------
-    #     dtype : enumerations.DataTypes
-    #         Data type for which to launch dialog: GRAVITY or TRAJECTORY
-    #
-    #     """
-    #     dialog = AdvancedImportDialog(self.project, self.current_flight,
-    #                                   data_type=dtype, parent=self)
-    #     dialog.browse()
-    #     if dialog.exec_():
-    #         # TODO: Should path be contained within params or should we take
-    #         # it as its own parameter
-    #         self.load_file(dtype, dialog.flight, **dialog.params)
 
     def new_project_dialog(self) -> QMainWindow:
         new_window = True
@@ -372,24 +300,4 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         with open(prj_file, 'r') as fd:
             self.project = AirborneProject.from_json(fd.read())
         self.update_project()
-        return
-
-    @autosave
-    def add_flight_dialog(self) -> None:
-        # TODO: Move this into ProjectController as flights are the purview of the project
-        dialog = AddFlightDialog(self.project)
-        if dialog.exec_():
-            flight = dialog.flight
-            self.log.info("Adding flight {}".format(flight.name))
-            fc = self.project.add_child(flight)  # type: FlightController
-            self.project.set_active(fc)
-
-            # TODO: Need to re-implement this for new data import method
-            # OR - remove the option to add data during flight creation
-            # if dialog.gravity:
-            #     self.import_data(dialog.gravity, 'gravity', flight)
-            # if dialog.gps:
-            #     self.import_data(dialog.gps, 'gps', flight)
-            return
-        self.log.info("New flight creation aborted.")
         return

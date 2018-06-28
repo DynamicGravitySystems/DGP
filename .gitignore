@@ -5,6 +5,8 @@
 *.pyo
 *.coverage
 *.vsdx
+*.hdf5
+*.h5
 
 # Ignored directories
 __pycache__/

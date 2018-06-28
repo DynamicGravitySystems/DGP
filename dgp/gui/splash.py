@@ -11,7 +11,7 @@ import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtCore as QtCore
 from PyQt5.uic import loadUiType
 
-from core.controllers.ProjectController import AirborneProjectController
+from core.controllers.project_controllers import AirborneProjectController
 from core.models.project import AirborneProject, GravityProject
 from dgp.gui.main import MainWindow
 from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, LOG_COLOR_MAP, get_project_file

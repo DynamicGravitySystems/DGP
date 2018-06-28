@@ -8,14 +8,15 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget
 import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtGui as QtGui
 
-from core.controllers.FlightController import FlightController
+from core.controllers.flight_controller import FlightController
+from dgp.core.oid import OID
 from .workspaces import *
 
 
 class FlightTab(QWidget):
     """Top Level Tab created for each Flight object open in the workspace"""
 
-    def __init__(self, flight, parent=None, flags=0, **kwargs):
+    def __init__(self, flight: FlightController, parent=None, flags=0, **kwargs):
         super().__init__(parent=parent, flags=Qt.Widget)
         self.log = logging.getLogger(__name__)
         self._flight = flight
@@ -42,14 +43,10 @@ class FlightTab(QWidget):
     def subtab_widget(self):
         return self._workspace.currentWidget().widget()
 
-    def new_data(self, dsrc):
-        for tab in [self._plot_tab, self._transform_tab]:
-            tab.data_modified('add', dsrc)
-
-    def data_deleted(self, dsrc):
-        self.log.debug("Notifying tabs of data-source deletion.")
-        for tab in [self._plot_tab]:
-            tab.data_modified('remove', dsrc)
+    @property
+    def uid(self) -> OID:
+        """Return the underlying Flight's UID"""
+        return self._flight.uid
 
     @property
     def flight(self) -> FlightController:

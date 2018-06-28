@@ -10,7 +10,6 @@ import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtTest as QtTest
 
 import dgp.gui.dialogs as dlg
-import dgp.lib.project as prj
 import core.types.enumerations as enums
 
 
@@ -34,58 +33,58 @@ class TestDialogs(unittest.TestCase):
                          Qt.LeftButton)
         self.assertEqual(1, len(spy))
 
-    def test_advanced_import_dialog_gravity(self):
-        t_dlg = dlg.AdvancedImportDialog(self.m_prj, self.m_flight,
-                                         enums.DataTypes.GRAVITY)
-        self.assertEqual(self.m_flight, t_dlg.flight)
-        self.assertIsNone(t_dlg.path)
+    # def test_advanced_import_dialog_gravity(self):
+    #     t_dlg = dlg.AdvancedImportDialog(self.m_prj, self.m_flight,
+    #                                      enums.DataTypes.GRAVITY)
+    #     self.assertEqual(self.m_flight, t_dlg.flight)
+    #     self.assertIsNone(t_dlg.path)
+    #
+    #     t_dlg.cb_format.setCurrentIndex(0)
+    #     editor = t_dlg.editor
+    #
+    #     # Test format property setter, and reflection in editor format
+    #     for fmt in enums.GravityTypes:
+    #         self.assertNotEqual(-1, t_dlg.cb_format.findData(fmt))
+    #         t_dlg.format = fmt
+    #         self.assertEqual(t_dlg.format, editor.format)
+    #
+    #     t_dlg.path = self.m_grav_path
+    #     self.assertEqual(self.m_grav_path, t_dlg.path)
+    #     self.assertEqual(list(t_dlg.cb_format.currentData().value),
+    #                      editor.columns)
+    #
+    #     # Set formatter back to type AT1A for param testing
+    #     t_dlg.format = enums.GravityTypes.AT1A
+    #     self.assertEqual(t_dlg.format, enums.GravityTypes.AT1A)
+    #
+    #     # Test behavior of skiprow property
+    #     # Should return None if unchecked, and 1 if checked
+    #     self.assertIsNone(editor.skiprow)
+    #     editor.skiprow = True
+    #     self.assertEqual(1, editor.skiprow)
+    #
+    #     # Test generation of params property on dialog accept()
+    #     t_dlg.accept()
+    #     result_params = dict(path=self.m_grav_path,
+    #                          columns=list(enums.GravityTypes.AT1A.value),
+    #                          skiprows=1,
+    #                          subtype=enums.GravityTypes.AT1A)
+    #     self.assertEqual(result_params, t_dlg.params)
+    #     self.assertEqual(self.m_flight, t_dlg.flight)
 
-        t_dlg.cb_format.setCurrentIndex(0)
-        editor = t_dlg.editor
-
-        # Test format property setter, and reflection in editor format
-        for fmt in enums.GravityTypes:
-            self.assertNotEqual(-1, t_dlg.cb_format.findData(fmt))
-            t_dlg.format = fmt
-            self.assertEqual(t_dlg.format, editor.format)
-
-        t_dlg.path = self.m_grav_path
-        self.assertEqual(self.m_grav_path, t_dlg.path)
-        self.assertEqual(list(t_dlg.cb_format.currentData().value),
-                         editor.columns)
-
-        # Set formatter back to type AT1A for param testing
-        t_dlg.format = enums.GravityTypes.AT1A
-        self.assertEqual(t_dlg.format, enums.GravityTypes.AT1A)
-
-        # Test behavior of skiprow property
-        # Should return None if unchecked, and 1 if checked
-        self.assertIsNone(editor.skiprow)
-        editor.skiprow = True
-        self.assertEqual(1, editor.skiprow)
-
-        # Test generation of params property on dialog accept()
-        t_dlg.accept()
-        result_params = dict(path=self.m_grav_path,
-                             columns=list(enums.GravityTypes.AT1A.value),
-                             skiprows=1,
-                             subtype=enums.GravityTypes.AT1A)
-        self.assertEqual(result_params, t_dlg.params)
-        self.assertEqual(self.m_flight, t_dlg.flight)
-
-    def test_advanced_import_dialog_trajectory(self):
-        t_dlg = dlg.AdvancedImportDialog(self.m_prj, self.m_flight,
-                                         enums.DataTypes.TRAJECTORY)
-
-        # Test all GPSFields represented, and setting via format property
-        for fmt in enums.GPSFields:
-            self.assertNotEqual(-1, t_dlg.cb_format.findData(fmt))
-            t_dlg.format = fmt
-            self.assertEqual(fmt, t_dlg.format)
-            col_fmt = t_dlg.params['subtype']
-            self.assertEqual(fmt, col_fmt)
-        t_dlg.format = enums.GPSFields.hms
-
-        # Verify expected output, ordered correctly
-        hms_expected = ['mdy', 'hms', 'lat', 'long', 'ell_ht']
-        self.assertEqual(hms_expected, t_dlg.params['columns'])
+    # def test_advanced_import_dialog_trajectory(self):
+    #     t_dlg = dlg.AdvancedImportDialog(self.m_prj, self.m_flight,
+    #                                      enums.DataTypes.TRAJECTORY)
+    #
+    #     # Test all GPSFields represented, and setting via format property
+    #     for fmt in enums.GPSFields:
+    #         self.assertNotEqual(-1, t_dlg.cb_format.findData(fmt))
+    #         t_dlg.format = fmt
+    #         self.assertEqual(fmt, t_dlg.format)
+    #         col_fmt = t_dlg.params['subtype']
+    #         self.assertEqual(fmt, col_fmt)
+    #     t_dlg.format = enums.GPSFields.hms
+    #
+    #     # Verify expected output, ordered correctly
+    #     hms_expected = ['mdy', 'hms', 'lat', 'long', 'ell_ht']
+    #     self.assertEqual(hms_expected, t_dlg.params['columns'])
