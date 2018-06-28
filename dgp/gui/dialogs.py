@@ -1,27 +1,23 @@
 # -*- coding: utf-8 -*-
 
-import os
 import csv
 import types
 import logging
-import datetime
 import pathlib
 from typing import Union
 
 import PyQt5.QtWidgets as QtWidgets
-from PyQt5.QtCore import Qt, QPoint, QModelIndex, QDate
+from PyQt5.QtCore import Qt, QPoint, QModelIndex
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QListWidgetItem
 
-from core.controllers.BaseProjectController import BaseProjectController
-from core.controllers.FlightController import FlightController
-from core.models.flight import Flight
-from core.models.project import AirborneProject
-from core.types import enumerations
+from dgp.core.controllers.flight_controller import FlightController
+from dgp.core.models.flight import Flight
+from dgp.core.models.project import AirborneProject
+from dgp.core.types import enumerations
 from dgp.gui.models import TableModel, ComboEditDelegate
-from dgp.lib.etc import gen_uuid
 
-from dgp.gui.ui import (add_flight_dialog, advanced_data_import,
+from dgp.gui.ui import (advanced_data_import,
                         edit_import_view, project_dialog, channel_select_dialog)
 
 PATH_ERR = "Path cannot be empty."
@@ -142,16 +138,6 @@ class BaseDialog(QtWidgets.QDialog):
         dlg.setIcon(QtWidgets.QMessageBox.Critical)
         dlg.setWindowTitle("Error")
         dlg.exec_()
-
-    def validate_not_empty(self, terminator='*'):
-        """Validate that any labels with Widget buddies are not empty e.g.
-        QLineEdit fields.
-        Labels are only checked if their text value ends with the terminator,
-        default '*'
-
-        If any widgets are empty, the label buddy attribute names are
-        returned in a list.
-        """
 
 
 class EditImportDialog(BaseDialog, edit_import_view.Ui_Dialog):
@@ -319,7 +305,7 @@ class AdvancedImportDialog(BaseDialog, advanced_data_import.Ui_AdvancedImportDat
         Parent Widget
     """
 
-    def __init__(self, project: BaseProjectController, controller: FlightController, data_type: str,
+    def __init__(self, project, controller: FlightController, data_type: str,
                  parent=None):
         super().__init__(msg_recvr='label_msg', parent=parent)
         self.setupUi(self)
@@ -359,7 +345,7 @@ class AdvancedImportDialog(BaseDialog, advanced_data_import.Ui_AdvancedImportDat
             self.combo_meters.addItem("No Meters Available", None)
 
         if controller is not None:
-            flt_idx = self.combo_flights.findText(controller.entity.name)
+            flt_idx = self.combo_flights.findText(controller.name)
             self.combo_flights.setCurrentIndex(flt_idx)
 
         # Signals/Slots
@@ -545,56 +531,6 @@ class AdvancedImportDialog(BaseDialog, advanced_data_import.Ui_AdvancedImportDat
             self._base_dir = self.path.parent
         else:
             return
-
-
-class AddFlightDialog(QtWidgets.QDialog, add_flight_dialog.Ui_NewFlight):
-    def __init__(self, project, *args):
-        super().__init__(*args)
-        self.setupUi(self)
-        self._project = project
-        self._flight = None
-        self._grav_path = None
-        self._gps_path = None
-        # self.combo_meter.addItems(project.meters)
-        # self.browse_gravity.clicked.connect(lambda: self.browse(
-        #     field=self.path_gravity))
-        # self.browse_gps.clicked.connect(lambda: self.browse(
-        #     field=self.path_gps))
-        self.date_flight.setDate(datetime.datetime.today())
-        self._uid = gen_uuid('f')
-        self.text_uuid.setText(self._uid)
-
-    def accept(self):
-        qdate = self.date_flight.date()  # type: QDate
-        date = datetime.datetime(qdate.year(), qdate.month(), qdate.day())
-
-        # self._grav_path = self.path_gravity.text()
-        # self._gps_path = self.path_gps.text()
-
-        self._flight = Flight(self.text_name.text(), date=date)
-        super().accept()
-
-    def browse(self, field):
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self, "Select Data File", os.getcwd(), "Data (*.dat *.csv *.txt)")
-        if path:
-            field.setText(path)
-
-    @property
-    def flight(self) -> Flight:
-        return self._flight
-
-    @property
-    def gps(self):
-        if self._gps_path is not None and len(self._gps_path) > 0:
-            return pathlib.Path(self._gps_path)
-        return None
-
-    @property
-    def gravity(self):
-        if self._grav_path is not None and len(self._grav_path) > 0:
-            return pathlib.Path(self._grav_path)
-        return None
 
 
 class ChannelSelectionDialog(BaseDialog,
