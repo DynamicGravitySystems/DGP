@@ -2,18 +2,18 @@
 from datetime import datetime
 from typing import List, Optional, Union
 
-from core.models.data import DataFile
-from .meter import Gravimeter
-from ..oid import OID
+from dgp.core.models.data import DataFile
+from dgp.core.models.meter import Gravimeter
+from dgp.core.oid import OID
 
 
 class FlightLine:
     __slots__ = '_uid', '_start', '_stop', '_sequence'
 
     def __init__(self, start: float, stop: float, sequence: int,
-                 uid: Optional[str] = None):
-        self._uid = OID(self, _uid=uid)
-
+                 uid: Optional[OID] = None):
+        self._uid = uid or OID(self)
+        self._uid.set_pointer(self)
         self._start = start
         self._stop = stop
         self._sequence = sequence
@@ -52,16 +52,22 @@ class Flight:
     Define a Flight class used to record and associate data with an entire
     survey flight (takeoff -> landing)
     """
-    __slots__ = '_uid', '_name', '_flight_lines', '_data_files', '_meters', '_date'
+    __slots__ = ('_uid', '_name', '_flight_lines', '_data_files', '_meters', '_date',
+                 '_notes', '_sequence', '_duration')
 
-    def __init__(self, name: str, date: datetime = None, uid: Optional[str] = None, **kwargs):
-        self._uid = OID(self, tag=name, _uid=uid)
+    def __init__(self, name: str, date: Optional[datetime] = None, notes: Optional[str] = None,
+                 sequence: int = 0, duration: int = 0, uid: Optional[OID] = None, **kwargs):
+        self._uid = uid or OID(self, name)
+        self._uid.set_pointer(self)
         self._name = name
+        self._date = date
+        self._notes = notes
+        self._sequence = sequence
+        self._duration = duration
 
         self._flight_lines = kwargs.get('flight_lines', [])  # type: List[FlightLine]
         self._data_files = kwargs.get('data_files', [])  # type: List[DataFile]
         self._meters = kwargs.get('meters', [])  # type: List[OID]
-        self._date = date
 
     @property
     def name(self) -> str:
@@ -70,6 +76,38 @@ class Flight:
     @name.setter
     def name(self, value: str) -> None:
         self._name = value
+
+    @property
+    def date(self) -> datetime:
+        return self._date
+
+    @date.setter
+    def date(self, value: datetime) -> None:
+        self._date = value
+
+    @property
+    def notes(self) -> str:
+        return self._notes
+
+    @notes.setter
+    def notes(self, value: str) -> None:
+        self._notes = value
+
+    @property
+    def sequence(self) -> int:
+        return self._sequence
+
+    @sequence.setter
+    def sequence(self, value: int) -> None:
+        self._sequence = value
+
+    @property
+    def duration(self) -> int:
+        return self._duration
+
+    @duration.setter
+    def duration(self, value: int) -> None:
+        self._duration = value
 
     @property
     def uid(self) -> OID:

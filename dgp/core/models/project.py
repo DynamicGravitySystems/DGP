@@ -8,44 +8,63 @@ JSON Serializable classes, separated from the GUI control plane
 import json
 from datetime import datetime
 from pathlib import Path
+from pprint import pprint
 from typing import Optional, List, Any, Dict, Union
 
-from ..oid import OID
-from .flight import Flight, FlightLine, DataFile
-from .meter import Gravimeter
+from dgp.core.oid import OID
+from dgp.core.models.flight import Flight, FlightLine, DataFile
+from dgp.core.models.meter import Gravimeter
 
-klass_map = {'Flight': Flight, 'FlightLine': FlightLine, 'DataFile': DataFile,
-             'Gravimeter': Gravimeter}
+project_entities = {'Flight': Flight, 'FlightLine': FlightLine, 'DataFile': DataFile,
+                    'Gravimeter': Gravimeter}
 
 
 class ProjectEncoder(json.JSONEncoder):
+    """
+    The ProjectEncoder allows complex project objects to be encoded into
+    a standard JSON representation.
+    Classes are matched and encoded by type, with Project class instances
+    defined in the project_entities module variable.
+    Project classes simply have their __slots__ or __dict__ mapped to a JSON
+    object (Dictionary), with any recognized complex objects within the class
+    iteratively encoded by the encoder.
+
+    A select number of other 'complex' objects are also capable of being
+    encoded by this encoder, such as OID's, datetimes, and pathlib.Path objects.
+    An _type variable is inserted into the JSON output, and used by the decoder
+    to determine how to decode and reconstruct the object into a Python native
+    object.
+
+    """
+
     def default(self, o: Any):
-        if isinstance(o, (AirborneProject, *klass_map.values())):
+        if isinstance(o, (AirborneProject, *project_entities.values())):
             keys = o.__slots__ if hasattr(o, '__slots__') else o.__dict__.keys()
             attrs = {key.lstrip('_'): getattr(o, key) for key in keys}
             attrs['_type'] = o.__class__.__name__
             return attrs
         if isinstance(o, OID):
-            return o.base_uuid
+            return {'_type': OID.__name__, 'base_uuid': o.base_uuid}
         if isinstance(o, Path):
-            return str(o)
+            return {'_type': Path.__name__, 'path': str(o.resolve())}
         if isinstance(o, datetime):
-            return o.timestamp()
+            return {'_type': datetime.__name__, 'timestamp': o.timestamp()}
 
         return super().default(o)
 
 
 class GravityProject:
     def __init__(self, name: str, path: Union[Path, str], description: Optional[str] = None,
-                 create_date: Optional[float] = datetime.utcnow().timestamp(), uid: Optional[str] = None, **kwargs):
-        self._uid = OID(self, tag=name, _uid=uid)
+                 create_date: Optional[datetime] = None, modify_date: Optional[datetime] = None,
+                 uid: Optional[str] = None, **kwargs):
+        self._uid = uid or OID(self, tag=name)
+        self._uid.set_pointer(self)
         self._name = name
         self._path = path
         self._projectfile = 'dgp.json'
         self._description = description
-        self._create_date = datetime.fromtimestamp(create_date)
-        self._modify_date = datetime.fromtimestamp(kwargs.get('modify_date',
-                                                              datetime.utcnow().timestamp()))
+        self._create_date = create_date or datetime.utcnow()
+        self._modify_date = modify_date or self._create_date
 
         self._gravimeters = kwargs.get('gravimeters', [])  # type: List[Gravimeter]
         self._attributes = kwargs.get('attributes', {})  # type: Dict[str, Any]
@@ -95,6 +114,8 @@ class GravityProject:
         if isinstance(child, Gravimeter):
             self._gravimeters.append(child)
             self._modify()
+        else:
+            print("Invalid child: " + str(type(child)))
 
     def remove_child(self, child_id: OID) -> bool:
         child = child_id.reference  # type: Gravimeter
@@ -150,19 +171,25 @@ class GravityProject:
         the class map which allows for this object hook to be utilized by any
         inheritor without modification.
         """
-        if '_type' in json_o:
-            _type = json_o.pop('_type')
-            if _type == cls.__name__:
-                klass = cls
-            else:
-                klass = klass_map.get(_type, None)
-            if klass is None:
-                raise AttributeError("Unexpected class %s in JSON data. Class is not defined"
-                                     " in class map." % _type)
-            params = {key.lstrip('_'): value for key, value in json_o.items()}
-            return klass(**params)
-        else:
+        if '_type' not in json_o:
             return json_o
+
+        _type = json_o.pop('_type')
+        params = {key.lstrip('_'): value for key, value in json_o.items()}
+        if _type == cls.__name__:
+            return cls(**params)
+        elif _type == OID.__name__:
+            return OID(**params)
+        elif _type == datetime.__name__:
+            return datetime.fromtimestamp(*params.values())
+        elif _type == Path.__name__:
+            return Path(*params.values())
+        else:
+            klass = project_entities.get(_type, None)
+        if klass is None:
+            raise AttributeError("Unhandled class %s in JSON data. Class is not defined"
+                                 " in class map." % _type)
+        return klass(**params)
 
     @classmethod
     def from_json(cls, json_str: str) -> 'GravityProject':
@@ -176,6 +203,7 @@ class GravityProject:
             except IOError:
                 raise
             else:
+                pprint(json.dumps(self, cls=ProjectEncoder, indent=2))
                 return True
         return json.dumps(self, cls=ProjectEncoder, indent=indent)
 

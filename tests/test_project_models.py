@@ -6,18 +6,22 @@ serialization/de-serialization
 """
 import json
 import time
+from datetime import datetime
+from typing import Tuple
+from uuid import uuid4
 from pathlib import Path
 from pprint import pprint
 
 import pytest
-from core.models import project, flight
-from core.models.meter import Gravimeter
+from dgp.core.models import project, flight
+from dgp.core.models.meter import Gravimeter
 
 
 @pytest.fixture()
 def make_flight():
-    def _factory(name):
-        return flight.Flight(name)
+    def _factory() -> Tuple[str, flight.Flight]:
+        name = str(uuid4().hex)[:12]
+        return name, flight.Flight(name)
     return _factory
 
 
@@ -36,11 +40,11 @@ def test_flight_actions(make_flight, make_line):
     flt = flight.Flight('test_flight')
     assert 'test_flight' == flt.name
 
-    f1 = make_flight('Flight-1')  # type: flight.Flight
-    f2 = make_flight('Flight-2')  # type: flight.Flight
+    f1_name, f1 = make_flight()  # type: flight.Flight
+    f2_name, f2 = make_flight()  # type: flight.Flight
 
-    assert 'Flight-1' == f1.name
-    assert 'Flight-2' == f2.name
+    assert f1_name == f1.name
+    assert f2_name == f2.name
 
     assert not f1.uid == f2.uid
 
@@ -70,7 +74,7 @@ def test_flight_actions(make_flight, make_line):
     assert line2 in f1.flight_lines
     assert 2 == len(f1.flight_lines)
 
-    assert '<Flight Flight-1 :: %s>' % f1.uid == repr(f1)
+    assert '<Flight %s :: %s>' % (f1_name, f1.uid) == repr(f1)
 
 
 def test_project_actions():
@@ -96,16 +100,16 @@ def test_project_attr(make_flight):
     assert 2345 == prj['_my_private_val']
     assert 2345 == prj.get_attr('_my_private_val')
 
-    flt1 = make_flight('flight-1')
+    f1_name, flt1 = make_flight()
     prj.add_child(flt1)
-    # assert flt1.parent == prj.uid
+    # TODO: What am I testing here?
 
 
 def test_project_get_child(make_flight):
     prj = project.AirborneProject(name="Project-2", path=Path('.'))
-    f1 = make_flight('Flt-1')
-    f2 = make_flight('Flt-2')
-    f3 = make_flight('Flt-3')
+    f1_name, f1 = make_flight()
+    f2_name, f2 = make_flight()
+    f3_name, f3 = make_flight()
     prj.add_child(f1)
     prj.add_child(f2)
     prj.add_child(f3)
@@ -117,9 +121,9 @@ def test_project_get_child(make_flight):
 
 def test_project_remove_child(make_flight):
     prj = project.AirborneProject(name="Project-3", path=Path('.'))
-    f1 = make_flight('Flt-1')
-    f2 = make_flight('Flt-2')
-    f3 = make_flight('Flt-3')
+    f1_name, f1 = make_flight()
+    f2_name, f2 = make_flight()
+    f3_name, f3 = make_flight()
 
     prj.add_child(f1)
     prj.add_child(f2)
@@ -140,9 +144,9 @@ def test_project_serialize(make_flight, make_line):
     prj_path = Path('./prj-1')
     prj = project.AirborneProject(name="Project-3", path=prj_path,
                                   description="Test Project Serialization")
-    f1 = make_flight('flt1')  # type: flight.Flight
+    f1_name, f1 = make_flight()  # type: flight.Flight
     line1 = make_line(0, 10)  # type: # flight.FlightLine
-    data1 = flight.DataFile('/%s' % f1.uid.base_uuid, 'df1', 'gravity')
+    data1 = flight.DataFile(f1.uid, 'gravity', datetime.today())
     f1.add_child(line1)
     f1.add_child(data1)
     prj.add_child(f1)
@@ -162,7 +166,6 @@ def test_project_deserialize(make_flight, make_line):
         'attr2': 192.201,
         'attr3': False,
         'attr4': "Notes on project"
-
     }
     prj = project.AirborneProject(name="SerializeTest", path=Path('./prj1'),
                                   description="Test DeSerialize")
@@ -172,8 +175,8 @@ def test_project_deserialize(make_flight, make_line):
 
     assert attrs == prj._attributes
 
-    f1 = make_flight("Flt1")  # type: flight.Flight
-    f2 = make_flight("Flt2")
+    f1_name, f1 = make_flight()  # type: flight.Flight
+    f2_name, f2 = make_flight()
     line1 = make_line(0, 10)  # type: flight.FlightLine
     line2 = make_line(11, 20)
     f1.add_child(line1)
@@ -195,8 +198,8 @@ def test_project_deserialize(make_flight, make_line):
     assert prj.creation_time == prj_deserialized.creation_time
 
     flt_names = [flt.name for flt in prj_deserialized.flights]
-    assert "Flt1" in flt_names
-    assert "Flt2" in flt_names
+    assert f1_name in flt_names
+    assert f2_name in flt_names
 
     f1_reconstructed = prj_deserialized.get_child(f1.uid)
     assert f1.uid in [flt.uid for flt in prj_deserialized.flights]

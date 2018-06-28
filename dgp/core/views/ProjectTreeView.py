@@ -6,9 +6,9 @@ from PyQt5.QtCore import QObject, QModelIndex, pyqtSlot, pyqtBoundSignal
 from PyQt5.QtGui import QContextMenuEvent, QStandardItem
 from PyQt5.QtWidgets import QTreeView, QMenu
 
-from core.controllers.FlightController import FlightController
-from core.controllers.ProjectController import BaseProjectController
-from core.models.ProjectTreeModel import ProjectTreeModel
+from dgp.core.controllers.flight_controller import FlightController
+from dgp.core.controllers.project_controllers import AirborneProjectController
+from dgp.core.models.ProjectTreeModel import ProjectTreeModel
 
 
 class ProjectTreeView(QTreeView):
@@ -90,12 +90,12 @@ class ProjectTreeView(QTreeView):
         #     pprint(ancestor_bindings)
         #     bindings.extend(ancestor_bindings)
 
-        if isinstance(item, BaseProjectController) or issubclass(item.__class__, BaseProjectController):
+        if isinstance(item, AirborneProjectController):
             bindings.insert(0, ('addAction', ("Expand All", self.expandAll)))
 
         bindings.append(('addAction', ("Expand" if not expanded else "Collapse",
                                        lambda: self.setExpanded(index, not expanded))))
-        bindings.append(('addAction', ("Properties", self._get_item_attr(item, 'properties'))))
+        # bindings.append(('addAction', ("Properties", self._get_item_attr(item, 'properties'))))
 
         self._build_menu(menu, bindings)
         menu.exec_(event.globalPos())
