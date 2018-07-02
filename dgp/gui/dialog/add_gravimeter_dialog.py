@@ -26,8 +26,8 @@ class AddGravimeterDialog(QDialog, Ui_AddMeterDialog):
         self.qlw_metertype.addItem("TAGS")
         self.qlw_metertype.addItem("ZLS")
         self.qlw_metertype.addItem("AirSeaII")
-        self.qlw_metertype.setCurrentRow(0)
         self.qlw_metertype.currentRowChanged.connect(self._type_changed)
+        self.qlw_metertype.setCurrentRow(0)
 
         self.qtb_browse_config.clicked.connect(self._browse_config)
         self.qle_serial.textChanged.connect(lambda text: self._serial_changed(text))

@@ -1,16 +1,18 @@
 # -*- coding: utf-8 -*-
-
 import logging
 
+import pandas as pd
+
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout
+from PyQt5.QtGui import QStandardItem
+from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QDockWidget, QWidget, QListView, QSizePolicy
 import PyQt5.QtWidgets as QtWidgets
 
-import dgp.gui.models as models
-import dgp.lib.types as types
+from dgp.core.controllers.flightline_controller import FlightLineController
+from dgp.core.models.flight import FlightLine
+from gui.widgets.channel_select_widget import ChannelSelectWidget
 from . import BaseTab
-from core.controllers.flight_controller import FlightController
-from dgp.gui.dialogs import ChannelSelectionDialog
+from dgp.core.controllers.flight_controller import FlightController
 from dgp.gui.plotting.plotters import LineUpdate, PqtLineSelectPlot
 
 
@@ -26,51 +28,61 @@ class PlotTab(BaseTab):
         self.log = logging.getLogger('PlotTab')
         self._ctrl_widget = None
         self._axes_count = axes
+        self.plot = PqtLineSelectPlot(rows=2)
+        self.plot.line_changed.connect(self._on_modified_line)
+        # self._channel_select = ChannelSelectDialog(flight.data_model, plots=1, parent=self)
         self._setup_ui()
-        self._init_model(plot_default)
 
     def _setup_ui(self):
-        vlayout = QVBoxLayout()
-        top_button_hlayout = QHBoxLayout()
-        self._select_channels = QtWidgets.QPushButton("Select Channels")
-        self._select_channels.clicked.connect(self._show_select_dialog)
-        top_button_hlayout.addWidget(self._select_channels,
-                                     alignment=Qt.AlignLeft)
+        qhbl_main = QHBoxLayout()
+        qvbl_plot_layout = QVBoxLayout()
+        qhbl_top_buttons = QHBoxLayout()
+        self._qpb_channel_toggle = QtWidgets.QPushButton("Data Channels")
+        self._qpb_channel_toggle.setCheckable(True)
+        self._qpb_channel_toggle.setChecked(True)
+        qhbl_top_buttons.addWidget(self._qpb_channel_toggle,
+                                   alignment=Qt.AlignLeft)
 
         self._mode_label = QtWidgets.QLabel('')
         # top_button_hlayout.addSpacing(20)
-        top_button_hlayout.addStretch(2)
-        top_button_hlayout.addWidget(self._mode_label)
-        top_button_hlayout.addStretch(2)
+        qhbl_top_buttons.addStretch(2)
+        qhbl_top_buttons.addWidget(self._mode_label)
+        qhbl_top_buttons.addStretch(2)
         # top_button_hlayout.addSpacing(20)
-        self._toggle_mode = QtWidgets.QPushButton("Toggle Line Selection Mode")
-        self._toggle_mode.setCheckable(True)
-        self._toggle_mode.toggled.connect(self._toggle_selection)
-        top_button_hlayout.addWidget(self._toggle_mode,
-                                     alignment=Qt.AlignRight)
-        vlayout.addLayout(top_button_hlayout)
+        self._qpb_toggle_mode = QtWidgets.QPushButton("Toggle Line Selection Mode")
+        self._qpb_toggle_mode.setCheckable(True)
+        self._qpb_toggle_mode.toggled.connect(self._toggle_selection)
+        qhbl_top_buttons.addWidget(self._qpb_toggle_mode,
+                                   alignment=Qt.AlignRight)
+        qvbl_plot_layout.addLayout(qhbl_top_buttons)
 
-        self.plot = PqtLineSelectPlot(flight=self.flight, rows=3)
-        # TODO Renable this
+        # TODO Re-enable this
         # for line in self.flight.lines:
         #     self.plot.add_patch(line.start, line.stop, line.uid, line.label)
-        self.plot.line_changed.connect(self._on_modified_line)
 
-        vlayout.addWidget(self.plot.widget)
-        # vlayout.addWidget(self.plot.get_toolbar(), alignment=Qt.AlignBottom)
-        self.setLayout(vlayout)
+        channel_widget = ChannelSelectWidget(self.flight.data_model)
+        channel_widget.channel_added.connect(self._channel_added)
+        channel_widget.channel_removed.connect(self._channel_removed)
+        channel_widget.channels_cleared.connect(self._clear_plot)
 
-    def _init_model(self, default_state=False):
-        # TODO: Reimplement this
-        return
-        channels = self.flight.channels
-        plot_model = models.ChannelListTreeModel(channels, len(self.plot))
-        plot_model.plotOverflow.connect(self._too_many_children)
-        plot_model.channelChanged.connect(self._on_channel_changed)
-        self.model = plot_model
+        self.plot.widget.setSizePolicy(QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding))
+        qvbl_plot_layout.addWidget(self.plot.widget)
+        dock_widget = QDockWidget("Channels")
+        dock_widget.setSizePolicy(QSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred))
+        dock_widget.setWidget(channel_widget)
+        self._qpb_channel_toggle.toggled.connect(dock_widget.setVisible)
+        qhbl_main.addItem(qvbl_plot_layout)
+        qhbl_main.addWidget(dock_widget)
+        self.setLayout(qhbl_main)
 
-        if default_state:
-            self.set_defaults(channels)
+    def _channel_added(self, plot: int, item: QStandardItem):
+        self.plot.add_series(item.data(Qt.UserRole), plot)
+
+    def _channel_removed(self, plot: int, item: QStandardItem):
+        self.plot.remove_series(item.data(Qt.UserRole))
+
+    def _clear_plot(self):
+        print("Clearing plot")
 
     def _toggle_selection(self, state: bool):
         self.plot.selection_mode = state
@@ -85,60 +97,44 @@ class PlotTab(BaseTab):
                 if channel.field == name.lower():
                     self.model.move_channel(channel.uid, plot)
 
-    def _show_select_dialog(self):
-        # TODO: Check that select dialog not already active
-        dlg = ChannelSelectionDialog(parent=self)
-        if self.model is not None:
-            dlg.set_model(self.model)
-        dlg.show()
-
-    def data_modified(self, action: str, dsrc):
-        if action.lower() == 'add':
-            self.log.info("Adding channels to model.")
-            n_channels = dsrc.get_channels()
-            self.model.add_channels(*n_channels)
-            self.set_defaults(n_channels)
-        elif action.lower() == 'remove':
-            self.log.info("Removing channels from model.")
-            # Re-initialize model - source must be removed from flight first
-            self._init_model()
-        else:
+    def _on_modified_line(self, update: LineUpdate):
+        # TODO: Update this to work with new project
+        print(update)
+        start = update.start
+        stop = update.stop
+        try:
+            if isinstance(update.start, pd.Timestamp):
+                start = start.timestamp()
+            if isinstance(stop, pd.Timestamp):
+                stop = stop.timestamp()
+        except OSError:
+            print("Error converting Timestamp to float POSIX timestamp")
             return
 
-    def _on_modified_line(self, info: LineUpdate):
-        if info.uid in [x.uid for x in self.flight.lines]:
-            if info.action == 'modify':
-                line = self.flight.get_line(info.uid)
-                line.start = info.start
-                line.stop = info.stop
-                line.label = info.label
+        if update.uid in [x.uid for x in self.flight.lines]:
+            if update.action == 'modify':
+                line: FlightLineController = self.flight.get_child(update.uid)
+                line.update_line(start, stop, update.label)
                 self.log.debug("Modified line: start={start}, stop={stop},"
                                " label={label}"
-                               .format(start=info.start, stop=info.stop,
-                                       label=info.label))
-            elif info.action == 'remove':
-                self.flight.remove_line(info.uid)
+                               .format(start=start, stop=stop,
+                                       label=update.label))
+            elif update.action == 'remove':
+                line = self.flight.get_child(update.uid)  # type: FlightLineController
+                if line is None:
+                    self.log.warning("Couldn't retrieve FlightLine from Flight for removal")
+                    return
+                self.flight.remove_child(line.proxied, line.row(), confirm=False)
                 self.log.debug("Removed line: start={start}, "
                                "stop={stop}, label={label}"
-                               .format(start=info.start, stop=info.stop,
-                                       label=info.label))
+                               .format(start=start, stop=stop,
+                                       label=update.label))
         else:
-            line = types.FlightLine(info.start, info.stop, uid=info.uid)
-            self.flight.add_line(line)
+            line = FlightLine(start, stop, 0, uid=update.uid)
+            # line = types.FlightLine(update.start, update.stop, uid=update.uid)
+            self.flight.add_child(line)
             self.log.debug("Added line to flight {flt}: start={start}, "
                            "stop={stop}, label={label}, uid={uid}"
-                           .format(flt=self.flight.name, start=info.start,
-                                   stop=info.stop, label=info.label,
+                           .format(flt=self.flight.name, start=start,
+                                   stop=stop, label=update.label,
                                    uid=line.uid))
-
-    def _on_channel_changed(self, new: int, channel: types.DataChannel):
-        self.plot.remove_series(channel.series())
-        if new != -1:
-            try:
-                self.plot.add_series(channel.series(), new)
-            except:
-                self.log.exception("Error adding series to plot")
-        self.model.update()
-
-    def _too_many_children(self, uid):
-        self.log.warning("Too many children for plot: {}".format(uid))

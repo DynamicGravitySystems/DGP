@@ -5,20 +5,20 @@ Definitions for task specific plot interfaces.
 """
 import logging
 from itertools import count
-from typing import Dict, Tuple, Union, List
+from typing import List
 
 import pandas as pd
 import PyQt5.QtCore as QtCore
-import PyQt5.QtWidgets as QtWidgets
-from PyQt5.QtWidgets import QMenu, QAction
 from PyQt5.QtCore import pyqtSignal
+from pyqtgraph import PlotItem
+
+from dgp.core.oid import OID
 from dgp.lib.types import LineUpdate
-from dgp.lib.etc import gen_uuid
-from .backends import AbstractSeriesPlotter, PyQtGridPlotWidget
+from .helpers import LinearFlightRegion
+from .backends import PyQtGridPlotWidget
 
 import pyqtgraph as pg
 from pyqtgraph.graphicsItems.LinearRegionItem import LinearRegionItem
-from pyqtgraph.graphicsItems.TextItem import TextItem
 
 _log = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class TransformPlot:
                                          background='w', parent=parent, tickFormatter=tickformatter)
 
     @property
-    def plots(self) -> List[AbstractSeriesPlotter]:
+    def plots(self) -> List[PlotItem]:
         return self.widget.plots
 
     def __getattr__(self, item):
@@ -103,7 +103,7 @@ class PqtLineSelectPlot(QtCore.QObject):
         pass
 
     @property
-    def plots(self) -> List[AbstractSeriesPlotter]:
+    def plots(self) -> List[PlotItem]:
         return self.widget.plots
 
     def _check_proximity(self, x, span, proximity=0.03) -> bool:
@@ -157,7 +157,8 @@ class PqtLineSelectPlot(QtCore.QObject):
             event.accept()
             # Map click location to data coordinates
             xpos = p0.vb.mapToView(pos).x()
-            v0, v1 = p0.get_xlim()
+            # v0, v1 = p0.get_xlim()
+            v0, v1 = self.widget.get_xlim(0)
             vb_span = v1 - v0
             if not self._check_proximity(xpos, vb_span):
                 return
@@ -182,8 +183,9 @@ class PqtLineSelectPlot(QtCore.QObject):
         patch_region = [start, stop]
 
         lfr_group = []
-        grpid = uid or gen_uuid('flr')
-        update = LineUpdate(self._flight.uid, 'add', grpid,
+        grpid = uid or OID(tag='flightline')
+        # Note pd.to_datetime(scalar) returns pd.Timestamp
+        update = LineUpdate('add', grpid,
                             pd.to_datetime(start), pd.to_datetime(stop), None)
 
         for i, plot in enumerate(self.plots):
@@ -205,8 +207,9 @@ class PqtLineSelectPlot(QtCore.QObject):
             return
 
         grpid = item.group
-        update = LineUpdate(self._flight.uid, 'remove', grpid,
-                            pd.to_datetime(1), pd.to_datetime(1), None)
+        x0, x1 = item.getRegion()
+        update = LineUpdate('remove', grpid,
+                            pd.to_datetime(x0), pd.to_datetime(x1), None)
         grp = self._selections[grpid]
         for i, plot in enumerate(self.plots):
             plot.removeItem(grp[i].label)
@@ -222,7 +225,7 @@ class PqtLineSelectPlot(QtCore.QObject):
             lfr.set_label(text)
 
         x0, x1 = item.getRegion()
-        update = LineUpdate(self._flight.uid, 'modify', item.group,
+        update = LineUpdate('modify', item.group,
                             pd.to_datetime(x0), pd.to_datetime(x1), text)
         self.line_changed.emit(update)
 
@@ -256,7 +259,7 @@ class PqtLineSelectPlot(QtCore.QObject):
     def _update_done(self):
         self._update_timer.stop()
         x0, x1 = self._line_update.getRegion()
-        update = LineUpdate(self._flight.uid, 'modify', self._line_update.group,
+        update = LineUpdate('modify', self._line_update.group,
                             pd.to_datetime(x0), pd.to_datetime(x1), None)
         self.line_changed.emit(update)
         self._line_update = None

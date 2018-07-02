@@ -32,7 +32,7 @@ StillReading = namedtuple('StillReading', ['gravity', 'location', 'time'])
 
 DataCurve = namedtuple('DataCurve', ['channel', 'data'])
 
-LineUpdate = namedtuple('LineUpdate', ['flight_id', 'action', 'uid', 'start',
+LineUpdate = namedtuple('LineUpdate', ['action', 'uid', 'start',
                                        'stop', 'label'])
 
 

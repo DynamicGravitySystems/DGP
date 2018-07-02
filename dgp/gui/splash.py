@@ -11,11 +11,11 @@ import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtCore as QtCore
 from PyQt5.uic import loadUiType
 
-from core.controllers.project_controllers import AirborneProjectController
-from core.models.project import AirborneProject, GravityProject
+from dgp.core.controllers.project_controllers import AirborneProjectController
+from dgp.core.models.project import AirborneProject, GravityProject
 from dgp.gui.main import MainWindow
 from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, LOG_COLOR_MAP, get_project_file
-from dgp.gui.dialogs import CreateProjectDialog
+from dgp.gui.dialog.create_project_dialog import CreateProjectDialog
 
 splash_screen, _ = loadUiType('dgp/gui/ui/splash_screen.ui')
 
