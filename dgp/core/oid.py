@@ -3,12 +3,6 @@
 from typing import Optional, Union, Any
 from uuid import uuid4
 
-_registry = {}
-
-
-def get_oid(uuid: str):
-    pass
-
 
 class OID:
     """Object IDentifier - Replacing simple str UUID's that had been used.
@@ -21,7 +15,6 @@ class OID:
         self._base_uuid = base_uuid or uuid4().hex
         self._tag = tag
         self._pointer = obj
-        _registry[self._base_uuid] = self
 
     def set_pointer(self, obj):
         self._pointer = obj
@@ -64,11 +57,3 @@ class OID:
 
     def __hash__(self):
         return hash(self.base_uuid)
-
-    def __del__(self):
-        try:
-            del _registry[self.base_uuid]
-        except KeyError:
-            pass
-        else:
-            pass

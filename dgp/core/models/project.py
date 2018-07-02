@@ -6,7 +6,7 @@ JSON Serializable classes, separated from the GUI control plane
 
 """
 import json
-from datetime import datetime
+import datetime
 from pathlib import Path
 from pprint import pprint
 from typing import Optional, List, Any, Dict, Union
@@ -43,19 +43,26 @@ class ProjectEncoder(json.JSONEncoder):
             attrs = {key.lstrip('_'): getattr(o, key) for key in keys}
             attrs['_type'] = o.__class__.__name__
             return attrs
+        j_complex = {'_type': o.__class__.__name__}
         if isinstance(o, OID):
-            return {'_type': OID.__name__, 'base_uuid': o.base_uuid}
+            j_complex['base_uuid'] = o.base_uuid
+            return j_complex
         if isinstance(o, Path):
-            return {'_type': Path.__name__, 'path': str(o.resolve())}
-        if isinstance(o, datetime):
-            return {'_type': datetime.__name__, 'timestamp': o.timestamp()}
+            # Path requires special handling due to OS dependant internal classes
+            return {'_type': 'Path', 'path': str(o.resolve())}
+        if isinstance(o, datetime.datetime):
+            j_complex['timestamp'] = o.timestamp()
+            return j_complex
+        if isinstance(o, datetime.date):
+            j_complex['ordinal'] = o.toordinal()
+            return j_complex
 
         return super().default(o)
 
 
 class GravityProject:
     def __init__(self, name: str, path: Union[Path, str], description: Optional[str] = None,
-                 create_date: Optional[datetime] = None, modify_date: Optional[datetime] = None,
+                 create_date: Optional[datetime.datetime] = None, modify_date: Optional[datetime.datetime] = None,
                  uid: Optional[str] = None, **kwargs):
         self._uid = uid or OID(self, tag=name)
         self._uid.set_pointer(self)
@@ -63,7 +70,7 @@ class GravityProject:
         self._path = path
         self._projectfile = 'dgp.json'
         self._description = description
-        self._create_date = create_date or datetime.utcnow()
+        self._create_date = create_date or datetime.datetime.utcnow()
         self._modify_date = modify_date or self._create_date
 
         self._gravimeters = kwargs.get('gravimeters', [])  # type: List[Gravimeter]
@@ -96,11 +103,11 @@ class GravityProject:
         self._modify()
 
     @property
-    def creation_time(self) -> datetime:
+    def creation_time(self) -> datetime.datetime:
         return self._create_date
 
     @property
-    def modify_time(self) -> datetime:
+    def modify_time(self) -> datetime.datetime:
         return self._modify_date
 
     @property
@@ -152,7 +159,7 @@ class GravityProject:
     # Protected utility methods
     def _modify(self):
         """Set the modify_date to now"""
-        self._modify_date = datetime.utcnow()
+        self._modify_date = datetime.datetime.utcnow()
 
     # Serialization/De-Serialization methods
     @classmethod
@@ -180,8 +187,10 @@ class GravityProject:
             return cls(**params)
         elif _type == OID.__name__:
             return OID(**params)
-        elif _type == datetime.__name__:
-            return datetime.fromtimestamp(*params.values())
+        elif _type == datetime.datetime.__name__:
+            return datetime.datetime.fromtimestamp(*params.values())
+        elif _type == datetime.date.__name__:
+            return datetime.date.fromordinal(*params.values())
         elif _type == Path.__name__:
             return Path(*params.values())
         else:
@@ -196,6 +205,8 @@ class GravityProject:
         return json.loads(json_str, object_hook=cls.object_hook)
 
     def to_json(self, to_file=False, indent=None) -> Union[str, bool]:
+        # TODO: Dump file to a temp file, then if successful overwrite the original
+        # Else an error in the serialization process can corrupt the entire project
         if to_file:
             try:
                 with self.path.joinpath(self._projectfile).open('w') as fp:
