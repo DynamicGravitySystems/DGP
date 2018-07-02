@@ -8,10 +8,11 @@ from dgp.core.oid import OID
 
 
 class FlightLine:
-    __slots__ = '_uid', '_label', '_start', '_stop', '_sequence'
+    __slots__ = ('_uid', '_label', '_start', '_stop', '_sequence', '_parent')
 
     def __init__(self, start: float, stop: float, sequence: int,
                  label: Optional[str] = "", uid: Optional[OID] = None):
+        self._parent = None
         self._uid = uid or OID(self)
         self._uid.set_pointer(self)
         self._start = start
@@ -51,6 +52,9 @@ class FlightLine:
     def sequence(self) -> int:
         return self._sequence
 
+    def set_parent(self, parent):
+        self._parent = parent
+
     def __str__(self):
         return 'Line {} {:%H:%M} -> {:%H:%M}'.format(self.sequence, self.start, self.stop)
 
@@ -62,11 +66,12 @@ class Flight:
     survey flight (takeoff -> landing)
     """
     __slots__ = ('_uid', '_name', '_flight_lines', '_data_files', '_meter', '_date',
-                 '_notes', '_sequence', '_duration')
+                 '_notes', '_sequence', '_duration', '_parent')
 
     def __init__(self, name: str, date: Optional[datetime] = None, notes: Optional[str] = None,
                  sequence: int = 0, duration: int = 0, meter: str = None,
                  uid: Optional[OID] = None, **kwargs):
+        self._parent = None
         self._uid = uid or OID(self, name)
         self._uid.set_pointer(self)
         self._name = name
@@ -77,7 +82,6 @@ class Flight:
 
         self._flight_lines = kwargs.get('flight_lines', [])  # type: List[FlightLine]
         self._data_files = kwargs.get('data_files', [])  # type: List[DataFile]
-        # String UID reference of assigned meter
         self._meter: str = meter
 
     @property
@@ -134,7 +138,6 @@ class Flight:
 
     def add_child(self, child: Union[FlightLine, DataFile, Gravimeter]) -> None:
         if child is None:
-            print("Child is None, skipping.")
             return
         if isinstance(child, FlightLine):
             self._flight_lines.append(child)
@@ -144,18 +147,23 @@ class Flight:
             self._meter = child.uid.base_uuid
         else:
             raise ValueError("Invalid child type supplied: <%s>" % str(type(child)))
+        child.set_parent(self)
 
     def remove_child(self, child: Union[FlightLine, DataFile, OID]) -> bool:
         if isinstance(child, OID):
             child = child.reference
-
         if isinstance(child, FlightLine):
+            child.set_parent(None)
             self._flight_lines.remove(child)
         elif isinstance(child, DataFile):
+            child.set_parent(None)
             self._data_files.remove(child)
         else:
             return False
         return True
+
+    def set_parent(self, parent):
+        self._parent = parent
 
     def __str__(self) -> str:
         return self.name

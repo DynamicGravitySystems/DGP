@@ -62,6 +62,8 @@ class HDFController:
     def save_data(self, data: DataFrame, datafile: DataFile):
         """
         Save a Pandas Series or DataFrame to the HDF5 Store
+
+        TODO: This doc is outdated
         Data is added to the local cache, keyed by its generated UID.
         The generated UID is passed back to the caller for later reference.
         This function serves as a dispatch mechanism for different data types.
@@ -128,8 +130,12 @@ class HDFController:
         else:
             self.log.debug("Loading data %s from hdf5 _store.", datafile.hdfpath)
 
-            with HDFStore(str(self.hdf5path)) as hdf:
-                data = hdf.get(datafile.hdfpath)
+            try:
+                with HDFStore(str(self.hdf5path)) as hdf:
+                    data = hdf.get(datafile.hdfpath)
+            except Exception as e:
+                self.log.exception(e)
+                raise IOError("Could not load DataFrame from path: %s" % datafile.hdfpath)
 
             # Cache the data
             self._cache[datafile] = data

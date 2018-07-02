@@ -1,26 +1,28 @@
 # -*- coding: utf-8 -*-
 import logging
-from typing import Optional, Union, Any
+from typing import Optional, Union, Any, Generator
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QStandardItem, QIcon, QStandardItemModel
+from PyQt5.QtGui import QStandardItemModel, QStandardItem
+from pandas import DataFrame
 
+from dgp.core.oid import OID
 from dgp.core.controllers.controller_interfaces import IAirborneController, IFlightController
 from dgp.core.controllers.datafile_controller import DataFileController
 from dgp.core.controllers.flightline_controller import FlightLineController
-from dgp.core.controllers.controller_mixins import PropertiesProxy
-from gui.dialog.add_flight_dialog import AddFlightDialog
-from . import controller_helpers as helpers
-from .project_containers import ProjectFolder
+from dgp.core.models.meter import Gravimeter
 from dgp.core.models.flight import Flight, FlightLine
 from dgp.core.models.data import DataFile
+from dgp.core.types.enumerations import DataTypes
+from dgp.gui.dialog.add_flight_dialog import AddFlightDialog
+from . import controller_helpers as helpers
+from .project_containers import ProjectFolder
 
-from core.types.enumerations import DataTypes
 
 FOLDER_ICON = ":/icons/folder_open.png"
 
 
-class FlightController(IFlightController, PropertiesProxy):
+class FlightController(IFlightController):
     """
     FlightController is a wrapper around :obj:`Flight` objects, and provides
     a presentation and interaction layer for use of the underlying Flight
@@ -41,61 +43,70 @@ class FlightController(IFlightController, PropertiesProxy):
     """
     inherit_context = True
 
-    def __init__(self, flight: Flight, icon: Optional[str] = None,
-                 controller: IAirborneController = None):
+    def __init__(self, flight: Flight, parent: IAirborneController = None):
         """Assemble the view/controller repr from the base flight object."""
         super().__init__()
         self.log = logging.getLogger(__name__)
-        self._flight = flight
+        self._flight: Flight = flight
+        self._parent = parent
         self.setData(flight, Qt.UserRole)
-        if icon is not None:
-            self.setIcon(QIcon(icon))
         self.setEditable(False)
 
-        self._project_controller = controller
         self._active = False
 
         self._flight_lines = ProjectFolder("Flight Lines", FOLDER_ICON)
         self._data_files = ProjectFolder("Data Files", FOLDER_ICON)
+        self._sensors = ProjectFolder("Sensors", FOLDER_ICON)
         self.appendRow(self._flight_lines)
         self.appendRow(self._data_files)
+        self.appendRow(self._sensors)
+
+        self._data_model = QStandardItemModel()
 
         for line in self._flight.flight_lines:
             self._flight_lines.appendRow(FlightLineController(line, self))
 
-        for file in self._flight.data_files:
+        for file in self._flight.data_files:  # type: DataFile
             self._data_files.appendRow(DataFileController(file, self))
 
-        # Think about multiple files, what to do?
-        self._active_gravity = None
-        self._active_trajectory = None
+        self._active_gravity: DataFileController = None
+        self._active_trajectory: DataFileController = None
 
+        # Set the first available gravity/trajectory file to active
+        for file_ctrl in self._data_files.items():  # type: DataFileController
+            if self._active_gravity is None and file_ctrl.data_group == 'gravity':
+                self.set_active_child(file_ctrl)
+            if self._active_trajectory is None and file_ctrl.data_group == 'trajectory':
+                self.set_active_child(file_ctrl)
+
+        # TODO: Consider adding MenuPrototype class which could provide the means to build QMenu
         self._bindings = [
-            ('addAction', ('Set Active', lambda: self.controller.set_active_child(self))),
+            ('addAction', ('Set Active', lambda: self.get_parent().set_active_child(self))),
             ('addAction', ('Import Gravity',
-                           lambda: self.controller.load_file(DataTypes.GRAVITY))),
+                           lambda: self.get_parent().load_file(DataTypes.GRAVITY, self))),
             ('addAction', ('Import Trajectory',
-                           lambda: self.controller.load_file(DataTypes.TRAJECTORY))),
+                           lambda: self.get_parent().load_file(DataTypes.TRAJECTORY, self))),
             ('addSeparator', ()),
             ('addAction', ('Delete <%s>' % self._flight.name,
-                           lambda: self.controller.remove_child(self._flight, self.row(), True))),
-            ('addAction', ('Rename Flight', lambda: self.set_name(interactive=True))),
+                           lambda: self.get_parent().remove_child(self._flight, self.row(), True))),
+            ('addAction', ('Rename Flight', lambda: self.set_name())),
             ('addAction', ('Properties',
-                           lambda: AddFlightDialog.from_existing(self, self.controller).exec_()))
+                           lambda: AddFlightDialog.from_existing(self, self.get_parent()).exec_()))
         ]
 
         self.update()
 
-    def update(self):
-        self.setText(self._flight.name)
-        self.setToolTip(str(self._flight.uid))
-
-    def clone(self):
-        return FlightController(self._flight, controller=self.controller)
+    @property
+    def uid(self) -> OID:
+        return self._flight.uid
 
     @property
-    def controller(self) -> IAirborneController:
-        return self._project_controller
+    def proxied(self) -> object:
+        return self._flight
+
+    @property
+    def data_model(self) -> QStandardItemModel:
+        return self._data_model
 
     @property
     def menu_bindings(self):
@@ -110,11 +121,17 @@ class FlightController(IFlightController, PropertiesProxy):
 
     @property
     def gravity(self):
-        return None
+        if not self._active_gravity:
+            self.log.warning("No gravity file is set to active state.")
+            return None
+        return self._active_gravity.get_data()
 
     @property
     def trajectory(self):
-        return None
+        if self._active_trajectory is None:
+            self.log.warning("No trajectory file is set to active state.")
+            return None
+        return self._active_trajectory.get_data()
 
     @property
     def lines_model(self) -> QStandardItemModel:
@@ -123,20 +140,26 @@ class FlightController(IFlightController, PropertiesProxy):
         """
         return self._flight_lines.internal_model
 
-    def is_active(self):
-        return self.controller.get_active_child() == self
-
-    def properties(self):
-        for i in range(self._data_files.rowCount()):
-            file = self._data_files.child(i)
-            if file._data.group == 'gravity':
-                print(file)
-                break
-        print(self.__class__.__name__)
-
     @property
-    def proxied(self) -> object:
-        return self._flight
+    def lines(self) -> Generator[FlightLine, None, None]:
+        for line in self._flight.flight_lines:
+            yield line
+
+    def get_parent(self) -> IAirborneController:
+        return self._parent
+
+    def set_parent(self, parent: IAirborneController) -> None:
+        self._parent = parent
+
+    def update(self):
+        self.setText(self._flight.name)
+        self.setToolTip(str(self._flight.uid))
+
+    def clone(self):
+        return FlightController(self._flight, parent=self.get_parent())
+
+    def is_active(self):
+        return self.get_parent().get_active_child() == self
 
     def set_active_child(self, child: DataFileController, emit: bool = True):
         if not isinstance(child, DataFileController):
@@ -148,13 +171,26 @@ class FlightController(IFlightController, PropertiesProxy):
             if ci.data_group == child.data_group:
                 ci.set_inactive()
 
-        print(child.data_group)
         if child.data_group == 'gravity':
-            self._active_gravity = child.data(Qt.UserRole)
+            df = self.load_data(child)
+            if df is None:
+                return
+            self._active_gravity = child
             child.set_active()
-            print("Set gravity child to active")
+
+            # Experimental work on channel model
+            # TODO: Need a way to clear ONLY the appropriate channels from the model, not all
+            # e.g. don't clear trajectory channels when gravity file is changed
+            self.data_model.clear()
+
+            for col in df:
+                channel = QStandardItem(col)
+                channel.setData(df[col], Qt.UserRole)
+                channel.setCheckable(True)
+                self._data_model.appendRow([channel, QStandardItem("Plot1"), QStandardItem("Plot2")])
+
         if child.data_group == 'trajectory':
-            self._active_trajectory = child.data(Qt.UserRole)
+            self._active_trajectory = child
             child.set_active()
 
     def get_active_child(self):
@@ -180,7 +216,11 @@ class FlightController(IFlightController, PropertiesProxy):
         if isinstance(child, FlightLine):
             self._flight_lines.appendRow(FlightLineController(child, self))
         elif isinstance(child, DataFile):
-            self._data_files.appendRow(DataFileController(child, self))
+            control = DataFileController(child, self)
+            self._data_files.appendRow(control)
+            # self.set_active_child(control)
+        elif isinstance(child, Gravimeter):
+            self.log.warning("Adding Gravimeter's to Flights is not yet implemented.")
         else:
             self.log.warning("Child of type %s could not be added to flight.", str(type(child)))
             return False
@@ -214,7 +254,7 @@ class FlightController(IFlightController, PropertiesProxy):
         if confirm:
             if not helpers.confirm_action("Confirm Deletion",
                                           "Are you sure you want to delete %s" % str(child),
-                                          self.controller.get_parent()):
+                                          self.get_parent().get_parent()):
                 return False
 
         if not self._flight.remove_child(child):
@@ -228,20 +268,25 @@ class FlightController(IFlightController, PropertiesProxy):
             return False
         return True
 
-    # TODO: Can't test this
-    def set_name(self, name: str = None, interactive=False):
-        if interactive:
-            name = helpers.get_input("Set Name", "Enter a new name:", self._flight.name)
-        if name:
-            self._flight.name = name
-        self.update()
+    def get_child(self, uid: Union[str, OID]) -> Union[FlightLineController, None]:
+        """Retrieve a child controller by UIU
+        A string base_uuid can be passed, or an :obj:`OID` object for comparison
+        """
+        # TODO: Should this also search datafiles?
+        for item in self._flight_lines.items():  # type: FlightLineController
+            if item.uid == uid:
+                return item
 
-    def set_attr(self, key: str, value: Any):
-        if key in Flight.__dict__ and isinstance(Flight.__dict__[key], property):
-            setattr(self._flight, key, value)
-            self.update()
-        else:
-            raise AttributeError("Attribute %s cannot be set for flight <%s>" % (key, str(self._flight)))
+    def load_data(self, datafile: DataFileController) -> DataFrame:
+        try:
+            return self.get_parent().hdf5store.load_data(datafile.data(Qt.UserRole))
+        except OSError:
+            return None
+
+    def set_name(self):
+        name: str = helpers.get_input("Set Name", "Enter a new name:", self._flight.name)
+        if name:
+            self.set_attr('name', name)
 
     def __hash__(self):
         return hash(self._flight.uid)

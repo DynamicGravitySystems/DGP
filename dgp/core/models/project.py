@@ -3,18 +3,20 @@
 """
 Project Classes V2
 JSON Serializable classes, separated from the GUI control plane
-
 """
+
 import json
+import json.decoder
 import datetime
 from pathlib import Path
 from pprint import pprint
 from typing import Optional, List, Any, Dict, Union
 
 from dgp.core.oid import OID
-from dgp.core.models.flight import Flight, FlightLine, DataFile
-from dgp.core.models.meter import Gravimeter
+from .flight import Flight, FlightLine, DataFile
+from .meter import Gravimeter
 
+PROJECT_FILE_NAME = 'dgp.json'
 project_entities = {'Flight': Flight, 'FlightLine': FlightLine, 'DataFile': DataFile,
                     'Gravimeter': Gravimeter}
 
@@ -35,6 +37,13 @@ class ProjectEncoder(json.JSONEncoder):
     to determine how to decode and reconstruct the object into a Python native
     object.
 
+    The parent/_parent attribute is another special case in the
+    Serialization/De-serialization of the project. A parent can be set
+    on any project child object (Flight, FlightLine, DataFile, Gravimeter etc.)
+    which is simply a reference to the object that contains it within the hierarchy.
+    As this creates a circular reference, for any _parent attribute of a project
+    entity, the parent's OID is instead serialized - which allows us to recreate
+    the structure upon decoding with :obj:`ProjectDecoder`
     """
 
     def default(self, o: Any):
@@ -42,33 +51,123 @@ class ProjectEncoder(json.JSONEncoder):
             keys = o.__slots__ if hasattr(o, '__slots__') else o.__dict__.keys()
             attrs = {key.lstrip('_'): getattr(o, key) for key in keys}
             attrs['_type'] = o.__class__.__name__
+            if 'parent' in attrs:
+                # Serialize the UID of the parent, not the parent itself (circular-reference)
+                attrs['parent'] = getattr(attrs['parent'], 'uid', None)
             return attrs
         j_complex = {'_type': o.__class__.__name__}
         if isinstance(o, OID):
             j_complex['base_uuid'] = o.base_uuid
             return j_complex
-        if isinstance(o, Path):
-            # Path requires special handling due to OS dependant internal classes
-            return {'_type': 'Path', 'path': str(o.resolve())}
         if isinstance(o, datetime.datetime):
             j_complex['timestamp'] = o.timestamp()
             return j_complex
         if isinstance(o, datetime.date):
             j_complex['ordinal'] = o.toordinal()
             return j_complex
+        if isinstance(o, Path):
+            # Path requires special handling due to OS dependant internal classes
+            return {'_type': 'Path', 'path': str(o.resolve())}
 
         return super().default(o)
 
 
+class ProjectDecoder(json.JSONDecoder):
+    """
+    ProjectDecoder is a custom JSONDecoder object which enables us to de-serialize
+    circular references. This is useful in our case as the gravity projects are
+    represented in a tree-type hierarchy. Objects in the tree keep a reference to
+    their parent to facilitate a variety of actions.
+
+    The :obj:`ProjectEncoder` serializes any references with the key '_parent' into
+    a serialized OID type.
+
+    All project entities are decoded and a reference is stored in an internal registry
+    to facilitate the re-linking of parent/child entities after decoding is complete.
+
+    The decoder (this class), will then inspect each object passed to its object_hook
+    for a 'parent' attribute (leading _ are stripped); objects with a parent attribute
+    are added to an internal map, mapping the child's UID to the parent's UID.
+
+    A second pass is made over the decoded project structure due to the way the
+    JSON is decoded (depth-first), such that the deepest nested children will contain
+    references to a parent object which has not been decoded yet.
+    This allows us to store only a single canonical serialized representation of the
+    parent objects in the hierarchy, and then assemble the references after the fact.
+    """
+
+    def __init__(self, klass):
+        super().__init__(object_hook=self.object_hook)
+        self._registry = {}
+        self._child_parent_map = {}
+        self._klass = klass
+
+    def decode(self, s, _w=json.decoder.WHITESPACE.match):
+        decoded = super().decode(s)
+        # Re-link parents & children
+        for child_uid, parent_uid in self._child_parent_map.items():
+            child = self._registry[child_uid]
+            child.set_parent(self._registry.get(parent_uid, None))
+
+        return decoded
+
+    def object_hook(self, json_o: dict):
+        """Object Hook in json.load will iterate upwards from the deepest
+        nested JSON object (dictionary), calling this hook on each, then passing
+        the result up to the next level object.
+        Thus we can re-assemble the entire Project hierarchy given that all classes
+        can be created via their __init__ methods
+        (i.e. must accept passing child objects through a parameter)
+
+        The _type attribute is expected (and injected during serialization), for any
+        custom objects which should be processed by the project_hook
+
+        The type of the current project class (or sub-class) is injected into
+        the class map which allows for this object hook to be utilized by any
+        inheritor without modification.
+
+        """
+        if '_type' not in json_o:
+            return json_o
+        _type = json_o.pop('_type')
+
+        if 'parent' in json_o:
+            parent = json_o.pop('parent')  # type: OID
+        else:
+            parent = None
+
+        params = {key.lstrip('_'): value for key, value in json_o.items()}
+        if _type == OID.__name__:
+            return OID(**params)
+        elif _type == datetime.datetime.__name__:
+            return datetime.datetime.fromtimestamp(*params.values())
+        elif _type == datetime.date.__name__:
+            return datetime.date.fromordinal(*params.values())
+        elif _type == Path.__name__:
+            return Path(*params.values())
+        else:
+            # Handle project entity types
+            klass = {self._klass.__name__: self._klass, **project_entities}.get(_type, None)
+        if klass is None:
+            raise AttributeError("Unhandled class %s in JSON data. Class is not defined"
+                                 " in entity map." % _type)
+        instance = klass(**params)
+        if parent is not None:
+            self._child_parent_map[instance.uid] = parent
+        self._registry[instance.uid] = instance
+        return instance
+
+
 class GravityProject:
     def __init__(self, name: str, path: Union[Path, str], description: Optional[str] = None,
-                 create_date: Optional[datetime.datetime] = None, modify_date: Optional[datetime.datetime] = None,
+                 create_date: Optional[datetime.datetime] = None,
+                 modify_date: Optional[datetime.datetime] = None,
                  uid: Optional[str] = None, **kwargs):
         self._uid = uid or OID(self, tag=name)
         self._uid.set_pointer(self)
         self._name = name
         self._path = path
-        self._projectfile = 'dgp.json'
+        self._projectfile = PROJECT_FILE_NAME
         self._description = description
         self._create_date = create_date or datetime.datetime.utcnow()
         self._modify_date = modify_date or self._create_date
@@ -163,46 +262,8 @@ class GravityProject:
 
     # Serialization/De-Serialization methods
     @classmethod
-    def object_hook(cls, json_o: Dict):
-        """Object Hook in json.load will iterate upwards from the deepest
-        nested JSON object (dictionary), calling this hook on each, then passing
-        the result up to the next level object.
-        Thus we can re-assemble the entire
-        Project hierarchy given that all classes can be created via their __init__
-        methods (i.e. must accept passing child objects through a parameter)
-
-        The _type attribute is expected (and injected during serialization), for any
-        custom objects which should be processed by the project_hook
-
-        The type of the current project class (or sub-class) is injected into
-        the class map which allows for this object hook to be utilized by any
-        inheritor without modification.
-        """
-        if '_type' not in json_o:
-            return json_o
-
-        _type = json_o.pop('_type')
-        params = {key.lstrip('_'): value for key, value in json_o.items()}
-        if _type == cls.__name__:
-            return cls(**params)
-        elif _type == OID.__name__:
-            return OID(**params)
-        elif _type == datetime.datetime.__name__:
-            return datetime.datetime.fromtimestamp(*params.values())
-        elif _type == datetime.date.__name__:
-            return datetime.date.fromordinal(*params.values())
-        elif _type == Path.__name__:
-            return Path(*params.values())
-        else:
-            klass = project_entities.get(_type, None)
-        if klass is None:
-            raise AttributeError("Unhandled class %s in JSON data. Class is not defined"
-                                 " in class map." % _type)
-        return klass(**params)
-
-    @classmethod
     def from_json(cls, json_str: str) -> 'GravityProject':
-        return json.loads(json_str, object_hook=cls.object_hook)
+        return json.loads(json_str, cls=ProjectDecoder, klass=cls)
 
     def to_json(self, to_file=False, indent=None) -> Union[str, bool]:
         # TODO: Dump file to a temp file, then if successful overwrite the original
@@ -234,6 +295,7 @@ class AirborneProject(GravityProject):
             self._modify()
         else:
             super().add_child(child)
+        child.set_parent(self)
 
     def get_child(self, child_id: OID) -> Union[Flight, Gravimeter]:
         try:

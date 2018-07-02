@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
-from typing import Any
+from pathlib import Path
+from typing import Any, Union, Optional
 
-from PyQt5.QtGui import QStandardItem
+from PyQt5.QtGui import QStandardItem, QStandardItemModel
+from pandas import DataFrame
 
+from dgp.core.controllers.controller_mixins import AttributeProxy
+from dgp.core.oid import OID
 from dgp.core.types.enumerations import DataTypes
 
 
@@ -13,11 +17,37 @@ be imported as a type hints in various modules due to circular imports.
 """
 
 
-class IBaseController(QStandardItem):
+class IChild:
+    def get_parent(self):
+        raise NotImplementedError
+
+    def set_parent(self, parent) -> None:
+        raise NotImplementedError
+
+
+class IParent:
+    def add_child(self, child) -> None:
+        raise NotImplementedError
+
+    def remove_child(self, child, row: int) -> None:
+        raise NotImplementedError
+
+    def get_child(self, uid: Union[str, OID]) -> IChild:
+        raise NotImplementedError
+
+
+class IBaseController(QStandardItem, AttributeProxy):
+    @property
+    def uid(self) -> OID:
+        raise NotImplementedError
+
     def add_child(self, child):
         raise NotImplementedError
 
     def remove_child(self, child, row: int, confirm: bool = True):
+        raise NotImplementedError
+
+    def get_child(self, uid):
         raise NotImplementedError
 
     def set_active_child(self, child, emit: bool = True):
@@ -34,25 +64,30 @@ class IAirborneController(IBaseController):
     def add_gravimeter(self):
         raise NotImplementedError
 
-    def load_file(self, datatype: DataTypes):
-        raise NotImplementedError
-
-    def set_parent(self, parent):
+    def load_file(self, datatype: DataTypes, destination: Optional['IFlightController'] = None):
         raise NotImplementedError
 
     @property
-    def flight_model(self):
+    def hdf5store(self):
         raise NotImplementedError
 
     @property
-    def meter_model(self):
+    def path(self) -> Path:
+        raise NotImplementedError
+
+    @property
+    def flight_model(self) -> QStandardItemModel:
+        raise NotImplementedError
+
+    @property
+    def meter_model(self) -> QStandardItemModel:
         raise NotImplementedError
 
 
-class IFlightController(IBaseController):
-    def set_name(self, name: str, interactive: bool = False):
+class IFlightController(IBaseController, IParent, IChild):
+    def load_data(self, datafile) -> DataFrame:
         raise NotImplementedError
 
-    def set_attr(self, key: str, value: Any) -> None:
-        raise NotImplementedError
 
+class IMeterController(IBaseController, IChild):
+    pass

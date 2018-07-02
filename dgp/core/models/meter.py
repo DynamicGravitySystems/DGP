@@ -4,15 +4,15 @@
 New pure data class for Meter configurations
 """
 import configparser
-import os
-from typing import Optional
+from pathlib import Path
+from typing import Optional, Union, Dict
 
 from dgp.core.oid import OID
 
 
 sensor_fields = ['g0', 'GravCal', 'LongCal', 'CrossCal', 'LongOffset', 'CrossOffset', 'stempgain',
                  'Temperature', 'stempoffset', 'pressgain', 'presszero', 'beamgain', 'beamzero',
-                 'Etempgain', 'Etempzero']
+                 'Etempgain', 'Etempzero', 'Meter']
 # Cross coupling Fields
 cc_fields = ['vcc', 've', 'al', 'ax', 'monitors']
 
@@ -26,6 +26,7 @@ valid_fields = set().union(sensor_fields, cc_fields, platform_fields)
 
 class Gravimeter:
     def __init__(self, name: str, config: dict = None, uid: Optional[OID] = None, **kwargs):
+        self._parent = None
         self._uid = uid or OID(self)
         self._uid.set_pointer(self)
         self._type = "AT1A"
@@ -63,9 +64,22 @@ class Gravimeter:
     def config(self, value: dict) -> None:
         self._config = value
 
+    def set_parent(self, parent):
+        self._parent = parent
+
     @staticmethod
-    def process_config(**config):
-        """Return a config dictionary by filtering out invalid fields, and lower-casing all keys"""
+    def read_config(path: Path) -> Dict[str, Union[str, int, float]]:
+        if not path.exists():
+            raise FileNotFoundError
+        config = configparser.ConfigParser(strict=False)
+        try:
+            config.read(str(path))
+        except configparser.MissingSectionHeaderError:
+            return {}
+
+        sensor_fld = dict(config['Sensor'])
+        xcoupling_fld = dict(config['crosscouplings'])
+        platform_fld = dict(config['Platform'])
 
         def safe_cast(value):
             try:
@@ -73,28 +87,13 @@ class Gravimeter:
             except ValueError:
                 return value
 
-        return {k.lower(): safe_cast(v) for k, v in config.items() if k.lower() in map(str.lower, valid_fields)}
+        merged = {**sensor_fld, **xcoupling_fld, **platform_fld}
+        return {k.lower(): safe_cast(v) for k, v in merged.items() if k.lower() in map(str.lower, valid_fields)}
 
     @classmethod
-    def from_ini(cls, path, name=None):
+    def from_ini(cls, path: Path, name=None):
         """
         Read an AT1 Meter Configuration from a meter ini file
         """
-        if not os.path.exists(path):
-            raise OSError("Invalid path to ini.")
-        config = configparser.ConfigParser(strict=False)
-        config.read(path)
-
-        sensor_fld = dict(config['Sensor'])
-        xcoupling_fld = dict(config['crosscouplings'])
-        platform_fld = dict(config['Platform'])
-
-        name = name or str.strip(sensor_fld['meter'], '"')
-
-        merge_config = {**sensor_fld, **xcoupling_fld, **platform_fld}
-        clean_config = cls.process_config(**merge_config)
-
-        return cls(name, config=clean_config)
-
-# TODO: Use sub-classes to define different Meter Types?
-
+        config = cls.read_config(Path(path))
+        return cls(name, config=config)

@@ -6,6 +6,7 @@ serialization/de-serialization
 """
 import json
 import time
+import random
 from datetime import datetime
 from typing import Tuple
 from uuid import uuid4
@@ -13,6 +14,8 @@ from pathlib import Path
 from pprint import pprint
 
 import pytest
+
+from dgp.core.models.data import DataFile
 from dgp.core.models import project, flight
 from dgp.core.models.meter import Gravimeter
 
@@ -29,10 +32,12 @@ def make_flight():
 def make_line():
     seq = 0
 
-    def _factory(start, stop):
+    def _factory():
         nonlocal seq
         seq += 1
-        return flight.FlightLine(start, stop, seq)
+        return flight.FlightLine(datetime.now().timestamp(),
+                                 datetime.now().timestamp() + round(random.random() * 1000),
+                                 seq)
     return _factory
 
 
@@ -48,8 +53,8 @@ def test_flight_actions(make_flight, make_line):
 
     assert not f1.uid == f2.uid
 
-    line1 = make_line(0, 10)  # type: flight.FlightLine
-    line2 = make_line(11, 21)  # type: flight.FlightLine
+    line1 = make_line()  # type: flight.FlightLine
+    line2 = make_line()  # type: flight.FlightLine
 
     assert not line1.sequence == line2.sequence
 
@@ -77,12 +82,7 @@ def test_flight_actions(make_flight, make_line):
     assert '<Flight %s :: %s>' % (f1_name, f1.uid) == repr(f1)
 
 
-def test_project_actions():
-    # TODO: test add/get/remove child
-    pass
-
-
-def test_project_attr(make_flight):
+def test_project_attr():
     prj_path = Path('./project-1')
     prj = project.AirborneProject(name="Project-1", path=prj_path,
                                   description="Test Project 1")
@@ -99,10 +99,6 @@ def test_project_attr(make_flight):
     assert 2345 == prj._my_private_val
     assert 2345 == prj['_my_private_val']
     assert 2345 == prj.get_attr('_my_private_val')
-
-    f1_name, flt1 = make_flight()
-    prj.add_child(flt1)
-    # TODO: What am I testing here?
 
 
 def test_project_get_child(make_flight):
@@ -145,8 +141,8 @@ def test_project_serialize(make_flight, make_line):
     prj = project.AirborneProject(name="Project-3", path=prj_path,
                                   description="Test Project Serialization")
     f1_name, f1 = make_flight()  # type: flight.Flight
-    line1 = make_line(0, 10)  # type: # flight.FlightLine
-    data1 = flight.DataFile(f1.uid, 'gravity', datetime.today())
+    line1 = make_line()  # type: # flight.FlightLine
+    data1 = flight.DataFile('gravity', datetime.today(), Path('./fake_file.dat'))
     f1.add_child(line1)
     f1.add_child(data1)
     prj.add_child(f1)
@@ -157,7 +153,16 @@ def test_project_serialize(make_flight, make_line):
     encoded = prj.to_json(indent=4)
 
     decoded_dict = json.loads(encoded)
-    # TODO: Test that all params are there
+    # pprint(decoded_dict)
+
+    assert 'Project-3' == decoded_dict['name']
+    assert {'_type': 'Path', 'path': 'prj-1'} == decoded_dict['path']
+    assert 'start_tie_value' in decoded_dict['attributes']
+    assert 1234.90 == decoded_dict['attributes']['start_tie_value']
+    assert 'end_tie_value' in decoded_dict['attributes']
+    assert 987.123 == decoded_dict['attributes']['end_tie_value']
+    for flight_dict in decoded_dict['flights']:
+        assert '_type' in flight_dict and flight_dict['_type'] == 'Flight'
 
 
 def test_project_deserialize(make_flight, make_line):
@@ -177,10 +182,12 @@ def test_project_deserialize(make_flight, make_line):
 
     f1_name, f1 = make_flight()  # type: flight.Flight
     f2_name, f2 = make_flight()
-    line1 = make_line(0, 10)  # type: flight.FlightLine
-    line2 = make_line(11, 20)
+    line1 = make_line()  # type: flight.FlightLine
+    line2 = make_line()
+    data1 = DataFile('gravity', datetime.today(), Path('./data1.dat'))
     f1.add_child(line1)
     f1.add_child(line2)
+    f1.add_child(data1)
 
     prj.add_child(f1)
     prj.add_child(f2)
@@ -189,7 +196,7 @@ def test_project_deserialize(make_flight, make_line):
     prj.add_child(mtr)
 
     serialized = prj.to_json(indent=4)
-    time.sleep(0.25)  # Fuzz for modification date
+    time.sleep(0.20)  # Fuzz for modification date
     prj_deserialized = project.AirborneProject.from_json(serialized)
     re_serialized = prj_deserialized.to_json(indent=4)
     assert serialized == re_serialized
@@ -214,4 +221,33 @@ def test_project_deserialize(make_flight, make_line):
 
     assert line1.uid in [line.uid for line in f1_reconstructed.flight_lines]
     assert line2.uid in [line.uid for line in f1_reconstructed.flight_lines]
+
+
+def test_parent_child_serialization():
+    """Test that an object _parent reference is correctly serialized and deserialized
+        i.e. when a child say FlightLine or DataFile is added to a flight, it should
+        have a reference to its parent Flight.
+        When de-serializing, check to see that this reference has been correctly assembled
+    """
+    prj = project.AirborneProject(name="Parent-Child-Test", path=Path('.'))
+    flt = flight.Flight('Flight-1')
+    data1 = DataFile('gravity', datetime.now(), Path('./data1.dat'))
+
+    flt.add_child(data1)
+    assert flt == data1._parent
+
+    prj.add_child(flt)
+    assert flt in prj.flights
+
+    encoded = prj.to_json(indent=2)
+    # pprint(encoded)
+
+    decoded = project.AirborneProject.from_json(encoded)
+
+    assert 1 == len(decoded.flights)
+    flt_ = decoded.flights[0]
+    assert 1 == len(flt_.data_files)
+    data_ = flt_.data_files[0]
+    assert flt_ == data_._parent
+
 

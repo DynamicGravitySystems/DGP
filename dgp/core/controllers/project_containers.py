@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from typing import Generator
+
 from PyQt5.QtGui import QStandardItem, QStandardItemModel, QIcon
 
 
@@ -10,6 +12,10 @@ class ProjectFolder(QStandardItem):
     The ProjectFolder (QStandardItem) appends the source item to itself
     for display in a view, a clone of the item is created and also added to
     an internal QStandardItemModel for
+
+    Notes
+    -----
+    Overriding object methods like __getitem__ __iter__ etc seems to break
     """
     inherit_context = False
 
@@ -43,6 +49,7 @@ class ProjectFolder(QStandardItem):
         super().removeRow(row)
         self._model.removeRow(row)
 
-    def __iter__(self):
-        pass
+    def items(self) -> Generator[QStandardItem, None, None]:
+        return (self.child(i, 0) for i in range(self.rowCount()))
+
 
