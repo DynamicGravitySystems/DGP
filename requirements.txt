@@ -15,13 +15,13 @@ pandas==0.20.3
 pluggy==0.6.0
 py==1.5.3
 pyparsing==2.2.0
-PyQt5==5.9
+PyQt5==5.11.2
 pyqtgraph==0.10.0
 pytest==3.6.1
 python-dateutil==2.7.3
 pytz==2018.4
 requests==2.18.4
-scipy==0.19.1
+scipy==1.1.0
 sip==4.19.3
 six==1.10.0
 tables==3.4.2
