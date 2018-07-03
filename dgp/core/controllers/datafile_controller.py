@@ -16,7 +16,7 @@ class DataFileController(QStandardItem, AttributeProxy):
     def __init__(self, datafile: DataFile, controller: IFlightController):
         super().__init__()
         self._datafile = datafile
-        self._flight_ctrl: IFlightController = controller
+        self._flight_ctrl = controller  # type: IFlightController
         self.log = logging.getLogger(__name__)
 
         self.setText(self._datafile.label)

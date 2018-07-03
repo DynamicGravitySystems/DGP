@@ -82,7 +82,7 @@ class Flight:
 
         self._flight_lines = kwargs.get('flight_lines', [])  # type: List[FlightLine]
         self._data_files = kwargs.get('data_files', [])  # type: List[DataFile]
-        self._meter: str = meter
+        self._meter = meter
 
     @property
     def name(self) -> str:

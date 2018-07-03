@@ -156,7 +156,7 @@ def test_project_serialize(make_flight, make_line):
     # pprint(decoded_dict)
 
     assert 'Project-3' == decoded_dict['name']
-    assert {'_type': 'Path', 'path': 'prj-1'} == decoded_dict['path']
+    assert {'_type': 'Path', 'path': str(Path('.').joinpath('prj-1').resolve())} == decoded_dict['path']
     assert 'start_tie_value' in decoded_dict['attributes']
     assert 1234.90 == decoded_dict['attributes']['start_tie_value']
     assert 'end_tie_value' in decoded_dict['attributes']
