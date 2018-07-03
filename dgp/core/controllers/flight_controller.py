@@ -28,7 +28,6 @@ class LoadError(Exception):
     pass
 
 
-
 class FlightController(IFlightController):
     """
     FlightController is a wrapper around :obj:`Flight` objects, and provides
@@ -54,7 +53,7 @@ class FlightController(IFlightController):
         """Assemble the view/controller repr from the base flight object."""
         super().__init__()
         self.log = logging.getLogger(__name__)
-        self._flight: Flight = flight
+        self._flight = flight
         self._parent = parent
         self.setData(flight, Qt.UserRole)
         self.setEditable(False)
@@ -83,8 +82,8 @@ class FlightController(IFlightController):
         for file in self._flight.data_files:  # type: DataFile
             self._data_files.appendRow(DataFileController(file, self))
 
-        self._active_gravity: DataFileController = None
-        self._active_trajectory: DataFileController = None
+        self._active_gravity = None  # type: DataFileController
+        self._active_trajectory = None  # type: DataFileController
 
         # Set the first available gravity/trajectory file to active
         for file_ctrl in self._data_files.items():  # type: DataFileController

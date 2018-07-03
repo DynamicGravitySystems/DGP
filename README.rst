@@ -3,6 +3,12 @@ DGP (Dynamic Gravity Processor)
 .. image:: https://travis-ci.org/DynamicGravitySystems/DGP.svg?branch=master
     :target: https://travis-ci.org/DynamicGravitySystems/DGP
 
+.. image:: https://coveralls.io/repos/github/DynamicGravitySystems/DGP/badge.svg?branch=feature%2Fproject-structure
+    :target: https://coveralls.io/github/DynamicGravitySystems/DGP?branch=feature%2Fproject-structure
+
+.. image:: https://ci.appveyor.com/api/projects/status/np3s77n1s8hpvn5u?svg=true
+    :target: https://ci.appveyor.com/api/projects/status/np3s77n1s8hpvn5u?svg=true
+
 What is it
 ----------
 **DGP** is an library as well an application for processing gravity data collected

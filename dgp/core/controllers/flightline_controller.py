@@ -14,7 +14,7 @@ class FlightLineController(QStandardItem, AttributeProxy):
     def __init__(self, flightline: FlightLine, controller: IFlightController):
         super().__init__()
         self._flightline = flightline
-        self._flight_ctrl: IFlightController = controller
+        self._flight_ctrl = controller
         self.setData(flightline, Qt.UserRole)
         self.setText(str(self._flightline))
         self.setIcon(QIcon(":/icons/AutosizeStretch_16x.png"))
