@@ -15,7 +15,7 @@ from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.core.models.project import AirborneProject, GravityProject
 from dgp.gui.main import MainWindow
 from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, LOG_COLOR_MAP, get_project_file
-from dgp.gui.dialog.create_project_dialog import CreateProjectDialog
+from dgp.gui.dialogs.create_project_dialog import CreateProjectDialog
 
 splash_screen, _ = loadUiType('dgp/gui/ui/splash_screen.ui')
 

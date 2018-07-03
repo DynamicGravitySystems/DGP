@@ -16,7 +16,7 @@ from dgp.core.models.data import DataFile
 from dgp.core.models.flight import Flight, FlightLine
 from dgp.core.models.meter import Gravimeter
 from dgp.core.types.enumerations import DataTypes
-from dgp.gui.dialog.add_flight_dialog import AddFlightDialog
+from dgp.gui.dialogs.add_flight_dialog import AddFlightDialog
 from . import controller_helpers as helpers
 from .project_containers import ProjectFolder
 
@@ -295,7 +295,7 @@ class FlightController(IFlightController):
             raise LoadError from e
 
     def set_name(self):  # pragma: no cover
-        name: str = helpers.get_input("Set Name", "Enter a new name:", self._flight.name)
+        name = helpers.get_input("Set Name", "Enter a new name:", self._flight.name)
         if name:
             self.set_attr('name', name)
 

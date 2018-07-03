@@ -4,6 +4,7 @@ branch = True
 [report]
 omit =
     dgp/resources_rc.py
+    dgp/gui/ui/*.py
 
 exclude_lines =
     pragma: no cover

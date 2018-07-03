@@ -22,4 +22,7 @@ script:
 after_success:
   - coveralls
 notifications:
-    slack: polargeophysicsgroup:FO0QAgTctTetembHbEJq8hxP
+    slack:
+      rooms:
+        - polargeophysicsgroup:FO0QAgTctTetembHbEJq8hxP
+      on_success: change

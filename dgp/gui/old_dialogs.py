@@ -14,7 +14,7 @@ from dgp.gui.ui import edit_import_view
 PATH_ERR = "Path cannot be empty."
 
 
-class BaseDialog(QtWidgets.QDialog):
+class BaseDialog(QtWidgets.QDialog):  # pragma: no cover
     """
     BaseDialog is an attempt to standardize some common features in the
     program dialogs.
@@ -131,7 +131,10 @@ class BaseDialog(QtWidgets.QDialog):
         dlg.exec_()
 
 
-class EditImportDialog(BaseDialog, edit_import_view.Ui_Dialog):
+# TODO: EditImportDialog and PropertiesDialog are deprecated - keeping them for example code currently
+
+
+class EditImportDialog(BaseDialog, edit_import_view.Ui_Dialog):  # pragma: no cover
     """
     Take lines of data with corresponding fields and populate custom Table Model
     Fields can be exchanged via a custom Selection Delegate, which provides a
@@ -277,7 +280,7 @@ class EditImportDialog(BaseDialog, edit_import_view.Ui_Dialog):
             return
 
 
-class PropertiesDialog(BaseDialog):
+class PropertiesDialog(BaseDialog):  # pragma: no cover
     def __init__(self, cls, parent=None):
         super().__init__(parent=parent)
         # Store label: data as dictionary

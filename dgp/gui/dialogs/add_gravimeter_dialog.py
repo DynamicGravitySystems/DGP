@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
-import os
 from pathlib import Path
 from pprint import pprint
 from typing import Optional
 
-from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIntValidator, QIcon, QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QDialog, QWidget, QFileDialog, QListWidgetItem
 
@@ -18,6 +16,7 @@ class AddGravimeterDialog(QDialog, Ui_AddMeterDialog):
         super().__init__(parent)
         self.setupUi(self)
         self._project = project
+        self._valid_ext = ('.ini', '.txt', '.conf')
 
         AT1A = QListWidgetItem(QIcon(":/icons/dgs"), "AT1A")
         AT1M = QListWidgetItem(QIcon(":/icons/dgs"), "AT1M")
@@ -41,18 +40,21 @@ class AddGravimeterDialog(QDialog, Ui_AddMeterDialog):
         self.qtv_config_view.setModel(self._config_model)
 
     @property
-    def path(self):
+    def config_path(self):
         if not len(self.qle_config_path.text()):
             return None
         _path = Path(self.qle_config_path.text())
         if not _path.exists():
+            return None
+        if not _path.is_file():
+            return None
+        if _path.suffix not in self._valid_ext:
             return None
         return _path
 
     def accept(self):
         if self.qle_config_path.text():
             meter = Gravimeter.from_ini(Path(self.qle_config_path.text()), name=self.qle_name.text())
-            pprint(meter.config)
         else:
             meter = Gravimeter(self.qle_name.text())
         self._project.add_child(meter)
@@ -60,30 +62,28 @@ class AddGravimeterDialog(QDialog, Ui_AddMeterDialog):
         super().accept()
 
     def _path_changed(self, text: str):
-        if self.path is not None:
+        if self.config_path is not None and self.config_path.exists():
             self._preview_config()
 
     def get_sensor_type(self) -> str:
-        item = self.qlw_metertype.currentItem()
-        if item is not None:
-            return item.text()
+        return self.qlw_metertype.currentItem().text()
 
-    def _browse_config(self):
+    def _browse_config(self):  # pragma: no cover
         # TODO: Look into useing getOpenURL methods for files on remote/network drives
-        path, _ = QFileDialog.getOpenFileName(self, "Select Configuration File", os.getcwd(),
+        path, _ = QFileDialog.getOpenFileName(self, "Select Configuration File", str(Path().resolve()),
                                               "Configuration (*.ini);;Any (*.*)")
         if path:
             self.qle_config_path.setText(path)
 
-    def _config_data_changed(self, item: QStandardItem):
+    def _config_data_changed(self, item: QStandardItem):  # pragma: no cover
         # TODO: Implement this if desire to enable editing of config from the preview table
         index = self._config_model.index(item.row(), item.column())
         sibling = self._config_model.index(item.row(), 0 if item.column() else 1)
 
     def _preview_config(self):
-        if self.path is None:
+        if self.config_path is None:
             return
-        config = Gravimeter.read_config(self.path)
+        config = Gravimeter.read_config(self.config_path)
 
         self._config_model.clear()
         self._config_model.setHorizontalHeaderLabels(["Config Key", "Value"])

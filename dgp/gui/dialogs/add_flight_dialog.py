@@ -64,8 +64,7 @@ class AddFlightDialog(QDialog, Ui_NewFlight):
         self.qte_notes.setText(flight.notes)
         self.qsb_duration.setValue(flight.duration)
         self.qsb_sequence.setValue(flight.sequence)
-        if flight.date is not None:
-            self.qde_flight_date.setDate(flight.date)
+        self.qde_flight_date.setDate(flight.date)
 
     @classmethod
     def from_existing(cls, flight: IFlightController,

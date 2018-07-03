@@ -16,6 +16,8 @@ from dgp.core.models.data import DataFile
 from dgp.core.types.enumerations import DataTypes
 from dgp.gui.ui.data_import_dialog import Ui_DataImportDialog
 
+__all__ = ['DataImportDialog']
+
 
 class DataImportDialog(QDialog, Ui_DataImportDialog):
     load = pyqtSignal(DataFile, dict)
@@ -72,8 +74,8 @@ class DataImportDialog(QDialog, Ui_DataImportDialog):
         self._meter_model = self.project.meter_model  # type: QStandardItemModel
         self.qcb_gravimeter.setModel(self._meter_model)
         self.qpb_add_sensor.clicked.connect(self.project.add_gravimeter)
-        if self._meter_model.rowCount() == 0:
-            print("NO meters available")
+        # if self._meter_model.rowCount() == 0:
+        #     print("NO meters available")
         self.qcb_gravimeter.setCurrentIndex(0)
 
         # Trajectory Widget
@@ -99,22 +101,11 @@ class DataImportDialog(QDialog, Ui_DataImportDialog):
         self.qsw_advanced_properties.setCurrentIndex(self._type_map[datatype])
 
     def set_initial_flight(self, flight: IFlightController):
-        for i in range(self._flight_model.rowCount()):
+        for i in range(self._flight_model.rowCount()):  # pragma: no branch
             child = self._flight_model.item(i, 0)
-            if child.uid == flight.uid:
+            if child.uid == flight.uid:  # pragma: no branch
                 self.qcb_flight.setCurrentIndex(i)
-                return
-
-    def _load_file(self):
-        # TODO: How to deal with type specific fields
-        file = DataFile(self.datatype.value.lower(), date=self.date,
-                        source_path=self.file_path, name=self.qle_rename.text())
-        param_map = self._params_map[self.datatype]
-        # Evaluate and build params dict
-        params = {key: value() for key, value in param_map.items()}
-        self.flight.add_child(file)
-        self.load.emit(file, params)
-        return True
+                break
 
     @property
     def project(self) -> IAirborneController:
@@ -144,7 +135,7 @@ class DataImportDialog(QDialog, Ui_DataImportDialog):
         _date: QDate = self.qde_date.date()
         return datetime(_date.year(), _date.month(), _date.day())
 
-    def accept(self):
+    def accept(self):  # pragma: no cover
         if self.file_path is None:
             self.ql_path.setStyleSheet("color: red")
             self.log.warning("Path cannot be empty.")
@@ -164,7 +155,7 @@ class DataImportDialog(QDialog, Ui_DataImportDialog):
 
         raise TypeError("Unhandled DataType supplied to import dialog: %s" % str(self.datatype))
 
-    def _copy_file(self):
+    def _copy_file(self):  # pragma: no cover
         src = self.file_path
         dest_name = src.name
         if self.qle_rename.text():
@@ -176,11 +167,21 @@ class DataImportDialog(QDialog, Ui_DataImportDialog):
         except IOError:
             self.log.exception("Unable to copy source file to project directory.")
 
+    def _load_file(self):
+        file = DataFile(self.datatype.value.lower(), date=self.date,
+                        source_path=self.file_path, name=self.qle_rename.text())
+        param_map = self._params_map[self.datatype]
+        # Evaluate and build params dict
+        params = {key: value() for key, value in param_map.items()}
+        self.flight.add_child(file)
+        self.load.emit(file, params)
+        return True
+
     def _set_date(self):
         self.qde_date.setDate(self.flight.date)
 
     @pyqtSlot(name='_browse')
-    def _browse(self):
+    def _browse(self):  # pragma: no cover
         path, _ = QFileDialog.getOpenFileName(self, "Browse for data file",
                                               str(self._browse_path),
                                               self._type_filters[self._datatype])
@@ -188,11 +189,12 @@ class DataImportDialog(QDialog, Ui_DataImportDialog):
             self.qle_filepath.setText(path)
 
     @pyqtSlot(QListWidgetItem, QListWidgetItem, name='_datatype_changed')
-    def _datatype_changed(self, current: QListWidgetItem, previous: QListWidgetItem):
+    def _datatype_changed(self, current: QListWidgetItem, previous: QListWidgetItem):  # pragma: no cover
         self._datatype = current.data(Qt.UserRole)
         self.qsw_advanced_properties.setCurrentIndex(self._type_map[self._datatype])
 
-    def _filepath_changed(self, text: str):
+    @pyqtSlot(str, name='_filepath_changed')
+    def _filepath_changed(self, text: str):  # pragma: no cover
         """
         Detect attributes of file and display them in the dialog info section
         """
@@ -218,7 +220,7 @@ class DataImportDialog(QDialog, Ui_DataImportDialog):
         self.qle_colcount.setText(str(col_count))
 
     @pyqtSlot(int, name='_gravimeter_changed')
-    def _gravimeter_changed(self, index: int):
+    def _gravimeter_changed(self, index: int):  # pragma: no cover
         meter_ctrl = self.project.meter_model.item(index)
         if not meter_ctrl:
             self.log.debug("No meter available")
@@ -229,7 +231,7 @@ class DataImportDialog(QDialog, Ui_DataImportDialog):
             self.qle_grav_format.setText(meter_ctrl.column_format)
 
     @pyqtSlot(int, name='_traj_timeformat_changed')
-    def _traj_timeformat_changed(self, index: int):
+    def _traj_timeformat_changed(self, index: int):  # pragma: no cover
         timefmt = self._traj_timeformat_model.item(index)
         cols = ', '.join(timefmt.data(Qt.UserRole))
         self.qle_traj_format.setText(cols)

@@ -18,7 +18,7 @@ from dgp.core.models.ProjectTreeModel import ProjectTreeModel
 from dgp.core.models.project import AirborneProject
 from dgp.gui.utils import (ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP,
                            LOG_COLOR_MAP, get_project_file)
-from dgp.gui.dialog.create_project_dialog import CreateProjectDialog
+from dgp.gui.dialogs.create_project_dialog import CreateProjectDialog
 
 from dgp.gui.workspace import FlightTab
 from dgp.gui.ui.main_window import Ui_MainWindow

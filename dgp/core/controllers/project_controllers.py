@@ -22,9 +22,9 @@ from .gravimeter_controller import GravimeterController
 from .project_containers import ProjectFolder
 from .controller_helpers import confirm_action, get_input
 from dgp.core.controllers.controller_mixins import AttributeProxy
-from dgp.gui.dialog.add_flight_dialog import AddFlightDialog
-from dgp.gui.dialog.add_gravimeter_dialog import AddGravimeterDialog
-from dgp.gui.dialog.data_import_dialog import DataImportDialog
+from dgp.gui.dialogs.add_flight_dialog import AddFlightDialog
+from dgp.gui.dialogs.add_gravimeter_dialog import AddGravimeterDialog
+from dgp.gui.dialogs.data_import_dialog import DataImportDialog
 from dgp.core.models.data import DataFile
 from dgp.core.models.flight import Flight
 from dgp.core.models.meter import Gravimeter

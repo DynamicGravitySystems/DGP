@@ -552,7 +552,7 @@
       </layout>
      </item>
      <item>
-      <widget class="QDialogButtonBox" name="btn_dialog">
+      <widget class="QDialogButtonBox" name="qdbb_buttons">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
          <horstretch>0</horstretch>
@@ -598,7 +598,7 @@
  </resources>
  <connections>
   <connection>
-   <sender>btn_dialog</sender>
+   <sender>qdbb_buttons</sender>
    <signal>accepted()</signal>
    <receiver>DataImportDialog</receiver>
    <slot>accept()</slot>
@@ -614,7 +614,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>btn_dialog</sender>
+   <sender>qdbb_buttons</sender>
    <signal>rejected()</signal>
    <receiver>DataImportDialog</receiver>
    <slot>reject()</slot>
