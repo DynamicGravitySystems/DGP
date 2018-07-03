@@ -48,7 +48,7 @@ class AddFlightDialog(QDialog, Ui_NewFlight):
             self._flight.set_attr('notes', notes)
             self._flight.set_attr('sequence', sequence)
             self._flight.set_attr('duration', duration)
-            self._flight.add_child(meter)
+            # self._flight.add_child(meter)
         else:
             # Create new flight and add it to project
             flt = Flight(self.qle_flight_name.text(), date=date,

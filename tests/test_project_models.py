@@ -64,7 +64,7 @@ def test_flight_actions(make_flight, make_line):
     f1.add_child(line1)
     assert 1 == len(f1.flight_lines)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         f1.add_child('not a flight line')
 
     assert line1 in f1.flight_lines

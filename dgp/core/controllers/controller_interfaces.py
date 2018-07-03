@@ -41,21 +41,6 @@ class IBaseController(QStandardItem, AttributeProxy):
     def uid(self) -> OID:
         raise NotImplementedError
 
-    def add_child(self, child):
-        raise NotImplementedError
-
-    def remove_child(self, child, row: int, confirm: bool = True):
-        raise NotImplementedError
-
-    def get_child(self, uid):
-        raise NotImplementedError
-
-    def set_active_child(self, child, emit: bool = True):
-        raise NotImplementedError
-
-    def get_active_child(self):
-        raise NotImplementedError
-
 
 class IAirborneController(IBaseController):
     def add_flight(self):
@@ -64,7 +49,7 @@ class IAirborneController(IBaseController):
     def add_gravimeter(self):
         raise NotImplementedError
 
-    def load_file(self, datatype: DataTypes, destination: Optional['IFlightController'] = None):
+    def load_file_dlg(self, datatype: DataTypes, destination: Optional['IFlightController'] = None):  # pragma: no cover
         raise NotImplementedError
 
     @property
@@ -83,9 +68,21 @@ class IAirborneController(IBaseController):
     def meter_model(self) -> QStandardItemModel:
         raise NotImplementedError
 
+    def set_active_child(self, child, emit: bool = True):
+        raise NotImplementedError
+
+    def get_active_child(self):
+        raise NotImplementedError
+
 
 class IFlightController(IBaseController, IParent, IChild):
     def load_data(self, datafile) -> DataFrame:
+        raise NotImplementedError
+
+    def set_active_child(self, child, emit: bool = True):
+        raise NotImplementedError
+
+    def get_active_child(self):
         raise NotImplementedError
 
 

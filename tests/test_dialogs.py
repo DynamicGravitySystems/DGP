@@ -6,9 +6,9 @@ import pytest
 
 from .context import APP
 
+import PyQt5.QtTest as QtTest
 from PyQt5.QtCore import Qt
 from PyQt5.QtTest import QTest
-import PyQt5.QtTest as QtTest
 from PyQt5.QtWidgets import QDialogButtonBox
 
 from dgp.core.models.flight import Flight
@@ -100,6 +100,8 @@ class TestDialogs:
         dlg.qle_flight_name.clear()
         QTest.keyClicks(dlg.qle_flight_name, "Flt-2")
         QTest.mouseClick(dlg.qdbb_dialog_btns.button(QDialogButtonBox.Ok), Qt.LeftButton)
+        # Note: use dlg.accept() for debugging as it will correctly generate a stack trace
+        # dlg.accept()
         assert "Flt-2" == flt.name
 
     def test_add_gravimeter_dialog(self, airborne_prj):

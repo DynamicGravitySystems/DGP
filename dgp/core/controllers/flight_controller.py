@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import itertools
 import logging
 from typing import Optional, Union, Any, Generator
 
@@ -10,9 +11,10 @@ from dgp.core.oid import OID
 from dgp.core.controllers.controller_interfaces import IAirborneController, IFlightController
 from dgp.core.controllers.datafile_controller import DataFileController
 from dgp.core.controllers.flightline_controller import FlightLineController
-from dgp.core.models.meter import Gravimeter
-from dgp.core.models.flight import Flight, FlightLine
+from dgp.core.controllers.gravimeter_controller import GravimeterController
 from dgp.core.models.data import DataFile
+from dgp.core.models.flight import Flight, FlightLine
+from dgp.core.models.meter import Gravimeter
 from dgp.core.types.enumerations import DataTypes
 from dgp.gui.dialog.add_flight_dialog import AddFlightDialog
 from . import controller_helpers as helpers
@@ -20,6 +22,11 @@ from .project_containers import ProjectFolder
 
 
 FOLDER_ICON = ":/icons/folder_open.png"
+
+
+class LoadError(Exception):
+    pass
+
 
 
 class FlightController(IFlightController):
@@ -61,6 +68,13 @@ class FlightController(IFlightController):
         self.appendRow(self._data_files)
         self.appendRow(self._sensors)
 
+        self._control_map = {FlightLine: FlightLineController,
+                             DataFile: DataFileController,
+                             Gravimeter: GravimeterController}
+        self._child_map = {FlightLine: self._flight_lines,
+                           DataFile: self._data_files,
+                           Gravimeter: self._sensors}
+
         self._data_model = QStandardItemModel()
 
         for line in self._flight.flight_lines:
@@ -80,12 +94,12 @@ class FlightController(IFlightController):
                 self.set_active_child(file_ctrl)
 
         # TODO: Consider adding MenuPrototype class which could provide the means to build QMenu
-        self._bindings = [
+        self._bindings = [  # pragma: no cover
             ('addAction', ('Set Active', lambda: self.get_parent().set_active_child(self))),
             ('addAction', ('Import Gravity',
-                           lambda: self.get_parent().load_file(DataTypes.GRAVITY, self))),
+                           lambda: self.get_parent().load_file_dlg(DataTypes.GRAVITY, self))),
             ('addAction', ('Import Trajectory',
-                           lambda: self.get_parent().load_file(DataTypes.TRAJECTORY, self))),
+                           lambda: self.get_parent().load_file_dlg(DataTypes.TRAJECTORY, self))),
             ('addSeparator', ()),
             ('addAction', ('Delete <%s>' % self._flight.name,
                            lambda: self.get_parent().remove_child(self._flight, self.row(), True))),
@@ -106,10 +120,11 @@ class FlightController(IFlightController):
 
     @property
     def data_model(self) -> QStandardItemModel:
+        """Return the data model representing each active Data channel in the flight"""
         return self._data_model
 
     @property
-    def menu_bindings(self):
+    def menu_bindings(self):  # pragma: no cover
         """
         Returns
         -------
@@ -121,14 +136,14 @@ class FlightController(IFlightController):
 
     @property
     def gravity(self):
-        if not self._active_gravity:
+        if not self._active_gravity:  # pragma: no cover
             self.log.warning("No gravity file is set to active state.")
             return None
         return self._active_gravity.get_data()
 
     @property
     def trajectory(self):
-        if self._active_trajectory is None:
+        if self._active_trajectory is None:  # pragma: no cover
             self.log.warning("No trajectory file is set to active state.")
             return None
         return self._active_trajectory.get_data()
@@ -161,27 +176,29 @@ class FlightController(IFlightController):
     def is_active(self):
         return self.get_parent().get_active_child() == self
 
+    # TODO: This is not fully implemented
     def set_active_child(self, child: DataFileController, emit: bool = True):
         if not isinstance(child, DataFileController):
-            self.log.warning("Invalid child attempted to activate: %s", str(type(child)))
+            raise TypeError("Child {0!r} cannot be set to active (invalid type)".format(child))
+        try:
+            df = self.load_data(child)
+        except LoadError:
+            self.log.exception("Error loading DataFile")
             return
 
         for i in range(self._data_files.rowCount()):
-            ci: DataFileController = self._data_files.child(i, 0)
+            ci = self._data_files.child(i, 0)  # type: DataFileController
             if ci.data_group == child.data_group:
                 ci.set_inactive()
 
+        self.data_model.clear()
         if child.data_group == 'gravity':
-            df = self.load_data(child)
-            if df is None:
-                return
             self._active_gravity = child
             child.set_active()
 
             # Experimental work on channel model
             # TODO: Need a way to clear ONLY the appropriate channels from the model, not all
             # e.g. don't clear trajectory channels when gravity file is changed
-            self.data_model.clear()
 
             for col in df:
                 channel = QStandardItem(col)
@@ -189,14 +206,16 @@ class FlightController(IFlightController):
                 channel.setCheckable(True)
                 self._data_model.appendRow([channel, QStandardItem("Plot1"), QStandardItem("Plot2")])
 
-        if child.data_group == 'trajectory':
+        # TODO: Implement and add test coverage
+        elif child.data_group == 'trajectory':  # pragma: no cover
             self._active_trajectory = child
             child.set_active()
 
+    # TODO: Implement and add test coverage
     def get_active_child(self):
         pass
 
-    def add_child(self, child: Union[FlightLine, DataFile]) -> bool:
+    def add_child(self, child: Union[FlightLine, DataFile]) -> Union[FlightLineController, DataFileController, None]:
         """
         Add a child to the underlying Flight, and to the model representation
         for the appropriate child type.
@@ -212,19 +231,14 @@ class FlightController(IFlightController):
               False on fail (e.g. child is not instance of FlightLine or DataFile
 
         """
+        child_key = type(child)
+        if child_key not in self._control_map:
+            raise TypeError("Invalid child type {0!s} supplied".format(child_key))
+
         self._flight.add_child(child)
-        if isinstance(child, FlightLine):
-            self._flight_lines.appendRow(FlightLineController(child, self))
-        elif isinstance(child, DataFile):
-            control = DataFileController(child, self)
-            self._data_files.appendRow(control)
-            # self.set_active_child(control)
-        elif isinstance(child, Gravimeter):
-            self.log.warning("Adding Gravimeter's to Flights is not yet implemented.")
-        else:
-            self.log.warning("Child of type %s could not be added to flight.", str(type(child)))
-            return False
-        return True
+        control = self._control_map[child_key](child, self)
+        self._child_map[child_key].appendRow(control)
+        return control
 
     def remove_child(self, child: Union[FlightLine, DataFile], row: int, confirm: bool = True) -> bool:
         """
@@ -251,39 +265,37 @@ class FlightController(IFlightController):
                 or on a row/child mis-match
 
         """
-        if confirm:
+        if type(child) not in self._control_map:
+            raise TypeError("Invalid child type supplied")
+        if confirm:  # pragma: no cover
             if not helpers.confirm_action("Confirm Deletion",
                                           "Are you sure you want to delete %s" % str(child),
                                           self.get_parent().get_parent()):
                 return False
 
-        if not self._flight.remove_child(child):
-            return False
-        if isinstance(child, FlightLine):
-            self._flight_lines.removeRow(row)
-        elif isinstance(child, DataFile):
-            self._data_files.removeRow(row)
-        else:
-            self.log.warning("Child of type: (%s) not removed from flight.", str(type(child)))
-            return False
+        self._flight.remove_child(child)
+        self._child_map[type(child)].removeRow(row)
         return True
 
-    def get_child(self, uid: Union[str, OID]) -> Union[FlightLineController, None]:
+    def get_child(self, uid: Union[str, OID]) -> Union[FlightLineController, DataFileController, None]:
         """Retrieve a child controller by UIU
         A string base_uuid can be passed, or an :obj:`OID` object for comparison
         """
         # TODO: Should this also search datafiles?
-        for item in self._flight_lines.items():  # type: FlightLineController
+        for item in itertools.chain(self._flight_lines.items(),  # pragma: no branch
+                                    self._data_files.items()):
             if item.uid == uid:
                 return item
 
     def load_data(self, datafile: DataFileController) -> DataFrame:
+        if self.get_parent() is None:
+            raise LoadError("Flight has no parent or HDF Controller")
         try:
             return self.get_parent().hdf5store.load_data(datafile.data(Qt.UserRole))
-        except OSError:
-            return None
+        except OSError as e:
+            raise LoadError from e
 
-    def set_name(self):
+    def set_name(self):  # pragma: no cover
         name: str = helpers.get_input("Set Name", "Enter a new name:", self._flight.name)
         if name:
             self.set_attr('name', name)

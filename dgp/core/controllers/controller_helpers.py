@@ -8,7 +8,7 @@ __all__ = ['confirm_action', 'get_input']
 
 
 def confirm_action(title: str, message: str,
-                   parent: Optional[Union[QWidget, QObject]]=None):
+                   parent: Optional[Union[QWidget, QObject]]=None):  # pragma: no cover
     dlg = QMessageBox(QMessageBox.Question, title, message,
                       QMessageBox.Yes | QMessageBox.No, parent=parent)
     dlg.setDefaultButton(QMessageBox.No)
@@ -16,7 +16,7 @@ def confirm_action(title: str, message: str,
     return dlg.result() == QMessageBox.Yes
 
 
-def get_input(title: str, label: str, text: str, parent: QWidget=None):
+def get_input(title: str, label: str, text: str, parent: QWidget=None):  # pragma: no cover
     new_text, result = QInputDialog.getText(parent, title, label, text=text)
     if result:
         return new_text

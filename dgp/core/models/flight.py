@@ -146,7 +146,7 @@ class Flight:
         elif isinstance(child, Gravimeter):
             self._meter = child.uid.base_uuid
         else:
-            raise ValueError("Invalid child type supplied: <%s>" % str(type(child)))
+            raise TypeError("Invalid child type supplied: <%s>" % str(type(child)))
         child.set_parent(self)
 
     def remove_child(self, child: Union[FlightLine, DataFile, OID]) -> bool:

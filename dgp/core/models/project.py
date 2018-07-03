@@ -309,7 +309,3 @@ class AirborneProject(GravityProject):
             return True
         else:
             return super().remove_child(child_id)
-
-
-class MarineProject(GravityProject):
-    pass
