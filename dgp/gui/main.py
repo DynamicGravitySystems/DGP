@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import QMainWindow, QProgressDialog, QFileDialog, QWidget
 import dgp.core.types.enumerations as enums
 from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.core.controllers.flight_controller import FlightController
-from dgp.core.models.ProjectTreeModel import ProjectTreeModel
+from core.controllers.project_treemodel import ProjectTreeModel
 from dgp.core.models.project import AirborneProject
 from dgp.gui.utils import (ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP,
                            LOG_COLOR_MAP, get_project_file)
