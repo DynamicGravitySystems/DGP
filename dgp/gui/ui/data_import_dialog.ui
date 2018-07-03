@@ -158,22 +158,12 @@
           </widget>
          </item>
          <item>
-          <widget class="QLabel" name="ql_copy_file">
-           <property name="toolTip">
-            <string extracomment="Copy to project directory"/>
-           </property>
-           <property name="whatsThis">
-            <string>Copy the raw source data file into the project directory when imported</string>
-           </property>
-           <property name="text">
-            <string>Copy to Project Dir</string>
-           </property>
-          </widget>
-         </item>
-         <item>
           <widget class="QCheckBox" name="qchb_copy_file">
            <property name="toolTip">
             <string>Copy source file to project directory</string>
+           </property>
+           <property name="text">
+            <string>Copy to Project Dir</string>
            </property>
           </widget>
          </item>

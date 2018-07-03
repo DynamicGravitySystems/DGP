@@ -107,7 +107,7 @@ class DataImportDialog(QDialog, Ui_DataImportDialog):
 
     def _load_file(self):
         # TODO: How to deal with type specific fields
-        file = DataFile(self.flight.uid.base_uuid, self.datatype.value.lower(), date=self.date,
+        file = DataFile(self.datatype.value.lower(), date=self.date,
                         source_path=self.file_path, name=self.qle_rename.text())
         param_map = self._params_map[self.datatype]
         # Evaluate and build params dict
@@ -216,9 +216,6 @@ class DataImportDialog(QDialog, Ui_DataImportDialog):
             col_count = len(lines[0].split(','))
         self.qle_linecount.setText(str(line_count))
         self.qle_colcount.setText(str(col_count))
-
-
-
 
     @pyqtSlot(int, name='_gravimeter_changed')
     def _gravimeter_changed(self, index: int):

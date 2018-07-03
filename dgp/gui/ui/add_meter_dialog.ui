@@ -21,12 +21,12 @@
     <number>0</number>
    </property>
    <property name="bottomMargin">
-    <number>9</number>
+    <number>0</number>
    </property>
    <item>
     <widget class="QListWidget" name="qlw_metertype">
      <property name="sizePolicy">
-      <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+      <sizepolicy hsizetype="Maximum" vsizetype="Expanding">
        <horstretch>0</horstretch>
        <verstretch>0</verstretch>
       </sizepolicy>
@@ -37,7 +37,10 @@
     </widget>
    </item>
    <item>
-    <layout class="QVBoxLayout" name="verticalLayout" stretch="0,0,0,0">
+    <layout class="QVBoxLayout" name="verticalLayout" stretch="0,0,0">
+     <property name="bottomMargin">
+      <number>9</number>
+     </property>
      <item>
       <layout class="QFormLayout" name="formLayout">
        <property name="topMargin">
@@ -71,6 +74,16 @@
         </widget>
        </item>
        <item row="2" column="0">
+        <widget class="QLabel" name="ql_notes">
+         <property name="text">
+          <string>Tag/Description</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QLineEdit" name="qle_description"/>
+       </item>
+       <item row="3" column="0">
         <widget class="QLabel" name="ql_config">
          <property name="text">
           <string>Configuration (ini)</string>
@@ -80,7 +93,7 @@
          </property>
         </widget>
        </item>
-       <item row="2" column="1">
+       <item row="3" column="1">
         <layout class="QHBoxLayout" name="horizontalLayout_2">
          <item>
           <widget class="QLineEdit" name="qle_config_path">
@@ -94,6 +107,9 @@
          </item>
          <item>
           <widget class="QPushButton" name="qtb_browse_config">
+           <property name="toolTip">
+            <string>Browse for a meter configuration file</string>
+           </property>
            <property name="text">
             <string>Browse...</string>
            </property>
@@ -101,40 +117,58 @@
          </item>
         </layout>
        </item>
-       <item row="3" column="0">
-        <widget class="QLabel" name="ql_notes">
+       <item row="4" column="1">
+        <widget class="QCheckBox" name="qchb_copy">
+         <property name="toolTip">
+          <string>Copy the original configuration into the project directory</string>
+         </property>
          <property name="text">
-          <string>Notes</string>
+          <string>Copy configuration to project folder</string>
          </property>
         </widget>
        </item>
-       <item row="3" column="1">
-        <widget class="QPlainTextEdit" name="qpte_notes">
+       <item row="5" column="0">
+        <widget class="QLabel" name="label">
+         <property name="text">
+          <string>Configuration</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="1">
+        <widget class="QTableView" name="qtv_config_view">
          <property name="sizePolicy">
-          <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
+          <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
            <horstretch>0</horstretch>
            <verstretch>0</verstretch>
           </sizepolicy>
          </property>
+         <property name="sizeIncrement">
+          <size>
+           <width>0</width>
+           <height>50</height>
+          </size>
+         </property>
+         <property name="editTriggers">
+          <set>QAbstractItemView::NoEditTriggers</set>
+         </property>
+         <property name="showDropIndicator" stdset="0">
+          <bool>false</bool>
+         </property>
+         <attribute name="horizontalHeaderVisible">
+          <bool>true</bool>
+         </attribute>
+         <attribute name="horizontalHeaderStretchLastSection">
+          <bool>true</bool>
+         </attribute>
+         <attribute name="verticalHeaderVisible">
+          <bool>false</bool>
+         </attribute>
         </widget>
        </item>
       </layout>
      </item>
      <item>
-      <spacer name="verticalSpacer">
-       <property name="orientation">
-        <enum>Qt::Vertical</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>20</width>
-         <height>40</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-     <item>
-      <widget class="Line" name="line">
+      <widget class="Line" name="qline_1">
        <property name="orientation">
         <enum>Qt::Horizontal</enum>
        </property>
@@ -154,7 +188,9 @@
    </item>
   </layout>
  </widget>
- <resources/>
+ <resources>
+  <include location="resources/resources.qrc"/>
+ </resources>
  <connections>
   <connection>
    <sender>dialog_btns</sender>

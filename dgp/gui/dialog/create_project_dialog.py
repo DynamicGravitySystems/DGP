@@ -33,6 +33,10 @@ class CreateProjectDialog(QDialog, Ui_CreateProjectDialog):
                                      self.prj_type_list)
         dgs_marine.setData(Qt.UserRole, ProjectTypes.MARINE)
 
+    def show_message(self, message, **kwargs):
+        """Shim to replace BaseDialog method"""
+        print(message)
+
     def accept(self):
         """
         Called upon 'Create' button push, do some basic validation of fields
@@ -67,11 +71,12 @@ class CreateProjectDialog(QDialog, Ui_CreateProjectDialog):
         cdata = self.prj_type_list.currentItem().data(Qt.UserRole)
         if cdata == ProjectTypes.AIRBORNE:
             name = str(self.prj_name.text()).rstrip()
+            name = "".join([word.capitalize() for word in name.split(' ')])
             path = Path(self.prj_dir.text()).joinpath(name)
             if not path.exists():
                 path.mkdir(parents=True)
 
-            self._project = AirborneProject(name=name, path=path, description="Not implemented yet in Create Dialog")
+            self._project = AirborneProject(name=name, path=path, description=self.qpte_notes.toPlainText())
         else:
             self.show_message("Invalid Project Type (Not yet implemented)",
                               log=logging.WARNING, color='red')

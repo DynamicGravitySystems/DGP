@@ -1,90 +1,108 @@
 # coding: utf-8
+from datetime import datetime, date
+from pathlib import Path
 
-import pathlib
-import tempfile
-import unittest
+import pytest
+
+from .context import APP
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtTest import QTest
-import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtTest as QtTest
+from PyQt5.QtWidgets import QDialogButtonBox
 
-import dgp.gui.dialogs as dlg
-import core.types.enumerations as enums
+from dgp.core.models.flight import Flight
+from dgp.core.controllers.project_controllers import AirborneProjectController
+from dgp.gui.dialog.add_gravimeter_dialog import AddGravimeterDialog
+from dgp.gui.dialog.add_flight_dialog import AddFlightDialog
+from dgp.core.models.project import AirborneProject
+from dgp.gui.dialog.create_project_dialog import CreateProjectDialog
 
 
-class TestDialogs(unittest.TestCase):
-    def setUp(self):
-        with tempfile.TemporaryDirectory() as td:
-            self.m_prj = prj.AirborneProject(td, 'mock_project')
-        self.m_flight = prj.Flight(self.m_prj, 'mock_flight')
-        self.m_prj.add_flight(self.m_flight)
-        self.m_data = [['h1', 'h2', 'h3'],
-                       ['r1h1', 'r1h2', 'r1h3']]
-        self.m_grav_path = pathlib.Path('tests/sample_gravity.csv')
-        self.m_gps_path = pathlib.Path('tests/sample_trajectory.txt')
+@pytest.fixture
+def airborne_prj(tmpdir):
+    project = AirborneProject(name="AirborneProject", path=Path(tmpdir))
+    prj_ctrl = AirborneProjectController(project)
+    return project, prj_ctrl
 
-    def test_properties_dialog(self):
-        t_dlg = dlg.PropertiesDialog(self.m_flight)
-        self.assertEqual(8, t_dlg.form.rowCount())
-        spy = QtTest.QSignalSpy(t_dlg.accepted)
-        self.assertTrue(spy.isValid())
-        QTest.mouseClick(t_dlg._btns.button(QtWidgets.QDialogButtonBox.Ok),
-                         Qt.LeftButton)
-        self.assertEqual(1, len(spy))
 
-    # def test_advanced_import_dialog_gravity(self):
-    #     t_dlg = dlg.AdvancedImportDialog(self.m_prj, self.m_flight,
-    #                                      enums.DataTypes.GRAVITY)
-    #     self.assertEqual(self.m_flight, t_dlg.flight)
-    #     self.assertIsNone(t_dlg.path)
-    #
-    #     t_dlg.cb_format.setCurrentIndex(0)
-    #     editor = t_dlg.editor
-    #
-    #     # Test format property setter, and reflection in editor format
-    #     for fmt in enums.GravityTypes:
-    #         self.assertNotEqual(-1, t_dlg.cb_format.findData(fmt))
-    #         t_dlg.format = fmt
-    #         self.assertEqual(t_dlg.format, editor.format)
-    #
-    #     t_dlg.path = self.m_grav_path
-    #     self.assertEqual(self.m_grav_path, t_dlg.path)
-    #     self.assertEqual(list(t_dlg.cb_format.currentData().value),
-    #                      editor.columns)
-    #
-    #     # Set formatter back to type AT1A for param testing
-    #     t_dlg.format = enums.GravityTypes.AT1A
-    #     self.assertEqual(t_dlg.format, enums.GravityTypes.AT1A)
-    #
-    #     # Test behavior of skiprow property
-    #     # Should return None if unchecked, and 1 if checked
-    #     self.assertIsNone(editor.skiprow)
-    #     editor.skiprow = True
-    #     self.assertEqual(1, editor.skiprow)
-    #
-    #     # Test generation of params property on dialog accept()
-    #     t_dlg.accept()
-    #     result_params = dict(path=self.m_grav_path,
-    #                          columns=list(enums.GravityTypes.AT1A.value),
-    #                          skiprows=1,
-    #                          subtype=enums.GravityTypes.AT1A)
-    #     self.assertEqual(result_params, t_dlg.params)
-    #     self.assertEqual(self.m_flight, t_dlg.flight)
+class TestDialogs:
+    def test_create_project_dialog(self, tmpdir):
+        dlg = CreateProjectDialog()
+        _name = "Test Project"
+        _notes = "Notes on the Test Project"
+        _path = Path(tmpdir)
 
-    # def test_advanced_import_dialog_trajectory(self):
-    #     t_dlg = dlg.AdvancedImportDialog(self.m_prj, self.m_flight,
-    #                                      enums.DataTypes.TRAJECTORY)
-    #
-    #     # Test all GPSFields represented, and setting via format property
-    #     for fmt in enums.GPSFields:
-    #         self.assertNotEqual(-1, t_dlg.cb_format.findData(fmt))
-    #         t_dlg.format = fmt
-    #         self.assertEqual(fmt, t_dlg.format)
-    #         col_fmt = t_dlg.params['subtype']
-    #         self.assertEqual(fmt, col_fmt)
-    #     t_dlg.format = enums.GPSFields.hms
-    #
-    #     # Verify expected output, ordered correctly
-    #     hms_expected = ['mdy', 'hms', 'lat', 'long', 'ell_ht']
-    #     self.assertEqual(hms_expected, t_dlg.params['columns'])
+        QTest.keyClicks(dlg.prj_name, _name)
+        assert _name == dlg.prj_name.text()
+
+        assert str(Path().home().joinpath('Desktop')) == dlg.prj_dir.text()
+
+        dlg.prj_dir.setText('')
+        QTest.keyClicks(dlg.prj_dir, str(_path))
+        assert str(_path) == dlg.prj_dir.text()
+
+        QTest.keyClicks(dlg.qpte_notes, _notes)
+        assert _notes == dlg.qpte_notes.toPlainText()
+
+        QTest.mouseClick(dlg.btn_create, Qt.LeftButton)
+
+        assert isinstance(dlg.project, AirborneProject)
+        assert _path.joinpath("TestProject") == dlg.project.path
+        assert dlg.project.name == "".join(_name.split(' '))
+        assert dlg.project.description == _notes
+
+    def test_add_flight_dialog(self, airborne_prj):
+        project, project_ctrl = airborne_prj
+        dlg = AddFlightDialog(project_ctrl)
+        spy = QtTest.QSignalSpy(dlg.accepted)
+        assert spy.isValid()
+        assert 0 == len(spy)
+
+        _name = "Flight-1"
+        _notes = "Notes for Flight-1"
+
+        assert datetime.today() == dlg.qde_flight_date.date()
+        QTest.keyClicks(dlg.qle_flight_name, _name)
+        QTest.keyClicks(dlg.qte_notes, _notes)
+
+        assert _name == dlg.qle_flight_name.text()
+        assert _notes == dlg.qte_notes.toPlainText()
+
+        QTest.mouseClick(dlg.qdbb_dialog_btns.button(QDialogButtonBox.Ok), Qt.LeftButton)
+        # dlg.accept()
+
+        assert 1 == len(spy)
+        assert 1 == len(project.flights)
+        assert isinstance(project.flights[0], Flight)
+        assert _name == project.flights[0].name
+        assert _notes == project.flights[0].notes
+        assert date.today() == project.flights[0].date
+
+    def test_edit_flight_dialog(self, airborne_prj):
+        """Test Flight Dialog to edit an existing flight"""
+        project, project_ctrl = airborne_prj  # type: AirborneProject, AirborneProjectController
+
+        _name = "Flt-1"
+        _date = datetime(2018, 5, 15)
+        _notes = "Notes on flight 1"
+        flt = Flight(_name, date=_date, notes=_notes, sequence=0, duration=6)
+
+        flt_ctrl = project_ctrl.add_child(flt)
+
+        dlg = AddFlightDialog.from_existing(flt_ctrl, project_ctrl)
+
+        assert _name == dlg.qle_flight_name.text()
+        assert _date == dlg.qde_flight_date.date()
+        assert _notes == dlg.qte_notes.toPlainText()
+
+        # Test renaming flight through dialog
+        dlg.qle_flight_name.clear()
+        QTest.keyClicks(dlg.qle_flight_name, "Flt-2")
+        QTest.mouseClick(dlg.qdbb_dialog_btns.button(QDialogButtonBox.Ok), Qt.LeftButton)
+        assert "Flt-2" == flt.name
+
+    def test_add_gravimeter_dialog(self, airborne_prj):
+        project, project_ctrl = airborne_prj
+        dlg = AddGravimeterDialog(project_ctrl)
+

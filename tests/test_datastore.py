@@ -8,11 +8,11 @@ from pathlib import Path
 import pytest
 from pandas import DataFrame
 
-from core.models.flight import Flight
-from .context import dgp
+from dgp.core.models.flight import Flight
 from dgp.core.models.data import DataFile
 from dgp.core.oid import OID
 from dgp.core.controllers.hdf5_controller import HDFController, HDF5_NAME
+# from .context import dgp
 
 
 class TestDataManager:
