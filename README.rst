@@ -3,11 +3,15 @@ DGP (Dynamic Gravity Processor)
 .. image:: https://travis-ci.org/DynamicGravitySystems/DGP.svg?branch=master
     :target: https://travis-ci.org/DynamicGravitySystems/DGP
 
+.. image:: https://ci.appveyor.com/api/projects/status/np3s77n1s8hpvn5u?svg=true
+    :target: https://ci.appveyor.com/project/bradyzp/dgp
+
 .. image:: https://coveralls.io/repos/github/DynamicGravitySystems/DGP/badge.svg?branch=feature%2Fproject-structure
     :target: https://coveralls.io/github/DynamicGravitySystems/DGP?branch=feature%2Fproject-structure
 
-.. image:: https://ci.appveyor.com/api/projects/status/np3s77n1s8hpvn5u?svg=true
-    :target: https://ci.appveyor.com/project/bradyzp/dgp
+.. image:: https://readthedocs.org/projects/dgp/badge/?version=develop
+    :target: https://dgp.readthedocs.io/en/develop
+    :alt: Documentation Status
 
 What is it
 ----------

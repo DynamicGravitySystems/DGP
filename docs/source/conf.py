@@ -19,9 +19,9 @@
 #
 import os
 import sys
+
 sys.path.insert(0, os.path.abspath('.'))
 sys.path.insert(0, os.path.abspath('../..'))
-
 
 # -- General configuration ------------------------------------------------
 
@@ -33,15 +33,18 @@ sys.path.insert(0, os.path.abspath('../..'))
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = ['sphinx.ext.autodoc',
-    'sphinx.ext.doctest',
-    'sphinx.ext.todo',
-    'sphinx.ext.mathjax',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.napoleon']
+              'sphinx.ext.doctest',
+              'sphinx.ext.todo',
+              'sphinx.ext.mathjax',
+              'sphinx.ext.viewcode',
+              'sphinx.ext.napoleon']
 
 napoleon_google_docstring = False
 napoleon_use_param = False
 napoleon_use_ivar = True
+
+# Set whether module paths are prepended to class objects in doc.
+add_module_names = False
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -57,8 +60,8 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'Dynamic Gravity Processor'
-copyright = '2017, Zachery Brady, Daniel Aliod, Nigel Brady, Chris Bertinato'
-author = 'Zachery Brady, Daniel Aliod, Nigel Brady, Chris Bertinato'
+author = 'Zachery Brady, Daniel Aliod, Chris Bertinato'
+copyright = '2017, 2018, ' + author
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -87,7 +90,6 @@ pygments_style = 'sphinx'
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
 
-
 # -- Options for HTML output ----------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
@@ -99,7 +101,9 @@ html_theme = 'sphinx_rtd_theme'
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-# html_theme_options = {}
+html_theme_options = {
+    'navigation_depth': 4
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -121,12 +125,14 @@ html_sidebars = {
     ]
 }
 
+html_logo = ""
+
+html_show_sourcelink = True
 
 # -- Options for HTMLHelp output ------------------------------------------
 
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'DynamicGravityProcessordoc'
-
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -153,9 +159,8 @@ latex_elements = {
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
     (master_doc, 'DynamicGravityProcessor.tex', 'Dynamic Gravity Processor Documentation',
-     'Zachery Brady, Daniel Aliod, Nigel Brady, Chris Bertinato', 'manual'),
+     'Daniel Aliod, Chris Bertinato, Zachery Brady', 'manual'),
 ]
-
 
 # -- Options for manual page output ---------------------------------------
 
@@ -165,7 +170,6 @@ man_pages = [
     (master_doc, 'dynamicgravityprocessor', 'Dynamic Gravity Processor Documentation',
      [author], 1)
 ]
-
 
 # -- Options for Texinfo output -------------------------------------------
 
@@ -177,3 +181,13 @@ texinfo_documents = [
      author, 'DynamicGravityProcessor', 'One line description of project.',
      'Miscellaneous'),
 ]
+
+# -- Options for Autodoc plugin -------------------------------------------
+
+# Set sort type for auto documented members, select from 'alphabetical', 'groupwise',
+# or 'bysource'
+autodoc_member_order = 'bysource'
+
+# Autodoc directives automatically applied
+autodoc_default_flags = ['members']
+
