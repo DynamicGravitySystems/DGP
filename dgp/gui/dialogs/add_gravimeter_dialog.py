@@ -1,17 +1,19 @@
 # -*- coding: utf-8 -*-
 from pathlib import Path
 from pprint import pprint
-from typing import Optional
+from typing import Optional, List
 
 from PyQt5.QtGui import QIntValidator, QIcon, QStandardItemModel, QStandardItem
-from PyQt5.QtWidgets import QDialog, QWidget, QFileDialog, QListWidgetItem
+from PyQt5.QtWidgets import QDialog, QWidget, QFileDialog, QListWidgetItem, QFormLayout
 
 from dgp.core.controllers.controller_interfaces import IAirborneController
 from dgp.core.models.meter import Gravimeter
 from dgp.gui.ui.add_meter_dialog import Ui_AddMeterDialog
+from .dialog_mixins import FormValidator, VALIDATION_ERR_MSG
 
 
-class AddGravimeterDialog(QDialog, Ui_AddMeterDialog):
+class AddGravimeterDialog(QDialog, Ui_AddMeterDialog, FormValidator):
+
     def __init__(self, project: IAirborneController, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.setupUi(self)
@@ -40,6 +42,14 @@ class AddGravimeterDialog(QDialog, Ui_AddMeterDialog):
         self.qtv_config_view.setModel(self._config_model)
 
     @property
+    def validation_targets(self) -> List[QFormLayout]:
+        return [self.qfl_meter_form]
+
+    @property
+    def validation_error(self):
+        return self.ql_validation_err
+
+    @property
     def config_path(self):
         if not len(self.qle_config_path.text()):
             return None
@@ -53,6 +63,9 @@ class AddGravimeterDialog(QDialog, Ui_AddMeterDialog):
         return _path
 
     def accept(self):
+        if not self.validate():
+            return
+
         if self.qle_config_path.text():
             meter = Gravimeter.from_ini(Path(self.qle_config_path.text()), name=self.qle_name.text())
         else:

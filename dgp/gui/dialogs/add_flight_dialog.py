@@ -1,17 +1,19 @@
 # -*- coding: utf-8 -*-
 import datetime
-from typing import Optional
+from typing import Optional, List
 
-from PyQt5.QtCore import Qt, QDate
-from PyQt5.QtWidgets import QDialog, QWidget
+from PyQt5.QtCore import Qt, QDate, QRegExp
+from PyQt5.QtGui import QRegExpValidator
+from PyQt5.QtWidgets import QDialog, QWidget, QFormLayout
 
 from dgp.core.models.meter import Gravimeter
 from dgp.core.controllers.controller_interfaces import IAirborneController, IFlightController
 from dgp.core.models.flight import Flight
+from .dialog_mixins import FormValidator
 from ..ui.add_flight_dialog import Ui_NewFlight
 
 
-class AddFlightDialog(QDialog, Ui_NewFlight):
+class AddFlightDialog(QDialog, Ui_NewFlight, FormValidator):
     def __init__(self, project: IAirborneController, flight: IFlightController = None,
                  parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -22,13 +24,28 @@ class AddFlightDialog(QDialog, Ui_NewFlight):
         self.cb_gravimeters.setModel(project.meter_model)
         self.qpb_add_sensor.clicked.connect(self._project.add_gravimeter)
 
+        # Configure Form Validation
+        self._name_validator = QRegExpValidator(QRegExp(".{4,20}"))
+        self.qle_flight_name.setValidator(self._name_validator)
+
         if self._flight is not None:
             self._set_flight(self._flight)
         else:
             self.qde_flight_date.setDate(datetime.date.today())
             self.qsb_sequence.setValue(project.flight_model.rowCount())
 
+    @property
+    def validation_targets(self) -> List[QFormLayout]:
+        return [self.qfl_flight_form]
+
+    @property
+    def validation_error(self):
+        return self.ql_validation_err
+
     def accept(self):
+        if not self.validate():
+            return
+
         name = self.qle_flight_name.text()
         qdate: QDate = self.qde_flight_date.date()
         date = datetime.date(qdate.year(), qdate.month(), qdate.day())

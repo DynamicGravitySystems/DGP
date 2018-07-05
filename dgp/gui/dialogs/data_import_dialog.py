@@ -4,22 +4,25 @@ import logging
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Union, Optional
+from typing import Union, Optional, List
 
 from PyQt5.QtCore import Qt, pyqtSlot, pyqtSignal, QDate
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIcon
-from PyQt5.QtWidgets import QDialog, QFileDialog, QListWidgetItem, QCalendarWidget, QWidget
+from PyQt5.QtWidgets import QDialog, QFileDialog, QListWidgetItem, QCalendarWidget, QWidget, QFormLayout
 
 import dgp.core.controllers.gravimeter_controller as mtr
 from dgp.core.controllers.controller_interfaces import IAirborneController, IFlightController
 from dgp.core.models.data import DataFile
 from dgp.core.types.enumerations import DataTypes
 from dgp.gui.ui.data_import_dialog import Ui_DataImportDialog
+from .dialog_mixins import FormValidator
+from .custom_validators import FileExistsValidator
 
 __all__ = ['DataImportDialog']
 
 
-class DataImportDialog(QDialog, Ui_DataImportDialog):
+class DataImportDialog(QDialog, Ui_DataImportDialog, FormValidator):
+
     load = pyqtSignal(DataFile, dict)
 
     def __init__(self, project: IAirborneController,
@@ -100,12 +103,23 @@ class DataImportDialog(QDialog, Ui_DataImportDialog):
 
         self.qsw_advanced_properties.setCurrentIndex(self._type_map[datatype])
 
+        # Configure Validators
+        self.qle_filepath.setValidator(FileExistsValidator())
+
     def set_initial_flight(self, flight: IFlightController):
         for i in range(self._flight_model.rowCount()):  # pragma: no branch
             child = self._flight_model.item(i, 0)
             if child.uid == flight.uid:  # pragma: no branch
                 self.qcb_flight.setCurrentIndex(i)
                 break
+
+    @property
+    def validation_targets(self) -> List[QFormLayout]:
+        return [self.qfl_common]
+
+    @property
+    def validation_error(self):
+        return self.ql_validation_err
 
     @property
     def project(self) -> IAirborneController:
@@ -136,17 +150,8 @@ class DataImportDialog(QDialog, Ui_DataImportDialog):
         return datetime(_date.year(), _date.month(), _date.day())
 
     def accept(self):  # pragma: no cover
-        if self.file_path is None:
-            self.ql_path.setStyleSheet("color: red")
-            self.log.warning("Path cannot be empty.")
+        if not self.validate():
             return
-        if not self.file_path.exists():
-            self.ql_path.setStyleSheet("color: red")
-            self.log.warning("Path does not exist.")
-            return
-        if not self.file_path.is_file():
-            self.ql_path.setStyleSheet("color: red")
-            self.log.warning("Path must be a file, not a directory.")
 
         if self._load_file():
             if self.qchb_copy_file.isChecked():

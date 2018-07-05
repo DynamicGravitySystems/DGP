@@ -1,17 +1,20 @@
 # -*- coding: utf-8 -*-
 import logging
 from pathlib import Path
+from typing import List
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QDialog, QListWidgetItem, QLabel, QFileDialog
+from PyQt5.QtCore import Qt, QRegExp
+from PyQt5.QtGui import QIcon, QRegExpValidator
+from PyQt5.QtWidgets import QDialog, QListWidgetItem, QFileDialog, QFormLayout
 
 from dgp.core.models.project import AirborneProject
 from dgp.core.types.enumerations import ProjectTypes
 from dgp.gui.ui.create_project_dialog import Ui_CreateProjectDialog
+from .dialog_mixins import FormValidator
+from .custom_validators import DirectoryValidator
 
 
-class CreateProjectDialog(QDialog, Ui_CreateProjectDialog):
+class CreateProjectDialog(QDialog, Ui_CreateProjectDialog, FormValidator):
     def __init__(self, parent=None):
         super().__init__(parent=parent)
         self.setupUi(self)
@@ -33,10 +36,17 @@ class CreateProjectDialog(QDialog, Ui_CreateProjectDialog):
                                      self.prj_type_list)
         dgs_marine.setData(Qt.UserRole, ProjectTypes.MARINE)
 
-    # TODO: Replace this with method to show warning in dialog
-    def show_message(self, message, **kwargs):  # pragma: no cover
-        """Shim to replace BaseDialog method"""
-        print(message)
+        # Configure Validation
+        self.prj_name.setValidator(QRegExpValidator(QRegExp("[A-Za-z]+.{3,30}")))
+        self.prj_dir.setValidator(DirectoryValidator(exist_ok=True))
+
+    @property
+    def validation_targets(self) -> List[QFormLayout]:
+        return [self.qfl_create_form]
+
+    @property
+    def validation_error(self):
+        return self.ql_validation_err
 
     def accept(self):
         """
@@ -44,28 +54,7 @@ class CreateProjectDialog(QDialog, Ui_CreateProjectDialog):
         then accept() if required fields are filled, otherwise color the
         labels red and display a warning message.
         """
-
-        invld_fields = []
-        for attr, label in self.__dict__.items():
-            if not isinstance(label, QLabel):
-                continue
-            text = str(label.text())
-            if text.endswith('*'):
-                buddy = label.buddy()
-                if buddy and not buddy.text():
-                    label.setStyleSheet('color: red')
-                    invld_fields.append(text)
-                elif buddy:
-                    label.setStyleSheet('color: black')
-
-        base_path = Path(self.prj_dir.text())
-        if not base_path.exists():
-            self.show_message("Invalid Directory - Does not Exist",
-                              buddy_label='label_dir')
-            return
-
-        if invld_fields:
-            self.show_message('Verify that all fields are filled.')
+        if not self.validate():
             return
 
         # TODO: Future implementation for Project types other than DGS AT1A
@@ -79,8 +68,7 @@ class CreateProjectDialog(QDialog, Ui_CreateProjectDialog):
 
             self._project = AirborneProject(name=name, path=path, description=self.qpte_notes.toPlainText())
         else:  # pragma: no cover
-            self.show_message("Invalid Project Type (Not yet implemented)",
-                              log=logging.WARNING, color='red')
+            self.ql_validation_err.setText("Invalid Project Type - Not Implemented")
             return
 
         super().accept()

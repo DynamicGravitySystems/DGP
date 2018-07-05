@@ -1,4 +1,4 @@
-# coding: utf-8
+# -*- coding: utf-8 -*-
 from datetime import datetime, date
 from pathlib import Path
 
@@ -6,9 +6,11 @@ import pytest
 
 
 import PyQt5.QtTest as QtTest
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QRegExp
+from PyQt5.QtGui import QValidator, QRegExpValidator, QIntValidator
 from PyQt5.QtTest import QTest
-from PyQt5.QtWidgets import QDialogButtonBox
+from PyQt5.QtWidgets import (QDialogButtonBox, QDialog, QFormLayout, QLineEdit, QLabel, QVBoxLayout, QDateTimeEdit,
+                             QHBoxLayout, QPushButton)
 
 from dgp.core.controllers.flight_controller import FlightController
 from dgp.core.models.data import DataFile
@@ -20,6 +22,8 @@ from dgp.gui.dialogs.add_gravimeter_dialog import AddGravimeterDialog
 from dgp.gui.dialogs.add_flight_dialog import AddFlightDialog
 from dgp.gui.dialogs.data_import_dialog import DataImportDialog
 from dgp.gui.dialogs.create_project_dialog import CreateProjectDialog
+from dgp.gui.dialogs.dialog_mixins import FormValidator
+from dgp.gui.dialogs.custom_validators import FileExistsValidator, DirectoryValidator
 from .context import APP
 
 
@@ -40,33 +44,24 @@ class TestDialogs:
 
         # Test field validation
         assert str(Path().home().joinpath('Desktop')) == dlg.prj_dir.text()
-        _invld_style = 'color: red'
+        _invld_style = 'QLabel { color: red; }'
+        assert not dlg.validate()
         assert dlg.accept() is None
         assert _invld_style == dlg.label_name.styleSheet()
         dlg.prj_name.setText("TestProject")
-        dlg.prj_dir.setText("")
-        dlg.accept()
-        assert 0 == len(dlg.prj_dir.text())
-        assert _invld_style == dlg.label_dir.styleSheet()
-        assert 0 == len(accept_spy)
-
-        # Validate project directory exists
-        dlg.prj_dir.setText(str(Path().joinpath("fake")))
-        dlg.accept()
-        assert 0 == len(accept_spy)
 
         dlg.prj_name.setText("")
         QTest.keyClicks(dlg.prj_name, _name)
         assert _name == dlg.prj_name.text()
 
-        dlg.prj_dir.setText('')
-        QTest.keyClicks(dlg.prj_dir, str(_path))
+        dlg.prj_dir.setText(str(_path.absolute()))
         assert str(_path) == dlg.prj_dir.text()
 
         QTest.keyClicks(dlg.qpte_notes, _notes)
         assert _notes == dlg.qpte_notes.toPlainText()
 
-        QTest.mouseClick(dlg.btn_create, Qt.LeftButton)
+        # QTest.mouseClick(dlg.btn_create, Qt.LeftButton)
+        dlg.accept()
         assert 1 == len(accept_spy)
 
         assert isinstance(dlg.project, AirborneProject)
@@ -80,6 +75,7 @@ class TestDialogs:
         spy = QtTest.QSignalSpy(dlg.accepted)
         assert spy.isValid()
         assert 0 == len(spy)
+        assert dlg.accept() is None
 
         _name = "Flight-1"
         _notes = "Notes for Flight-1"
@@ -215,6 +211,7 @@ class TestDialogs:
 
         dlg = AddGravimeterDialog(project_ctrl)
         assert dlg.config_path is None
+        assert dlg.accept() is None
 
         _ini_path = Path('tests/at1m.ini').resolve()
         QTest.keyClicks(dlg.qle_config_path, str(_ini_path))
@@ -245,10 +242,140 @@ class TestDialogs:
         assert "AT1A-12" == project.gravimeters[1].name
 
 
+class ValidatedDialog(QDialog, FormValidator):
+    def __init__(self, parent=None):
+        super().__init__(parent=parent, flags=Qt.Dialog)
+        self._form1 = QFormLayout()
+        self._form2 = QFormLayout()
+        self.vlayout = QVBoxLayout()
+        self.vlayout.addChildLayout(self._form1)
+        self.vlayout.addChildLayout(self._form2)
+        self.setLayout(self.vlayout)
+
+        # Form 1 Validated Input
+        exp = QRegExp(".{5,35}")
+        self.validator1 = QRegExpValidator(exp)
+        self.label1 = QLabel("Row0")
+        self.lineedit1 = QLineEdit()
+        self.lineedit1.setValidator(self.validator1)
+        self._form1.addRow(self.label1, self.lineedit1)
+
+        # Form 2 Validated and Unvalidated Input Lines
+        self.validator2 = QRegExpValidator(exp)
+        self.label2 = QLabel("Row1")
+        self.lineedit2 = QLineEdit()
+        self.lineedit2.setValidator(self.validator2)
+        self._form2.addRow(self.label2, self.lineedit2)
+
+        # Form 2 Unvalidated Line Edit
+        self.label3 = QLabel("Row2 (Not validated)")
+        self.lineedit3 = QLineEdit()
+        self._form2.addRow(self.label3, self.lineedit3)
+
+        # DateTime Edit widget
+        self.label4 = QLabel("Date")
+        self.datetimeedit = QDateTimeEdit(datetime.today())
+
+        # Nested layout widget
+        self.nested_label = QLabel("Nested input")
+        self.nested_hbox = QHBoxLayout()
+        self.nested_lineedit = QLineEdit()
+        self.nested_validator = QRegExpValidator(exp)
+        self.nested_button = QPushButton("Button")
+        self.nested_hbox.addWidget(self.nested_lineedit)
+        self.nested_hbox.addWidget(self.nested_button)
+        self._form2.addRow(self.nested_label, self.nested_hbox)
+
+        self.nested_vbox = QVBoxLayout()
+        self.nested_label2 = QLabel("Nested v input")
+        self.nested_lineedit2 = QLineEdit()
+        self.nested_validator2 = QRegExpValidator(exp)
+        self.nested_lineedit2.setValidator(self.nested_validator2)
+        self.nested_button2 = QPushButton("Button2")
+        self.nested_vbox.addWidget(self.nested_button2)
+        self.nested_vbox.addWidget(self.nested_lineedit2)
+
+    @property
+    def validation_targets(self):
+        return [self._form1, self._form2]
 
 
+class TestDialogMixins:
+    def test_dialog_form_validator(self):
+        """Test the FormValidator mixin class, which scans QFormLayout label/field pairs
+        and ensures that any set QValidators pass.
 
+        Labels should be set to RED if their corresponding field is invalid
+        """
+        dlg = ValidatedDialog()
+        assert issubclass(ValidatedDialog, FormValidator)
+        assert isinstance(dlg.validation_targets[0], QFormLayout)
 
+        assert not dlg.lineedit1.hasAcceptableInput()
+        dlg.lineedit1.setText("Has 5 characters or more")
+        assert dlg.lineedit1.hasAcceptableInput()
+        dlg.lineedit1.setText("x"*36)
+        assert not dlg.lineedit1.hasAcceptableInput()
 
+        assert not dlg.validate()
+        assert FormValidator.ERR_STYLE == dlg.label1.styleSheet()
+
+        dlg.lineedit1.setText("This is acceptable")
+        dlg.lineedit2.setText("This is also OK")
+        assert dlg.lineedit1.hasAcceptableInput()
+        assert dlg.validate()
+        assert "" == dlg.label1.styleSheet()
+
+        dlg.lineedit1.setText("")
+        assert not dlg.validate()
+
+        # Test adding an input mask to lineedit3
+        dlg.lineedit1.setText("Something valid")
+        dlg.lineedit3.setText("")
+        dlg.lineedit3.setInputMask("AAA-AAA")  # Require 6 alphabetical chars separated by '-'
+        assert not dlg.validate()
+        assert dlg.label3.toolTip() == "Invalid Input: input must conform to mask: AAA-AAA"
+
+        QTest.keyClicks(dlg.lineedit3, "ABCDEF")
+        assert dlg.validate()
+
+        # What about nested layouts (e.g. where a QHboxLayout is used within a form field)
+        dlg.nested_lineedit.setValidator(dlg.nested_validator)
+        assert not dlg.validate()
+        dlg.nested_lineedit.setText("Valid String")
+        assert dlg.validate()
+
+        dlg._form2.addRow(dlg.nested_label2, dlg.nested_vbox)
+        assert not dlg.validate()
+
+        dlg.nested_lineedit2.setText("Valid String")
+        assert dlg.validate()
+
+        int_validator = QIntValidator(25, 100)
+        dlg.nested_lineedit2.setValidator(int_validator)
+        assert not dlg.validate()
+        dlg.nested_lineedit2.setText("26")
+        assert dlg.validate()
+
+    def test_file_exists_validator(self):
+        line_edit = QLineEdit()
+        validator = FileExistsValidator()
+        line_edit.setValidator(validator)
+
+        assert (QValidator.Acceptable, "tests/at1m.ini", 0) == validator.validate("tests/at1m.ini", 0)
+        assert (QValidator.Intermediate, "tests", 0) == validator.validate("tests", 0)
+        assert (QValidator.Invalid, 123, 0) == validator.validate(123, 0)
+
+    def test_directory_validator(self):
+        exist_validator = DirectoryValidator(exist_ok=True)
+        noexist_validator = DirectoryValidator(exist_ok=False)
+
+        _valid_path = "tests"
+        _invalid_path = "tests/at1m.ini"
+        assert QValidator.Acceptable == exist_validator.validate(_valid_path, 0)[0]
+        assert QValidator.Invalid == exist_validator.validate(123, 0)[0]
+        assert QValidator.Invalid == exist_validator.validate(_invalid_path, 0)[0]
+        assert QValidator.Intermediate == noexist_validator.validate(_valid_path, 0)[0]
+        assert QValidator.Intermediate == exist_validator.validate(_valid_path + "/nonexistent", 0)[0]
 
 

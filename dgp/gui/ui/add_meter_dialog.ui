@@ -42,7 +42,7 @@
       <number>9</number>
      </property>
      <item>
-      <layout class="QFormLayout" name="formLayout">
+      <layout class="QFormLayout" name="qfl_meter_form">
        <property name="topMargin">
         <number>9</number>
        </property>
@@ -175,14 +175,28 @@
       </widget>
      </item>
      <item>
-      <widget class="QDialogButtonBox" name="dialog_btns">
-       <property name="orientation">
-        <enum>Qt::Horizontal</enum>
-       </property>
-       <property name="standardButtons">
-        <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-       </property>
-      </widget>
+      <layout class="QHBoxLayout" name="horizontalLayout_3">
+       <item>
+        <widget class="QLabel" name="ql_validation_err">
+         <property name="styleSheet">
+          <string notr="true">QLabel { color: red; }</string>
+         </property>
+         <property name="text">
+          <string/>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QDialogButtonBox" name="dialog_btns">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="standardButtons">
+          <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+         </property>
+        </widget>
+       </item>
+      </layout>
      </item>
     </layout>
    </item>
