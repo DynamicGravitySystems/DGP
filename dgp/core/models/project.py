@@ -148,7 +148,7 @@ class ProjectDecoder(json.JSONDecoder):
         else:
             # Handle project entity types
             klass = {self._klass.__name__: self._klass, **project_entities}.get(_type, None)
-        if klass is None:
+        if klass is None:  # pragma: no cover
             raise AttributeError("Unhandled class %s in JSON data. Class is not defined"
                                  " in entity map." % _type)
         instance = klass(**params)
@@ -221,7 +221,7 @@ class GravityProject:
             self._gravimeters.append(child)
             self._modify()
         else:
-            print("Invalid child: " + str(type(child)))
+            raise TypeError("Invalid child type: {!r}".format(child))
 
     def remove_child(self, child_id: OID) -> bool:
         child = child_id.reference  # type: Gravimeter
@@ -275,7 +275,7 @@ class GravityProject:
             except IOError:
                 raise
             else:
-                pprint(json.dumps(self, cls=ProjectEncoder, indent=2))
+                # pprint(json.dumps(self, cls=ProjectEncoder, indent=2))
                 return True
         return json.dumps(self, cls=ProjectEncoder, indent=indent)
 

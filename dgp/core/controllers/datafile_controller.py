@@ -3,6 +3,7 @@ import logging
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QStandardItem, QIcon, QColor, QBrush
 
+from dgp.core.oid import OID
 from dgp.core.controllers.controller_interfaces import IFlightController
 from dgp.core.controllers.controller_mixins import AttributeProxy
 from dgp.core.models.data import DataFile
@@ -33,6 +34,10 @@ class DataFileController(QStandardItem, AttributeProxy):
             ('addAction', ('Delete <%s>' % self._datafile,
                            lambda: self.flight.remove_child(self._datafile, self.row())))
         ]
+
+    @property
+    def uid(self) -> OID:
+        return self._datafile.uid
 
     @property
     def flight(self) -> IFlightController:

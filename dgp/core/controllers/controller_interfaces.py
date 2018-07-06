@@ -26,7 +26,25 @@ class IChild:
 
 
 class IParent:
-    def add_child(self, child) -> None:
+    def add_child(self, child) -> 'IBaseController':
+        """Add a child object to the controller, and its underlying
+        data object.
+
+        Parameters
+        ----------
+        child :
+            The child data object to be added (from :mod:`dgp.core.models`)
+
+        Returns
+        -------
+        :class:`IBaseController`
+            A reference to the controller object wrapping the added child
+
+        Raises
+        ------
+        :exc:`TypeError`
+            If the child is not an allowed type for the controller.
+        """
         raise NotImplementedError
 
     def remove_child(self, child, row: int) -> None:
@@ -39,10 +57,18 @@ class IParent:
 class IBaseController(QStandardItem, AttributeProxy):
     @property
     def uid(self) -> OID:
+        """Return the Object IDentifier of the underlying
+        model object
+
+        Returns
+        -------
+        :obj:`~dgp.core.oid.OID`
+            The OID of the underlying data model object
+        """
         raise NotImplementedError
 
 
-class IAirborneController(IBaseController):
+class IAirborneController(IBaseController, IParent):
     def add_flight(self):
         raise NotImplementedError
 

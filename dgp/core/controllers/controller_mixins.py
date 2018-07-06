@@ -4,7 +4,7 @@ from typing import Any
 
 class AttributeProxy:
     """
-    This mixin provides an interface to selectively allow getattr calls against the
+    This mixin class provides an interface to selectively allow getattr calls against the
     proxied or underlying object in a wrapper class. getattr returns successfully only
     for attributes decorated with @property in the proxied instance.
     """
@@ -14,26 +14,20 @@ class AttributeProxy:
         raise NotImplementedError
 
     def update(self):
-        """Called when an attribute is set, use this to update UI values as necessary"""
-        raise NotImplementedError
+        """Called when an attribute is set, override this to perform
+        UI specific updates, e.g. set the DisplayRole data for a component.
+        """
+        pass
 
     def get_attr(self, key: str) -> Any:
-        klass = self.proxied.__class__
-        if key in klass.__dict__ and isinstance(klass.__dict__[key], property):
+        if hasattr(self.proxied, key):
             return getattr(self.proxied, key)
+        else:
+            raise AttributeError("Object {!r} has no attribute {}".format(self.proxied, key))
 
     def set_attr(self, key: str, value: Any):
-        attrs = self.proxied.__class__.__dict__
-        if key in attrs and isinstance(attrs[key], property):
+        if hasattr(self.proxied, key):
             setattr(self.proxied, key, value)
             self.update()
         else:
-            raise AttributeError("Attribute {!s} does not exist or is private on class {!s}"
-                                 .format(key, self.proxied.__class__.__name__))
-
-    def __getattr__(self, key: str):
-        # TODO: This fails if the property is defined in a super-class
-        klass = self.proxied.__class__
-        if key in klass.__dict__ and isinstance(klass.__dict__[key], property):
-            return getattr(self.proxied, key)
-        raise AttributeError(klass.__name__ + " has no public attribute %s" % key)
+            raise AttributeError("Object {!r} has no attribute {}".format(self.proxied, key))

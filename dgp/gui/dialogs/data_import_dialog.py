@@ -183,7 +183,7 @@ class DataImportDialog(QDialog, Ui_DataImportDialog, FormValidator):
         return True
 
     def _set_date(self):
-        self.qde_date.setDate(self.flight.date)
+        self.qde_date.setDate(self.flight.get_attr('date'))
 
     @pyqtSlot(name='_browse')
     def _browse(self):  # pragma: no cover

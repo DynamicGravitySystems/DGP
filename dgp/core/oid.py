@@ -5,8 +5,12 @@ from uuid import uuid4
 
 
 class OID:
-    """Object IDentifier - Replacing simple str UUID's that had been used.
-        OID's hold a reference to the object it was created for.
+    """Object IDentifier
+
+    Designed as a replacement for the simple string UUID's used previously.
+    OID's hold a reference to the object it was created for.
+    OID's can also contain simple meta-data such as a tag for the object it
+    references.
     """
 
     def __init__(self, obj: Optional[Any] = None, tag: Optional[str] = None, base_uuid: str = None):

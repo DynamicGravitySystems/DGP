@@ -26,46 +26,17 @@ valid_fields = set().union(sensor_fields, cc_fields, platform_fields)
 
 class Gravimeter:
     def __init__(self, name: str, config: dict = None, uid: Optional[OID] = None, **kwargs):
-        self._parent = None
-        self._uid = uid or OID(self)
-        self._uid.set_pointer(self)
-        self._type = "AT1A"
-        self._name = name
-        self._column_format = "AT1A Airborne"
-        self._config = config
-        self._attributes = kwargs.get('attributes', {})
-
-    @property
-    def uid(self) -> OID:
-        return self._uid
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @name.setter
-    def name(self, value: str) -> None:
-        # ToDo: Regex validation?
-        self._name = value
-
-    @property
-    def column_format(self):
-        return self._column_format
-
-    @property
-    def sensor_type(self) -> str:
-        return self._type
-
-    @property
-    def config(self) -> dict:
-        return self._config
-
-    @config.setter
-    def config(self, value: dict) -> None:
-        self._config = value
+        self.parent = None
+        self.uid = uid or OID(self)
+        self.uid.set_pointer(self)
+        self.type = "AT1A"
+        self.name = name
+        self.column_format = "AT1A Airborne"
+        self.config = config
+        self.attributes = kwargs.get('attributes', {})
 
     def set_parent(self, parent):
-        self._parent = parent
+        self.parent = parent
 
     @staticmethod
     def read_config(path: Path) -> Dict[str, Union[str, int, float]]:

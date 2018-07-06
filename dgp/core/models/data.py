@@ -7,37 +7,24 @@ from dgp.core.oid import OID
 
 
 class DataFile:
-    __slots__ = ('_parent', '_uid', '_date', '_name', '_group', '_source_path',
-                 '_column_format')
+    __slots__ = ('parent', 'uid', 'date', 'name', 'group', 'source_path',
+                 'column_format')
 
     def __init__(self, group: str, date: datetime, source_path: Path,
                  name: Optional[str] = None, column_format=None,
                  uid: Optional[OID] = None, parent=None):
-        self._parent = parent
-        self._uid = uid or OID(self)
-        self._uid.set_pointer(self)
-        self._group = group.lower()
-        self._date = date
-        self._source_path = Path(source_path)
-        self._name = name or self._source_path.name
-        self._column_format = column_format
-
-    @property
-    def uid(self) -> OID:
-        return self._uid
-
-    @property
-    def name(self) -> str:
-        """Return the file name of the source data file"""
-        return self._name
+        self.parent = parent
+        self.uid = uid or OID(self)
+        self.uid.set_pointer(self)
+        self.group = group.lower()
+        self.date = date
+        self.source_path = Path(source_path)
+        self.name = name or self.source_path.name
+        self.column_format = column_format
 
     @property
     def label(self) -> str:
         return "[%s] %s" % (self.group, self.name)
-
-    @property
-    def group(self) -> str:
-        return self._group
 
     @property
     def hdfpath(self) -> str:
@@ -48,19 +35,14 @@ class DataFile:
         An underscore (_) is prepended to the parent and uid ID's to suppress the NaturalNameWarning
         generated if the UID begins with a number (invalid Python identifier).
         """
-        return '/_{parent}/{group}/_{uid}'.format(parent=self._parent.uid.base_uuid,
-                                                  group=self._group, uid=self._uid.base_uuid)
-
-    @property
-    def source_path(self) -> Path:
-        if self._source_path is not None:
-            return Path(self._source_path)
+        return '/_{parent}/{group}/_{uid}'.format(parent=self.parent.uid.base_uuid,
+                                                  group=self.group, uid=self.uid.base_uuid)
 
     def set_parent(self, parent):
-        self._parent = parent
+        self.parent = parent
 
     def __str__(self):
-        return "(%s) :: %s" % (self._group, self.hdfpath)
+        return "(%s) :: %s" % (self.group, self.hdfpath)
 
     def __hash__(self):
-        return hash(self._uid)
+        return hash(self.uid)

@@ -20,7 +20,6 @@ from dgp.gui.dialogs.add_flight_dialog import AddFlightDialog
 from . import controller_helpers as helpers
 from .project_containers import ProjectFolder
 
-
 FOLDER_ICON = ":/icons/folder_open.png"
 
 
@@ -210,24 +209,28 @@ class FlightController(IFlightController):
             self._active_trajectory = child
             child.set_active()
 
-    # TODO: Implement and add test coverage
     def get_active_child(self):
+        # TODO: Implement and add test coverage
         pass
 
-    def add_child(self, child: Union[FlightLine, DataFile]) -> Union[FlightLineController, DataFileController, None]:
-        """
-        Add a child to the underlying Flight, and to the model representation
+    def add_child(self, child: Union[FlightLine, DataFile]) -> Union[FlightLineController, DataFileController]:
+        """Adds a child to the underlying Flight, and to the model representation
         for the appropriate child type.
 
         Parameters
         ----------
-        child: Union[FlightLine, DataFile]
+        child : Union[:obj:`FlightLine`, :obj:`DataFile`]
             The child model instance - either a FlightLine or DataFile
 
         Returns
         -------
-        bool: True on successful adding of child,
-              False on fail (e.g. child is not instance of FlightLine or DataFile
+        Union[:obj:`FlightLineController`, :obj:`DataFileController`]
+            Returns a reference to the controller encapsulating the added child
+
+        Raises
+        ------
+        :exc:`TypeError`
+            if child is not a :obj:`FlightLine` or :obj:`DataFile`
 
         """
         child_key = type(child)
@@ -241,27 +244,28 @@ class FlightController(IFlightController):
 
     def remove_child(self, child: Union[FlightLine, DataFile], row: int, confirm: bool = True) -> bool:
         """
-        Remove the specified child primitive from the underlying :obj:`Flight`
+        Remove the specified child primitive from the underlying :obj:`~dgp.core.models.flight.Flight`
         and from the respective model representation within the FlightController
-
-        remove_child verifies that the given row number is valid, and that the data
-        at the given row == the given child.
 
         Parameters
         ----------
-        child: Union[FlightLine, DataFile]
-            The child primitive object to be removed
-        row: int
+        child : Union[:obj:`~dgp.core.models.flight.FlightLine`, :obj:`~dgp.core.models.data.DataFile`]
+            The child model object to be removed
+        row : int
             The row number of the child's controller wrapper
-        confirm: bool Default[True]
+        confirm : bool, optional
             If True spawn a confirmation dialog requiring user input to confirm removal
 
         Returns
         -------
-        bool:
-            True on success
-            False on fail e.g. child is not a member of this Flight, or not of appropriate type,
-                or on a row/child mis-match
+        bool
+            True if successful
+            False if user does not confirm removal action
+
+        Raises
+        ------
+        :exc:`TypeError`
+            if child is not a :obj:`FlightLine` or :obj:`DataFile`
 
         """
         if type(child) not in self._control_map:

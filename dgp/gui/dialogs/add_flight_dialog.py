@@ -76,12 +76,12 @@ class AddFlightDialog(QDialog, Ui_NewFlight, FormValidator):
         super().accept()
 
     def _set_flight(self, flight: IFlightController):
-        self.setWindowTitle("Properties: " + flight.name)
-        self.qle_flight_name.setText(flight.name)
-        self.qte_notes.setText(flight.notes)
-        self.qsb_duration.setValue(flight.duration)
-        self.qsb_sequence.setValue(flight.sequence)
-        self.qde_flight_date.setDate(flight.date)
+        self.setWindowTitle("Properties: " + flight.get_attr('name'))
+        self.qle_flight_name.setText(flight.get_attr('name'))
+        self.qte_notes.setText(flight.get_attr('notes'))
+        self.qsb_duration.setValue(flight.get_attr('duration'))
+        self.qsb_sequence.setValue(flight.get_attr('sequence'))
+        self.qde_flight_date.setDate(flight.get_attr('date'))
 
     @classmethod
     def from_existing(cls, flight: IFlightController,
