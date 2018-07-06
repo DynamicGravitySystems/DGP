@@ -65,7 +65,13 @@ class DataImportDialog(QDialog, Ui_DataImportDialog, FormValidator):
         self.qlw_datatype.setCurrentRow(self._type_map.get(datatype, 0))
 
         self._flight_model = self.project.flight_model  # type: QStandardItemModel
+        self.qcb_flight.currentIndexChanged.connect(self._flight_changed)
         self.qcb_flight.setModel(self._flight_model)
+
+        # Dataset support - experimental
+        self._dataset_model = QStandardItemModel()
+        self.qcb_dataset.setModel(self._dataset_model)
+
         self.qde_date.setDate(datetime.today())
         self._calendar = QCalendarWidget()
         self.qde_date.setCalendarWidget(self._calendar)
@@ -231,12 +237,20 @@ class DataImportDialog(QDialog, Ui_DataImportDialog, FormValidator):
             self.log.debug("No meter available")
             return
         if isinstance(meter_ctrl, mtr.GravimeterController):
-            sensor_type = meter_ctrl.sensor_type or "Unknown"
+            sensor_type = meter_ctrl.get_attr('type') or "Unknown"
             self.qle_sensortype.setText(sensor_type)
-            self.qle_grav_format.setText(meter_ctrl.column_format)
+            self.qle_grav_format.setText(meter_ctrl.get_attr('column_format'))
 
     @pyqtSlot(int, name='_traj_timeformat_changed')
     def _traj_timeformat_changed(self, index: int):  # pragma: no cover
         timefmt = self._traj_timeformat_model.item(index)
         cols = ', '.join(timefmt.data(Qt.UserRole))
         self.qle_traj_format.setText(cols)
+
+    @pyqtSlot(int, name='_flight_changed')
+    def _flight_changed(self, row: int):
+        index = self._flight_model.index(row, 0)
+        flt: IFlightController = self._flight_model.itemFromIndex(index)
+        # ds_model = flt.dataset_model
+
+

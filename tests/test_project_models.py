@@ -14,9 +14,11 @@ from pathlib import Path
 from pprint import pprint
 
 import pytest
-from pandas import DataFrame
+import pandas as pd
 
+from dgp.core.hdf5_manager import HDF5Manager
 from dgp.core.models.data import DataFile
+from dgp.core.models.dataset import DataSet
 from dgp.core.models import project, flight
 from dgp.core.models.meter import Gravimeter
 
@@ -124,7 +126,7 @@ def test_project_attr():
     assert prj_path == prj.path
     assert "Test Project 1" == prj.description
     prj.description = "     Description with gratuitous whitespace      "
-    assert abs(prj.modify_time - datetime.utcnow()).microseconds < 10
+    assert abs(prj.modify_date - datetime.utcnow()).microseconds < 1500
     assert "Description with gratuitous whitespace" == prj.description
 
     prj.set_attr('tie_value', 1234)
@@ -215,7 +217,7 @@ def test_project_serialize(make_flight, make_line, tmpdir):
     enc_date = json.dumps(_date, cls=project.ProjectEncoder)
     assert _date == json.loads(enc_date, cls=project.ProjectDecoder, klass=None)
     with pytest.raises(TypeError):
-        json.dumps(DataFrame([0, 1]), cls=project.ProjectEncoder)
+        json.dumps(pd.DataFrame([0, 1]), cls=project.ProjectEncoder)
 
     # Test serialize to file
     prj.to_json(to_file=True)
@@ -259,7 +261,7 @@ def test_project_deserialize(make_flight, make_line):
     assert serialized == re_serialized
 
     assert attrs == prj_deserialized._attributes
-    assert prj.creation_time == prj_deserialized.creation_time
+    assert prj.create_date == prj_deserialized.create_date
 
     flt_names = [flt.name for flt in prj_deserialized.flights]
     assert f1_name in flt_names
@@ -320,3 +322,24 @@ def test_gravimeter():
         config = meter.read_config(Path("tests/at1a-fake.ini"))
 
     assert {} == meter.read_config(Path("tests/sample_gravity.csv"))
+
+
+def test_dataset(tmpdir):
+    path = Path(tmpdir).joinpath("test.hdf5")
+    df_grav = DataFile('gravity', datetime.utcnow(), Path('gravity.dat'))
+    df_traj = DataFile('trajectory', datetime.utcnow(), Path('gps.dat'))
+    dataset = DataSet(path, df_grav, df_traj)
+
+    assert df_grav == dataset.gravity
+    assert df_traj == dataset.trajectory
+
+    frame_grav = pd.DataFrame([0, 1, 2])
+    frame_traj = pd.DataFrame([7, 8, 9])
+
+    HDF5Manager.save_data(frame_grav, df_grav, path)
+    HDF5Manager.save_data(frame_traj, df_traj, path)
+
+    expected_concat: pd.DataFrame = pd.concat([frame_grav, frame_traj])
+    assert expected_concat.equals(dataset.dataframe)
+
+

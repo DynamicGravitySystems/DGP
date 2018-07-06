@@ -46,3 +46,5 @@ class DataFile:
 
     def __hash__(self):
         return hash(self.uid)
+
+

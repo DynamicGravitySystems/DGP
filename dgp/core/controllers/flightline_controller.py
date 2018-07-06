@@ -12,10 +12,9 @@ from dgp.core.models.flight import FlightLine
 
 class FlightLineController(QStandardItem, AttributeProxy):
 
-    def __init__(self, flightline: FlightLine, controller: IFlightController):
+    def __init__(self, flightline: FlightLine, *args):
         super().__init__()
         self._flightline = flightline
-        self._flight_ctrl = controller
         self.setData(flightline, Qt.UserRole)
         self.setText(str(self._flightline))
         self.setIcon(QIcon(":/icons/AutosizeStretch_16x.png"))
@@ -25,11 +24,7 @@ class FlightLineController(QStandardItem, AttributeProxy):
         return self._flightline.uid
 
     @property
-    def flight(self) -> IFlightController:
-        return self._flight_ctrl
-
-    @property
-    def proxied(self) -> FlightLine:
+    def datamodel(self) -> FlightLine:
         return self._flightline
 
     def update_line(self, start, stop, label: Optional[str] = None):

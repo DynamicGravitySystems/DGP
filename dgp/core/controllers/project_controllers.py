@@ -6,17 +6,17 @@ import shlex
 import sys
 from pathlib import Path
 from pprint import pprint
-from typing import Union
+from typing import Union, List
 
-from PyQt5.QtCore import Qt, QProcess, QObject
-from PyQt5.QtGui import QStandardItem, QBrush, QColor, QStandardItemModel, QIcon
+from PyQt5.QtCore import Qt, QProcess, QObject, QRegExp
+from PyQt5.QtGui import QStandardItem, QBrush, QColor, QStandardItemModel, QIcon, QRegExpValidator
 from PyQt5.QtWidgets import QWidget
 from pandas import DataFrame
 
 from dgp.core.file_loader import FileLoader
 from dgp.core.oid import OID
 from dgp.core.controllers.controller_interfaces import IAirborneController, IFlightController
-from .hdf5_controller import HDFController
+from dgp.core.hdf5_manager import HDF5Manager
 from .flight_controller import FlightController
 from .gravimeter_controller import GravimeterController
 from .project_containers import ProjectFolder
@@ -25,12 +25,12 @@ from dgp.core.controllers.controller_mixins import AttributeProxy
 from dgp.gui.dialogs.add_flight_dialog import AddFlightDialog
 from dgp.gui.dialogs.add_gravimeter_dialog import AddGravimeterDialog
 from dgp.gui.dialogs.data_import_dialog import DataImportDialog
+from dgp.gui.dialogs.project_properties_dialog import ProjectPropertiesDialog
 from dgp.core.models.data import DataFile
 from dgp.core.models.flight import Flight
 from dgp.core.models.meter import Gravimeter
 from dgp.core.models.project import GravityProject, AirborneProject
 from dgp.core.types.enumerations import DataTypes
-from dgp.lib.etc import align_frames
 from dgp.lib.gravity_ingestor import read_at1a
 from dgp.lib.trajectory_ingestor import import_trajectory
 
@@ -46,7 +46,6 @@ class AirborneProjectController(IAirborneController, AttributeProxy):
         self.log = logging.getLogger(__name__)
         self._project = project
         self._parent = None
-        self._hdfc = HDFController(self._project.path)
         self._active = None
 
         self.setIcon(QIcon(":/icons/dgs"))
@@ -71,15 +70,43 @@ class AirborneProjectController(IAirborneController, AttributeProxy):
 
         self._bindings = [
             ('addAction', ('Set Project Name', self.set_name)),
-            ('addAction', ('Show in Explorer', self.show_in_explorer))
+            ('addAction', ('Show in Explorer', self.show_in_explorer)),
+            ('addAction', ('Project Properties', self.properties_dlg))
         ]
+
+        # Experiment - declare underlying properties for UI use
+        # dict key is the attr name (use get_attr to retrieve the value)
+        # tuple of ( editable: True/False, Validator: QValidator )
+        self._fields = {
+            'name': (True, QRegExpValidator(QRegExp("[A-Za-z]+.{4,30}"))),
+            'uid': (False, None),
+            'path': (False, None),
+            'description': (True, None),
+            'create_date': (False, None),
+            'modify_date': (False, None)
+        }
+
+    def validator(self, key: str):
+        if key in self._fields:
+            return self._fields[key][1]
+        return None
+
+    def writeable(self, key: str):
+        if key in self._fields:
+            return self._fields[key][0]
+        return True
+
+    @property
+    def fields(self) -> List[str]:
+        """Return list of public attribute keys (for UI display)"""
+        return list(self._fields.keys())
 
     @property
     def uid(self) -> OID:
         return self._project.uid
 
     @property
-    def proxied(self) -> object:
+    def datamodel(self) -> object:
         return self._project
 
     @property
@@ -94,9 +121,14 @@ class AirborneProjectController(IAirborneController, AttributeProxy):
     def menu_bindings(self):
         return self._bindings
 
+    # TODO: Deprecate
     @property
-    def hdf5store(self) -> HDFController:
-        return self._hdfc
+    def hdf5store(self) -> Path:
+        return self.hdf5path
+
+    @property
+    def hdf5path(self) -> Path:
+        return self._project.path.joinpath("dgpdata.hdf5")
 
     @property
     def meter_model(self) -> QStandardItemModel:
@@ -192,32 +224,20 @@ class AirborneProjectController(IAirborneController, AttributeProxy):
     def update(self):  # pragma: no cover
         """Emit an update event from the parent Model, signalling that
         data has been added/removed/modified in the project."""
+        self.setText(self._project.name)
         if self.model() is not None:
             self.model().project_changed.emit()
 
     def _post_load(self, datafile: DataFile, data: DataFrame):  # pragma: no cover
-        if self.hdf5store.save_data(data, datafile):
+        if HDF5Manager.save_data(data, datafile, path=self.hdf5path):
             self.log.info("Data imported and saved to HDF5 Store")
         return
 
-        # TODO: Implement align_frames functionality as below
-        # TODO: Consider the implications of multiple data files
-        # OR: insert align_frames into the transform graph and deal with it there
-
-        # gravity = flight.gravity
-        # trajectory = flight.trajectory
-        # if gravity is not None and trajectory is not None:
-        #     # align and crop the gravity and trajectory frames
-        #
-        #     from lib.gravity_ingestor import DGS_AT1A_INTERP_FIELDS
-        #     from lib.trajectory_ingestor import TRAJECTORY_INTERP_FIELDS
-        #
-        #     fields = DGS_AT1A_INTERP_FIELDS | TRAJECTORY_INTERP_FIELDS
-        #     new_gravity, new_trajectory = align_frames(gravity, trajectory,
-        #                                                interp_only=fields)
-
     def load_file_dlg(self, datatype: DataTypes = DataTypes.GRAVITY,
                       destination: IFlightController = None):  # pragma: no cover
+        # TODO: Move to dataset controller?
+        # How to get ref to parent window? Recursive search of parents until
+        # widget is found?
         def load_data(datafile: DataFile, params: dict):
             pprint(params)
             if datafile.group == 'gravity':
@@ -238,3 +258,6 @@ class AirborneProjectController(IAirborneController, AttributeProxy):
         dlg.load.connect(load_data)
         dlg.exec_()
 
+    def properties_dlg(self):
+        dlg = ProjectPropertiesDialog(self)
+        dlg.exec_()

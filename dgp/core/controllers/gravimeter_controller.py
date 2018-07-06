@@ -28,7 +28,7 @@ class GravimeterController(IMeterController):
         return self._meter.uid
 
     @property
-    def proxied(self) -> object:
+    def datamodel(self) -> object:
         return self._meter
 
     @property

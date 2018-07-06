@@ -1,18 +1,21 @@
 # -*- coding: utf-8 -*-
 import itertools
 import logging
+from pathlib import Path
 from typing import Optional, Union, Any, Generator
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from pandas import DataFrame
 
+from dgp.core.controllers.dataset_controller import DataSetController
 from dgp.core.oid import OID
 from dgp.core.controllers.controller_interfaces import IAirborneController, IFlightController
 from dgp.core.controllers.datafile_controller import DataFileController
 from dgp.core.controllers.flightline_controller import FlightLineController
 from dgp.core.controllers.gravimeter_controller import GravimeterController
 from dgp.core.models.data import DataFile
+from dgp.core.models.dataset import DataSet
 from dgp.core.models.flight import Flight, FlightLine
 from dgp.core.models.meter import Gravimeter
 from dgp.core.types.enumerations import DataTypes
@@ -46,6 +49,11 @@ class FlightController(IFlightController):
     by implementing __getattr__, and allowing access to any @property decorated
     methods of the Flight.
     """
+
+    @property
+    def hdf5path(self) -> Path:
+        return self._parent.hdf5store
+
     inherit_context = True
 
     def __init__(self, flight: Flight, parent: IAirborneController = None):
@@ -57,43 +65,34 @@ class FlightController(IFlightController):
         self.setData(flight, Qt.UserRole)
         self.setEditable(False)
 
-        self._active = False
+        self._datasets = ProjectFolder("Datasets", FOLDER_ICON)
+        self._active_dataset: DataSetController = None
 
-        self._flight_lines = ProjectFolder("Flight Lines", FOLDER_ICON)
-        self._data_files = ProjectFolder("Data Files", FOLDER_ICON)
         self._sensors = ProjectFolder("Sensors", FOLDER_ICON)
-        self.appendRow(self._flight_lines)
-        self.appendRow(self._data_files)
+        self.appendRow(self._datasets)
         self.appendRow(self._sensors)
 
-        self._control_map = {FlightLine: FlightLineController,
-                             DataFile: DataFileController,
+        self._control_map = {DataSet: DataSetController,
                              Gravimeter: GravimeterController}
-        self._child_map = {FlightLine: self._flight_lines,
-                           DataFile: self._data_files,
+        self._child_map = {DataSet: self._datasets,
                            Gravimeter: self._sensors}
 
         self._data_model = QStandardItemModel()
+        # TODO: How to keep this synced?
+        self._dataset_model = QStandardItemModel()
 
-        for line in self._flight.flight_lines:
-            self._flight_lines.appendRow(FlightLineController(line, self))
-
-        for file in self._flight.data_files:  # type: DataFile
-            self._data_files.appendRow(DataFileController(file, self))
-
-        self._active_gravity = None  # type: DataFileController
-        self._active_trajectory = None  # type: DataFileController
-
-        # Set the first available gravity/trajectory file to active
-        for file_ctrl in self._data_files.items():  # type: DataFileController
-            if self._active_gravity is None and file_ctrl.data_group == 'gravity':
-                self.set_active_child(file_ctrl)
-            if self._active_trajectory is None and file_ctrl.data_group == 'trajectory':
-                self.set_active_child(file_ctrl)
+        for dataset in self._flight._datasets:
+            control = DataSetController(dataset, self)
+            self._datasets.appendRow(control)
+            if dataset._active:
+                self.set_active_dataset(control)
 
         # TODO: Consider adding MenuPrototype class which could provide the means to build QMenu
         self._bindings = [  # pragma: no cover
-            ('addAction', ('Set Active', lambda: self.get_parent().set_active_child(self))),
+            ('addAction', ('Add Dataset', lambda: None)),
+            ('addAction', ('Set Active',
+                           lambda: self.get_parent().set_active_child(self))),
+            # TODO: Move these actions to Dataset controller?
             ('addAction', ('Import Gravity',
                            lambda: self.get_parent().load_file_dlg(DataTypes.GRAVITY, self))),
             ('addAction', ('Import Trajectory',
@@ -113,12 +112,15 @@ class FlightController(IFlightController):
         return self._flight.uid
 
     @property
-    def proxied(self) -> object:
+    def datamodel(self) -> object:
         return self._flight
 
+    # TODO: Rename this (maybe deprecated with DataSets)
     @property
     def data_model(self) -> QStandardItemModel:
-        """Return the data model representing each active Data channel in the flight"""
+        """Return the data model representing each active Data channel in
+        the flight
+        """
         return self._data_model
 
     @property
@@ -131,32 +133,6 @@ class FlightController(IFlightController):
             object.
         """
         return self._bindings
-
-    @property
-    def gravity(self):
-        if not self._active_gravity:  # pragma: no cover
-            self.log.warning("No gravity file is set to active state.")
-            return None
-        return self._active_gravity.get_data()
-
-    @property
-    def trajectory(self):
-        if self._active_trajectory is None:  # pragma: no cover
-            self.log.warning("No trajectory file is set to active state.")
-            return None
-        return self._active_trajectory.get_data()
-
-    @property
-    def lines_model(self) -> QStandardItemModel:
-        """
-        Returns the :obj:`QStandardItemModel` of FlightLine wrapper objects
-        """
-        return self._flight_lines.internal_model
-
-    @property
-    def lines(self) -> Generator[FlightLine, None, None]:
-        for line in self._flight.flight_lines:
-            yield line
 
     def get_parent(self) -> IAirborneController:
         return self._parent
@@ -175,45 +151,18 @@ class FlightController(IFlightController):
         return self.get_parent().get_active_child() == self
 
     # TODO: This is not fully implemented
-    def set_active_child(self, child: DataFileController, emit: bool = True):
-        if not isinstance(child, DataFileController):
-            raise TypeError("Child {0!r} cannot be set to active (invalid type)".format(child))
-        try:
-            df = self.load_data(child)
-        except LoadError:
-            self.log.exception("Error loading DataFile")
-            return
-
-        for i in range(self._data_files.rowCount()):
-            ci = self._data_files.child(i, 0)  # type: DataFileController
-            if ci.data_group == child.data_group:
-                ci.set_inactive()
-
-        self.data_model.clear()
-        if child.data_group == 'gravity':
-            self._active_gravity = child
-            child.set_active()
-
-            # Experimental work on channel model
-            # TODO: Need a way to clear ONLY the appropriate channels from the model, not all
-            # e.g. don't clear trajectory channels when gravity file is changed
-
-            for col in df:
-                channel = QStandardItem(col)
-                channel.setData(df[col], Qt.UserRole)
-                channel.setCheckable(True)
-                self._data_model.appendRow([channel, QStandardItem("Plot1"), QStandardItem("Plot2")])
-
-        # TODO: Implement and add test coverage
-        elif child.data_group == 'trajectory':  # pragma: no cover
-            self._active_trajectory = child
-            child.set_active()
+    def set_active_dataset(self, dataset: DataSetController,
+                           emit: bool = True):
+        if not isinstance(dataset, DataSetController):
+            raise TypeError("Child {0!r} cannot be set to active (invalid type)".format(dataset))
+        dataset.set_active(True)
+        self._active_dataset = dataset
 
     def get_active_child(self):
         # TODO: Implement and add test coverage
-        pass
+        return self._active_dataset
 
-    def add_child(self, child: Union[FlightLine, DataFile]) -> Union[FlightLineController, DataFileController]:
+    def add_child(self, child: DataSet) -> DataSetController:
         """Adds a child to the underlying Flight, and to the model representation
         for the appropriate child type.
 
@@ -285,18 +234,9 @@ class FlightController(IFlightController):
         A string base_uuid can be passed, or an :obj:`OID` object for comparison
         """
         # TODO: Should this also search datafiles?
-        for item in itertools.chain(self._flight_lines.items(),  # pragma: no branch
-                                    self._data_files.items()):
+        for item in self._datasets.items():
             if item.uid == uid:
                 return item
-
-    def load_data(self, datafile: DataFileController) -> DataFrame:
-        if self.get_parent() is None:
-            raise LoadError("Flight has no parent or HDF Controller")
-        try:
-            return self.get_parent().hdf5store.load_data(datafile.data(Qt.UserRole))
-        except OSError as e:
-            raise LoadError from e
 
     def set_name(self):  # pragma: no cover
         name = helpers.get_input("Set Name", "Enter a new name:", self._flight.name)

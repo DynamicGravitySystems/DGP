@@ -167,7 +167,7 @@ class PqtLineSelectPlot(QtCore.QObject):
             stop = xpos + (vb_span * 0.05)
             self.add_linked_selection(start, stop)
 
-    def add_linked_selection(self, start, stop, uid=None, label=None):
+    def add_linked_selection(self, start, stop, uid=None, label=None, emit=True):
         """
         Add a LinearFlightRegion selection across all linked x-axes
         With width ranging from start:stop
@@ -183,7 +183,7 @@ class PqtLineSelectPlot(QtCore.QObject):
         patch_region = [start, stop]
 
         lfr_group = []
-        grpid = uid or OID(tag='flightline')
+        grpid = uid or OID(tag='segment')
         # Note pd.to_datetime(scalar) returns pd.Timestamp
         update = LineUpdate('add', grpid,
                             pd.to_datetime(start), pd.to_datetime(stop), None)
@@ -197,10 +197,10 @@ class PqtLineSelectPlot(QtCore.QObject):
             lfr.setMovable(self._selecting)
             lfr_group.append(lfr)
             lfr.sigRegionChanged.connect(self.update)
-            # self._group_map[lfr] = grpid
 
         self._selections[grpid] = lfr_group
-        self.line_changed.emit(update)
+        if emit:
+            self.line_changed.emit(update)
 
     def remove(self, item: LinearFlightRegion):
         if not isinstance(item, LinearFlightRegion):

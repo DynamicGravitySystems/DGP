@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import List, Optional, Union
 
 from dgp.core.models.data import DataFile
+from dgp.core.models.dataset import DataSet
 from dgp.core.models.meter import Gravimeter
 from dgp.core.oid import OID
 
@@ -49,8 +50,8 @@ class Flight:
     Define a Flight class used to record and associate data with an entire
     survey flight (takeoff -> landing)
     """
-    __slots__ = ('uid', 'name', '_flight_lines', '_data_files', '_meter', 'date',
-                 'notes', 'sequence', 'duration', 'parent')
+    __slots__ = ('uid', 'name', '_flight_lines', '_data_files', '_datasets', '_meter',
+                 'date', 'notes', 'sequence', 'duration', 'parent')
 
     def __init__(self, name: str, date: Optional[datetime] = None, notes: Optional[str] = None,
                  sequence: int = 0, duration: int = 0, meter: str = None,
@@ -66,6 +67,7 @@ class Flight:
 
         self._flight_lines = kwargs.get('flight_lines', [])  # type: List[FlightLine]
         self._data_files = kwargs.get('data_files', [])  # type: List[DataFile]
+        self._datasets = kwargs.get('datasets', [])  # type: List[DataSet]
         self._meter = meter
 
     @property
@@ -76,7 +78,7 @@ class Flight:
     def flight_lines(self) -> List[FlightLine]:
         return self._flight_lines
 
-    def add_child(self, child: Union[FlightLine, DataFile, Gravimeter]) -> None:
+    def add_child(self, child: Union[FlightLine, DataFile, DataSet, Gravimeter]) -> None:
         # TODO: Is add/remove child necesarry or useful, just allow direct access to the underlying lists?
         if child is None:
             return
@@ -84,6 +86,8 @@ class Flight:
             self._flight_lines.append(child)
         elif isinstance(child, DataFile):
             self._data_files.append(child)
+        elif isinstance(child, DataSet):
+            self._datasets.append(child)
         elif isinstance(child, Gravimeter):  # pragma: no cover
             # TODO: Implement this properly
             self._meter = child.uid.base_uuid

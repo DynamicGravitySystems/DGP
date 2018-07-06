@@ -47,7 +47,7 @@ class IParent:
         """
         raise NotImplementedError
 
-    def remove_child(self, child, row: int) -> None:
+    def remove_child(self, child, row: int, confirm: bool = True) -> None:
         raise NotImplementedError
 
     def get_child(self, uid: Union[str, OID]) -> IChild:
@@ -102,15 +102,20 @@ class IAirborneController(IBaseController, IParent):
 
 
 class IFlightController(IBaseController, IParent, IChild):
-    def load_data(self, datafile) -> DataFrame:
-        raise NotImplementedError
-
     def set_active_child(self, child, emit: bool = True):
         raise NotImplementedError
 
     def get_active_child(self):
         raise NotImplementedError
 
+    @property
+    def hdf5path(self) -> Path:
+        raise NotImplementedError
+
 
 class IMeterController(IBaseController, IChild):
+    pass
+
+
+class IDataSetController(IBaseController, IChild):
     pass

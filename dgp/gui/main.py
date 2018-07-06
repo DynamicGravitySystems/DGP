@@ -65,7 +65,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         # Setup Project
         self.project = project
-        self.project.set_parent(self)
+        self.project.set_parent_widget(self)
         self.project_model = ProjectTreeModel(self.project)
         self.project_tree.setModel(self.project_model)
         self.project_tree.expandAll()
@@ -115,9 +115,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         # Project Menu Actions #
         self.action_import_gps.triggered.connect(
-            lambda: self.project.load_file(enums.DataTypes.TRAJECTORY, ))
+            lambda: self.project.load_file_dlg(enums.DataTypes.TRAJECTORY, ))
         self.action_import_grav.triggered.connect(
-            lambda: self.project.load_file(enums.DataTypes.GRAVITY, ))
+            lambda: self.project.load_file_dlg(enums.DataTypes.GRAVITY, ))
         self.action_add_flight.triggered.connect(self.project.add_flight)
         self.action_add_meter.triggered.connect(self.project.add_gravimeter)
 
@@ -125,9 +125,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.prj_add_flight.clicked.connect(self.project.add_flight)
         self.prj_add_meter.clicked.connect(self.project.add_gravimeter)
         self.prj_import_gps.clicked.connect(
-            lambda: self.project.load_file(enums.DataTypes.TRAJECTORY, ))
+            lambda: self.project.load_file_dlg(enums.DataTypes.TRAJECTORY, ))
         self.prj_import_grav.clicked.connect(
-            lambda: self.project.load_file(enums.DataTypes.GRAVITY, ))
+            lambda: self.project.load_file_dlg(enums.DataTypes.GRAVITY, ))
 
         # Tab Browser Actions #
         self.flight_tabs.tabCloseRequested.connect(self._tab_closed)
@@ -201,7 +201,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         else:
             flt_tab = FlightTab(flight)
             self._open_tabs[flight.uid] = flt_tab
-            idx = self.flight_tabs.addTab(flt_tab, flight.name)
+            idx = self.flight_tabs.addTab(flt_tab, flight.get_attr('name'))
             self.flight_tabs.setCurrentIndex(idx)
 
     @pyqtSlot(name='_project_mutated')

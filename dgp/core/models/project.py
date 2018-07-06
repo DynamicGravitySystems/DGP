@@ -159,25 +159,21 @@ class ProjectDecoder(json.JSONDecoder):
 
 
 class GravityProject:
-    def __init__(self, name: str, path: Union[Path, str], description: Optional[str] = None,
+    def __init__(self, name: str, path: Union[Path], description: Optional[str] = None,
                  create_date: Optional[datetime.datetime] = None,
                  modify_date: Optional[datetime.datetime] = None,
                  uid: Optional[str] = None, **kwargs):
-        self._uid = uid or OID(self, tag=name)
-        self._uid.set_pointer(self)
+        self.uid = uid or OID(self, tag=name)
+        self.uid.set_pointer(self)
         self._name = name
         self._path = path
         self._projectfile = PROJECT_FILE_NAME
-        self._description = description
-        self._create_date = create_date or datetime.datetime.utcnow()
-        self._modify_date = modify_date or self._create_date
+        self._description = description or ""
+        self.create_date = create_date or datetime.datetime.utcnow()
+        self.modify_date = modify_date or datetime.datetime.utcnow()
 
         self._gravimeters = kwargs.get('gravimeters', [])  # type: List[Gravimeter]
         self._attributes = kwargs.get('attributes', {})  # type: Dict[str, Any]
-
-    @property
-    def uid(self) -> OID:
-        return self._uid
 
     @property
     def name(self) -> str:
@@ -192,6 +188,10 @@ class GravityProject:
     def path(self) -> Path:
         return Path(self._path)
 
+    @path.setter
+    def path(self, value: str) -> None:
+        self._path = Path(value)
+
     @property
     def description(self) -> str:
         return self._description
@@ -200,14 +200,6 @@ class GravityProject:
     def description(self, value: str):
         self._description = value.strip()
         self._modify()
-
-    @property
-    def creation_time(self) -> datetime.datetime:
-        return self._create_date
-
-    @property
-    def modify_time(self) -> datetime.datetime:
-        return self._modify_date
 
     @property
     def gravimeters(self) -> List[Gravimeter]:
@@ -233,6 +225,7 @@ class GravityProject:
     def __repr__(self):
         return '<%s: %s/%s>' % (self.__class__.__name__, self.name, str(self.path))
 
+    # TODO: Are these useful, or just fluff that should be removed
     def set_attr(self, key: str, value: Union[str, int, float, bool]) -> None:
         """Permit explicit meta-date attributes.
             We don't use the __setattr__ override as it complicates instance
@@ -258,6 +251,7 @@ class GravityProject:
     # Protected utility methods
     def _modify(self):
         """Set the modify_date to now"""
+        print("Updating project modify time")
         self._modify_date = datetime.datetime.utcnow()
 
     # Serialization/De-Serialization methods

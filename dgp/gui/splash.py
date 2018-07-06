@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-
-
 import sys
 import json
 import logging
@@ -9,18 +7,16 @@ from typing import Dict, Union
 
 import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtCore as QtCore
-from PyQt5.uic import loadUiType
 
 from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.core.models.project import AirborneProject, GravityProject
 from dgp.gui.main import MainWindow
 from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, LOG_COLOR_MAP, get_project_file
 from dgp.gui.dialogs.create_project_dialog import CreateProjectDialog
+from dgp.gui.ui.splash_screen import Ui_Launcher
 
-splash_screen, _ = loadUiType('dgp/gui/ui/splash_screen.ui')
 
-
-class SplashScreen(QtWidgets.QDialog, splash_screen):
+class SplashScreen(QtWidgets.QDialog, Ui_Launcher):
     def __init__(self, *args):
         super().__init__(*args)
         self.log = self.setup_logging()

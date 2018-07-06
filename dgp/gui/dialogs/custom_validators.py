@@ -29,6 +29,12 @@ class FileExistsValidator(QValidator):
 
 
 class DirectoryValidator(QValidator):
+    """Used to validate a directory path.
+
+    If exist_ok is True, validation will be successful if the directory already exists.
+    If exist_ok is False, validation will only be successful if the parent of the specified
+    path is a directory, and it exists.
+    """
     def __init__(self, exist_ok=True, parent=None):
         super().__init__(parent=parent)
         self._exist_ok = exist_ok
@@ -40,6 +46,8 @@ class DirectoryValidator(QValidator):
         except TypeError:
             return QValidator.Invalid, value, pos
 
+        if path.is_reserved():
+            return QValidator.Invalid, value, pos
         if path.is_file():
             return QValidator.Invalid, value, pos
 

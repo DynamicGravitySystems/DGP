@@ -251,6 +251,7 @@
    <addaction name="action_import_gps"/>
    <addaction name="action_import_grav"/>
    <addaction name="separator"/>
+   <addaction name="action_project_dock_2"/>
   </widget>
   <widget class="QDockWidget" name="info_dock">
    <property name="sizePolicy">
@@ -626,12 +627,27 @@
     <string>Import Gravity</string>
    </property>
   </action>
+  <action name="action_project_dock_2">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="resources/resources.qrc">
+     <normaloff>:/icons/dgs</normaloff>:/icons/dgs</iconset>
+   </property>
+   <property name="text">
+    <string>Project Dock</string>
+   </property>
+   <property name="toolTip">
+    <string>Toggle the Project Sidebar</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>
    <class>ProjectTreeView</class>
    <extends>QTreeView</extends>
-   <header>dgp.core.views.ProjectTreeView</header>
+   <header>dgp.gui.views.ProjectTreeView</header>
   </customwidget>
   <customwidget>
    <class>MainWorkspace</class>
@@ -724,6 +740,38 @@
     <hint type="destinationlabel">
      <x>750</x>
      <y>987</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>action_project_dock_2</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>project_dock</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>135</x>
+     <y>459</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>project_dock</sender>
+   <signal>visibilityChanged(bool)</signal>
+   <receiver>action_project_dock_2</receiver>
+   <slot>setChecked(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>135</x>
+     <y>459</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
     </hint>
    </hints>
   </connection>

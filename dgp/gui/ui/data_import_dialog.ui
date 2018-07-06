@@ -206,24 +206,44 @@
          </item>
         </layout>
        </item>
-       <item row="5" column="0">
-        <widget class="QLabel" name="ql_notes">
+       <item row="3" column="0">
+        <widget class="QLabel" name="ql_dataset">
          <property name="text">
-          <string>Notes</string>
-         </property>
-         <property name="buddy">
-          <cstring>qpte_notes</cstring>
-         </property>
-        </widget>
-       </item>
-       <item row="5" column="1">
-        <widget class="QPlainTextEdit" name="qpte_notes">
-         <property name="horizontalScrollBarPolicy">
-          <enum>Qt::ScrollBarAlwaysOff</enum>
+          <string>Dataset</string>
          </property>
         </widget>
        </item>
        <item row="3" column="1">
+        <layout class="QHBoxLayout" name="horizontalLayout_4">
+         <property name="spacing">
+          <number>2</number>
+         </property>
+         <item>
+          <widget class="QComboBox" name="qcb_dataset"/>
+         </item>
+         <item>
+          <widget class="QPushButton" name="qpb_add_dataset">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Add Dataset...</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="4" column="0">
+        <widget class="QLabel" name="ql_date">
+         <property name="text">
+          <string>Date</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
         <layout class="QHBoxLayout" name="qhbl_date">
          <item>
           <widget class="QDateEdit" name="qde_date"/>
@@ -250,10 +270,20 @@
          </item>
         </layout>
        </item>
-       <item row="3" column="0">
-        <widget class="QLabel" name="ql_date">
+       <item row="5" column="0">
+        <widget class="QLabel" name="ql_notes">
          <property name="text">
-          <string>Date</string>
+          <string>Notes</string>
+         </property>
+         <property name="buddy">
+          <cstring>qpte_notes</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="1">
+        <widget class="QPlainTextEdit" name="qpte_notes">
+         <property name="horizontalScrollBarPolicy">
+          <enum>Qt::ScrollBarAlwaysOff</enum>
          </property>
         </widget>
        </item>

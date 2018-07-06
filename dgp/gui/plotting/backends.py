@@ -34,7 +34,8 @@ __all__ = ['PyQtGridPlotWidget']
 class PyQtGridPlotWidget(GraphicsView):
     # TODO: Use multiple Y-Axes to plot 2 lines of different scales
     # See pyqtgraph/examples/MultiplePlotAxes.py
-    colors = ['r', 'g', 'b', 'g']
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+              '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
     colorcycle = cycle([{'color': v} for v in colors])
 
     def __init__(self, rows=1, cols=1, background='w', grid=True,
@@ -102,8 +103,13 @@ class PyQtGridPlotWidget(GraphicsView):
 
     def clear(self):
         """Clear all lines from all plots"""
-        # TODO: Implement this
-        pass
+        for sid in self._lines:
+            for plot in self._plots:
+                plot.legend.removeItem(self._lines[sid].name())
+                plot.removeItem(self._lines[sid])
+
+        self._lines = {}
+
 
     def add_onclick_handler(self, slot, rateLimit=60):
         sp = SignalProxy(self._gl.scene().sigMouseClicked, rateLimit=rateLimit,
