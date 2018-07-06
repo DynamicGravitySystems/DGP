@@ -6,15 +6,13 @@ from PyQt5.QtCore import QObject, QModelIndex, pyqtSlot, pyqtBoundSignal
 from PyQt5.QtGui import QContextMenuEvent, QStandardItem
 from PyQt5.QtWidgets import QTreeView, QMenu
 
-from dgp.core.controllers.flight_controller import FlightController
-from dgp.core.controllers.project_controllers import AirborneProjectController
-from dgp.core.models.ProjectTreeModel import ProjectTreeModel
+from dgp.core.controllers.controller_interfaces import IFlightController, IAirborneController
+from core.controllers.project_treemodel import ProjectTreeModel
 
 
 class ProjectTreeView(QTreeView):
     def __init__(self, parent: Optional[QObject]=None):
         super().__init__(parent=parent)
-        print("Initializing ProjectTreeView")
         self.setMinimumSize(QtCore.QSize(0, 300))
         self.setAlternatingRowColors(False)
         self.setAutoExpandDelay(1)
@@ -48,7 +46,7 @@ class ProjectTreeView(QTreeView):
     def _on_double_click(self, index: QModelIndex):
         """Selectively expand/collapse an item depending on its active state"""
         item = self.model().itemFromIndex(index)
-        if isinstance(item, FlightController):
+        if isinstance(item, IFlightController):
             if item.is_active():
                 self.setExpanded(index, not self.isExpanded(index))
             else:
@@ -90,7 +88,7 @@ class ProjectTreeView(QTreeView):
         #     pprint(ancestor_bindings)
         #     bindings.extend(ancestor_bindings)
 
-        if isinstance(item, AirborneProjectController):
+        if isinstance(item, IAirborneController):
             bindings.insert(0, ('addAction', ("Expand All", self.expandAll)))
 
         bindings.append(('addAction', ("Expand" if not expanded else "Collapse",
