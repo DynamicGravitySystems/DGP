@@ -12,8 +12,8 @@ from dgp.core.models.flight import Flight
 from dgp.core.models.meter import Gravimeter
 from dgp.core.models.project import AirborneProject
 from dgp.core.oid import OID
-from lib.gravity_ingestor import read_at1a
-from lib.trajectory_ingestor import import_trajectory
+from dgp.lib.gravity_ingestor import read_at1a
+from dgp.lib.trajectory_ingestor import import_trajectory
 
 
 def get_ts(offset=0):

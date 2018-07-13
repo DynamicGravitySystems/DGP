@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from core.oid import OID
+from dgp.core.oid import OID
 from dgp.core.controllers.controller_interfaces import IBaseController
 
 

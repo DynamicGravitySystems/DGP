@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>732</width>
-    <height>685</height>
+    <height>683</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -223,6 +223,9 @@
          </item>
          <item>
           <widget class="QPushButton" name="qpb_add_dataset">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
            <property name="sizePolicy">
             <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
              <horstretch>0</horstretch>
@@ -230,7 +233,7 @@
             </sizepolicy>
            </property>
            <property name="text">
-            <string>Add Dataset...</string>
+            <string>New Dataset</string>
            </property>
           </widget>
          </item>

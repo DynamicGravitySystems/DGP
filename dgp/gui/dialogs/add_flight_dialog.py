@@ -25,7 +25,7 @@ class AddFlightDialog(QDialog, Ui_NewFlight, FormValidator):
         self.qpb_add_sensor.clicked.connect(self._project.add_gravimeter)
 
         # Configure Form Validation
-        self._name_validator = QRegExpValidator(QRegExp(".{4,20}"))
+        self._name_validator = QRegExpValidator(QRegExp("[A-Za-z]+.{2,20}"))
         self.qle_flight_name.setValidator(self._name_validator)
 
         if self._flight is not None:

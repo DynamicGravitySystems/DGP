@@ -8,8 +8,7 @@ from PyQt5.QtGui import QStandardItem
 from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QDockWidget, QSizePolicy
 import PyQt5.QtWidgets as QtWidgets
 
-from dgp.core.controllers.dataset_controller import DataSetController
-from gui.widgets.channel_select_widget import ChannelSelectWidget
+from dgp.gui.widgets.channel_select_widget import ChannelSelectWidget
 from dgp.core.controllers.flight_controller import FlightController
 from dgp.gui.plotting.plotters import LineUpdate, PqtLineSelectPlot
 from . import BaseTab
@@ -19,20 +18,17 @@ class PlotTab(BaseTab):
     """Sub-tab displayed within Flight tab interface. Displays canvas for
     plotting data series."""
     _name = "Line Selection"
-    defaults = {'gravity': 0, 'long': 1, 'cross': 1}
 
-    def __init__(self, label: str, flight: FlightController,
-                 dataset: DataSetController, **kwargs):
+    def __init__(self, label: str, flight: FlightController, **kwargs):
         # TODO: It will make more sense to associate a DataSet with the plot vs a Flight
         super().__init__(label, flight, **kwargs)
         self.log = logging.getLogger(__name__)
-        self._dataset = dataset
+        self._dataset = flight.get_active_dataset()
         self.plot: PqtLineSelectPlot = PqtLineSelectPlot(rows=2)
         self.plot.line_changed.connect(self._on_modified_line)
         self._setup_ui()
 
-        # TODO: Lines should probably be associated with data files
-        # There should also be a check to ensure that the lines are within the bounds of the data
+        # TODO:There should also be a check to ensure that the lines are within the bounds of the data
         # Huge slowdowns occur when trying to plot a FlightLine and a channel when the points are weeks apart
         # for line in flight.lines:
         #     self.plot.add_linked_selection(line.start.timestamp(), line.stop.timestamp(), uid=line.uid, emit=False)
@@ -60,7 +56,8 @@ class PlotTab(BaseTab):
                                    alignment=Qt.AlignRight)
         qvbl_plot_layout.addLayout(qhbl_top_buttons)
 
-        channel_widget = ChannelSelectWidget(self._dataset.channel_model)
+        channel_widget = ChannelSelectWidget(self._dataset.series_model)
+        self.log.debug(f'Dataset is {self._dataset!s} with {self._dataset.series_model.rowCount()} rows')
         channel_widget.channel_added.connect(self._channel_added)
         channel_widget.channel_removed.connect(self._channel_removed)
         channel_widget.channels_cleared.connect(self._clear_plot)
@@ -94,8 +91,6 @@ class PlotTab(BaseTab):
             self._mode_label.setText("")
 
     def _on_modified_line(self, update: LineUpdate):
-        # TODO: Update this to work with new project
-        print(update)
         start = update.start
         stop = update.stop
         try:

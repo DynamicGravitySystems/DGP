@@ -13,7 +13,7 @@ from PyQt5.QtCore import pyqtSignal
 from pyqtgraph import PlotItem
 
 from dgp.core.oid import OID
-from core.types.tuples import LineUpdate
+from dgp.core.types.tuples import LineUpdate
 from .helpers import LinearFlightRegion
 from .backends import PyQtGridPlotWidget
 
