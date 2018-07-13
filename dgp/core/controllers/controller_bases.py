@@ -4,9 +4,6 @@ from dgp.core.controllers.controller_interfaces import IBaseController
 
 
 class BaseController(IBaseController):
-    def __init__(self, parent=None):
-        super().__init__()
-
     @property
     def uid(self) -> OID:
         raise NotImplementedError

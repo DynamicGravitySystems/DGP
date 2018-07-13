@@ -10,7 +10,7 @@ from pandas import DataFrame
 
 
 class FileLoader(QThread):
-    completed = pyqtSignal(DataFrame, Path)
+    loaded = pyqtSignal(DataFrame, Path)
     error = pyqtSignal(Exception)
 
     def __init__(self, path: Path, method: Callable, parent, **kwargs):
@@ -29,6 +29,4 @@ class FileLoader(QThread):
             self.log.exception("Error loading datafile: %s" % str(self._path))
             self.error.emit(e)
         else:
-            self.completed.emit(result, self._path)
-
-
+            self.loaded.emit(result, self._path)

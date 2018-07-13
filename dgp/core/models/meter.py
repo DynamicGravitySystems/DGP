@@ -26,7 +26,7 @@ valid_fields = set().union(sensor_fields, cc_fields, platform_fields)
 
 class Gravimeter:
     def __init__(self, name: str, config: dict = None, uid: Optional[OID] = None, **kwargs):
-        self.parent = None
+        self._parent = None
         self.uid = uid or OID(self)
         self.uid.set_pointer(self)
         self.type = "AT1A"
@@ -35,8 +35,13 @@ class Gravimeter:
         self.config = config
         self.attributes = kwargs.get('attributes', {})
 
-    def set_parent(self, parent):
-        self.parent = parent
+    @property
+    def parent(self):
+        return self._parent
+
+    @parent.setter
+    def parent(self, value):
+        self._parent = value
 
     @staticmethod
     def read_config(path: Path) -> Dict[str, Union[str, int, float]]:

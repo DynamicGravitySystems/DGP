@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pathlib import Path
-from typing import List
+from typing import List, Union
 from datetime import datetime
 
 import pandas as pd
@@ -39,7 +39,10 @@ class DataSegment:
         self._stop = value
 
     def __str__(self):
-        return "Segment <{:%H:%M} -> {:%H:%M}>".format(self.start, self.stop)
+        return f'<{self.start:%H:%M} - {self.stop:%H:%M}>'
+
+    def __repr__(self):
+        return f'<DataSegment {self.uid!s} {self.start:%H:%M} - {self.stop:%H:%M}>'
 
 
 class DataSet:
@@ -47,6 +50,19 @@ class DataSet:
 
     DataSets can have segments defined, e.g. for an Airborne project these
     would be Flight Lines.
+
+    Parameters
+    ----------
+    path : Path, optional
+        File system path to the HDF5 file where data from this dataset will reside
+    gravity : :obj:`DataFile`, optional
+        Optional Gravity DataFile to initialize this DataSet with
+    trajectory : :obj:`DataFile`, optional
+        Optional Trajectory DataFile to initialize this DataSet with
+    segments : List[:obj:`DataSegment`], optional
+        Optional list of DataSegment's to initialize this DataSet with
+    uid
+    parent
 
     Notes
     -----
@@ -60,58 +76,50 @@ class DataSet:
         self._parent = parent
         self.uid = uid or OID(self)
         self.uid.set_pointer(self)
+        self.segments = segments or []
         self._path: Path = path
-        self._active: bool = False
-        self._aligned: bool = False
-        self._segments = segments or []
 
-        self._gravity = gravity
-        if self._gravity is not None:
-            self._gravity.set_parent(self)
-        self._trajectory = trajectory
-        if self._trajectory is not None:
-            self._trajectory.set_parent(self)
-
-    def _align_frames(self):
-        pass
+        self.gravity = gravity
+        if self.gravity is not None:
+            self.gravity.set_parent(self)
+        self.trajectory = trajectory
+        if self.trajectory is not None:
+            self.trajectory.set_parent(self)
 
     @property
-    def gravity(self) -> DataFile:
-        return self._gravity
+    def gravity_frame(self) -> Union[pd.DataFrame, None]:
+        try:
+            return HDF5Manager.load_data(self.gravity, self._path)
+        except Exception:
+            return None
 
     @property
-    def trajectory(self) -> DataFile:
-        return self._trajectory
+    def trajectory_frame(self) -> Union[pd.DataFrame, None]:
+        try:
+            return HDF5Manager.load_data(self.trajectory, self._path)
+        except Exception:
+            return None
 
     @property
-    def dataframe(self) -> pd.DataFrame:
+    def dataframe(self) -> Union[pd.DataFrame, None]:
         """Return the concatenated DataFrame of gravity and trajectory data."""
-        grav_data = HDF5Manager.load_data(self.gravity, self._path)
-        traj_data = HDF5Manager.load_data(self.trajectory, self._path)
-        frame: pd.DataFrame = pd.concat([grav_data, traj_data])
-        # Or use align_frames?
-        return frame
+        # TODO: What to do if grav or traj are None?
+        try:
+            grav_data = HDF5Manager.load_data(self.gravity, self._path)
+            traj_data = HDF5Manager.load_data(self.trajectory, self._path)
+            return pd.concat([grav_data, traj_data])
+        except OSError:
+            return None
+        except AttributeError:
+            return None
 
-    def add_segment(self, segment: DataSegment):
-        segment.sequence = len(self._segments)
-        self._segments.append(segment)
+    @property
+    def parent(self):
+        return self._parent
 
-    def get_segment(self, uid: OID):
-
-        pass
-
-    def remove_segment(self, uid: OID):
-        # self._segments.remove()
-        pass
-
-    def update_segment(self):
-        pass
-
-    def set_active(self, active: bool = True):
-        self._active = bool(active)
-
-    def set_parent(self, parent):
-        self._parent = parent
+    @parent.setter
+    def parent(self, value):
+        self._parent = value
 
 
     # TODO: Implement align_frames functionality as below

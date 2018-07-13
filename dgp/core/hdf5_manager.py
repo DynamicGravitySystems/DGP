@@ -35,10 +35,6 @@ class HDF5Manager:
     log = logging.getLogger(__name__)
     _cache = {}
 
-    @staticmethod
-    def join_path(flightid, grpid, uid):
-        return '/'.join(map(str, ['', flightid, grpid, uid]))
-
     @classmethod
     def save_data(cls, data: DataFrame, datafile: DataFile, path: Path) -> bool:
         """
@@ -73,7 +69,7 @@ class HDF5Manager:
         with HDFStore(str(path)) as hdf:
             try:
                 hdf.put(datafile.hdfpath, data, format='fixed', data_columns=True)
-            except (IOError, PermissionError):
+            except (IOError, PermissionError):  # pragma: no cover
                 cls.log.exception("Exception writing file to HDF5 _store.")
                 raise
             else:
@@ -94,6 +90,7 @@ class HDF5Manager:
         ----------
         datafile : DataFile
         path : Path
+            Path to the HDF5 file where datafile is stored
 
         Returns
         -------
@@ -112,11 +109,14 @@ class HDF5Manager:
             cls.log.debug("Loading data %s from hdf5 _store.", datafile.hdfpath)
 
             try:
-                with HDFStore(str(path)) as hdf:
+                with HDFStore(str(path), mode='r') as hdf:
                     data = hdf.get(datafile.hdfpath)
-            except Exception as e:
+            except OSError as e:
                 cls.log.exception(e)
-                raise IOError("Could not load DataFrame from path: %s" % datafile.hdfpath)
+                raise FileNotFoundError from e
+            except KeyError as e:
+                cls.log.exception(e)
+                raise
 
             # Cache the data
             cls._cache[datafile] = data
@@ -132,16 +132,16 @@ class HDF5Manager:
     # within pytables - so the inspection warning can be safely ignored
 
     @classmethod
-    def get_node_attrs(cls, nodepath: str, path: Path) -> list:
-        with tables.open_file(str(path)) as hdf:
+    def list_node_attrs(cls, nodepath: str, path: Path) -> list:
+        with tables.open_file(str(path), mode='r') as hdf:
             try:
                 return hdf.get_node(nodepath)._v_attrs._v_attrnames
             except tables.exceptions.NoSuchNodeError:
-                raise ValueError("Specified path %s does not exist.", path)
+                raise KeyError("Specified path %s does not exist.", path)
 
     @classmethod
     def _get_node_attr(cls, nodepath, attrname, path: Path):
-        with tables.open_file(str(path)) as hdf:
+        with tables.open_file(str(path), mode='r') as hdf:
             try:
                 return hdf.get_node_attr(nodepath, attrname)
             except AttributeError:
@@ -157,3 +157,8 @@ class HDF5Manager:
                 raise KeyError("Node %s does not exist", nodepath)
             else:
                 return True
+
+    @classmethod
+    def clear_cache(cls):
+        del cls._cache
+        cls._cache = {}

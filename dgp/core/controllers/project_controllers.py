@@ -15,7 +15,8 @@ from pandas import DataFrame
 
 from dgp.core.file_loader import FileLoader
 from dgp.core.oid import OID
-from dgp.core.controllers.controller_interfaces import IAirborneController, IFlightController
+from dgp.core.controllers.controller_interfaces import (IAirborneController, IFlightController, IParent,
+                                                        IDataSetController)
 from dgp.core.hdf5_manager import HDF5Manager
 from .flight_controller import FlightController
 from .gravimeter_controller import GravimeterController
@@ -86,12 +87,12 @@ class AirborneProjectController(IAirborneController, AttributeProxy):
             'modify_date': (False, None)
         }
 
-    def validator(self, key: str):
+    def validator(self, key: str):  # pragma: no cover
         if key in self._fields:
             return self._fields[key][1]
         return None
 
-    def writeable(self, key: str):
+    def writeable(self, key: str):  # pragma: no cover
         if key in self._fields:
             return self._fields[key][0]
         return True
@@ -118,13 +119,8 @@ class AirborneProjectController(IAirborneController, AttributeProxy):
         return self._project.path
 
     @property
-    def menu_bindings(self):
+    def menu_bindings(self):  # pragma: no cover
         return self._bindings
-
-    # TODO: Deprecate
-    @property
-    def hdf5store(self) -> Path:
-        return self.hdf5path
 
     @property
     def hdf5path(self) -> Path:
@@ -228,36 +224,69 @@ class AirborneProjectController(IAirborneController, AttributeProxy):
         if self.model() is not None:
             self.model().project_changed.emit()
 
-    def _post_load(self, datafile: DataFile, data: DataFrame):  # pragma: no cover
+    def _post_load(self, datafile: DataFile, dataset: IDataSetController,
+                   data: DataFrame) -> None:  # pragma: no cover
+        """
+        This is a slot called upon successful loading of a DataFile by a
+        FileLoader Thread.
+
+        Parameters
+        ----------
+        datafile : :obj:`dgp.core.models.data.DataFile`
+            The DataFile reference object to be processed
+        data : DataFrame
+            The ingested pandas DataFrame to be dumped to the HDF5 store
+
+        """
+        # TODO: Insert DataFile into appropriate child
+        datafile.set_parent(dataset)
         if HDF5Manager.save_data(data, datafile, path=self.hdf5path):
             self.log.info("Data imported and saved to HDF5 Store")
+        dataset.add_datafile(datafile)
         return
 
     def load_file_dlg(self, datatype: DataTypes = DataTypes.GRAVITY,
-                      destination: IFlightController = None):  # pragma: no cover
-        # TODO: Move to dataset controller?
-        # How to get ref to parent window? Recursive search of parents until
-        # widget is found?
-        def load_data(datafile: DataFile, params: dict):
-            pprint(params)
+                      flight: IFlightController = None,
+                      dataset: IDataSetController = None) -> None:  # pragma: no cover
+        """
+        Project level dialog for importing/loading Gravity or Trajectory data
+        files. The Dialog generates a DataFile and a parameter map (dict) which
+        is passed along to a FileLoader thread to ingest the raw data-file.
+        On completion of the FileLoader, AirborneProjectController._post_load is
+        called, which saves the ingested data to the project's HDF5 file, and
+        adds the DataFile object to the relevant parent.
+
+        Parameters
+        ----------
+        datatype : DataTypes
+
+        flight : IFlightController, optional
+            Set the default flight selected when launching the dialog
+        dataset : IDataSetController, optional
+            Set the default Dataset selected when launching the dialog
+
+
+        """
+        def load_data(datafile: DataFile, params: dict, parent: IDataSetController):
             if datafile.group == 'gravity':
                 method = read_at1a
             elif datafile.group == 'trajectory':
                 method = import_trajectory
             else:
-                print("Unrecognized data group: " + datafile.group)
+                self.log.error("Unrecognized data group: " + datafile.group)
                 return
-            loader = FileLoader(datafile.source_path, method, parent=self.get_parent_widget(), **params)
-            loader.completed.connect(functools.partial(self._post_load, datafile))
-            # TODO: Connect completed to add_child method of the flight
+            loader = FileLoader(datafile.source_path, method,
+                                parent=self.get_parent_widget(), **params)
+            loader.loaded.connect(functools.partial(self._post_load, datafile,
+                                                    parent))
             loader.start()
 
         dlg = DataImportDialog(self, datatype, parent=self.get_parent_widget())
-        if destination is not None:
-            dlg.set_initial_flight(destination)
+        if flight is not None:
+            dlg.set_initial_flight(flight)
         dlg.load.connect(load_data)
         dlg.exec_()
 
-    def properties_dlg(self):
+    def properties_dlg(self):  # pragma: no cover
         dlg = ProjectPropertiesDialog(self)
         dlg.exec_()

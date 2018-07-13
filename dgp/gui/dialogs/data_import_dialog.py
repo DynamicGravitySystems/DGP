@@ -6,12 +6,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Union, Optional, List
 
-from PyQt5.QtCore import Qt, pyqtSlot, pyqtSignal, QDate
-from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIcon
+from PyQt5.QtCore import Qt, pyqtSlot, pyqtSignal, QDate, QRegExp
+from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIcon, QRegExpValidator
 from PyQt5.QtWidgets import QDialog, QFileDialog, QListWidgetItem, QCalendarWidget, QWidget, QFormLayout
 
 import dgp.core.controllers.gravimeter_controller as mtr
-from dgp.core.controllers.controller_interfaces import IAirborneController, IFlightController
+from dgp.core.oid import OID
+from dgp.core.controllers.dataset_controller import DataSetController
+from dgp.core.controllers.controller_interfaces import IAirborneController, IFlightController, IDataSetController
 from dgp.core.models.data import DataFile
 from dgp.core.types.enumerations import DataTypes
 from dgp.gui.ui.data_import_dialog import Ui_DataImportDialog
@@ -23,7 +25,7 @@ __all__ = ['DataImportDialog']
 
 class DataImportDialog(QDialog, Ui_DataImportDialog, FormValidator):
 
-    load = pyqtSignal(DataFile, dict)
+    load = pyqtSignal(DataFile, dict, DataSetController)
 
     def __init__(self, project: IAirborneController,
                  datatype: DataTypes, base_path: str = None,
@@ -64,13 +66,12 @@ class DataImportDialog(QDialog, Ui_DataImportDialog, FormValidator):
         self.qlw_datatype.addItem(self._trajectory)
         self.qlw_datatype.setCurrentRow(self._type_map.get(datatype, 0))
 
-        self._flight_model = self.project.flight_model  # type: QStandardItemModel
         self.qcb_flight.currentIndexChanged.connect(self._flight_changed)
-        self.qcb_flight.setModel(self._flight_model)
+        self.qcb_flight.setModel(self.project.flight_model)
 
         # Dataset support - experimental
-        self._dataset_model = QStandardItemModel()
-        self.qcb_dataset.setModel(self._dataset_model)
+        # self._dataset_model = QStandardItemModel()
+        # self.qcb_dataset.setModel(self._dataset_model)
 
         self.qde_date.setDate(datetime.today())
         self._calendar = QCalendarWidget()
@@ -111,10 +112,11 @@ class DataImportDialog(QDialog, Ui_DataImportDialog, FormValidator):
 
         # Configure Validators
         self.qle_filepath.setValidator(FileExistsValidator())
+        self.qcb_dataset.setValidator(QRegExpValidator(QRegExp("[A-Za-z]\+")))
 
     def set_initial_flight(self, flight: IFlightController):
-        for i in range(self._flight_model.rowCount()):  # pragma: no branch
-            child = self._flight_model.item(i, 0)
+        for i in range(self.qcb_flight.model().rowCount()):  # pragma: no branch
+            child = self.qcb_flight.model().item(i, 0)
             if child.uid == flight.uid:  # pragma: no branch
                 self.qcb_flight.setCurrentIndex(i)
                 break
@@ -133,8 +135,14 @@ class DataImportDialog(QDialog, Ui_DataImportDialog, FormValidator):
 
     @property
     def flight(self) -> IFlightController:
-        fc = self._flight_model.item(self.qcb_flight.currentIndex())
+        fc = self.qcb_flight.model().item(self.qcb_flight.currentIndex())
         return self.project.get_child(fc.uid)
+
+    @property
+    def dataset(self) -> IDataSetController:
+        model: QStandardItemModel = self.qcb_dataset.model()
+        dsc: IDataSetController = model.item(self.qcb_dataset.currentIndex())
+        return self.flight.get_child(dsc.uid)
 
     @property
     def file_path(self) -> Union[Path, None]:
@@ -156,15 +164,19 @@ class DataImportDialog(QDialog, Ui_DataImportDialog, FormValidator):
         return datetime(_date.year(), _date.month(), _date.day())
 
     def accept(self):  # pragma: no cover
-        if not self.validate():
+        if not self.validate(empty_combo_ok=False):
+            print("Dialog input not valid")
             return
 
-        if self._load_file():
-            if self.qchb_copy_file.isChecked():
-                self._copy_file()
-            return super().accept()
+        file = DataFile(self.datatype.value.lower(), date=self.date,
+                        source_path=self.file_path, name=self.qle_rename.text())
+        param_map = self._params_map[self.datatype]
+        params = {key: value() for key, value in param_map.items()}
+        self.load.emit(file, params, self.dataset)
 
-        raise TypeError("Unhandled DataType supplied to import dialog: %s" % str(self.datatype))
+        if self.qchb_copy_file.isChecked():
+            self._copy_file()
+        return super().accept()
 
     def _copy_file(self):  # pragma: no cover
         src = self.file_path
@@ -177,16 +189,6 @@ class DataImportDialog(QDialog, Ui_DataImportDialog, FormValidator):
             shutil.copy(src, dest)
         except IOError:
             self.log.exception("Unable to copy source file to project directory.")
-
-    def _load_file(self):
-        file = DataFile(self.datatype.value.lower(), date=self.date,
-                        source_path=self.file_path, name=self.qle_rename.text())
-        param_map = self._params_map[self.datatype]
-        # Evaluate and build params dict
-        params = {key: value() for key, value in param_map.items()}
-        self.flight.add_child(file)
-        self.load.emit(file, params)
-        return True
 
     def _set_date(self):
         self.qde_date.setDate(self.flight.get_attr('date'))
@@ -249,8 +251,7 @@ class DataImportDialog(QDialog, Ui_DataImportDialog, FormValidator):
 
     @pyqtSlot(int, name='_flight_changed')
     def _flight_changed(self, row: int):
-        index = self._flight_model.index(row, 0)
-        flt: IFlightController = self._flight_model.itemFromIndex(index)
-        # ds_model = flt.dataset_model
+        flt: IFlightController = self.qcb_flight.model().item(row, 0)
+        self.qcb_dataset.setModel(flt.datasets)
 
 

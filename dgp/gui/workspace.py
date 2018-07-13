@@ -28,7 +28,8 @@ class FlightTab(QWidget):
         self._layout.addWidget(self._workspace)
 
         # Define Sub-Tabs within Flight space e.g. Plot, Transform, Maps
-        self._plot_tab = PlotTab(label="Plot", flight=flight, dataset=flight.get)
+        self._plot_tab = PlotTab(label="Plot", flight=flight)
+
         self._workspace.addTab(self._plot_tab, "Plot")
 
         self._transform_tab = TransformTab("Transforms", flight)

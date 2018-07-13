@@ -25,7 +25,7 @@ def mock_failing_loader(*args, **kwargs):
 
 def test_load_mock():
     loader = FileLoader(Path(TEST_FILE_GRAV), mock_loader, APP)
-    spy_complete = QSignalSpy(loader.completed)
+    spy_complete = QSignalSpy(loader.loaded)
     spy_error = QSignalSpy(loader.error)
 
     assert 0 == len(spy_complete)

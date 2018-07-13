@@ -13,11 +13,16 @@ from pprint import pprint
 from typing import Optional, List, Any, Dict, Union
 
 from dgp.core.oid import OID
-from .flight import Flight, FlightLine, DataFile
+from .flight import Flight
 from .meter import Gravimeter
+from .dataset import DataSet, DataSegment
+from .data import DataFile
 
 PROJECT_FILE_NAME = 'dgp.json'
-project_entities = {'Flight': Flight, 'FlightLine': FlightLine, 'DataFile': DataFile,
+project_entities = {'Flight': Flight,
+                    'DataSet': DataSet,
+                    'DataFile': DataFile,
+                    'DataSegment': DataSegment,
                     'Gravimeter': Gravimeter}
 
 
@@ -107,7 +112,7 @@ class ProjectDecoder(json.JSONDecoder):
         # Re-link parents & children
         for child_uid, parent_uid in self._child_parent_map.items():
             child = self._registry[child_uid]
-            child.set_parent(self._registry.get(parent_uid, None))
+            child.parent = self._registry.get(parent_uid, None)
 
         return decoded
 
@@ -251,7 +256,6 @@ class GravityProject:
     # Protected utility methods
     def _modify(self):
         """Set the modify_date to now"""
-        print("Updating project modify time")
         self._modify_date = datetime.datetime.utcnow()
 
     # Serialization/De-Serialization methods
@@ -263,14 +267,10 @@ class GravityProject:
         # TODO: Dump file to a temp file, then if successful overwrite the original
         # Else an error in the serialization process can corrupt the entire project
         if to_file:
-            try:
-                with self.path.joinpath(self._projectfile).open('w') as fp:
-                    json.dump(self, fp, cls=ProjectEncoder, indent=indent)
-            except IOError:
-                raise
-            else:
-                # pprint(json.dumps(self, cls=ProjectEncoder, indent=2))
-                return True
+            with self.path.joinpath(self._projectfile).open('w') as fp:
+                json.dump(self, fp, cls=ProjectEncoder, indent=indent)
+            # pprint(json.dumps(self, cls=ProjectEncoder, indent=2))
+            return True
         return json.dumps(self, cls=ProjectEncoder, indent=indent)
 
 
@@ -289,7 +289,7 @@ class AirborneProject(GravityProject):
             self._modify()
         else:
             super().add_child(child)
-        child.set_parent(self)
+        child.parent = self
 
     def get_child(self, child_id: OID) -> Union[Flight, Gravimeter]:
         try:

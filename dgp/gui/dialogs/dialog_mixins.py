@@ -3,10 +3,10 @@ from typing import List
 
 from PyQt5.QtGui import QValidator, QRegExpValidator, QIntValidator, QDoubleValidator
 from PyQt5.QtWidgets import (QFormLayout, QWidget, QLineEdit, QLabel, QHBoxLayout, QLayoutItem,
-                             QVBoxLayout)
+                             QVBoxLayout, QComboBox)
 
 __all__ = ['FormValidator', 'VALIDATION_ERR_MSG']
-VALIDATION_ERR_MSG = "Ensure all marked fields are completed."
+VALIDATION_ERR_MSG = "Ensure all marked fields are loaded."
 
 
 class FormValidator:
@@ -32,7 +32,7 @@ class FormValidator:
 
     """
     ERR_STYLE = "QLabel { color: red; }"
-    _CAN_VALIDATE = (QLineEdit,)
+    _CAN_VALIDATE = (QLineEdit, QComboBox)
 
     @property
     def validation_targets(self) -> List[QFormLayout]:
@@ -43,7 +43,16 @@ class FormValidator:
     def validation_error(self) -> QLabel:
         return QLabel()
 
-    def _validate_field(self, widget: QWidget, label: QLabel) -> bool:
+    def _validate_field(self, widget: QWidget, label: QLabel, check_combo=False) -> bool:
+        if check_combo and isinstance(widget, QComboBox):
+            if not len(widget.currentText()) > 0:
+                label.setStyleSheet(self.ERR_STYLE)
+                label.setToolTip("ComboBox must have a value selected.")
+                return False
+            else:
+                label.setStyleSheet("")
+                return True
+
         validator: QValidator = widget.validator()
         if widget.hasAcceptableInput():
             label.setStyleSheet("")
@@ -62,7 +71,7 @@ class FormValidator:
             label.setToolTip(reason)
             return False
 
-    def _validate_form(self, form: QFormLayout):
+    def _validate_form(self, form: QFormLayout, check_combo=False):
         res = []
         for i in range(form.rowCount()):
             try:
@@ -79,19 +88,23 @@ class FormValidator:
                     _field = layout.itemAt(j)
                     _widget: QWidget = _field.widget()
                     if isinstance(_widget, self._CAN_VALIDATE):
-                        if _widget.validator() or _widget.inputMask():
+                        if _widget.validator() or (hasattr(_widget, 'inputMask') and _widget.inputMask()):
+                            field = _field
+                            break
+                        elif check_combo and isinstance(_widget, QComboBox):
                             field = _field
                             break
 
-            if field.widget() is not None and isinstance(field.widget(), self._CAN_VALIDATE):
-                res.append(self._validate_field(field.widget(), label))
+            widget = field.widget()
+            if widget is not None and isinstance(widget, self._CAN_VALIDATE):
+                res.append(self._validate_field(widget, label, check_combo))
 
         return all(result for result in res)
 
-    def validate(self, notify=True) -> bool:
+    def validate(self, notify=True, empty_combo_ok=True) -> bool:
         res = []
         for form in self.validation_targets:
-            res.append(self._validate_form(form))
+            res.append(self._validate_form(form, check_combo=not empty_combo_ok))
         valid = all(result for result in res)
         if not valid and notify:
             self.validation_error.setText(VALIDATION_ERR_MSG)

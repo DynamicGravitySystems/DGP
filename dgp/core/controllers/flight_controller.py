@@ -11,12 +11,9 @@ from pandas import DataFrame
 from dgp.core.controllers.dataset_controller import DataSetController
 from dgp.core.oid import OID
 from dgp.core.controllers.controller_interfaces import IAirborneController, IFlightController
-from dgp.core.controllers.datafile_controller import DataFileController
-from dgp.core.controllers.flightline_controller import FlightLineController
 from dgp.core.controllers.gravimeter_controller import GravimeterController
-from dgp.core.models.data import DataFile
 from dgp.core.models.dataset import DataSet
-from dgp.core.models.flight import Flight, FlightLine
+from dgp.core.models.flight import Flight
 from dgp.core.models.meter import Gravimeter
 from dgp.core.types.enumerations import DataTypes
 from dgp.gui.dialogs.add_flight_dialog import AddFlightDialog
@@ -24,10 +21,6 @@ from . import controller_helpers as helpers
 from .project_containers import ProjectFolder
 
 FOLDER_ICON = ":/icons/folder_open.png"
-
-
-class LoadError(Exception):
-    pass
 
 
 class FlightController(IFlightController):
@@ -50,10 +43,6 @@ class FlightController(IFlightController):
     methods of the Flight.
     """
 
-    @property
-    def hdf5path(self) -> Path:
-        return self._parent.hdf5store
-
     inherit_context = True
 
     def __init__(self, flight: Flight, parent: IAirborneController = None):
@@ -72,34 +61,32 @@ class FlightController(IFlightController):
         self.appendRow(self._datasets)
         self.appendRow(self._sensors)
 
-        self._control_map = {DataSet: DataSetController,
-                             Gravimeter: GravimeterController}
+        self._child_control_map = {DataSet: DataSetController,
+                                   Gravimeter: GravimeterController}
         self._child_map = {DataSet: self._datasets,
                            Gravimeter: self._sensors}
 
-        self._data_model = QStandardItemModel()
-        # TODO: How to keep this synced?
-        self._dataset_model = QStandardItemModel()
-
-        for dataset in self._flight._datasets:
+        for dataset in self._flight.datasets:
             control = DataSetController(dataset, self)
             self._datasets.appendRow(control)
-            if dataset._active:
-                self.set_active_dataset(control)
+
+        if not len(self._flight.datasets):
+            self.add_child(DataSet(self._parent.hdf5path))
 
         # TODO: Consider adding MenuPrototype class which could provide the means to build QMenu
         self._bindings = [  # pragma: no cover
             ('addAction', ('Add Dataset', lambda: None)),
             ('addAction', ('Set Active',
                            lambda: self.get_parent().set_active_child(self))),
-            # TODO: Move these actions to Dataset controller?
             ('addAction', ('Import Gravity',
-                           lambda: self.get_parent().load_file_dlg(DataTypes.GRAVITY, self))),
+                           lambda: self.get_parent().load_file_dlg(
+                               DataTypes.GRAVITY, flight=self))),
             ('addAction', ('Import Trajectory',
-                           lambda: self.get_parent().load_file_dlg(DataTypes.TRAJECTORY, self))),
+                           lambda: self.get_parent().load_file_dlg(
+                               DataTypes.TRAJECTORY, flight=self))),
             ('addSeparator', ()),
             ('addAction', ('Delete <%s>' % self._flight.name,
-                           lambda: self.get_parent().remove_child(self._flight, self.row(), True))),
+                           lambda: self.get_parent().remove_child(self.uid, True))),
             ('addAction', ('Rename Flight', lambda: self.set_name())),
             ('addAction', ('Properties',
                            lambda: AddFlightDialog.from_existing(self, self.get_parent()).exec_()))
@@ -112,18 +99,6 @@ class FlightController(IFlightController):
         return self._flight.uid
 
     @property
-    def datamodel(self) -> object:
-        return self._flight
-
-    # TODO: Rename this (maybe deprecated with DataSets)
-    @property
-    def data_model(self) -> QStandardItemModel:
-        """Return the data model representing each active Data channel in
-        the flight
-        """
-        return self._data_model
-
-    @property
     def menu_bindings(self):  # pragma: no cover
         """
         Returns
@@ -134,6 +109,18 @@ class FlightController(IFlightController):
         """
         return self._bindings
 
+    @property
+    def datamodel(self) -> Flight:
+        return self._flight
+
+    @property
+    def datasets(self) -> QStandardItemModel:
+        return self._datasets.internal_model
+
+    @property
+    def project(self) -> IAirborneController:
+        return self._parent
+
     def get_parent(self) -> IAirborneController:
         return self._parent
 
@@ -143,6 +130,7 @@ class FlightController(IFlightController):
     def update(self):
         self.setText(self._flight.name)
         self.setToolTip(str(self._flight.uid))
+        super().update()
 
     def clone(self):
         return FlightController(self._flight, parent=self.get_parent())
@@ -151,15 +139,17 @@ class FlightController(IFlightController):
         return self.get_parent().get_active_child() == self
 
     # TODO: This is not fully implemented
-    def set_active_dataset(self, dataset: DataSetController,
-                           emit: bool = True):
+    def set_active_dataset(self, dataset: DataSetController):
         if not isinstance(dataset, DataSetController):
-            raise TypeError("Child {0!r} cannot be set to active (invalid type)".format(dataset))
-        dataset.set_active(True)
+            raise TypeError(f'Cannot set {dataset!r} to active (invalid type)')
+        dataset.active = True
         self._active_dataset = dataset
 
-    def get_active_child(self):
-        # TODO: Implement and add test coverage
+    def get_active_dataset(self) -> DataSetController:
+        if self._active_dataset is None:
+            for i in range(self._datasets.rowCount()):
+                self._active_dataset = self._datasets.child(i, 0)
+                break
         return self._active_dataset
 
     def add_child(self, child: DataSet) -> DataSetController:
@@ -168,42 +158,41 @@ class FlightController(IFlightController):
 
         Parameters
         ----------
-        child : Union[:obj:`FlightLine`, :obj:`DataFile`]
+        child : :obj:`DataSet`
             The child model instance - either a FlightLine or DataFile
 
         Returns
         -------
-        Union[:obj:`FlightLineController`, :obj:`DataFileController`]
+        :obj:`DataSetController`
             Returns a reference to the controller encapsulating the added child
 
         Raises
         ------
         :exc:`TypeError`
-            if child is not a :obj:`FlightLine` or :obj:`DataFile`
+            if child is not a :obj:`DataSet`
 
         """
         child_key = type(child)
-        if child_key not in self._control_map:
+        if child_key not in self._child_control_map:
             raise TypeError("Invalid child type {0!s} supplied".format(child_key))
 
-        self._flight.add_child(child)
-        control = self._control_map[child_key](child, self)
-        self._child_map[child_key].appendRow(control)
+        self._flight.datasets.append(child)
+        control = DataSetController(child, self)
+        self._datasets.appendRow(control)
         return control
 
-    def remove_child(self, child: Union[FlightLine, DataFile], row: int, confirm: bool = True) -> bool:
+    def remove_child(self, uid: Union[OID, str], confirm: bool = True) -> bool:
         """
-        Remove the specified child primitive from the underlying :obj:`~dgp.core.models.flight.Flight`
-        and from the respective model representation within the FlightController
+        Remove the specified child primitive from the underlying
+        :obj:`~dgp.core.models.flight.Flight` and from the respective model
+        representation within the FlightController
 
         Parameters
         ----------
-        child : Union[:obj:`~dgp.core.models.flight.FlightLine`, :obj:`~dgp.core.models.data.DataFile`]
+        uid : :obj:`OID`
             The child model object to be removed
-        row : int
-            The row number of the child's controller wrapper
         confirm : bool, optional
-            If True spawn a confirmation dialog requiring user input to confirm removal
+            If True spawn a confirmation dialog requiring user confirmation
 
         Returns
         -------
@@ -217,24 +206,24 @@ class FlightController(IFlightController):
             if child is not a :obj:`FlightLine` or :obj:`DataFile`
 
         """
-        if type(child) not in self._control_map:
-            raise TypeError("Invalid child type supplied")
+        ctrl: Union[DataSetController, GravimeterController] = self.get_child(uid)
+        if type(ctrl) not in self._child_control_map.values():
+            raise TypeError("Invalid child uid supplied. Invalid child type.")
         if confirm:  # pragma: no cover
             if not helpers.confirm_action("Confirm Deletion",
-                                          "Are you sure you want to delete %s" % str(child),
+                                          "Are you sure you want to delete %s" % str(ctrl),
                                           self.get_parent().get_parent()):
                 return False
 
-        self._flight.remove_child(child)
-        self._child_map[type(child)].removeRow(row)
+        self._flight.datasets.remove(ctrl.datamodel)
+        self._child_map[type(ctrl.datamodel)].removeRow(ctrl.row())
         return True
 
-    def get_child(self, uid: Union[str, OID]) -> Union[FlightLineController, DataFileController, None]:
+    def get_child(self, uid: Union[OID, str]) -> DataSetController:
         """Retrieve a child controller by UIU
         A string base_uuid can be passed, or an :obj:`OID` object for comparison
         """
-        # TODO: Should this also search datafiles?
-        for item in self._datasets.items():
+        for item in self._datasets.items():  # type: DataSetController
             if item.uid == uid:
                 return item
 

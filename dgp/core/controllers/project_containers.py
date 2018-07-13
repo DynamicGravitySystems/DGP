@@ -28,9 +28,6 @@ class ProjectFolder(QStandardItem):
         self.setEditable(False)
         self._attributes = kwargs
 
-    def properties(self):
-        print(self.__class__.__name__)
-
     @property
     def internal_model(self) -> QStandardItemModel:
         return self._model
@@ -51,5 +48,3 @@ class ProjectFolder(QStandardItem):
 
     def items(self) -> Generator[QStandardItem, None, None]:
         return (self.child(i, 0) for i in range(self.rowCount()))
-
-

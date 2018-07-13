@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Any, Union, Optional
 
 from PyQt5.QtGui import QStandardItem, QStandardItemModel
-from pandas import DataFrame
 
 from dgp.core.controllers.controller_mixins import AttributeProxy
 from dgp.core.oid import OID
@@ -14,6 +13,10 @@ from dgp.core.types.enumerations import DataTypes
 Interface module, while not exactly Pythonic, helps greatly by providing
 interface definitions for the various controller modules, which often cannot 
 be imported as a type hints in various modules due to circular imports.
+
+Abstract Base Classes (collections.ABC) are not used due to the complications
+invited with multiple inheritance and metaclass mis-matching. As most controller
+level classes also subclass QStandardItem and/or AttributeProxy.
 """
 
 
@@ -47,7 +50,7 @@ class IParent:
         """
         raise NotImplementedError
 
-    def remove_child(self, child, row: int, confirm: bool = True) -> None:
+    def remove_child(self, child, confirm: bool = True) -> None:
         raise NotImplementedError
 
     def get_child(self, uid: Union[str, OID]) -> IChild:
@@ -75,11 +78,13 @@ class IAirborneController(IBaseController, IParent):
     def add_gravimeter(self):
         raise NotImplementedError
 
-    def load_file_dlg(self, datatype: DataTypes, destination: Optional['IFlightController'] = None):  # pragma: no cover
+    def load_file_dlg(self, datatype: DataTypes,
+                      flight: 'IFlightController' = None,
+                      dataset: 'IDataSetController' = None):  # pragma: no cover
         raise NotImplementedError
 
     @property
-    def hdf5store(self):
+    def hdf5path(self) -> Path:
         raise NotImplementedError
 
     @property
@@ -105,11 +110,11 @@ class IFlightController(IBaseController, IParent, IChild):
     def set_active_child(self, child, emit: bool = True):
         raise NotImplementedError
 
-    def get_active_child(self):
+    def get_active_dataset(self):
         raise NotImplementedError
 
     @property
-    def hdf5path(self) -> Path:
+    def project(self) -> IAirborneController:
         raise NotImplementedError
 
 
@@ -118,4 +123,37 @@ class IMeterController(IBaseController, IChild):
 
 
 class IDataSetController(IBaseController, IChild):
-    pass
+    def add_datafile(self, datafile) -> None:
+        """
+        Add a :obj:`DataFile` to the :obj:`DataSetController`, potentially
+        overwriting an existing file of the same group (gravity/trajectory)
+
+        Parameters
+        ----------
+        datafile : :obj:`DataFile`
+
+        """
+        raise NotImplementedError
+
+    def add_segment(self, uid: OID, start: float, stop: float,
+                    label: str = ""):
+        raise NotImplementedError
+
+    def get_segment(self, uid: OID):
+        raise NotImplementedError
+
+    def remove_segment(self, uid: OID) -> None:
+        """
+        Removes the specified data-segment from the DataSet.
+
+        Parameters
+        ----------
+        uid : :obj:`OID`
+            uid (OID or str) of the segment to be removed
+
+        Raises
+        ------
+        :exc:`KeyError` if supplied uid is not contained within the DataSet
+
+        """
+        raise NotImplementedError
