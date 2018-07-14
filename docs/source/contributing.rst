@@ -97,6 +97,9 @@ be done with a fast-forward. This way we record the existence of the feature
 branch even after it has been deleted, and it groups all of the relevant
 commits for this feature.
 
+Note that pull-requests into develop require passing Continuous Integration
+(CI) builds on Travis.ci and AppVeyor, and at least one approved review.
+
 Code standards
 --------------
 *DGP* uses the PEP8_ standard. In particular, that means:
@@ -125,10 +128,17 @@ All tests should go to the ``tests`` subdirectory. We suggest looking to any of
 the examples in that directory to get ideas on how to write tests for the
 code that you are adding or modifying.
 
-*DGP* uses the unittest_ framework for unit testing and coverage.py_ to gauge the
+*DGP* uses the pytest_ framework for unit testing and coverage.py_ to gauge the
 effectiveness of tests by showing which parts of the code are being executed
-by tests, and which are not.
+by tests, and which are not. The pytest-cov_ extension is used in conjunction
+with Py.Test and coverage.py to generate coverage reports after executing the
+test suite.
 
+Continuous integration will also run the test-suite with coverage, and report
+the coverage statistics to `Coveralls <https://coveralls.io>`__
+
+.. _pytest: https://docs.pytest.org/
+.. _pytest-cov: https://pytest-cov.readthedocs.io/
 .. _unittest: https://docs.python.org/3/library/unittest.html
 .. _coverage.py: https://coverage.readthedocs.io/en/coverage-4.4.1/
 
@@ -136,7 +146,15 @@ Running the test suite
 ++++++++++++++++++++++
 The test suite can be run from the repository root::
 
+  pytest --cov=dgp tests
+  # or
   coverage run --source=dgp -m unittest discover
+
+Add the following parameter to display lines missing coverage when using the
+pytest-cov extension::
+
+  --cov-report term-missing
+
 
 Use ``coverage report`` to report the results on test coverage::
 
@@ -163,11 +181,21 @@ other things to know about the docs:
   while the documentation in this folder consists of tutorials, planning, and
   technical documents related data formats, sensors, and processing techniques.
 
-- The docstrings in this project follow the  `NumPy docstring standard`_.
+- The docstrings in this project follow the  `NumPydoc docstring standard`_.
   This standard specifies the format of the different sections of the docstring.
   See `this document`_ for a detailed explanation and examples.
 
-.. _`NumPy docstring standard`: https://github.com/numpy/numpy/blob/master/doc/HOWTO_DOCUMENT.rst.txt#docstring-standard
+- See `Quick reStructuredText <http://docutils.sourceforge.net/docs/user/rst/quickref.html>`__
+  for a quick-reference on reStructuredText syntax and markup.
+
+- Documentation can also contain cross-references to other
+  classes/objects/modules using the `Sphinx Domain Reference Syntax <http://www
+  .sphinx-doc.org/en/master/usage/restructuredtext/domains.html>`__
+
+- Documentation is automatically built on push for designated branches
+  (typically master and develop) and hosted on `Read the Docs <https://readthedocs.org>`__
+
+.. _`NumPydoc docstring standard`: https://numpydoc.readthedocs.io/en/latest/
 .. _`this document`: http://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_numpy.html
 
 Building the documentation
@@ -182,3 +210,9 @@ or on Windows run::
 
 If the build completes without errors, then you will find the HTML output in
 ``dgp/docs/build/html``.
+
+Alternately, documentation can be built by calling the sphinx python module
+e.g.::
+
+   python -m sphinx -M html source build
+

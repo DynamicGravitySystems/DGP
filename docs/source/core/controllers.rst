@@ -19,6 +19,49 @@ layer by which the UI interacts with the underlying project data.
 TODO: Add Controller Hierarchy like in models.rst
 
 
+Controller Development Principles
+---------------------------------
+
+Controllers typically should match 1:1 a model class, though there are cases
+for creating utility controllers such as the :class:`ProjectFolder` which is
+a utility class for grouping items visually in the project's tree view.
+
+Controllers should at minimum subclass :class:`IBaseController` which configures
+inheritance for :class:`QStandardItem` and :class:`AttributeProxy`. For more
+complex and widely used controllers, a dedicated interface should be created
+following the same naming scheme - particularly where circular dependencies
+may be introduced.
+
+
+Context Menu Declarations
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Due to the nature of :class:`QMenu`, the menu cannot be instantiated directly
+ahead of time as it requires a parent :class:`QWidget` to bind to. This has
+led to the current solution which lets each controller declaratively define
+their context menu items and actions (with some common actions mixed in by
+the view at runtime).
+The declaration syntax at present is simply a list of tuples which is queried
+by the view when a context menu is requested.
+
+Following is an example declaring a single menu item to be displayed when
+right-clicking on the controller's representation in the UI
+
+.. code-block:: python
+
+    bindings = [
+        ('addAction', ('Properties', lambda: self._show_properties())),
+    ]
+
+The menu is built by iterating through the bindings list, each 2-tuple is a
+tuple of the QMenu function to call ('addAction'), and the positional
+arguments supplied to the function - in this case the name 'Properties', and
+the lambda functor to call when activated.
+
+.. contents::
+    :depth: 2
+
+
 Interfaces
 ----------
 
@@ -83,16 +126,15 @@ Controllers
     :undoc-members:
     :show-inheritance:
 
+.. py:module:: dgp.core.controllers.dataset_controller
+.. autoclass:: DataSetController
+    :undoc-members:
+    :show-inheritance:
+
 .. py:module:: dgp.core.controllers.datafile_controller
 .. autoclass:: DataFileController
     :undoc-members:
     :show-inheritance:
-
-.. py:module:: dgp.core.controllers.flightline_controller
-.. autoclass:: FlightLineController
-    :undoc-members:
-    :show-inheritance:
-
 
 Utility/Helper Modules
 ----------------------
@@ -102,6 +144,4 @@ Utility/Helper Modules
 
 .. automodule:: dgp.core.controllers.controller_helpers
     :undoc-members:
-
-
 
