@@ -1,14 +1,19 @@
 # -*- coding: utf-8 -*-
 import logging
+import warnings
 from pathlib import Path
 from typing import Any
 
 import tables
+import pandas.io.pytables
 from pandas import HDFStore, DataFrame
 
 from dgp.core.models.data import DataFile
 
 __all__ = ['HDF5Manager']
+# Suppress PyTables warnings due to mixed data-types (typically NaN's in cols)
+warnings.filterwarnings('ignore',
+                        category=pandas.io.pytables.PerformanceWarning)
 
 # Define Data Types/Extensions
 HDF5_NAME = 'dgpdata.hdf5'
