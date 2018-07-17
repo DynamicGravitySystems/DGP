@@ -9,9 +9,35 @@ from dgp.core.oid import OID
 
 class Flight:
     """
-    Version 2 Flight Class - Designed to be de-coupled from the view implementation
-    Define a Flight class used to record and associate data with an entire
-    survey flight (takeoff -> landing)
+    Flight base model (Airborne Project)
+
+    The Flight is one of the central components of an Airborne Gravity Project,
+    representing a single gravity survey flight (takeoff -> landing).
+    The :class:`Flight` contains meta-data common to the overall flight
+    date flown, duration, notes, etc.
+
+    The Flight is also the parent container for 1 or more :class:`DataSet`s
+    which group the Trajectory and Gravity data collected during a flight, and
+    can define segments of data (flight lines), based on the flight path.
+
+    Parameters
+    ----------
+    name : str
+        Flight name/human-readable reference
+    date : :class:`datetime`, optional
+        Optional, specify the date the flight was flown, if not specified,
+        today's date is used.
+    notes : str, optional
+        Optional, add/specify flight specific notes
+    sequence : int, optional
+        Optional, specify flight sequence within context of an airborne campaign
+    duration : int, optional
+        Optional, specify duration of the flight in hours
+    meter : str, Optional
+        Not yet implemented - associate a meter with this flight
+        May be deprecated in favor of associating a Gravimeter with DataSets
+        within the flight.
+
     """
     __slots__ = ('uid', 'name', 'datasets', 'meter',
                  'date', 'notes', 'sequence', 'duration', '_parent')
@@ -43,4 +69,4 @@ class Flight:
         return self.name
 
     def __repr__(self) -> str:
-        return '<Flight %s :: %s>' % (self.name, self.uid)
+        return f'<Flight {self.name} :: {self.uid!s}>'

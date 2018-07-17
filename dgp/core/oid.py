@@ -29,7 +29,7 @@ class OID:
 
     @property
     def uuid(self):
-        return '%s_%s' % (self.group, self._base_uuid)
+        return f'{self.group}_{self._base_uuid}'
 
     @property
     def reference(self) -> object:
@@ -49,7 +49,7 @@ class OID:
         return self.uuid
 
     def __repr__(self):
-        return "<OID [%s] - %s pointer: %s>" % (self._tag, self.uuid, self.group)
+        return f'<OID [{self._tag}]-{self.uuid!s}>'
 
     def __eq__(self, other: Union['OID', str]) -> bool:
         if isinstance(other, str):

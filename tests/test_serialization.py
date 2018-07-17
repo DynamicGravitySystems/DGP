@@ -19,19 +19,12 @@ from dgp.core.models.project import AirborneProject, ProjectEncoder, ProjectDeco
 def test_project_serialize(project: AirborneProject, tmpdir):
     _description = "Description for project that will be serialized."
     project.description = _description
-    project.set_attr('start_tie_value', 1234.90)
-    project.set_attr('end_tie_value', 987)
 
     encoded = project.to_json(indent=4)
     decoded_dict = json.loads(encoded)
-    # pprint(decoded_dict)
 
     assert project.name == decoded_dict['name']
     assert {'_type': 'Path', 'path': str(project.path.resolve())} == decoded_dict['path']
-    assert 'start_tie_value' in decoded_dict['attributes']
-    assert 1234.90 == decoded_dict['attributes']['start_tie_value']
-    assert 'end_tie_value' in decoded_dict['attributes']
-    assert 987 == decoded_dict['attributes']['end_tie_value']
     for flight_obj in decoded_dict['flights']:
         assert '_type' in flight_obj and flight_obj['_type'] == 'Flight'
 
@@ -47,17 +40,6 @@ def test_project_serialize(project: AirborneProject, tmpdir):
 
 
 def test_project_deserialize(project: AirborneProject):
-    attrs = {
-        'attr1': 12345,
-        'attr2': 192.201,
-        'attr3': False,
-        'attr4': "Notes on project"
-    }
-    for key, value in attrs.items():
-        project.set_attr(key, value)
-
-    assert attrs == project._attributes
-
     flt1 = project.flights[0]
     flt2 = project.flights[1]
 
@@ -67,7 +49,6 @@ def test_project_deserialize(project: AirborneProject):
     re_serialized = prj_deserialized.to_json(indent=4)
     assert serialized == re_serialized
 
-    assert attrs == prj_deserialized._attributes
     assert project.create_date == prj_deserialized.create_date
 
     flt_names = [flt.name for flt in prj_deserialized.flights]

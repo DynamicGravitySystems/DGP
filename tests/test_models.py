@@ -46,28 +46,6 @@ def test_flight_actions(make_flight):
     assert '<Flight %s :: %s>' % (f1_name, f1.uid) == repr(f1)
 
 
-def test_project_attr(project: AirborneProject):
-    assert "TestProject" == project.name
-    project.name = " Project With Whitespace   "
-    assert "Project With Whitespace" == project.name
-
-    assert "Description of TestProject" == project.description
-    project.description = "     Description with gratuitous whitespace      "
-    time.sleep(.1)
-    assert abs(datetime.utcnow() - project.modify_date).microseconds > 0
-    assert "Description with gratuitous whitespace" == project.description
-
-    project.set_attr('tie_value', 1234)
-    assert 1234 == project.tie_value
-    assert 1234 == project['tie_value']
-    assert 1234 == project.get_attr('tie_value')
-
-    project.set_attr('_my_private_val', 2345)
-    assert 2345 == project._my_private_val
-    assert 2345 == project['_my_private_val']
-    assert 2345 == project.get_attr('_my_private_val')
-
-
 def test_project_path(project: AirborneProject, tmpdir):
     assert isinstance(project.path, Path)
     new_path = Path(tmpdir).joinpath("new_prj_path")

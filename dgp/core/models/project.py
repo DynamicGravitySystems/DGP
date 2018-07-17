@@ -154,8 +154,8 @@ class ProjectDecoder(json.JSONDecoder):
             # Handle project entity types
             klass = {self._klass.__name__: self._klass, **project_entities}.get(_type, None)
         if klass is None:  # pragma: no cover
-            raise AttributeError("Unhandled class %s in JSON data. Class is not defined"
-                                 " in entity map." % _type)
+            raise AttributeError(f"Unhandled class {_type} in JSON data. Class is not defined"
+                                 f" in entity map.")
         instance = klass(**params)
         if parent is not None:
             self._child_parent_map[instance.uid] = parent
@@ -164,6 +164,43 @@ class ProjectDecoder(json.JSONDecoder):
 
 
 class GravityProject:
+    """GravityProject base class.
+
+    This class is not designed to be instantiated directly, but is used
+    as the common base-class for Airborne Gravity Projects, and in future Marine
+    Gravity Projects.
+
+    This base class stores common attributes such as the Project name,
+    description, path, and Gravimeters (which all Gravity Projects may use).
+
+    Modification time is tracked on the project, and any mutations made via
+    properties in this class will update the modify time.
+
+    The GravityProject class also provides the utility to_json/from_json methods
+    which should work with any child classes. The JSON serialization methods
+    simply call the appropriate :class:`ProjectEncoder` or
+    :class:`ProjectDecoder` to serialize/de-serialize the project respectively.
+
+    Parameters
+    ----------
+    name : str
+        Name of the project
+    path : :class:`Path`
+        Directory path where the project is located
+    description : str, optional
+        Optional, description for the project
+    create_date : :class:`datetime`, optional
+        Specify creation date of the project, current UTC time is used if None
+    modify_date : :class:`datetime`, optional
+        This parameter should be used only during the de-serialization process,
+        otherwise the modification date is automatically handled by the class
+        properties.
+
+    See Also
+    --------
+    :class:`AirborneProject`
+
+    """
     def __init__(self, name: str, path: Union[Path], description: Optional[str] = None,
                  create_date: Optional[datetime.datetime] = None,
                  modify_date: Optional[datetime.datetime] = None,
@@ -178,7 +215,6 @@ class GravityProject:
         self.modify_date = modify_date or datetime.datetime.utcnow()
 
         self._gravimeters = kwargs.get('gravimeters', [])  # type: List[Gravimeter]
-        self._attributes = kwargs.get('attributes', {})  # type: Dict[str, Any]
 
     @property
     def name(self) -> str:
@@ -196,6 +232,7 @@ class GravityProject:
     @path.setter
     def path(self, value: str) -> None:
         self._path = Path(value)
+        self._modify()
 
     @property
     def description(self) -> str:
@@ -228,30 +265,7 @@ class GravityProject:
         return False
 
     def __repr__(self):
-        return '<%s: %s/%s>' % (self.__class__.__name__, self.name, str(self.path))
-
-    # TODO: Are these useful, or just fluff that should be removed
-    def set_attr(self, key: str, value: Union[str, int, float, bool]) -> None:
-        """Permit explicit meta-date attributes.
-            We don't use the __setattr__ override as it complicates instance
-            attribute use within the Class and Sub-classes for no real gain.
-        """
-        self._attributes[key] = value
-
-    def get_attr(self, key: str) -> Union[str, int, float, bool]:
-        """For symmetry with set_attr"""
-        return self._attributes[key]
-
-    def __getattr__(self, item):
-        # Intercept attribute calls that don't exist - proxy to _attributes
-        try:
-            return self._attributes[item]
-        except KeyError:
-            # hasattr/getattr expect an AttributeError if attribute doesn't exist
-            raise AttributeError
-
-    def __getitem__(self, item):
-        return self._attributes[item]
+        return f'<{self.__class__.__name__}: {self.name}/{self.path!s}>'
 
     # Protected utility methods
     def _modify(self):
@@ -275,6 +289,18 @@ class GravityProject:
 
 
 class AirborneProject(GravityProject):
+    """AirborneProject class
+
+    This class is a sub-class of :class:`GravityProject` and simply extends the
+    functionality of the base GravityProject, allowing the addition/removal
+    of :class:`Flight` objects, in addition to :class:`Gravimeter`s
+
+    Parameters
+    ----------
+    kwargs
+        See :class:`GravityProject` for permitted key-word arguments.
+
+    """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._flights = kwargs.get('flights', [])
