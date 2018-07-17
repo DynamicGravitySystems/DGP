@@ -1,34 +1,233 @@
 # -*- coding: utf-8 -*-
 
 from itertools import cycle
-from typing import List
+from typing import List, Union, Tuple, Generator, Dict
 
 import pandas as pd
 from pyqtgraph.widgets.GraphicsView import GraphicsView
 from pyqtgraph.graphicsItems.GraphicsLayout import GraphicsLayout
 from pyqtgraph.widgets.PlotWidget import PlotItem
-from pyqtgraph import SignalProxy
+from pyqtgraph import SignalProxy, PlotDataItem, ViewBox
 
-from .helpers import DateAxis
+from .helpers import DateAxis, PolyAxis
 
-"""
-Rationale for StackedMPLWidget and StackedPGWidget:
-Each of these classes should act as a drop-in replacement for the other, 
-presenting as a single widget that can be added to a Qt Layout.
-Both of these classes are designed to create a variable number of plots 
-'stacked' on top of each other - as in rows.
-MPLWidget will thus contain a series of Axes classes which can be used to 
-plot on
-PGWidget will contain a series of PlotItem classes which likewise can be used to 
-plot.
+__all__ = ['GridPlotWidget', 'PyQtGridPlotWidget']
 
-It remains to be seen if the Interface/ABC AbstractSeriesPlotter and its descendent 
-classes PlotWidgetWrapper and MPLAxesWrapper are necessary - the intent of 
-these classes was to wrap a PlotItem or Axes and provide a unified standard 
-interface for plotting. However, the Stacked*Widget classes might nicely 
-encapsulate what was intended there.
-"""
-__all__ = ['PyQtGridPlotWidget']
+LINE_COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+               '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+
+
+class GridPlotWidget(GraphicsView):
+    """
+    Base plotting class used to create a group of 1 or more :class:`PlotItem`
+    in a layout (rows/columns).
+    This class is a subclass of :class:`QWidget` and can be directly added to a
+    QtWidget based application.
+
+    This is essentially a wrapper around PyQtGraph's GraphicsLayout, which
+    handles the complexities of creating/laying-out plots in the view. This
+    class aims to simplify the API for our use cases, and add functionality for
+    easily plotting pandas Series.
+
+    Parameters
+    ----------
+    rows : int, optional
+        Rows of plots to generate (stacked from top to bottom), default is 1
+    background : optional
+        Background color for the widget and nested plots. Can be any value
+        accepted by :func:`mkBrush` or :func:`mkColor` e.g. QColor, hex string,
+        RGB(A) tuple
+    grid : bool
+        If True displays gridlines on the plot surface
+    sharex : bool
+        If True links all x-axis values to the first plot
+    multiy : bool
+        If True all plots will have a sister plot with its own y-axis and scale
+        enabling the plotting of 2 (or more) datasets with differing scales on a
+        single plot surface.
+    parent
+
+    See Also
+    --------
+    :func:`mkPen` for customizing plot-line pens (creates a QgGui.QPen)
+    :func:`mkColor` for color options in the plot (creates a QtGui.QColor)
+
+    """
+
+    def __init__(self, rows=1, cols=1, background='w', grid=True, sharex=False,
+                 multiy=False, parent=None):
+        super().__init__(background=background, parent=parent)
+        self.gl = GraphicsLayout(parent=parent)
+        self.setCentralItem(self.gl)
+
+        self.rows = rows
+        self.cols = 1
+
+        self._pens = cycle([{'color': v, 'width': 2} for v in LINE_COLORS])
+        self._series = {}  # type: Dict[pd.Series: Tuple[str, int, int]]
+        self._items = {}  # type: Dict[PlotDataItem: Tuple[str, int, int]]
+
+        for row in range(self.rows):
+            axis_items = {'bottom': PolyAxis(orientation='bottom')}
+            plot: PlotItem = self.gl.addPlot(row=row, col=0,
+                                             backround=background,
+                                             axisItems=axis_items)
+            plot.clear()
+            plot.addLegend(offset=(15, 15))
+            plot.showGrid(x=grid, y=grid)
+            if row > 0 and sharex:
+                plot.setXLink(self.get_plot(0, 0))
+
+        self.__signal_proxies = []
+
+    def get_plot(self, row: int, col: int = 0) -> PlotItem:
+        return self.gl.getItem(row, col)
+
+    @property
+    def plots(self) -> Generator[PlotItem, None, None]:
+        for i in range(self.rows):
+            yield self.get_plot(i, 0)
+
+    def add_series(self, series: pd.Series, row: int, col: int = 0,
+                   axis: str = 'left'):
+        """Add a pandas :class:`Series` to the plot at the specified row/column
+
+        Parameters
+        ----------
+        series : :class:`Series`
+            The Pandas Series to add; series.index and series.values are taken
+            to be the x and y axis respectively
+        row : int
+        col : int
+        axis : str
+            'left' or 'right' - specifies which y-scale the series should be
+            plotted on. Only has effect if self.multiy is True.
+
+        Returns
+        -------
+
+        """
+        key = self.make_index(series.name, row, col)
+        if self.get_series(*key) is not None:
+            return
+
+        self._series[key] = series
+        plot = self.get_plot(row, col)
+        xvals = pd.to_numeric(series.index, errors='coerce')
+        yvals = pd.to_numeric(series.values, errors='coerce')
+        item = plot.plot(x=xvals, y=yvals, name=series.name, pen=next(self._pens))
+        self._items[key] = item
+        return item
+
+    def get_series(self, name: str, row, col=0) -> Union[pd.Series, None]:
+        return self._series.get((name, row, col), None)
+
+    def remove_series(self, name: str, row: int, col: int = 0) -> None:
+        plot = self.get_plot(row, col)
+        key = self.make_index(name, row, col)
+        item = self._items.get(key, None)
+        if item is None:
+            return
+        plot.removeItem(item)
+        plot.legend.removeItem(name)
+        del self._series[key]
+        del self._items[key]
+
+    def clear(self):
+        for i in range(self.rows):
+            for j in range(self.cols):
+                plot = self.get_plot(i, j)
+                plot.clear()
+        self._items = {}
+        self._series = {}
+
+    def remove_plotitem(self, item: PlotDataItem) -> None:
+        """Alternative method of removing a line by its :class:`PlotDataItem`
+        reference, as opposed to using remove_series to remove a named series
+        from a specific plot at row/col index.
+
+        Parameters
+        ----------
+        item : :class:`PlotDataItem`
+            The PlotDataItem reference to be removed from whichever plot it
+            resides
+
+        """
+        for plot, index in self.gl.items.items():
+            if isinstance(plot, PlotItem):
+                if item in plot.dataItems:
+                    name = item.name()
+                    plot.removeItem(item)
+                    plot.legend.removeItem(name)
+
+                    del self._series[self.make_index(name, *index[0])]
+
+    def find_series(self, name: str) -> List[Tuple[str, int, int]]:
+        indexes = []
+        for index, series in self._series.items():
+            if series.name == name:
+                indexes.append(index)
+
+        return indexes
+
+    def set_xaxis_formatter(self, formatter: str, row: int, col: int = 0):
+        """Allow setting of the X-Axis tick formatter to display DateTime or
+        scalar values.
+        This is an explicit call, as opposed to letting the AxisItem infer the
+        axis type due to the possibility of plotting two series with different
+        indexes. This may be revised in future.
+
+        Parameters
+        ----------
+        formatter : str
+            'datetime' will set the bottom AxisItem to display datetime values
+            Any other value will set the AxisItem to its default scalar display
+        row : int
+            Plot row index
+        col : int
+            Plot column index
+
+        """
+        plot = self.get_plot(row, col)
+        axis: PolyAxis = plot.getAxis('bottom')
+        if formatter.lower() == 'datetime':
+            axis.timeaxis = True
+        else:
+            axis.timeaxis = False
+
+    def get_xlim(self, row: int, col: int = 0):
+        return self.get_plot(row, col).vb.viewRange()[0]
+
+    def set_xlink(self, linked: bool = True, autorange: bool = False):
+        base = self.get_plot(0, 0) if linked else None
+        for i in range(1, self.rows):
+            plot = self.get_plot(i, 0)
+            plot.setXLink(base)
+            if autorange:
+                plot.autoRange()
+
+    def add_onclick_handler(self, slot, ratelimit: int = 60):  # pragma: no cover
+        """Creates a SignalProxy to forward Mouse Clicked events on the
+        GraphicsLayout scene to the provided slot.
+
+        Parameters
+        ----------
+        slot : pyqtSlot(MouseClickEvent)
+            pyqtSlot accepting a :class:`MouseClickEvent`
+        ratelimit : int, optional
+            Limit the SignalProxy to an emission rate of `ratelimit` signals/sec
+
+        """
+        sp = SignalProxy(self.gl.scene().sigMouseClicked, rateLimit=ratelimit,
+                         slot=slot)
+        self.__signal_proxies.append(sp)
+        return sp
+
+    @staticmethod
+    def make_index(name: str, row: int, col: int = 0):
+        if name is None or name is '':
+            raise ValueError("Cannot create plot index from empty name.")
+        return name, row, col
 
 
 class PyQtGridPlotWidget(GraphicsView):

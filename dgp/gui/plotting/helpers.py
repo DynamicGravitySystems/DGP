@@ -6,6 +6,57 @@ from PyQt5.QtWidgets import QAction, QInputDialog, QMenu
 from pyqtgraph import LinearRegionItem, TextItem, AxisItem
 
 
+class PolyAxis(AxisItem):
+    """Subclass of PyQtGraph :class:`AxisItem` which can display tick strings
+    for a date/time value, or scalar values.
+    """
+    minute = pd.Timedelta(minutes=1).value
+    hour = pd.Timedelta(hours=1).value
+    day = pd.Timedelta(days=1).value
+
+    def __init__(self, orientation, **kwargs):
+        super().__init__(orientation, **kwargs)
+        self.timeaxis = False
+
+    def dateTickStrings(self, values, scale, spacing):
+        if not values:
+            rng = 0
+        else:
+            rng = max(values) - min(values)
+
+        labels = []
+        # TODO: Maybe add special tick format for first tick
+        if rng < self.minute:
+            fmt = '%H:%M:%S'
+
+        elif rng < self.hour:
+            fmt = '%H:%M:%S'
+        elif rng < self.day:
+            fmt = '%H:%M'
+        else:
+            if spacing > self.day:
+                fmt = '%y:%m%d'
+            elif spacing >= self.hour:
+                fmt = '%H'
+            else:
+                fmt = ''
+
+        for x in values:
+            try:
+                labels.append(pd.to_datetime(x).strftime(fmt))
+            except ValueError:  # Windows can't handle dates before 1970
+                labels.append('')
+            except OSError:
+                pass
+        return labels
+
+    def tickStrings(self, values, scale, spacing):
+        if self.timeaxis:
+            return self.dateTickStrings(values, scale, spacing)
+        else:
+            return super().tickStrings(values, scale, spacing)
+
+
 class DateAxis(AxisItem):
     minute = pd.Timedelta(minutes=1).value
     hour = pd.Timedelta(hours=1).value
