@@ -127,7 +127,7 @@ class GridPlotWidget(GraphicsView):
         key = self.make_index(name, row, col)
         item = self._items.get(key, None)
         if item is None:
-            return
+            raise KeyError(f'Item {key} does not exist.')
         plot.removeItem(item)
         plot.legend.removeItem(name)
         del self._series[key]
@@ -154,7 +154,7 @@ class GridPlotWidget(GraphicsView):
 
         """
         for plot, index in self.gl.items.items():
-            if isinstance(plot, PlotItem):
+            if isinstance(plot, PlotItem):  # pragma: no branch
                 if item in plot.dataItems:
                     name = item.name()
                     plot.removeItem(item)
@@ -165,7 +165,7 @@ class GridPlotWidget(GraphicsView):
     def find_series(self, name: str) -> List[Tuple[str, int, int]]:
         indexes = []
         for index, series in self._series.items():
-            if series.name == name:
+            if series.name == name:  # pragma: no branch
                 indexes.append(index)
 
         return indexes
@@ -227,10 +227,10 @@ class GridPlotWidget(GraphicsView):
     def make_index(name: str, row: int, col: int = 0):
         if name is None or name is '':
             raise ValueError("Cannot create plot index from empty name.")
-        return name, row, col
+        return name.lower(), row, col
 
 
-class PyQtGridPlotWidget(GraphicsView):
+class PyQtGridPlotWidget(GraphicsView):  # pragma: no cover
     # TODO: Use multiple Y-Axes to plot 2 lines of different scales
     # See pyqtgraph/examples/MultiplePlotAxes.py
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',

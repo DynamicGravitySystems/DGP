@@ -4,11 +4,13 @@
 Test/Develop Plots using PyQtGraph for high-performance user-interactive plots
 within the application.
 """
+from datetime import datetime
+
 import pytest
 import numpy as np
 import pandas as pd
 from PyQt5.QtCore import QObject
-from PyQt5.QtWidgets import QWidget, QGraphicsScene
+from PyQt5.QtWidgets import QWidget, QGraphicsScene, QGraphicsWidget, QGraphicsTextItem
 from pyqtgraph import GraphicsLayout, PlotItem, PlotDataItem, LegendItem
 
 from dgp.gui.plotting.backends import GridPlotWidget
@@ -38,6 +40,17 @@ def test_grid_plot_widget_init():
 
     p0 = gpw.get_plot(row=0)
     assert isinstance(p0.legend, LegendItem)
+
+
+def test_grid_plot_widget_make_index(gravdata):
+    assert ('gravity', 0, 1) == GridPlotWidget.make_index(gravdata['gravity'].name, 0, 1)
+
+    unnamed_ser = pd.Series(np.zeros(14), name='')
+    with pytest.raises(ValueError):
+        GridPlotWidget.make_index(unnamed_ser.name, 1, 1)
+
+    upper_ser = pd.Series(np.zeros(14), name='GraVitY')
+    assert ('gravity', 2, 0) == GridPlotWidget.make_index(upper_ser.name, 2, 0)
 
 
 def test_grid_plot_widget_plotting(gravity):
@@ -78,8 +91,11 @@ def test_grid_plot_widget_plotting(gravity):
     assert gpw._items.get(key, None) is None
     assert 'gravity' not in [label.text for _, label in p0.legend.items]
 
+    with pytest.raises(KeyError):
+        gpw.remove_series('eotvos', 0, 0)
 
-def test_grid_plot_widget_remove_by_item(gravity):
+
+def test_grid_plot_widget_remove_plotitem(gravity):
     gpw = GridPlotWidget(rows=2)
     p0 = gpw.get_plot(0)
     p1 = gpw.get_plot(1)
@@ -120,7 +136,7 @@ def test_grid_plot_widget_find_series(gravity):
     assert gravity.equals(_grav_series0)
 
 
-def test_grid_plot_widget_axis_formatting(gravity):
+def test_grid_plot_widget_set_xaxis_formatter(gravity):
     """Test that appropriate axis formatters are automatically added based on
     the series index type (numeric or DateTime)
     """
@@ -137,6 +153,9 @@ def test_grid_plot_widget_axis_formatting(gravity):
     btm_axis_p1 = p1.getAxis('bottom')
     assert isinstance(btm_axis_p1, PolyAxis)
     assert not btm_axis_p1.timeaxis
+
+    gpw.set_xaxis_formatter(formatter='scalar', row=0)
+    assert not p0.getAxis('bottom').timeaxis
 
 
 def test_grid_plot_widget_sharex(gravity):
@@ -191,6 +210,45 @@ def test_grid_plot_clear(gravdata):
     assert 0 == len(p0.dataItems)
 
     # TODO: Selective clear not yet implemented
+
+
+def test_PolyAxis_tickStrings():
+    axis = PolyAxis(orientation='bottom')
+    axis.timeaxis = True
+    _scale = 1.0
+    _spacing = pd.Timedelta(seconds=1).value
+
+    _HOUR_SEC = 3600
+    _DAY_SEC = 86400
+
+    dt_index = pd.DatetimeIndex(start=datetime(2018, 6, 15, 12, 0, 0), freq='s',
+                                periods=8*_DAY_SEC)
+    dt_list = pd.to_numeric(dt_index).tolist()
+
+    # Test with no values passed
+    assert [] == axis.tickStrings([], _scale, 1)
+
+    # If the plot range is <= 60 seconds, ticks should be formatted as %M:%S
+    _minute = 61
+    expected = [pd.to_datetime(dt_list[i]).strftime('%M:%S') for i in range(_minute)]
+    print(f'last expected: {expected[-1]}')
+    assert expected == axis.tickStrings(dt_list[:_minute], _scale, _spacing)
+
+    # If 1 minute < plot range <= 1 hour, ticks should be formatted as %H:%M
+    _hour = 60*60 + 1
+    expected = [pd.to_datetime(dt_list[i]).strftime('%H:%M') for i in range(0, _hour, 5)]
+    assert expected == axis.tickStrings(dt_list[:_hour:5], _scale, _spacing)
+
+    # If 1 hour < plot range <= 1 day, ticks should be formatted as %d %H:%M
+    tick_values = [dt_list[i] for i in range(0, 23*_HOUR_SEC, _HOUR_SEC)]
+    expected = [pd.to_datetime(v).strftime('%d %H:%M') for v in tick_values]
+    assert expected == axis.tickStrings(tick_values, _scale, _HOUR_SEC)
+
+    # If 1 day < plot range <= 1 week, ticks should be formatted as %m-%d %H
+
+    tick_values = [dt_list[i] for i in range(0, 3*_DAY_SEC, _DAY_SEC)]
+    expected = [pd.to_datetime(v).strftime('%m-%d %H') for v in tick_values]
+    assert expected == axis.tickStrings(tick_values, _scale, _DAY_SEC)
 
 
 @pytest.mark.skip("Defer implementation of this")
