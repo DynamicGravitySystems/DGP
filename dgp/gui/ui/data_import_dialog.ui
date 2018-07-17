@@ -1,136 +1,674 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>Dialog</class>
- <widget class="QDialog" name="Dialog">
-  <property name="windowModality">
-   <enum>Qt::ApplicationModal</enum>
-  </property>
+ <class>DataImportDialog</class>
+ <widget class="QDialog" name="DataImportDialog">
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>418</width>
-    <height>500</height>
+    <width>732</width>
+    <height>683</height>
    </rect>
   </property>
   <property name="sizePolicy">
-   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+   <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
     <horstretch>0</horstretch>
     <verstretch>0</verstretch>
    </sizepolicy>
   </property>
-  <property name="minimumSize">
+  <property name="sizeIncrement">
    <size>
-    <width>300</width>
-    <height>500</height>
-   </size>
-  </property>
-  <property name="maximumSize">
-   <size>
-    <width>600</width>
-    <height>1200</height>
+    <width>50</width>
+    <height>0</height>
    </size>
   </property>
   <property name="windowTitle">
    <string>Import Data</string>
   </property>
   <property name="windowIcon">
-   <iconset resource="resources.qrc">
-    <normaloff>:/images/assets/geoid_icon.png</normaloff>:/images/assets/geoid_icon.png</iconset>
+   <iconset resource="resources/resources.qrc">
+    <normaloff>:/icons/new_file.png</normaloff>:/icons/new_file.png</iconset>
   </property>
-  <layout class="QGridLayout" name="gridLayout">
-   <item row="5" column="0">
-    <widget class="QGroupBox" name="group_datatype">
-     <property name="title">
-      <string>Data Type</string>
+  <property name="modal">
+   <bool>true</bool>
+  </property>
+  <layout class="QHBoxLayout" name="horizontalLayout">
+   <property name="spacing">
+    <number>0</number>
+   </property>
+   <property name="sizeConstraint">
+    <enum>QLayout::SetDefaultConstraint</enum>
+   </property>
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>5</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
+   <item>
+    <layout class="QVBoxLayout" name="qvl_datatype">
+     <property name="rightMargin">
+      <number>6</number>
      </property>
-     <layout class="QVBoxLayout" name="verticalLayout">
-      <item>
-       <widget class="QRadioButton" name="type_gravity">
-        <property name="text">
-         <string>&amp;Gravity Data</string>
-        </property>
-        <property name="checked">
-         <bool>true</bool>
-        </property>
-        <attribute name="buttonGroup">
-         <string notr="true">group_radiotype</string>
-        </attribute>
+     <item>
+      <widget class="QListWidget" name="qlw_datatype">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QVBoxLayout" name="verticalLayout" stretch="0,1,0,0">
+     <property name="spacing">
+      <number>8</number>
+     </property>
+     <property name="leftMargin">
+      <number>2</number>
+     </property>
+     <property name="topMargin">
+      <number>9</number>
+     </property>
+     <property name="bottomMargin">
+      <number>9</number>
+     </property>
+     <item>
+      <layout class="QFormLayout" name="qfl_common">
+       <property name="verticalSpacing">
+        <number>8</number>
+       </property>
+       <property name="leftMargin">
+        <number>4</number>
+       </property>
+       <property name="topMargin">
+        <number>4</number>
+       </property>
+       <property name="rightMargin">
+        <number>4</number>
+       </property>
+       <property name="bottomMargin">
+        <number>4</number>
+       </property>
+       <item row="0" column="0">
+        <widget class="QLabel" name="ql_path">
+         <property name="text">
+          <string>Path*</string>
+         </property>
+         <property name="buddy">
+          <cstring>qle_filepath</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <layout class="QHBoxLayout" name="qhbl_filepath">
+         <property name="spacing">
+          <number>2</number>
+         </property>
+         <item>
+          <widget class="QLineEdit" name="qle_filepath"/>
+         </item>
+         <item>
+          <widget class="QPushButton" name="qpb_browse">
+           <property name="toolTip">
+            <string>Browse for file</string>
+           </property>
+           <property name="whatsThis">
+            <string>Browse for a data file</string>
+           </property>
+           <property name="text">
+            <string>Browse...</string>
+           </property>
+           <property name="iconSize">
+            <size>
+             <width>16</width>
+             <height>16</height>
+            </size>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="ql_tag">
+         <property name="text">
+          <string>(Re)name</string>
+         </property>
+         <property name="buddy">
+          <cstring>qle_rename</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <layout class="QHBoxLayout" name="qhbl_rename">
+         <item>
+          <widget class="QLineEdit" name="qle_rename">
+           <property name="toolTip">
+            <string>Rename the source file within the project</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="qchb_copy_file">
+           <property name="toolTip">
+            <string>Copy source file to project directory</string>
+           </property>
+           <property name="text">
+            <string>Copy to Project Dir</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="ql_flight">
+         <property name="text">
+          <string>Flight</string>
+         </property>
+         <property name="buddy">
+          <cstring>qcb_flight</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <layout class="QHBoxLayout" name="qhbl_flight">
+         <property name="spacing">
+          <number>2</number>
+         </property>
+         <item>
+          <widget class="QComboBox" name="qcb_flight">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="qpb_add_flight">
+           <property name="toolTip">
+            <string>Add new flight to project</string>
+           </property>
+           <property name="text">
+            <string>Add Flight...</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="ql_dataset">
+         <property name="text">
+          <string>Dataset</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <layout class="QHBoxLayout" name="horizontalLayout_4">
+         <property name="spacing">
+          <number>2</number>
+         </property>
+         <item>
+          <widget class="QComboBox" name="qcb_dataset"/>
+         </item>
+         <item>
+          <widget class="QPushButton" name="qpb_add_dataset">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>New Dataset</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="4" column="0">
+        <widget class="QLabel" name="ql_date">
+         <property name="text">
+          <string>Date</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <layout class="QHBoxLayout" name="qhbl_date">
+         <item>
+          <widget class="QDateEdit" name="qde_date"/>
+         </item>
+         <item>
+          <widget class="QPushButton" name="qpb_date_from_flight">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="toolTip">
+            <string>Use date from associated flight</string>
+           </property>
+           <property name="text">
+            <string>From Flight</string>
+           </property>
+           <property name="icon">
+            <iconset resource="resources/resources.qrc">
+             <normaloff>:/icons/airborne</normaloff>:/icons/airborne</iconset>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="5" column="0">
+        <widget class="QLabel" name="ql_notes">
+         <property name="text">
+          <string>Notes</string>
+         </property>
+         <property name="buddy">
+          <cstring>qpte_notes</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="1">
+        <widget class="QPlainTextEdit" name="qpte_notes">
+         <property name="horizontalScrollBarPolicy">
+          <enum>Qt::ScrollBarAlwaysOff</enum>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <widget class="QStackedWidget" name="qsw_advanced_properties">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="currentIndex">
+        <number>1</number>
+       </property>
+       <widget class="QWidget" name="qw_gravity">
+        <layout class="QVBoxLayout" name="verticalLayout_2">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QLabel" name="ql_gravityimport">
+           <property name="text">
+            <string>Gravity Import</string>
+           </property>
+           <property name="indent">
+            <number>0</number>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QFormLayout" name="formLayout_2">
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <item row="0" column="0">
+            <widget class="QLabel" name="ql_gravimeter">
+             <property name="text">
+              <string>Sensor</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <layout class="QHBoxLayout" name="horizontalLayout_5">
+             <property name="spacing">
+              <number>2</number>
+             </property>
+             <item>
+              <widget class="QComboBox" name="qcb_gravimeter">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="qpb_add_sensor">
+               <property name="toolTip">
+                <string>Add new Gravimeter to project</string>
+               </property>
+               <property name="text">
+                <string>Add Sensor...</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="ql_grav_sensortype">
+             <property name="text">
+              <string>Sensor Type</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QLineEdit" name="qle_sensortype">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="ql_grav_format">
+             <property name="text">
+              <string>Column Format</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <layout class="QHBoxLayout" name="horizontalLayout_2">
+             <property name="spacing">
+              <number>2</number>
+             </property>
+             <item>
+              <widget class="QLineEdit" name="qle_grav_format">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QToolButton" name="qtb_grav_format_adv">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="text">
+                <string>...</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item row="3" column="1">
+            <widget class="QCheckBox" name="qchb_grav_hasheader">
+             <property name="text">
+              <string>Has Header Row</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QCheckBox" name="qchb_grav_interp">
+             <property name="text">
+              <string>Interpolate Missing Numeric Fields</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <spacer name="verticalSpacer">
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>20</width>
+             <height>40</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
        </widget>
-      </item>
-      <item>
-       <widget class="QRadioButton" name="type_gps">
-        <property name="text">
-         <string>G&amp;PS Data</string>
-        </property>
-        <attribute name="buttonGroup">
-         <string notr="true">group_radiotype</string>
-        </attribute>
+       <widget class="QWidget" name="qw_trajectory">
+        <layout class="QVBoxLayout" name="verticalLayout_3">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QLabel" name="ql_trajectory_import">
+           <property name="text">
+            <string>Trajectory Import</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QFormLayout" name="formLayout">
+           <item row="0" column="0">
+            <widget class="QLabel" name="ql_traj_timeformat">
+             <property name="text">
+              <string>GPS Time Format</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QComboBox" name="qcb_traj_timeformat"/>
+           </item>
+           <item row="3" column="1">
+            <widget class="QCheckBox" name="qchb_traj_isutc">
+             <property name="text">
+              <string>Is UTC Time</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QCheckBox" name="qchb_traj_hasheader">
+             <property name="text">
+              <string>Has Header Row</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label">
+             <property name="text">
+              <string>Column Names</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QLineEdit" name="qle_traj_format">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <spacer name="verticalSpacer_2">
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>20</width>
+             <height>40</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
        </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item row="8" column="0" colspan="3">
-    <widget class="QDialogButtonBox" name="buttonBox">
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-     <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-     </property>
-    </widget>
-   </item>
-   <item row="3" column="0">
-    <widget class="QComboBox" name="combo_flights"/>
-   </item>
-   <item row="4" column="0">
-    <widget class="QComboBox" name="combo_meters"/>
-   </item>
-   <item row="1" column="0">
-    <widget class="QLineEdit" name="field_path">
-     <property name="readOnly">
-      <bool>true</bool>
-     </property>
-    </widget>
-   </item>
-   <item row="7" column="0" colspan="3">
-    <widget class="QTreeView" name="tree_directory"/>
-   </item>
-   <item row="1" column="2">
-    <widget class="QPushButton" name="button_browse">
-     <property name="text">
-      <string>&amp;Browse</string>
-     </property>
-    </widget>
-   </item>
-   <item row="3" column="2">
-    <widget class="QLabel" name="label_3">
-     <property name="text">
-      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;Flight&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-     </property>
-    </widget>
-   </item>
-   <item row="4" column="2">
-    <widget class="QLabel" name="label">
-     <property name="text">
-      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;Meter&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-     </property>
-    </widget>
+      </widget>
+     </item>
+     <item>
+      <layout class="QVBoxLayout" name="qvl_fileinfo">
+       <item>
+        <widget class="QLabel" name="ql_fileinfo">
+         <property name="text">
+          <string>File Info</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QFormLayout" name="qfl_fileinfo">
+         <item row="1" column="0">
+          <widget class="QLabel" name="ql_filesize">
+           <property name="text">
+            <string>File Size (MiB)</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QLineEdit" name="qle_filesize">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="ql_linecount">
+           <property name="text">
+            <string>Line Count</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QLineEdit" name="qle_linecount">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="ql_colcount">
+           <property name="text">
+            <string>Column Count</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QLineEdit" name="qle_colcount">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="0">
+          <widget class="QLabel" name="ql_filename">
+           <property name="text">
+            <string>File Name</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QLineEdit" name="qle_filename">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout_3">
+       <item>
+        <widget class="QLabel" name="ql_validation_err">
+         <property name="styleSheet">
+          <string notr="true">QLabel { color: red; }</string>
+         </property>
+         <property name="text">
+          <string/>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QDialogButtonBox" name="qdbb_buttons">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="standardButtons">
+          <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+         </property>
+         <property name="centerButtons">
+          <bool>false</bool>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+    </layout>
    </item>
   </layout>
  </widget>
- <resources/>
+ <tabstops>
+  <tabstop>qlw_datatype</tabstop>
+  <tabstop>qle_filepath</tabstop>
+  <tabstop>qpb_browse</tabstop>
+  <tabstop>qle_rename</tabstop>
+  <tabstop>qchb_copy_file</tabstop>
+  <tabstop>qcb_flight</tabstop>
+  <tabstop>qpb_add_flight</tabstop>
+  <tabstop>qpte_notes</tabstop>
+  <tabstop>qcb_gravimeter</tabstop>
+  <tabstop>qpb_add_sensor</tabstop>
+  <tabstop>qle_sensortype</tabstop>
+  <tabstop>qle_grav_format</tabstop>
+  <tabstop>qtb_grav_format_adv</tabstop>
+  <tabstop>qle_filesize</tabstop>
+  <tabstop>qle_linecount</tabstop>
+  <tabstop>qle_colcount</tabstop>
+  <tabstop>qcb_traj_timeformat</tabstop>
+ </tabstops>
+ <resources>
+  <include location="resources/resources.qrc"/>
+ </resources>
  <connections>
   <connection>
-   <sender>buttonBox</sender>
+   <sender>qdbb_buttons</sender>
+   <signal>accepted()</signal>
+   <receiver>DataImportDialog</receiver>
+   <slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>513</x>
+     <y>618</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>157</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>qdbb_buttons</sender>
    <signal>rejected()</signal>
-   <receiver>Dialog</receiver>
+   <receiver>DataImportDialog</receiver>
    <slot>reject()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>316</x>
-     <y>260</y>
+     <x>581</x>
+     <y>618</y>
     </hint>
     <hint type="destinationlabel">
      <x>286</x>
@@ -139,7 +677,4 @@
    </hints>
   </connection>
  </connections>
- <buttongroups>
-  <buttongroup name="group_radiotype"/>
- </buttongroups>
 </ui>

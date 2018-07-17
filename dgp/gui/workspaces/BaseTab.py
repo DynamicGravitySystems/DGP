@@ -2,14 +2,13 @@
 
 from PyQt5.QtWidgets import QWidget
 
-import dgp.lib.types as types
-from dgp.lib.project import Flight
+from dgp.core.controllers.controller_interfaces import IFlightController
 from dgp.lib.etc import gen_uuid
 
 
 class BaseTab(QWidget):
     """Base Workspace Tab Widget - Subclass to specialize function"""
-    def __init__(self, label: str, flight: Flight, parent=None, **kwargs):
+    def __init__(self, label: str, flight: IFlightController, parent=None, **kwargs):
         super().__init__(parent, **kwargs)
         self.label = label
         self._flight = flight
@@ -29,7 +28,7 @@ class BaseTab(QWidget):
         self._model = value
 
     @property
-    def flight(self) -> Flight:
+    def flight(self) -> IFlightController:
         return self._flight
 
     @property
@@ -40,7 +39,7 @@ class BaseTab(QWidget):
     def plot(self, value):
         self._plot = value
 
-    def data_modified(self, action: str, dsrc: types.DataSource):
+    def data_modified(self, action: str, dsrc):
         pass
 
     @property

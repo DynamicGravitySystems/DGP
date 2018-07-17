@@ -44,9 +44,17 @@ def get_project_file(path: Path) -> Union[Path, None]:
     """
     Attempt to retrieve a project file (*.d2p) from the given dir path,
     otherwise signal failure by returning False.
-    :param path: str or pathlib.Path : Directory path to project
-    :return: pathlib.Path : absolute path to *.d2p file if found, else False
+
+    Parameters
+    ----------
+    path : Path
+        Directory path to search for DGP project files
+
+    Returns
+    -------
+    Path : absolute path to DGP JSON file if found, else None
+
     """
-    for child in sorted(path.glob('*.d2p')):
+    # TODO: Read JSON and check for presence of a magic attribute that marks a project file
+    for child in sorted(path.glob('*.json')):
         return child.resolve()
-    return None

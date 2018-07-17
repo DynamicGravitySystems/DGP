@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>580</width>
-    <height>481</height>
+    <height>650</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -15,10 +15,98 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <widget class="QTreeView" name="treeView"/>
+    <layout class="QHBoxLayout" name="horizontalLayout">
+     <item>
+      <widget class="ProjectTreeView" name="treeView">
+       <property name="iconSize">
+        <size>
+         <width>15</width>
+         <height>15</height>
+        </size>
+       </property>
+       <property name="rootIsDecorated">
+        <bool>false</bool>
+       </property>
+       <attribute name="headerVisible">
+        <bool>false</bool>
+       </attribute>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_2">
+     <item>
+      <widget class="QListView" name="qlv_0">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QListView" name="qlv_1"/>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QComboBox" name="cb_flight_lines"/>
+   </item>
+   <item>
+    <widget class="QPushButton" name="btn">
+     <property name="text">
+      <string>Add Line</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="btn_gravimeter">
+     <property name="text">
+      <string>Add Gravimeter</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="btn_importdata">
+     <property name="text">
+      <string>Import Data</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="btn_flight">
+     <property name="text">
+      <string>Add Flight</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="qpb_properties">
+     <property name="text">
+      <string>Project Properties</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="btn_export">
+     <property name="text">
+      <string>Export JSON</string>
+     </property>
+    </widget>
    </item>
   </layout>
  </widget>
- <resources/>
+ <customwidgets>
+  <customwidget>
+   <class>ProjectTreeView</class>
+   <extends>QTreeView</extends>
+   <header>dgp.gui.views.ProjectTreeView</header>
+  </customwidget>
+ </customwidgets>
+ <resources>
+  <include location="../dgp/gui/ui/resources/resources.qrc"/>
+ </resources>
  <connections/>
 </ui>

@@ -5,6 +5,8 @@
 *.pyo
 *.coverage
 *.vsdx
+*.hdf5
+*.h5
 
 # Ignored directories
 __pycache__/
@@ -12,6 +14,7 @@ scratch/
 venv/
 docs/build/
 .cache/
+.pytest_cache/
 
 # Specific Directives
 examples/local*

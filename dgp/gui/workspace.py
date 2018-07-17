@@ -8,17 +8,15 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget
 import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtGui as QtGui
 
-
+from core.controllers.flight_controller import FlightController
+from dgp.core.oid import OID
 from .workspaces import *
-import dgp.gui.models as models
-import dgp.lib.types as types
-from dgp.lib.project import Flight
 
 
 class FlightTab(QWidget):
     """Top Level Tab created for each Flight object open in the workspace"""
 
-    def __init__(self, flight: Flight, parent=None, flags=0, **kwargs):
+    def __init__(self, flight: FlightController, parent=None, flags=0, **kwargs):
         super().__init__(parent=parent, flags=Qt.Widget)
         self.log = logging.getLogger(__name__)
         self._flight = flight
@@ -30,7 +28,8 @@ class FlightTab(QWidget):
         self._layout.addWidget(self._workspace)
 
         # Define Sub-Tabs within Flight space e.g. Plot, Transform, Maps
-        self._plot_tab = PlotTab(label="Plot", flight=flight, axes=3)
+        self._plot_tab = PlotTab(label="Plot", flight=flight)
+
         self._workspace.addTab(self._plot_tab, "Plot")
 
         self._transform_tab = TransformTab("Transforms", flight)
@@ -45,17 +44,13 @@ class FlightTab(QWidget):
     def subtab_widget(self):
         return self._workspace.currentWidget().widget()
 
-    def new_data(self, dsrc: types.DataSource):
-        for tab in [self._plot_tab, self._transform_tab]:
-            tab.data_modified('add', dsrc)
-
-    def data_deleted(self, dsrc):
-        self.log.debug("Notifying tabs of data-source deletion.")
-        for tab in [self._plot_tab]:
-            tab.data_modified('remove', dsrc)
+    @property
+    def uid(self) -> OID:
+        """Return the underlying Flight's UID"""
+        return self._flight.uid
 
     @property
-    def flight(self):
+    def flight(self) -> FlightController:
         return self._flight
 
     @property

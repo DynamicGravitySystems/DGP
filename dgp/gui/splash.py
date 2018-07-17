@@ -1,6 +1,4 @@
-# coding: utf-8
-
-
+# -*- coding: utf-8 -*-
 import sys
 import json
 import logging
@@ -9,17 +7,16 @@ from typing import Dict, Union
 
 import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtCore as QtCore
-from PyQt5.uic import loadUiType
 
+from dgp.core.controllers.project_controllers import AirborneProjectController
+from dgp.core.models.project import AirborneProject, GravityProject
 from dgp.gui.main import MainWindow
 from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, LOG_COLOR_MAP, get_project_file
-from dgp.gui.dialogs import CreateProjectDialog
-import dgp.lib.project as prj
-
-splash_screen, _ = loadUiType('dgp/gui/ui/splash_screen.ui')
+from dgp.gui.dialogs.create_project_dialog import CreateProjectDialog
+from dgp.gui.ui.splash_screen import Ui_Launcher
 
 
-class SplashScreen(QtWidgets.QDialog, splash_screen):
+class SplashScreen(QtWidgets.QDialog, Ui_Launcher):
     def __init__(self, *args):
         super().__init__(*args)
         self.log = self.setup_logging()
@@ -31,6 +28,7 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
 
         self.setupUi(self)
 
+        # TODO: Change this to support other OS's
         self.settings_dir = Path.home().joinpath(
             'AppData\Local\DynamicGravitySystems\DGP')
         self.recent_file = self.settings_dir.joinpath('recent.json')
@@ -38,7 +36,6 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
             self.log.info("Settings Directory doesn't exist, creating.")
             self.settings_dir.mkdir(parents=True)
 
-        # self.dialog_buttons.accepted.connect(self.accept)
         self.btn_newproject.clicked.connect(self.new_project)
         self.btn_browse.clicked.connect(self.browse_project)
         self.list_projects.currentItemChanged.connect(
@@ -60,28 +57,31 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
         root_log.addHandler(std_err_handler)
         return logging.getLogger(__name__)
 
-    def accept(self, project=None):
+    def accept(self, project: Union[GravityProject, None] = None):
         """
         Runs some basic verification before calling super(QDialog).accept().
         """
 
         # Case where project object is passed to accept()
-        if isinstance(project, prj.GravityProject):
+        if isinstance(project, GravityProject):
             self.log.debug("Opening new project: {}".format(project.name))
         elif not self.project_path:
             self.log.error("No valid project selected.")
         else:
             try:
-                project = prj.AirborneProject.load(self.project_path)
+                # project = prj.AirborneProject.load(self.project_path)
+                with open(self.project_path, 'r') as fd:
+                    project = AirborneProject.from_json(fd.read())
             except FileNotFoundError:
                 self.log.error("Project could not be loaded from path: {}"
                                .format(self.project_path))
                 return
 
         self.update_recent_files(self.recent_file,
-                                 {project.name: project.projectdir})
+                                 {project.name: project.path})
 
-        main_window = MainWindow(project)
+        controller = AirborneProjectController(project)
+        main_window = MainWindow(controller)
         main_window.load()
         super().accept()
         return main_window
@@ -118,14 +118,17 @@ class SplashScreen(QtWidgets.QDialog, splash_screen):
         """Allow the user to create a new project"""
         dialog = CreateProjectDialog()
         if dialog.exec_():
-            project = dialog.project  # type: prj.AirborneProject
-            project.save()
+            project = dialog.project  # type: AirborneProject
+            if not project.path.exists():
+                print("Making directory")
+                project.path.mkdir(parents=True)
+            project.to_json(to_file=True)
+
             self.accept(project)
 
     def browse_project(self):
         """Allow the user to browse for a project directory and load."""
-        path = QtWidgets.QFileDialog.getExistingDirectory(self,
-                                                          "Select Project Dir")
+        path = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Project Dir")
         if not path:
             return
 
