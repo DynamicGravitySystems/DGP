@@ -177,16 +177,16 @@ def test_airborne_project_controller(project):
     assert flight2 == fc2.datamodel
 
     assert 5 == project_ctrl.flights.rowCount()
-    project_ctrl.remove_child(flight2, fc2.row(), confirm=False)
+    project_ctrl.remove_child(flight2.uid, confirm=False)
     assert 4 == project_ctrl.flights.rowCount()
     assert project_ctrl.get_child(fc2.uid) is None
 
     assert 3 == project_ctrl.meters.rowCount()
-    project_ctrl.remove_child(meter, mc.row(), confirm=False)
+    project_ctrl.remove_child(meter.uid, confirm=False)
     assert 2 == project_ctrl.meters.rowCount()
 
-    with pytest.raises(ValueError):
-        project_ctrl.remove_child("Not a child", 2)
+    with pytest.raises(KeyError):
+        project_ctrl.remove_child("Not a child")
 
     jsons = project_ctrl.save(to_file=False)
     assert isinstance(jsons, str)

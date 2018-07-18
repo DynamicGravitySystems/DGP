@@ -7,7 +7,7 @@ from PyQt5.QtGui import QContextMenuEvent, QStandardItem
 from PyQt5.QtWidgets import QTreeView, QMenu
 
 from dgp.core.controllers.controller_interfaces import IFlightController, IAirborneController
-from core.controllers.project_treemodel import ProjectTreeModel
+from dgp.core.controllers.project_treemodel import ProjectTreeModel
 
 
 class ProjectTreeView(QTreeView):
