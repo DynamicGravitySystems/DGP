@@ -6,6 +6,7 @@ from typing import Optional, Union, Any, Generator
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
+from PyQt5.QtWidgets import QWidget
 from pandas import DataFrame
 
 from dgp.core.controllers.dataset_controller import DataSetController
@@ -77,19 +78,17 @@ class FlightController(IFlightController):
         self._bindings = [  # pragma: no cover
             ('addAction', ('Add Dataset', lambda: None)),
             ('addAction', ('Set Active',
-                           lambda: self.get_parent().set_active_child(self))),
+                           lambda: self._activate_self())),
             ('addAction', ('Import Gravity',
-                           lambda: self.get_parent().load_file_dlg(
-                               DataTypes.GRAVITY, flight=self))),
+                           lambda: self._load_file_dialog(DataTypes.GRAVITY))),
             ('addAction', ('Import Trajectory',
-                           lambda: self.get_parent().load_file_dlg(
-                               DataTypes.TRAJECTORY, flight=self))),
+                           lambda: self._load_file_dialog(DataTypes.TRAJECTORY))),
             ('addSeparator', ()),
-            ('addAction', ('Delete <%s>' % self._flight.name,
-                           lambda: self.get_parent().remove_child(self.uid, True))),
-            ('addAction', ('Rename Flight', lambda: self.set_name())),
+            ('addAction', (f'Delete {self._flight.name}',
+                           lambda: self._delete_self(confirm=True))),
+            ('addAction', ('Rename Flight', lambda: self._set_name())),
             ('addAction', ('Properties',
-                           lambda: AddFlightDialog.from_existing(self, self.get_parent()).exec_()))
+                           lambda: self._show_properties_dlg()))
         ]
 
         self.update()
@@ -206,7 +205,7 @@ class FlightController(IFlightController):
             if child is not a :obj:`FlightLine` or :obj:`DataFile`
 
         """
-        ctrl: Union[DataSetController, GravimeterController] = self.get_child(uid)
+        ctrl = self.get_child(uid)
         if type(ctrl) not in self._child_control_map.values():
             raise TypeError("Invalid child uid supplied. Invalid child type.")
         if confirm:  # pragma: no cover
@@ -215,6 +214,8 @@ class FlightController(IFlightController):
                                           self.get_parent().get_parent()):
                 return False
 
+        if self._active_dataset == ctrl:
+            self._active_dataset = None
         self._flight.datasets.remove(ctrl.datamodel)
         self._child_map[type(ctrl.datamodel)].removeRow(ctrl.row())
         return True
@@ -227,10 +228,24 @@ class FlightController(IFlightController):
             if item.uid == uid:
                 return item
 
-    def set_name(self):  # pragma: no cover
-        name = helpers.get_input("Set Name", "Enter a new name:", self._flight.name)
+    # Menu Action Handlers
+    def _activate_self(self):
+        self.get_parent().set_active_child(self)
+
+    def _delete_self(self, confirm: bool = True):
+        self.get_parent().remove_child(self.uid, confirm)
+
+    def _set_name(self, parent: QWidget = None):  # pragma: no cover
+        name = helpers.get_input("Set Name", "Enter a new name:",
+                                 self.get_attr('name'), parent)
         if name:
             self.set_attr('name', name)
+
+    def _load_file_dialog(self, datatype: DataTypes):  # pragma: no cover
+        self.get_parent().load_file_dlg(datatype, flight=self)
+
+    def _show_properties_dlg(self):  # pragma: no cover
+        AddFlightDialog.from_existing(self, self.get_parent()).exec_()
 
     def __hash__(self):
         return hash(self._flight.uid)

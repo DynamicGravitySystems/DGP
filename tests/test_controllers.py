@@ -6,6 +6,7 @@ import pytest
 import pandas as pd
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
+from PyQt5.QtWidgets import QWidget, QMenu
 from pandas import DataFrame
 
 from dgp.core.oid import OID
@@ -117,13 +118,42 @@ def test_flight_controller(project: AirborneProject):
 
     with pytest.raises(TypeError):
         fc.set_active_dataset("not a child")
+    fc.set_active_dataset(dsc)
+    assert dsc == fc.get_active_dataset()
 
     fc.set_parent(None)
 
     with pytest.raises(TypeError):
         fc.remove_child("Not a real child", confirm=False)
 
-    fc.remove_child(dataset2.uid, confirm=False)
+    assert dsc2 == fc.get_child(dsc2.uid)
+    assert fc.remove_child(dataset2.uid, confirm=False)
+    assert fc.get_child(dataset2.uid) is None
+
+    fc.remove_child(dsc.uid, confirm=False)
+    assert 0 == len(fc.datamodel.datasets)
+    assert fc.get_active_dataset() is None
+
+
+def test_FlightController_bindings(project: AirborneProject):
+    prj_ctrl = AirborneProjectController(project)
+    fc0 = prj_ctrl.get_child(project.flights[0].uid)
+
+    assert isinstance(fc0, FlightController)
+
+    # Validate menu bindings
+    for binding in fc0.menu_bindings:
+        assert 2 == len(binding)
+        assert hasattr(QMenu, binding[0])
+
+    assert prj_ctrl.get_active_child() is None
+    fc0._activate_self()
+    assert fc0 == prj_ctrl.get_active_child()
+    assert fc0.is_active()
+
+    assert fc0 == prj_ctrl.get_child(fc0.uid)
+    fc0._delete_self(confirm=False)
+    assert prj_ctrl.get_child(fc0.uid) is None
 
 
 def test_airborne_project_controller(project):
