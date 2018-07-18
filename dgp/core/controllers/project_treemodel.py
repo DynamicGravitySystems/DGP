@@ -19,10 +19,18 @@ class ProjectTreeModel(QStandardItemModel):
     flight_changed = pyqtSignal(IFlightController)
     # Fired on any project mutation - can be used to autosave
     project_changed = pyqtSignal()
+    tabOpenRequested = pyqtSignal(IFlightController)
+    tabCloseRequested = pyqtSignal(IFlightController)
 
     def __init__(self, project: AirborneProjectController, parent: Optional[QObject]=None):
         super().__init__(parent)
         self.appendRow(project)
+
+    def active_changed(self):
+        pass
+
+    def close_flight(self, flight: IFlightController):
+        self.tabCloseRequested.emit(flight)
 
     @pyqtSlot(QModelIndex, name='on_click')
     def on_click(self, index: QModelIndex):  # pragma: no cover
@@ -32,7 +40,8 @@ class ProjectTreeModel(QStandardItemModel):
     def on_double_click(self, index: QModelIndex):
         item = self.itemFromIndex(index)
         if isinstance(item, IFlightController):
-            item.get_parent().set_active_child(item)
+            item.get_parent().set_active_child(item, emit=False)
+            self.tabOpenRequested.emit(item.get_parent(), item)
 
 
 # Experiment

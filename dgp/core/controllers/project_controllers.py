@@ -8,7 +8,7 @@ from pathlib import Path
 from pprint import pprint
 from typing import Union, List
 
-from PyQt5.QtCore import Qt, QProcess, QObject, QRegExp
+from PyQt5.QtCore import Qt, QProcess, QObject, QRegExp, pyqtSignal
 from PyQt5.QtGui import QStandardItem, QBrush, QColor, QStandardItemModel, QIcon, QRegExpValidator
 from PyQt5.QtWidgets import QWidget
 from pandas import DataFrame
@@ -41,7 +41,7 @@ FLT_ICON = ":/icons/airborne"
 MTR_ICON = ":/icons/meter_config.png"
 
 
-class AirborneProjectController(IAirborneController, AttributeProxy):
+class AirborneProjectController(IAirborneController):
     def __init__(self, project: AirborneProject):
         super().__init__(project.name)
         self.log = logging.getLogger(__name__)
@@ -183,7 +183,7 @@ class AirborneProjectController(IAirborneController, AttributeProxy):
                 ctrl.setBackground(BASE_COLOR)
             child.setBackground(ACTIVE_COLOR)
             if emit and self.model() is not None:  # pragma: no cover
-                self.model().flight_changed.emit(child)
+                self.model().tabOpenRequested.emit(self, child)
         else:
             raise ValueError("Child of type {0!s} cannot be set to active.".format(type(child)))
 

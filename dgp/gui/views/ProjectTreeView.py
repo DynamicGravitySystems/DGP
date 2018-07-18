@@ -22,6 +22,25 @@ class ProjectTreeView(QTreeView):
         self.setHeaderHidden(True)
         self.setObjectName('project_tree_view')
         self.setContextMenuPolicy(QtCore.Qt.DefaultContextMenu)
+
+        # Set Stylesheet for Tree View, see:
+        # http://doc.qt.io/qt-5/stylesheet-examples.html#customizing-qtreeview
+        self.setStyleSheet("""
+            QTreeView::item {
+            }
+            QTreeView::branch {
+                /*background: palette(base);*/
+            }
+            QTreeView::branch:closed:has-children {
+                background: none;
+                image: url(:/icons/chevron-right);
+            }
+            QTreeView::branch:open:has-children {
+                background: none;
+                image: url(:/icons/chevron-down);
+            }
+        """)
+
         self._action_refs = []
 
     @staticmethod

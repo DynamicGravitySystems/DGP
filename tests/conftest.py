@@ -15,6 +15,9 @@ from dgp.core.oid import OID
 from dgp.lib.gravity_ingestor import read_at1a
 from dgp.lib.trajectory_ingestor import import_trajectory
 
+# Import QApplication object for any Qt GUI test cases
+from .context import APP
+
 
 def get_ts(offset=0):
     return datetime.now().timestamp() + offset

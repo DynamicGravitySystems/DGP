@@ -12,6 +12,7 @@ from PyQt5.QtCore import pyqtSignal, pyqtBoundSignal
 from PyQt5.QtWidgets import QMainWindow, QProgressDialog, QFileDialog, QWidget
 
 import dgp.core.types.enumerations as enums
+from dgp.core.controllers.controller_interfaces import IFlightController, IAirborneController
 from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.core.controllers.flight_controller import FlightController
 from dgp.core.controllers.project_treemodel import ProjectTreeModel
@@ -70,23 +71,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.project_tree.setModel(self.project_model)
         self.project_tree.expandAll()
 
-        # Set Stylesheet customizations for GUI Window, see:
-        # http://doc.qt.io/qt-5/stylesheet-examples.html#customizing-qtreeview
-        self.setStyleSheet("""
-            QTreeView::item {
-            }
-            QTreeView::branch {
-                /*background: palette(base);*/
-            }
-            QTreeView::branch:closed:has-children {
-                background: none;
-                image: url(:/icons/chevron-right);
-            }
-            QTreeView::branch:open:has-children {
-                background: none;
-                image: url(:/icons/chevron-down);
-            }
-        """)
+        # Support for multiple projects
+        self.projects = [project]
+        self.project_model.tabOpenRequested.connect(self._tab_open_requested)
 
         # Initialize Variables
         self.import_base_path = pathlib.Path('~').expanduser().joinpath(
@@ -104,7 +91,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         """Initialize PyQt Signals/Slots for UI Buttons and Menus"""
 
         # Event Signals #
-        self.project_model.flight_changed.connect(self._flight_changed)
+        # self.project_model.flight_changed.connect(self._flight_changed)
         self.project_model.project_changed.connect(self._project_mutated)
 
         # File Menu Actions #
@@ -130,7 +117,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             lambda: self.project.load_file_dlg(enums.DataTypes.GRAVITY, ))
 
         # Tab Browser Actions #
-        self.flight_tabs.tabCloseRequested.connect(self._tab_closed)
+        self.flight_tabs.tabCloseRequested.connect(self._tab_close_requested)
         self.flight_tabs.currentChanged.connect(self._tab_changed)
 
         # Console Window Actions #
@@ -191,18 +178,62 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if level.lower() == 'error' or level.lower() == 'info':
             self.statusBar().showMessage(text, self._default_status_timeout)
 
-    def add_tab(self, tab: QWidget):
-        pass
+    @pyqtSlot(IFlightController, name='_tab_open_requested')
+    def _tab_open_requested(self, flight):
+        """pyqtSlot(:class:`IFlightController`)
 
-    @pyqtSlot(FlightController, name='_flight_changed')
-    def _flight_changed(self, flight: FlightController):
+        Open a :class:`FlightTab` if one does not exist, else set the
+        FlightTab for the given :class:`IFlightController` to active
+
+        """
         if flight.uid in self._open_tabs:
             self.flight_tabs.setCurrentWidget(self._open_tabs[flight.uid])
         else:
-            flt_tab = FlightTab(flight)
-            self._open_tabs[flight.uid] = flt_tab
-            idx = self.flight_tabs.addTab(flt_tab, flight.get_attr('name'))
-            self.flight_tabs.setCurrentIndex(idx)
+            tab = FlightTab(flight)
+            self._open_tabs[flight.uid] = tab
+            index = self.flight_tabs.addTab(tab, flight.get_attr('name'))
+            self.flight_tabs.setCurrentIndex(index)
+
+    @pyqtSlot(IFlightController, name='_tab_close_requested')
+    def _tab_close_requested(self, flight):
+        """pyqtSlot(:class:`IFlightController`)
+
+        Close/dispose of the tab for the supplied flight if it exists, else
+        do nothing.
+
+        """
+        if flight.uid in self._open_tabs:
+            self.log.debug(f'Tab close requested for flight '
+                           f'{flight.get_attr("name")}')
+            tab = self._open_tabs[flight.uid]
+            index = self.flight_tabs.indexOf(tab)
+            self.flight_tabs.removeTab(index)
+            del self._open_tabs[flight.uid]
+
+    @pyqtSlot(int, name='_tab_close_requested')
+    def _tab_close_requested(self, index):
+        """pyqtSlot(int)
+
+        Close/dispose of tab specified by int index.
+        This slot is used to handle user interaction when clicking the close (x)
+        button on an opened tab.
+
+        """
+        self.log.debug(f'Tab close requested for tab at index {index}')
+        tab = self.flight_tabs.widget(index)  # type: FlightTab
+        del self._open_tabs[tab.uid]
+        self.flight_tabs.removeTab(index)
+
+
+    # @pyqtSlot(FlightController, name='_flight_changed')
+    # def _flight_changed(self, flight: FlightController):
+    #     if flight.uid in self._open_tabs:
+    #         self.flight_tabs.setCurrentWidget(self._open_tabs[flight.uid])
+    #     else:
+    #         flt_tab = FlightTab(flight)
+    #         self._open_tabs[flight.uid] = flt_tab
+    #         idx = self.flight_tabs.addTab(flt_tab, flight.get_attr('name'))
+    #         self.flight_tabs.setCurrentIndex(idx)
 
     @pyqtSlot(name='_project_mutated')
     def _project_mutated(self):
