@@ -164,6 +164,8 @@ class AirborneProjectController(IAirborneController):
                                   "Are you sure you want to delete {!s}"
                                   .format(child.get_attr('name'))):
                 return
+        if isinstance(child, IFlightController) and self.model() is not None:
+            self.model().close_flight(child)
         self.project.remove_child(child.uid)
         self._child_map[type(child.datamodel)].removeRow(child.row())
         self.update()
@@ -183,7 +185,7 @@ class AirborneProjectController(IAirborneController):
                 ctrl.setBackground(BASE_COLOR)
             child.setBackground(ACTIVE_COLOR)
             if emit and self.model() is not None:  # pragma: no cover
-                self.model().tabOpenRequested.emit(self, child)
+                self.model().active_changed(child)
         else:
             raise ValueError("Child of type {0!s} cannot be set to active.".format(type(child)))
 
@@ -225,7 +227,7 @@ class AirborneProjectController(IAirborneController):
         data has been added/removed/modified in the project."""
         self.setText(self._project.name)
         if self.model() is not None:
-            self.model().project_changed.emit()
+            self.model().projectMutated.emit()
 
     def _post_load(self, datafile: DataFile, dataset: IDataSetController,
                    data: DataFrame) -> None:  # pragma: no cover

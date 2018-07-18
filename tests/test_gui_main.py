@@ -13,7 +13,7 @@ def pctrl(project):
     return AirborneProjectController(project)
 
 
-def test_MainWindow_init(project):
+def test_MainWindow_load(project):
     prj_ctrl = AirborneProjectController(project)
     window = MainWindow(prj_ctrl)
 
@@ -21,7 +21,8 @@ def test_MainWindow_init(project):
     assert not window.isVisible()
     assert prj_ctrl in window.projects
 
+    window.load()
+    assert window.isVisible()
+    assert not window.isWindowModified()
 
-def test_MainWindow_register_project(project):
-    prj_ctrl = AirborneProjectController(project)
 

@@ -40,6 +40,10 @@ class ConsoleHandler(logging.Handler):
             self._dest(entry)
 
 
+class ProgressEvent:
+    pass
+
+
 def get_project_file(path: Path) -> Union[Path, None]:
     """
     Attempt to retrieve a project file (*.d2p) from the given dir path,

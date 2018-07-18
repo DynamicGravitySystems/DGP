@@ -4,8 +4,9 @@ from typing import Optional
 from PyQt5.QtCore import QObject, QModelIndex, pyqtSignal, pyqtSlot, QSortFilterProxyModel, Qt
 from PyQt5.QtGui import QStandardItemModel
 
-from dgp.core.controllers.controller_interfaces import IFlightController, IAirborneController
+from dgp.core.controllers.controller_interfaces import IFlightController
 from dgp.core.controllers.project_controllers import AirborneProjectController
+from dgp.gui.utils import ProgressEvent
 
 __all__ = ['ProjectTreeModel']
 
@@ -15,22 +16,58 @@ class ProjectTreeModel(QStandardItemModel):
     events and defines signals for domain specific actions.
 
     All signals/events should be connected via the model vs the View itself.
+
+    Parameters
+    ----------
+    project : AirborneProjectController
+    parent : QObject, optional
+
+    Attributes
+    ----------
+    projectMutated : pyqtSignal[]
+        Signal emitted to notify application that project data has changed.
+    tabOpenRequested : pyqtSignal[IFlightController]
+        Signal emitted to request a tab be opened for the supplied Flight
+    tabCloseRequested : pyqtSignal(IFlightController)
+        Signal notifying application that tab for given flight should be closed
+        This is called for example when a Flight is deleted to ensure any open
+        tabs referencing it are also deleted.
+    progressNotificationRequested : pyqtSignal[ProgressEvent]
+        Signal emitted to request a QProgressDialog from the main window.
+        ProgressEvent is passed defining the parameters for the progress bar
+    progressUpdateRequested : pyqtSignal[ProgressEvent]
+        Signal emitted to update an active QProgressDialog
+        ProgressEvent must reference an event already emitted by
+        progressNotificationRequested
+
     """
-    flight_changed = pyqtSignal(IFlightController)
-    # Fired on any project mutation - can be used to autosave
-    project_changed = pyqtSignal()
+    projectMutated = pyqtSignal()
     tabOpenRequested = pyqtSignal(IFlightController)
     tabCloseRequested = pyqtSignal(IFlightController)
+    progressNotificationRequested = pyqtSignal(ProgressEvent)
+    progressUpdateRequested = pyqtSignal(ProgressEvent)
 
     def __init__(self, project: AirborneProjectController, parent: Optional[QObject]=None):
         super().__init__(parent)
         self.appendRow(project)
 
-    def active_changed(self):
-        pass
+    def active_changed(self, flight: IFlightController):
+        self.tabOpenRequested.emit(flight)
 
     def close_flight(self, flight: IFlightController):
         self.tabCloseRequested.emit(flight)
+
+    def notify_tab_changed(self, flight: IFlightController):
+        flight.get_parent().set_active_child(flight, emit=False)
+
+    def item_selected(self, index: QModelIndex):
+        pass
+
+    def item_activated(self, index: QModelIndex):
+        item = self.itemFromIndex(index)
+        if isinstance(item, IFlightController):
+            item.get_parent().set_active_child(item, emit=False)
+            self.active_changed(item)
 
     @pyqtSlot(QModelIndex, name='on_click')
     def on_click(self, index: QModelIndex):  # pragma: no cover
@@ -41,7 +78,7 @@ class ProjectTreeModel(QStandardItemModel):
         item = self.itemFromIndex(index)
         if isinstance(item, IFlightController):
             item.get_parent().set_active_child(item, emit=False)
-            self.tabOpenRequested.emit(item.get_parent(), item)
+            self.active_changed(item)
 
 
 # Experiment
