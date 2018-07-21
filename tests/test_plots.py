@@ -9,13 +9,18 @@ from datetime import datetime
 import pytest
 import numpy as np
 import pandas as pd
-from PyQt5.QtCore import QObject
-from PyQt5.QtWidgets import QWidget, QGraphicsScene, QGraphicsWidget, QGraphicsTextItem
-from pyqtgraph import GraphicsLayout, PlotItem, PlotDataItem, LegendItem
+from PyQt5.QtCore import QObject, QEvent, QPointF, Qt
+from PyQt5.QtGui import QMouseEvent
+from PyQt5.QtTest import QSignalSpy
+from PyQt5.QtWidgets import QWidget, QGraphicsScene, QGraphicsSceneMouseEvent
+from pyqtgraph import GraphicsLayout, PlotItem, PlotDataItem, LegendItem, Point
+from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent
 
+from dgp.core.oid import OID
+from dgp.core.types.tuples import LineUpdate
 from dgp.gui.plotting.backends import GridPlotWidget
 from dgp.gui.plotting.plotters import LineSelectPlot
-from dgp.gui.plotting.helpers import PolyAxis
+from dgp.gui.plotting.helpers import PolyAxis, LinearFlightRegion
 from .context import APP
 
 
@@ -43,14 +48,16 @@ def test_grid_plot_widget_init():
 
 
 def test_grid_plot_widget_make_index(gravdata):
-    assert ('gravity', 0, 1) == GridPlotWidget.make_index(gravdata['gravity'].name, 0, 1)
+    assert ('gravity', 0, 1, 'left') == GridPlotWidget.make_index(gravdata['gravity'].name, 0, 1)
 
     unnamed_ser = pd.Series(np.zeros(14), name='')
     with pytest.raises(ValueError):
         GridPlotWidget.make_index(unnamed_ser.name, 1, 1)
 
     upper_ser = pd.Series(np.zeros(14), name='GraVitY')
-    assert ('gravity', 2, 0) == GridPlotWidget.make_index(upper_ser.name, 2, 0)
+    assert ('gravity', 2, 0, 'left') == GridPlotWidget.make_index(upper_ser.name, 2, 0)
+
+    assert ('long_acc', 3, 1, 'left') == GridPlotWidget.make_index('long_acc', 3, 1, 'sideways')
 
 
 def test_grid_plot_widget_plotting(gravity):
@@ -128,7 +135,7 @@ def test_grid_plot_widget_find_series(gravity):
     gpw.add_series(gravity, 0)
     gpw.add_series(gravity, 2)
 
-    expected = [(gravity.name, 0, 0), (gravity.name, 2, 0)]
+    expected = [(gravity.name, 0, 0, 'left'), (gravity.name, 2, 0, 'left')]
     result = gpw.find_series(gravity.name)
     assert expected == result
 
@@ -251,27 +258,136 @@ def test_PolyAxis_tickStrings():
     assert expected == axis.tickStrings(tick_values, _scale, _DAY_SEC)
 
 
-@pytest.mark.skip("Defer implementation of this")
 def test_grid_plot_multi_y(gravdata):
     _gravity = gravdata['gravity']
     _longacc = gravdata['long_accel']
     gpw = GridPlotWidget(rows=1, multiy=True)
 
+    p0 = gpw.get_plot(0)
     gpw.add_series(_gravity, 0)
     gpw.add_series(_longacc, 0, axis='right')
-    p0 = gpw.get_plot(0)
-    scene: QGraphicsScene = p0.scene()
-    print(scene.items())
+
+    # Legend entry for right axis should appear on p0 legend
+    assert _gravity.name in [label.text for _, label in p0.legend.items]
+    assert _longacc.name in [label.text for _, label in p0.legend.items]
 
     assert 1 == len(gpw.get_plot(0).dataItems)
+    assert 1 == len(gpw.get_plot(0, axis='right').dataItems)
+
+    assert gpw.get_xlim(0) == gpw.get_plot(0, axis='right').vb.viewRange()[0]
 
 
-@pytest.mark.skip("Not implemented yet")
-def test_line_select_plot_init():
+
+def test_LineSelectPlot_init():
     plot = LineSelectPlot(rows=2)
 
     assert isinstance(plot, QObject)
     assert isinstance(plot, QWidget)
 
     assert 2 == plot.rows
+
+
+def test_LineSelectPlot_selection_mode():
+    plot = LineSelectPlot(rows=3)
+    assert not plot.selection_mode
+    plot.selection_mode = True
+    assert plot.selection_mode
+
+    plot.add_segment(datetime.now().timestamp(),
+                     datetime.now().timestamp() + 1000)
+
+    assert 1 == len(plot._segments)
+
+    for lfr_grp in plot._segments.values():
+        for lfr in lfr_grp:  # type: LinearFlightRegion
+            assert lfr.movable
+
+    plot.selection_mode = False
+    for lfr_grp in plot._segments.values():
+        for lfr in lfr_grp:
+            assert not lfr.movable
+
+
+def test_LineSelectPlot_add_segment():
+    _rows = 2
+    plot = LineSelectPlot(rows=_rows)
+    update_spy = QSignalSpy(plot.segment_changed)
+
+    ts_oid = OID(tag='datetime_timestamp')
+    ts_start = datetime.now().timestamp() - 1000
+    ts_stop = ts_start + 200
+
+    pd_oid = OID(tag='pandas_timestamp')
+    pd_start = pd.Timestamp.now()
+    pd_stop = pd_start + pd.Timedelta(seconds=1000)
+
+    assert 0 == len(plot._segments)
+
+    plot.add_segment(ts_start, ts_stop, ts_oid)
+    assert 1 == len(update_spy)
+    assert 1 == len(plot._segments)
+    lfr_grp = plot._segments[ts_oid]
+    assert _rows == len(lfr_grp)
+
+    # Test adding segment using pandas.Timestamp values
+    plot.add_segment(pd_start, pd_stop, pd_oid)
+    assert 2 == len(update_spy)
+    assert 2 == len(plot._segments)
+    lfr_grp = plot._segments[pd_oid]
+    assert _rows == len(lfr_grp)
+
+
+def test_LineSelectPlot_remove_segment():
+    _rows = 2
+    plot = LineSelectPlot(rows=_rows)
+    update_spy = QSignalSpy(plot.segment_changed)
+
+    lfr_oid = OID(tag='segment selection')
+    lfr_start = datetime.now().timestamp()
+    lfr_end = lfr_start + 300
+
+    plot.add_segment(lfr_start, lfr_end, lfr_oid)
+    assert 1 == len(update_spy)
+    assert isinstance(update_spy[0][0], LineUpdate)
+
+    assert 1 == len(plot._segments)
+    segments = plot._segments[lfr_oid]
+    assert segments[0] in plot.get_plot(row=0).items
+    assert segments[1] in plot.get_plot(row=1).items
+
+    assert lfr_oid == segments[0].group
+    assert lfr_oid == segments[1].group
+
+    with pytest.raises(TypeError):
+        plot.remove_segment("notavalidtype")
+
+    plot.remove_segment(segments[0])
+    assert 0 == len(plot._segments)
+
+
+def test_LineSelectPlot_check_proximity(gravdata):
+    _rows = 2
+    plot = LineSelectPlot(rows=_rows)
+    print(f'plot geom: {plot.geometry()}')
+    print(f'scene rect: {plot.sceneRect()}')
+    p0 = plot.get_plot(0)
+    plot.add_series(gravdata['gravity'], 0)
+
+    lfr_start = gravdata.index[0]
+    lfr_end = gravdata.index[2]
+    p0xlim = plot.get_xlim(0)
+    span = p0xlim[1] - p0xlim[0]
+
+    xpos = gravdata.index[3].value
+    assert plot._check_proximity(xpos, span)
+
+    plot.add_segment(lfr_start, lfr_end)
+
+    assert not plot._check_proximity(xpos, span, proximity=0.2)
+    xpos = gravdata.index[4].value
+    assert plot._check_proximity(xpos, span, proximity=0.2)
+
+
+
+
 

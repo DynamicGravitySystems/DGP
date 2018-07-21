@@ -17,6 +17,31 @@ LINE_COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
                '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
 
 
+class LinkedPlotItem(PlotItem):
+    """LinkedPlotItem simplifies the creation of a second plot axes linked to
+    the right axis scale of the base :class:`PlotItem`
+
+    This class is used by GridPlotWidget to construct plots which have a second
+    y-scale in order to display two (or potentially more) Series on the same
+    plot with different amplitudes.
+
+    """
+    def __init__(self, base: PlotItem):
+        super().__init__(enableMenu=False)
+        self._base = base
+        self.legend = base.legend
+        self.setXLink(self._base)
+        self.buttonsHidden = True
+        self.hideAxis('left')
+        self.hideAxis('bottom')
+        self.setZValue(-100)
+
+        base.showAxis('right')
+        base.getAxis('right').setGrid(False)
+        base.getAxis('right').linkToView(self.getViewBox())
+        base.layout.addItem(self, 2, 1)
+
+
 class GridPlotWidget(GraphicsView):
     """
     Base plotting class used to create a group of 1 or more :class:`PlotItem`
@@ -31,9 +56,9 @@ class GridPlotWidget(GraphicsView):
 
     Parameters
     ----------
-    rows : int, optional
+    rows : int, Optional
         Rows of plots to generate (stacked from top to bottom), default is 1
-    background : optional
+    background : Optional
         Background color for the widget and nested plots. Can be any value
         accepted by :func:`mkBrush` or :func:`mkColor` e.g. QColor, hex string,
         RGB(A) tuple
@@ -43,14 +68,14 @@ class GridPlotWidget(GraphicsView):
         If True links all x-axis values to the first plot
     multiy : bool
         If True all plots will have a sister plot with its own y-axis and scale
-        enabling the plotting of 2 (or more) datasets with differing scales on a
+        enabling the plotting of 2 (or more) Series with differing scales on a
         single plot surface.
     parent
 
     See Also
     --------
-    :func:`mkPen` for customizing plot-line pens (creates a QgGui.QPen)
-    :func:`mkColor` for color options in the plot (creates a QtGui.QColor)
+    :func:`pyqtgraph.functions.mkPen` for customizing plot-line pens (creates a QgGui.QPen)
+    :func:`pyqtgraph.functions.mkColor` for color options in the plot (creates a QtGui.QColor)
 
     """
 
@@ -61,27 +86,36 @@ class GridPlotWidget(GraphicsView):
         self.setCentralItem(self.gl)
 
         self.rows = rows
-        self.cols = 1
+        self.cols = cols
 
         self._pens = cycle([{'color': v, 'width': 2} for v in LINE_COLORS])
         self._series = {}  # type: Dict[pd.Series: Tuple[str, int, int]]
         self._items = {}  # type: Dict[PlotDataItem: Tuple[str, int, int]]
+        self._rightaxis = {}
 
+        col = 0
         for row in range(self.rows):
             axis_items = {'bottom': PolyAxis(orientation='bottom')}
-            plot: PlotItem = self.gl.addPlot(row=row, col=0,
+            plot: PlotItem = self.gl.addPlot(row=row, col=col,
                                              backround=background,
                                              axisItems=axis_items)
             plot.clear()
             plot.addLegend(offset=(15, 15))
             plot.showGrid(x=grid, y=grid)
+            plot.setYRange(-1, 1)  # Prevents overflow when labels are added
             if row > 0 and sharex:
                 plot.setXLink(self.get_plot(0, 0))
+            if multiy:
+                p2 = LinkedPlotItem(plot)
+                self._rightaxis[(row, col)] = p2
 
         self.__signal_proxies = []
 
-    def get_plot(self, row: int, col: int = 0) -> PlotItem:
-        return self.gl.getItem(row, col)
+    def get_plot(self, row: int, col: int = 0, axis: str = 'left') -> PlotItem:
+        if axis == 'right':
+            return self._rightaxis[(row, col)]
+        else:
+            return self.gl.getItem(row, col)
 
     @property
     def plots(self) -> Generator[PlotItem, None, None]:
@@ -90,11 +124,12 @@ class GridPlotWidget(GraphicsView):
 
     def add_series(self, series: pd.Series, row: int, col: int = 0,
                    axis: str = 'left'):
-        """Add a pandas :class:`Series` to the plot at the specified row/column
+        """Add a pandas :class:`pandas.Series` to the plot at the specified
+        row/column
 
         Parameters
         ----------
-        series : :class:`Series`
+        series : :class:`~pandas.Series`
             The Pandas Series to add; series.index and series.values are taken
             to be the x and y axis respectively
         row : int
@@ -107,28 +142,28 @@ class GridPlotWidget(GraphicsView):
         -------
 
         """
-        key = self.make_index(series.name, row, col)
+        key = self.make_index(series.name, row, col, axis)
         if self.get_series(*key) is not None:
             return
 
         self._series[key] = series
-        plot = self.get_plot(row, col)
+        if axis == 'right':
+            plot = self._rightaxis.get((row, col), self.get_plot(row, col))
+        else:
+            plot = self.get_plot(row, col)
         xvals = pd.to_numeric(series.index, errors='coerce')
         yvals = pd.to_numeric(series.values, errors='coerce')
         item = plot.plot(x=xvals, y=yvals, name=series.name, pen=next(self._pens))
         self._items[key] = item
         return item
 
-    def get_series(self, name: str, row, col=0) -> Union[pd.Series, None]:
-        return self._series.get((name, row, col), None)
+    def get_series(self, name: str, row, col=0, axis='left') -> Union[pd.Series, None]:
+        return self._series.get((name, row, col, axis), None)
 
     def remove_series(self, name: str, row: int, col: int = 0) -> None:
         plot = self.get_plot(row, col)
         key = self.make_index(name, row, col)
-        item = self._items.get(key, None)
-        if item is None:
-            raise KeyError(f'Item {key} does not exist.')
-        plot.removeItem(item)
+        plot.removeItem(self._items[key])
         plot.legend.removeItem(name)
         del self._series[key]
         del self._items[key]
@@ -199,6 +234,17 @@ class GridPlotWidget(GraphicsView):
         return self.get_plot(row, col).vb.viewRange()[0]
 
     def set_xlink(self, linked: bool = True, autorange: bool = False):
+        """Enable or disable linking of x-axis' between all plots in the grid.
+
+        Parameters
+        ----------
+        linked : bool, Optional
+            If True sets all plots to link x-axis scales with plot 0, 0
+            If False, un-links all plot x-axis'
+        autorange : bool, Optional
+            If True automatically re-scale the view box after linking/unlinking
+
+        """
         base = self.get_plot(0, 0) if linked else None
         for i in range(1, self.rows):
             plot = self.get_plot(i, 0)
@@ -224,10 +270,12 @@ class GridPlotWidget(GraphicsView):
         return sp
 
     @staticmethod
-    def make_index(name: str, row: int, col: int = 0):
+    def make_index(name: str, row: int, col: int = 0, axis: str = 'left'):
+        if axis not in ('left', 'right'):
+            axis = 'left'
         if name is None or name is '':
             raise ValueError("Cannot create plot index from empty name.")
-        return name.lower(), row, col
+        return name.lower(), row, col, axis
 
 
 class PyQtGridPlotWidget(GraphicsView):  # pragma: no cover

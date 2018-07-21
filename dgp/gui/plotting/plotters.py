@@ -31,7 +31,7 @@ that will need to be worked out and properly tested.
 """
 
 
-class TransformPlot:
+class TransformPlot:  # pragma: no cover
     """Plot interface used for displaying transformation results.
     May need to display data plotted against time series or scalar series.
     """
@@ -60,7 +60,7 @@ class LineSelectPlot(GridPlotWidget):
 
     def __init__(self, rows=1, parent=None):
         super().__init__(rows=rows, cols=1, grid=True, sharex=True,
-                         parent=parent)
+                         multiy=True, parent=parent)
 
         self._selecting = False
         self._segments = {}
@@ -81,7 +81,7 @@ class LineSelectPlot(GridPlotWidget):
     @selection_mode.setter
     def selection_mode(self, value):
         self._selecting = bool(value)
-        for group in self._selections.values():
+        for group in self._segments.values():
             for lfr in group:  # type: LinearFlightRegion
                 lfr.setMovable(value)
 
@@ -101,21 +101,22 @@ class LineSelectPlot(GridPlotWidget):
             stop = stop.value
         patch_region = [start, stop]
 
-        lfr_group = []
         grpid = uid or OID(tag='segment')
         # Note pd.to_datetime(scalar) returns pd.Timestamp
         update = LineUpdate('add', grpid,
-                            pd.to_datetime(start), pd.to_datetime(stop), None)
+                            pd.to_datetime(start), pd.to_datetime(stop), label)
 
+        lfr_group = []
         for i, plot in enumerate(self.plots):
-            lfr = LinearFlightRegion(parent=self)
+            lfr = LinearFlightRegion(parent=self, label=label)
             lfr.group = grpid
             plot.addItem(lfr)
-            # plot.addItem(lfr.label)
+            plot.addItem(lfr.label)
             lfr.setRegion(patch_region)
             lfr.setMovable(self._selecting)
+            lfr.sigRegionChanged.connect(self._update)
+
             lfr_group.append(lfr)
-            lfr.sigRegionChanged.connect(self.update)
 
         self._segments[grpid] = lfr_group
         if emit:
@@ -123,18 +124,19 @@ class LineSelectPlot(GridPlotWidget):
 
     def remove_segment(self, item: LinearFlightRegion):
         if not isinstance(item, LinearFlightRegion):
-            return
+            raise TypeError(f'{item!r} is not a valid type. Expected '
+                            f'LinearFlightRegion')
 
         grpid = item.group
         x0, x1 = item.getRegion()
         update = LineUpdate('remove', grpid,
                             pd.to_datetime(x0), pd.to_datetime(x1), None)
-        grp = self._selections[grpid]
+        grp = self._segments[grpid]
         for i, plot in enumerate(self.plots):
             plot.removeItem(grp[i].label)
             plot.removeItem(grp[i])
-        del self._selections[grpid]
-        self.line_changed.emit(update)
+        del self._segments[grpid]
+        self.segment_changed.emit(update)
 
     def set_label(self, item: LinearFlightRegion, text: str):
         if not isinstance(item, LinearFlightRegion):
@@ -148,7 +150,7 @@ class LineSelectPlot(GridPlotWidget):
                             pd.to_datetime(x0), pd.to_datetime(x1), text)
         self.line_changed.emit(update)
 
-    def onclick(self, ev):
+    def onclick(self, ev):  # pragma: no cover
         """Onclick handler for mouse left/right click.
 
         Create a new data-segment if _selection_mode is True on left-click
@@ -156,6 +158,7 @@ class LineSelectPlot(GridPlotWidget):
         event = ev[0]
         try:
             pos = event.pos()  # type: pg.Point
+            print(f'event pos: {pos} pos type: {type(pos)}')
         except AttributeError:
             # Avoid error when clicking around plot, due to an attempt to
             #  call mapFromScene on None in pyqtgraph/mouseEvents.py
@@ -167,11 +170,13 @@ class LineSelectPlot(GridPlotWidget):
             if not self.selection_mode:
                 return
             p0 = self.get_plot(row=0)
+            print(f'p0 type: {type(p0)}')
             if p0.vb is None:
                 return
             event.accept()
             # Map click location to data coordinates
             xpos = p0.vb.mapToView(pos).x()
+            print(f'xpos: {xpos}')
             # v0, v1 = p0.get_xlim()
             v0, v1 = self.get_xlim(0)
             vb_span = v1 - v0
@@ -180,7 +185,7 @@ class LineSelectPlot(GridPlotWidget):
 
             start = xpos - (vb_span * 0.05)
             stop = xpos + (vb_span * 0.05)
-            self.add_linked_selection(start, stop)
+            self.add_segment(start, stop)
 
     def _update(self, item: LinearFlightRegion):
         """Update other LinearRegionItems in the group of 'item' to match the
@@ -238,7 +243,7 @@ class LineSelectPlot(GridPlotWidget):
 
         """
         prox = span * proximity
-        for group in self._selections.values():
+        for group in self._segments.values():
             if not len(group):
                 continue
             lri0 = group[0]  # type: LinearRegionItem
@@ -249,7 +254,8 @@ class LineSelectPlot(GridPlotWidget):
         return True
 
 
-class PqtLineSelectPlot(QtCore.QObject):
+# TODO: Delete after full implementation/testing of LineSelectPlot
+class PqtLineSelectPlot(QtCore.QObject):  # pragma: no cover
     """New prototype Flight Line selection plot using Pyqtgraph as the
     backend.
 

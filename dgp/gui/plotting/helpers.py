@@ -4,6 +4,7 @@ import pandas as pd
 from PyQt5.QtCore import Qt, QPoint
 from PyQt5.QtWidgets import QAction, QInputDialog, QMenu
 from pyqtgraph import LinearRegionItem, TextItem, AxisItem
+from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent
 
 
 class PolyAxis(AxisItem):
@@ -64,7 +65,8 @@ class PolyAxis(AxisItem):
 
         Returns
         -------
-        List of strings used to label the plot at the given values
+        List[str]
+            List of strings used to label the plot at the given values
 
         Notes
         -----
@@ -81,6 +83,7 @@ class PolyAxis(AxisItem):
             return super().tickStrings(values, scale, spacing)
 
 
+# TODO: Deprecated
 class DateAxis(AxisItem):  # pragma: no cover
     minute = pd.Timedelta(minutes=1).value
     hour = pd.Timedelta(hours=1).value
@@ -190,7 +193,7 @@ class LinearFlightRegion(LinearRegionItem):
         self._label_text = label or ''
         self.label = TextItem(text=self._label_text, color=(0, 0, 0),
                               anchor=(0, 0))
-        # self.label.setPos()
+        self._move_label(self)
         self._menu = QMenu()
         self._menu.addAction(QAction('Remove', self, triggered=self._remove))
         self._menu.addAction(QAction('Set Label', self,
@@ -205,8 +208,9 @@ class LinearFlightRegion(LinearRegionItem):
     def group(self, value):
         self._grpid = value
 
-    def mouseClickEvent(self, ev):
+    def mouseClickEvent(self, ev: MouseClickEvent):
         if not self.parent.selection_mode:
+            print("parent in wrong mode")
             return
         if ev.button() == Qt.RightButton and not self.moving:
             ev.accept()
@@ -224,7 +228,7 @@ class LinearFlightRegion(LinearRegionItem):
 
     def _remove(self):
         try:
-            self.parent.remove(self)
+            self.parent.remove_segment(self)
         except AttributeError:
             return
 
