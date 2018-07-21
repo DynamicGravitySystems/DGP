@@ -153,16 +153,19 @@ class AirborneProjectController(IAirborneController, AttributeProxy):
         self.update()
         return controller
 
-    def remove_child(self, child: Union[Flight, Gravimeter], row: int, confirm=True):
-        if not isinstance(child, (Flight, Gravimeter)):
-            raise ValueError("{0!r} is not a valid child object".format(child))
+    def remove_child(self, uid: Union[OID, str], confirm: bool = True):
+        child = self.get_child(uid)
+        if child is None:
+            self.log.warning(f'UID {uid!s} has no corresponding object in this '
+                             f'project')
+            raise KeyError(f'{uid!s}')
         if confirm:  # pragma: no cover
             if not confirm_action("Confirm Deletion",
                                   "Are you sure you want to delete {!s}"
-                                  .format(child.name)):
+                                  .format(child.get_attr('name'))):
                 return
         self.project.remove_child(child.uid)
-        self._child_map[type(child)].removeRow(row)
+        self._child_map[type(child.datamodel)].removeRow(child.row())
         self.update()
 
     def get_child(self, uid: Union[str, OID]) -> Union[FlightController, GravimeterController, None]:

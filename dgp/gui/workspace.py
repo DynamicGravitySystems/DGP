@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget
 import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtGui as QtGui
 
-from core.controllers.flight_controller import FlightController
+from dgp.core.controllers.flight_controller import FlightController
 from dgp.core.oid import OID
 from .workspaces import *
 
