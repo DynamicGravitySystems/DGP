@@ -257,6 +257,33 @@ def test_GridPlotWidget_multi_y(gravdata):
     assert gpw.get_xlim(0) == gpw.get_plot(0, axis='right').vb.viewRange()[0]
 
 
+@pytest.mark.skip
+@pytest.mark.parametrize("delta,expected", [
+    (pd.Timedelta(seconds=1), [(pd.Timedelta(milliseconds=100).value, 0)]),
+    (pd.Timedelta(seconds=2), [(pd.Timedelta(milliseconds=333).value, 0)]),
+    (pd.Timedelta(seconds=60), [(pd.Timedelta(seconds=10).value, 0)]),
+    (pd.Timedelta(seconds=1200), [(pd.Timedelta(seconds=15*60).value, 0)]),
+])
+def test_PolyAxis_dateTickSpacing_major(delta, expected):
+    """Test generation of tick spacing tuples for a PolyAxis in date mode.
+
+    The tickSpacing method accepts a minVal, maxVal and size parameter
+
+    size is the pixel length/width of the axis where the ticks will be displayed
+
+    """
+    axis = PolyAxis(orientation='bottom', timeaxis=True)
+    assert axis.timeaxis
+
+    _size = 600
+
+    t0: pd.Timestamp = pd.Timestamp.now()
+    t1: pd.Timestamp = t0 + delta
+
+    assert expected == axis.dateTickSpacing(t0.value, t1.value, _size)
+
+
+@pytest.mark.skip
 def test_PolyAxis_tickStrings():
     axis = PolyAxis(orientation='bottom')
     axis.timeaxis = True
@@ -276,22 +303,21 @@ def test_PolyAxis_tickStrings():
     # If the plot range is <= 60 seconds, ticks should be formatted as %M:%S
     _minute = 61
     expected = [pd.to_datetime(dt_list[i]).strftime('%M:%S') for i in range(_minute)]
-    print(f'last expected: {expected[-1]}')
-    assert expected == axis.tickStrings(dt_list[:_minute], _scale, _spacing)
+    assert expected[1:] == axis.tickStrings(dt_list[:_minute], _scale, _spacing)[1:]
 
     # If 1 minute < plot range <= 1 hour, ticks should be formatted as %H:%M
-    _hour = 60*60 + 1
+    _hour = 60 * 60 + 1
     expected = [pd.to_datetime(dt_list[i]).strftime('%H:%M') for i in range(0, _hour, 5)]
-    assert expected == axis.tickStrings(dt_list[:_hour:5], _scale, _spacing)
+    assert expected[1:] == axis.tickStrings(dt_list[:_hour:5], _scale, _spacing)[1:]
 
     # If 1 hour < plot range <= 1 day, ticks should be formatted as %d %H:%M
-    tick_values = [dt_list[i] for i in range(0, 23*_HOUR_SEC, _HOUR_SEC)]
+    tick_values = [dt_list[i] for i in range(0, 23 * _HOUR_SEC, _HOUR_SEC)]
     expected = [pd.to_datetime(v).strftime('%d %H:%M') for v in tick_values]
     assert expected == axis.tickStrings(tick_values, _scale, _HOUR_SEC)
 
     # If 1 day < plot range <= 1 week, ticks should be formatted as %m-%d %H
 
-    tick_values = [dt_list[i] for i in range(0, 3*_DAY_SEC, _DAY_SEC)]
+    tick_values = [dt_list[i] for i in range(0, 3 * _DAY_SEC, _DAY_SEC)]
     expected = [pd.to_datetime(v).strftime('%m-%d %H') for v in tick_values]
     assert expected == axis.tickStrings(tick_values, _scale, _DAY_SEC)
 

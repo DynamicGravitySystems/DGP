@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from datetime import datetime
 from itertools import cycle
 from typing import List, Union, Tuple, Generator, Dict
 
@@ -7,7 +6,7 @@ import pandas as pd
 from pyqtgraph.widgets.GraphicsView import GraphicsView
 from pyqtgraph.graphicsItems.GraphicsLayout import GraphicsLayout
 from pyqtgraph.graphicsItems.PlotItem import PlotItem
-from pyqtgraph import SignalProxy, PlotDataItem, ViewBox
+from pyqtgraph import SignalProxy, PlotDataItem
 
 from .helpers import DateAxis, PolyAxis
 
@@ -106,6 +105,7 @@ class GridPlotWidget(GraphicsView):
             plot.addLegend(offset=(15, 15))
             plot.showGrid(x=grid, y=grid)
             plot.setYRange(-1, 1)  # Prevents overflow when labels are added
+
             if row > 0 and sharex:
                 plot.setXLink(self.get_plot(0, 0))
             if multiy:

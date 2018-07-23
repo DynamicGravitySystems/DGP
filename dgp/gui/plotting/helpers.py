@@ -1,47 +1,77 @@
 # -*- coding: utf-8 -*-
+import logging
+from datetime import datetime
+
+import numpy as np
 import pandas as pd
 
 from PyQt5.QtCore import Qt, QPoint
-from PyQt5.QtWidgets import QAction, QInputDialog, QMenu
+from PyQt5.QtWidgets import QInputDialog, QMenu
 from pyqtgraph import LinearRegionItem, TextItem, AxisItem
 from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent
+
+LOG = logging.getLogger(__name__)
 
 
 class PolyAxis(AxisItem):
     """Subclass of PyQtGraph :class:`AxisItem` which can display tick strings
     for a date/time value, or scalar values.
-    """
-    day = pd.Timedelta(days=1).value
-    week = pd.Timedelta(weeks=1).value
 
-    def __init__(self, orientation, **kwargs):
+    Parameters
+    ----------
+    orientation : str
+    timeaxis : bool
+    kwargs
+
+    """
+    def __init__(self, orientation='bottom', timeaxis=False, **kwargs):
         super().__init__(orientation, **kwargs)
-        self.timeaxis = False
+        self.timeaxis = timeaxis
+
         # Define time-format scales for time-range <= key
         self._timescales = {
-            pd.Timedelta(seconds=1).value: '',
+            pd.Timedelta(seconds=1).value: '%M:%S:%f',
             pd.Timedelta(minutes=1).value: '%M:%S',
-            pd.Timedelta(hours=1).value: '%H:%M',
-            self.day: '%d %H:%M',
-            self.week: '%m-%d %H'
+            pd.Timedelta(hours=1).value: '%H:%M:%S',
+            pd.Timedelta(days=1).value: '%d %H:%M',
+            pd.Timedelta(weeks=1).value: '%m-%d %H'
         }
 
     def dateTickStrings(self, values, spacing):
-        rng = max(values) - min(values) if values else 0
+        """Create formatted date strings for the tick locations specified by
+        values.
 
+        Parameters
+        ----------
+        values : List
+        spacing : float
+
+        Returns
+        -------
+        List[str]
+            List of string labels corresponding to each input value.
+
+        """
         # Get the first formatter where the scale (sec/min/hour/day etc) is
         # greater than the range
-        fmt = next((fmt for scale, fmt in sorted(self._timescales.items())
-                    if scale >= rng), '%m-%d')
+        fmt = next((fmt for period, fmt in sorted(self._timescales.items())
+                    if period >= spacing), '%m-%d')
 
         labels = []
-        for loc in values:
+        for i, loc in enumerate(values):
             try:
-                labels.append(pd.to_datetime(loc).strftime(fmt))
-            except ValueError:  # Windows can't handle dates before 1970
+                dt: datetime = pd.to_datetime(loc)
+            except (OverflowError, ValueError, OSError):
+                LOG.exception(f'Exception converting {loc} to date string.')
                 labels.append('')
-            except OSError:
-                labels.append('')
+                continue
+
+            if i == 0 and len(values) > 2:
+                label = dt.strftime('%d-%b-%y %H:%M:%S')
+            else:
+                label = dt.strftime(fmt)
+
+            labels.append(label)
         return labels
 
     def tickStrings(self, values, scale, spacing):
@@ -81,6 +111,12 @@ class PolyAxis(AxisItem):
             return self.dateTickStrings(values, spacing)
         else:  # pragma: no cover
             return super().tickStrings(values, scale, spacing)
+
+    def tickValues(self, minVal, maxVal, size):
+        return super().tickValues(minVal, maxVal, size)
+
+    def tickSpacing(self, minVal, maxVal, size):
+        return super().tickSpacing(minVal, maxVal, size)
 
 
 # TODO: Deprecated
@@ -193,11 +229,11 @@ class LinearFlightRegion(LinearRegionItem):
         self._label_text = label or ''
         self.label = TextItem(text=self._label_text, color=(0, 0, 0),
                               anchor=(0, 0))
+        self._label_y = 0
         self._move_label(self)
         self._menu = QMenu()
-        self._menu.addAction(QAction('Remove', self, triggered=self._remove))
-        self._menu.addAction(QAction('Set Label', self,
-                                     triggered=self._getlabel))
+        self._menu.addAction('Remove', self._remove)
+        self._menu.addAction('Set Label', self._getlabel)
         self.sigRegionChanged.connect(self._move_label)
 
     @property
@@ -210,21 +246,19 @@ class LinearFlightRegion(LinearRegionItem):
 
     def mouseClickEvent(self, ev: MouseClickEvent):
         if not self.parent.selection_mode:
-            print("parent in wrong mode")
             return
-        if ev.button() == Qt.RightButton and not self.moving:
+        elif ev.button() == Qt.RightButton and not self.moving:
             ev.accept()
             pos = ev.screenPos().toPoint()
             pop_point = QPoint(pos.x(), pos.y())
             self._menu.popup(pop_point)
-            return True
         else:
             return super().mouseClickEvent(ev)
 
     def _move_label(self, lfr):
         x0, x1 = self.getRegion()
-
-        self.label.setPos(x0, 0)
+        cx = x0 + (x1 - x0) / 2
+        self.label.setPos(cx, self.label.pos()[1])
 
     def _remove(self):
         try:
@@ -233,9 +267,7 @@ class LinearFlightRegion(LinearRegionItem):
             return
 
     def _getlabel(self):
-        text, result = QInputDialog.getText(None,
-                                            "Enter Label",
-                                            "Line Label:",
+        text, result = QInputDialog.getText(None, "Enter Label", "Line Label:",
                                             text=self._label_text)
         if not result:
             return
@@ -244,6 +276,19 @@ class LinearFlightRegion(LinearRegionItem):
         except AttributeError:
             return
 
-    def set_label(self, text):
-        self.label.setText(text)
+    def y_changed(self, vb, ylims):
+        """pyqtSlot (ViewBox, Tuple[Float, Float])
+        Center the label vertically within the ViewBox when the ViewBox
+        Y-Limits have changed
 
+        """
+        x = self.label.pos()[0]
+        y = ylims[0] + (ylims[1] - ylims[0]) / 2
+        self.label.setPos(x, y)
+
+    def set_label(self, text):
+        self._label_text = text[:10]
+        self.label.setText(self._label_text)
+        self._move_label(self)
+
+    # TODO: Add dialog action to manually adjust left/right bounds
