@@ -7,9 +7,9 @@ Library for trajectory data import functions
 """
 import numpy as np
 import pandas as pd
+from pandas.tseries.offsets import Milli
 
 from .time_utils import leap_seconds, convert_gps_time, datenum_to_datetime
-from .etc import interp_nans
 
 
 TRAJECTORY_INTERP_FIELDS = {'lat', 'long', 'ell_ht'}
@@ -97,6 +97,7 @@ def import_trajectory(filepath, delim_whitespace=False, interval=0,
     # create index
     if timeformat == 'sow':
         df.index = convert_gps_time(df['week'], df['sow'], format='datetime')
+        df.index = df.index.round(Milli())
         df.drop(['sow', 'week'], axis=1, inplace=True)
     elif timeformat == 'hms':
         df.index = pd.to_datetime(df['mdy'].str.strip() + df['hms'].str.strip(),
