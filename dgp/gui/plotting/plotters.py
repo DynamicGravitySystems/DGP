@@ -55,12 +55,14 @@ class TransformPlot:  # pragma: no cover
 
 
 class LineSelectPlot(GridPlotWidget):
-    """LineSelectPlot V2 based on updated GridPlotWidget"""
-    segment_changed = pyqtSignal(LineUpdate)
+    """LineSelectPlot
+
+    """
+    sigSegmentChanged = pyqtSignal(LineUpdate)
 
     def __init__(self, rows=1, parent=None):
         super().__init__(rows=rows, cols=1, grid=True, sharex=True,
-                         multiy=True, parent=parent)
+                         multiy=False, timeaxis=True, parent=parent)
 
         self._selecting = False
         self._segments = {}
@@ -85,14 +87,29 @@ class LineSelectPlot(GridPlotWidget):
             for lfr in group:  # type: LinearFlightRegion
                 lfr.setMovable(value)
 
-    def add_segment(self, start: float, stop: float, uid: OID = None,
-                    label=None, emit=True):
+    def add_segment(self, start: float, stop: float, label: str = None,
+                    uid: OID = None, emit=True) -> None:
         """
         Add a LinearFlightRegion selection across all linked x-axes
-        With width ranging from start:stop
+        With width ranging from start:stop and an optional label.
 
-        Labelling for the regions is not yet implemented, due to the
-        difficulty of vertically positioning the text. Solution TBD
+        To non-interactively add a segment group (e.g. when loading a saved
+        project) this method should be called with the uid parameter, and emit
+        set to False.
+
+        Parameters
+        ----------
+        start : float
+        stop : float
+        label : str, Optional
+            Optional text label to display within the segment on the plot
+        uid : :class:`OID`, Optional
+            Specify the uid of the segment group, used for re-creating segments
+            when loading a plot
+        emit : bool, Optional
+            If False, sigSegmentChanged will not be emitted on addition of the
+            segment
+
         """
 
         if isinstance(start, pd.Timestamp):
@@ -114,13 +131,17 @@ class LineSelectPlot(GridPlotWidget):
             plot.addItem(lfr.label)
             lfr.setRegion(patch_region)
             lfr.setMovable(self._selecting)
-            lfr.sigRegionChanged.connect(self._update)
+            lfr.sigRegionChanged.connect(self._update_segments)
+            plot.sigYRangeChanged.connect(lfr.y_changed)
 
             lfr_group.append(lfr)
 
         self._segments[grpid] = lfr_group
         if emit:
-            self.segment_changed.emit(update)
+            self.sigSegmentChanged.emit(update)
+
+    def get_segment(self, uid: OID):
+        return self._segments[uid][0]
 
     def remove_segment(self, item: LinearFlightRegion):
         if not isinstance(item, LinearFlightRegion):
@@ -133,22 +154,27 @@ class LineSelectPlot(GridPlotWidget):
                             pd.to_datetime(x0), pd.to_datetime(x1), None)
         grp = self._segments[grpid]
         for i, plot in enumerate(self.plots):
-            plot.removeItem(grp[i].label)
-            plot.removeItem(grp[i])
+            lfr: LinearFlightRegion = grp[i]
+            try:
+                plot.sigYRangeChanged.disconnect(lfr.y_changed)
+            except TypeError:
+                pass
+            plot.removeItem(lfr.label)
+            plot.removeItem(lfr)
         del self._segments[grpid]
-        self.segment_changed.emit(update)
+        self.sigSegmentChanged.emit(update)
 
     def set_label(self, item: LinearFlightRegion, text: str):
         if not isinstance(item, LinearFlightRegion):
-            return
-        group = self._selections[item.group]
+            raise TypeError(f'Item must be of type LinearFlightRegion')
+        group = self._segments[item.group]
         for lfr in group:  # type: LinearFlightRegion
             lfr.set_label(text)
 
         x0, x1 = item.getRegion()
         update = LineUpdate('modify', item.group,
                             pd.to_datetime(x0), pd.to_datetime(x1), text)
-        self.line_changed.emit(update)
+        self.sigSegmentChanged.emit(update)
 
     def onclick(self, ev):  # pragma: no cover
         """Onclick handler for mouse left/right click.
@@ -176,7 +202,6 @@ class LineSelectPlot(GridPlotWidget):
             event.accept()
             # Map click location to data coordinates
             xpos = p0.vb.mapToView(pos).x()
-            print(f'xpos: {xpos}')
             # v0, v1 = p0.get_xlim()
             v0, v1 = self.get_xlim(0)
             vb_span = v1 - v0
@@ -187,17 +212,19 @@ class LineSelectPlot(GridPlotWidget):
             stop = xpos + (vb_span * 0.05)
             self.add_segment(start, stop)
 
-    def _update(self, item: LinearFlightRegion):
+    def _update_segments(self, item: LinearFlightRegion):
         """Update other LinearRegionItems in the group of 'item' to match the
         new region.
-        We must set a flag here as we only want to process updates from the
-        first source - as this update will be called during the update
-        process because LinearRegionItem.setRegion() raises a
-        sigRegionChanged event.
+        A flag (_updating) is set here as we only want to process updates from
+        the first item - as this function will be called during the update
+        process by each item in the group when LinearRegionItem.setRegion()
+        emits a sigRegionChanged event.
 
-        A timer (_update_timer) is also used to avoid firing a line update
-        with ever pixel adjustment. _update_done will be called after an elapsed
-        time (100ms default) where there have been no calls to update().
+        A timer (_update_timer) is also used to avoid emitting a
+        :class:`LineUpdate` with every pixel adjustment.
+        _update_done will be called after the QTimer times-out (100ms default)
+        in order to emit the intermediate or final update.
+
         """
         if self._updating:
             return
@@ -207,11 +234,8 @@ class LineSelectPlot(GridPlotWidget):
         self._line_update = item
         new_region = item.getRegion()
         group = self._segments[item.group]
-        for lri in group:  # type: LinearFlightRegion
-            if lri is item:
-                continue
-            else:
-                lri.setRegion(new_region)
+        for lri in [i for i in group if i is not item]:
+            lri.setRegion(new_region)
         self._updating = False
 
     def _update_done(self):
@@ -219,7 +243,7 @@ class LineSelectPlot(GridPlotWidget):
         x0, x1 = self._line_update.getRegion()
         update = LineUpdate('modify', self._line_update.group,
                             pd.to_datetime(x0), pd.to_datetime(x1), None)
-        self.segment_changed.emit(update)
+        self.sigSegmentChanged.emit(update)
         self._line_update = None
 
     def _check_proximity(self, x, span, proximity=0.03) -> bool:
@@ -244,8 +268,6 @@ class LineSelectPlot(GridPlotWidget):
         """
         prox = span * proximity
         for group in self._segments.values():
-            if not len(group):
-                continue
             lri0 = group[0]  # type: LinearRegionItem
             lx0, lx1 = lri0.getRegion()
             if lx0 - prox <= x <= lx1 + prox:

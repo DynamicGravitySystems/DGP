@@ -24,3 +24,6 @@ The .ui source files are contained within the ui directory.
 
 .. toctree::
     :caption: Sub Packages
+    :maxdepth: 1
+
+    plotting.rst

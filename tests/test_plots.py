@@ -21,7 +21,6 @@ from dgp.core.types.tuples import LineUpdate
 from dgp.gui.plotting.backends import GridPlotWidget
 from dgp.gui.plotting.plotters import LineSelectPlot
 from dgp.gui.plotting.helpers import PolyAxis, LinearFlightRegion
-from .context import APP
 
 
 @pytest.fixture
@@ -29,7 +28,7 @@ def gravity(gravdata) -> pd.Series:
     return gravdata['gravity']
 
 
-def test_grid_plot_widget_init():
+def test_GridPlotWidget_init():
     gpw = GridPlotWidget(rows=2)
     assert isinstance(gpw, QWidget)
     assert isinstance(gpw, QObject)
@@ -47,7 +46,7 @@ def test_grid_plot_widget_init():
     assert isinstance(p0.legend, LegendItem)
 
 
-def test_grid_plot_widget_make_index(gravdata):
+def test_GridPlotWidget_make_index(gravdata):
     assert ('gravity', 0, 1, 'left') == GridPlotWidget.make_index(gravdata['gravity'].name, 0, 1)
 
     unnamed_ser = pd.Series(np.zeros(14), name='')
@@ -60,7 +59,7 @@ def test_grid_plot_widget_make_index(gravdata):
     assert ('long_acc', 3, 1, 'left') == GridPlotWidget.make_index('long_acc', 3, 1, 'sideways')
 
 
-def test_grid_plot_widget_plotting(gravity):
+def test_GridPlotWidget_add_series(gravity):
     gpw = GridPlotWidget(rows=2)
     p0: PlotItem = gpw.get_plot(row=0)
     p1: PlotItem = gpw.get_plot(row=1)
@@ -102,7 +101,27 @@ def test_grid_plot_widget_plotting(gravity):
         gpw.remove_series('eotvos', 0, 0)
 
 
-def test_grid_plot_widget_remove_plotitem(gravity):
+def test_GridPlotWidget_remove_series(gravity):
+    gpw = GridPlotWidget(rows=3, multiy=True)
+    p0 = gpw.get_plot(row=0)
+    p0right = gpw.get_plot(row=0, axis='right')
+    p1 = gpw.get_plot(row=1)
+    p2 = gpw.get_plot(row=2)
+
+    assert 0 == len(p0.dataItems) == len(p1.dataItems) == len(p2.dataItems)
+    _grav0 = gpw.add_series(gravity, row=0, axis='left')
+    _grav1 = gpw.add_series(gravity, row=0, axis='right')
+
+    assert 1 == len(p0.dataItems) == len(p0right.dataItems)
+
+    gpw.remove_series(gravity.name, 0, axis='left')
+    assert 0 == len(p0.dataItems)
+    assert 1 == len(p0right.dataItems)
+    gpw.remove_series(gravity.name, 0, axis='right')
+    assert 0 == len(p0right.dataItems)
+
+
+def test_GridPlotWidget_remove_plotitem(gravity):
     gpw = GridPlotWidget(rows=2)
     p0 = gpw.get_plot(0)
     p1 = gpw.get_plot(1)
@@ -123,7 +142,7 @@ def test_grid_plot_widget_remove_plotitem(gravity):
     assert 'gravity' not in [label.text for _, label in p0.legend.items]
 
 
-def test_grid_plot_widget_find_series(gravity):
+def test_GridPlotWidget_find_series(gravity):
     """Test function to find & return all keys for a series identified by name
     e.g. if 'gravity' channel is plotted on plot rows 0 and 1, find_series
     should return a list of key tuples (row, col, name) where the series is
@@ -143,7 +162,7 @@ def test_grid_plot_widget_find_series(gravity):
     assert gravity.equals(_grav_series0)
 
 
-def test_grid_plot_widget_set_xaxis_formatter(gravity):
+def test_GridPlotWidget_set_xaxis_formatter(gravity):
     """Test that appropriate axis formatters are automatically added based on
     the series index type (numeric or DateTime)
     """
@@ -165,7 +184,7 @@ def test_grid_plot_widget_set_xaxis_formatter(gravity):
     assert not p0.getAxis('bottom').timeaxis
 
 
-def test_grid_plot_widget_sharex(gravity):
+def test_GridPlotWidget_sharex(gravity):
     """Test linked vs unlinked x-axis scales"""
     gpw_unlinked = GridPlotWidget(rows=2, sharex=False)
 
@@ -187,7 +206,7 @@ def test_grid_plot_widget_sharex(gravity):
     assert gpw_linked.get_xlim(row=0) == gpw_linked.get_xlim(row=1)
 
 
-def test_grid_plot_iterator():
+def test_GridPlotWidget_iterator():
     """Test plots generator property for iterating through all plots"""
     gpw = GridPlotWidget(rows=5)
     count = 0
@@ -200,7 +219,7 @@ def test_grid_plot_iterator():
     assert gpw.rows == count
 
 
-def test_grid_plot_clear(gravdata):
+def test_GridPlotWidget_clear(gravdata):
     """Test clearing all series from all plots, or selectively"""
     gpw = GridPlotWidget(rows=3)
     gpw.add_series(gravdata['gravity'], 0)
@@ -219,6 +238,25 @@ def test_grid_plot_clear(gravdata):
     # TODO: Selective clear not yet implemented
 
 
+def test_GridPlotWidget_multi_y(gravdata):
+    _gravity = gravdata['gravity']
+    _longacc = gravdata['long_accel']
+    gpw = GridPlotWidget(rows=1, multiy=True)
+
+    p0 = gpw.get_plot(0)
+    gpw.add_series(_gravity, 0)
+    gpw.add_series(_longacc, 0, axis='right')
+
+    # Legend entry for right axis should appear on p0 legend
+    assert _gravity.name in [label.text for _, label in p0.legend.items]
+    assert _longacc.name in [label.text for _, label in p0.legend.items]
+
+    assert 1 == len(gpw.get_plot(0).dataItems)
+    assert 1 == len(gpw.get_plot(0, axis='right').dataItems)
+
+    assert gpw.get_xlim(0) == gpw.get_plot(0, axis='right').vb.viewRange()[0]
+
+
 def test_PolyAxis_tickStrings():
     axis = PolyAxis(orientation='bottom')
     axis.timeaxis = True
@@ -229,7 +267,7 @@ def test_PolyAxis_tickStrings():
     _DAY_SEC = 86400
 
     dt_index = pd.DatetimeIndex(start=datetime(2018, 6, 15, 12, 0, 0), freq='s',
-                                periods=8*_DAY_SEC)
+                                periods=8 * _DAY_SEC)
     dt_list = pd.to_numeric(dt_index).tolist()
 
     # Test with no values passed
@@ -256,26 +294,6 @@ def test_PolyAxis_tickStrings():
     tick_values = [dt_list[i] for i in range(0, 3*_DAY_SEC, _DAY_SEC)]
     expected = [pd.to_datetime(v).strftime('%m-%d %H') for v in tick_values]
     assert expected == axis.tickStrings(tick_values, _scale, _DAY_SEC)
-
-
-def test_grid_plot_multi_y(gravdata):
-    _gravity = gravdata['gravity']
-    _longacc = gravdata['long_accel']
-    gpw = GridPlotWidget(rows=1, multiy=True)
-
-    p0 = gpw.get_plot(0)
-    gpw.add_series(_gravity, 0)
-    gpw.add_series(_longacc, 0, axis='right')
-
-    # Legend entry for right axis should appear on p0 legend
-    assert _gravity.name in [label.text for _, label in p0.legend.items]
-    assert _longacc.name in [label.text for _, label in p0.legend.items]
-
-    assert 1 == len(gpw.get_plot(0).dataItems)
-    assert 1 == len(gpw.get_plot(0, axis='right').dataItems)
-
-    assert gpw.get_xlim(0) == gpw.get_plot(0, axis='right').vb.viewRange()[0]
-
 
 
 def test_LineSelectPlot_init():
@@ -311,7 +329,7 @@ def test_LineSelectPlot_selection_mode():
 def test_LineSelectPlot_add_segment():
     _rows = 2
     plot = LineSelectPlot(rows=_rows)
-    update_spy = QSignalSpy(plot.segment_changed)
+    update_spy = QSignalSpy(plot.sigSegmentChanged)
 
     ts_oid = OID(tag='datetime_timestamp')
     ts_start = datetime.now().timestamp() - 1000
@@ -323,30 +341,34 @@ def test_LineSelectPlot_add_segment():
 
     assert 0 == len(plot._segments)
 
-    plot.add_segment(ts_start, ts_stop, ts_oid)
+    plot.add_segment(ts_start, ts_stop, uid=ts_oid)
     assert 1 == len(update_spy)
     assert 1 == len(plot._segments)
     lfr_grp = plot._segments[ts_oid]
     assert _rows == len(lfr_grp)
 
     # Test adding segment using pandas.Timestamp values
-    plot.add_segment(pd_start, pd_stop, pd_oid)
+    plot.add_segment(pd_start, pd_stop, uid=pd_oid)
     assert 2 == len(update_spy)
     assert 2 == len(plot._segments)
     lfr_grp = plot._segments[pd_oid]
     assert _rows == len(lfr_grp)
 
+    # Test adding segment with no signal emission
+    plot.add_segment(ts_start + 2000, ts_stop + 2000, emit=False)
+    assert 2 == len(update_spy)
+
 
 def test_LineSelectPlot_remove_segment():
     _rows = 2
     plot = LineSelectPlot(rows=_rows)
-    update_spy = QSignalSpy(plot.segment_changed)
+    update_spy = QSignalSpy(plot.sigSegmentChanged)
 
     lfr_oid = OID(tag='segment selection')
     lfr_start = datetime.now().timestamp()
     lfr_end = lfr_start + 300
 
-    plot.add_segment(lfr_start, lfr_end, lfr_oid)
+    plot.add_segment(lfr_start, lfr_end, uid=lfr_oid)
     assert 1 == len(update_spy)
     assert isinstance(update_spy[0][0], LineUpdate)
 
@@ -365,11 +387,49 @@ def test_LineSelectPlot_remove_segment():
     assert 0 == len(plot._segments)
 
 
+def test_LineSelectPlot_get_segment():
+    # Test ability to retrieve segment reference (for possible UI interaction)
+    plot = LineSelectPlot(rows=2)
+
+    uid = OID(tag='test_segment')
+    plot.add_segment(2, 7, uid=uid, emit=False)
+
+    segment = plot.get_segment(uid)
+    assert plot._segments[uid][0] == segment
+
+
+def test_LineSelectPlot_set_label(gravity: pd.Series):
+    plot = LineSelectPlot(rows=2)
+    update_spy = QSignalSpy(plot.sigSegmentChanged)
+    plot.add_series(gravity, 0)
+
+    uid = OID()
+    plot.add_segment(2, 4, uid=uid)
+    assert 1 == len(update_spy)
+
+    segment_grp = plot._segments[uid]
+    segment0 = segment_grp[0]
+    segment1 = segment_grp[1]
+
+    assert isinstance(segment0, LinearFlightRegion)
+    assert '' == segment0.label.textItem.toPlainText()
+    assert '' == segment0._label_text
+
+    _label = 'Flight-1'
+    plot.set_label(segment0, _label)
+    assert 2 == len(update_spy)
+    update = update_spy[1][0]
+    assert _label == update.label
+    assert _label == segment0.label.textItem.toPlainText()
+    assert _label == segment1.label.textItem.toPlainText()
+
+    with pytest.raises(TypeError):
+        plot.set_label(uid, 'Fail')
+
+
 def test_LineSelectPlot_check_proximity(gravdata):
     _rows = 2
     plot = LineSelectPlot(rows=_rows)
-    print(f'plot geom: {plot.geometry()}')
-    print(f'scene rect: {plot.sceneRect()}')
     p0 = plot.get_plot(0)
     plot.add_series(gravdata['gravity'], 0)
 
@@ -386,8 +446,3 @@ def test_LineSelectPlot_check_proximity(gravdata):
     assert not plot._check_proximity(xpos, span, proximity=0.2)
     xpos = gravdata.index[4].value
     assert plot._check_proximity(xpos, span, proximity=0.2)
-
-
-
-
-

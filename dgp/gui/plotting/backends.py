@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-
+from datetime import datetime
 from itertools import cycle
 from typing import List, Union, Tuple, Generator, Dict
 
 import pandas as pd
 from pyqtgraph.widgets.GraphicsView import GraphicsView
 from pyqtgraph.graphicsItems.GraphicsLayout import GraphicsLayout
-from pyqtgraph.widgets.PlotWidget import PlotItem
+from pyqtgraph.graphicsItems.PlotItem import PlotItem
 from pyqtgraph import SignalProxy, PlotDataItem, ViewBox
 
 from .helpers import DateAxis, PolyAxis
@@ -80,7 +80,7 @@ class GridPlotWidget(GraphicsView):
     """
 
     def __init__(self, rows=1, cols=1, background='w', grid=True, sharex=False,
-                 multiy=False, parent=None):
+                 multiy=False, timeaxis=False, parent=None):
         super().__init__(background=background, parent=parent)
         self.gl = GraphicsLayout(parent=parent)
         self.setCentralItem(self.gl)
@@ -88,14 +88,17 @@ class GridPlotWidget(GraphicsView):
         self.rows = rows
         self.cols = cols
 
-        self._pens = cycle([{'color': v, 'width': 2} for v in LINE_COLORS])
+        # Note: increasing pen width can drastically reduce performance
+        self._pens = cycle([{'color': v, 'width': 1} for v in LINE_COLORS])
         self._series = {}  # type: Dict[pd.Series: Tuple[str, int, int]]
         self._items = {}  # type: Dict[PlotDataItem: Tuple[str, int, int]]
         self._rightaxis = {}
 
+        # TODO: use plot.setLimits to restrict zoom-out level (prevent OverflowError)
         col = 0
         for row in range(self.rows):
-            axis_items = {'bottom': PolyAxis(orientation='bottom')}
+            axis_items = {'bottom': PolyAxis(orientation='bottom',
+                                             timeaxis=timeaxis)}
             plot: PlotItem = self.gl.addPlot(row=row, col=col,
                                              backround=background,
                                              axisItems=axis_items)
@@ -112,7 +115,7 @@ class GridPlotWidget(GraphicsView):
         self.__signal_proxies = []
 
     def get_plot(self, row: int, col: int = 0, axis: str = 'left') -> PlotItem:
-        if axis == 'right':
+        if axis.lower() == 'right':
             return self._rightaxis[(row, col)]
         else:
             return self.gl.getItem(row, col)
@@ -160,15 +163,17 @@ class GridPlotWidget(GraphicsView):
     def get_series(self, name: str, row, col=0, axis='left') -> Union[pd.Series, None]:
         return self._series.get((name, row, col, axis), None)
 
-    def remove_series(self, name: str, row: int, col: int = 0) -> None:
-        plot = self.get_plot(row, col)
-        key = self.make_index(name, row, col)
+    def remove_series(self, name: str, row: int, col: int = 0,
+                      axis: str = 'left') -> None:
+        plot = self.get_plot(row, col, axis)
+        key = self.make_index(name, row, col, axis)
         plot.removeItem(self._items[key])
         plot.legend.removeItem(name)
         del self._series[key]
         del self._items[key]
 
     def clear(self):
+        # TODO: This won't clear right-axis plots yet
         for i in range(self.rows):
             for j in range(self.cols):
                 plot = self.get_plot(i, j)
@@ -197,7 +202,21 @@ class GridPlotWidget(GraphicsView):
 
                     del self._series[self.make_index(name, *index[0])]
 
-    def find_series(self, name: str) -> List[Tuple[str, int, int]]:
+    def find_series(self, name: str) -> List[Tuple[str, int, int, str]]:
+        """Find and return a list of all indexes where a series with
+        Series.name == name
+
+        Parameters
+        ----------
+        name : str
+            Name of the :class:`pandas.Series` to find indexes of
+
+        Returns
+        -------
+        List
+            List of Series indexes, see :func:`make_index`
+
+        """
         indexes = []
         for index, series in self._series.items():
             if series.name == name:  # pragma: no branch

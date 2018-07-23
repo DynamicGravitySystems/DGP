@@ -57,7 +57,8 @@ intersphinx_mapping = {
     'numpy': ('https://docs.scipy.org/doc/numpy-1.13.0/', None),
     'pyqtgraph': ('http://pyqtgraph.org/documentation', None),
     'pytables': ('https://www.pytables.org', None),
-    'pyqt': ('http://pyqt.sourceforge.net/Docs/PyQt5', None)
+    'pyqt': ('http://pyqt.sourceforge.net/Docs/PyQt5', None),
+    'pandas': ('https://pandas.pydata.org/pandas-docs/stable/', None)
 }
 # Note: the pyqt interlink won't work correctly as the namespaces are all
 # under :sip: in the objects.inv from the documentation site.
