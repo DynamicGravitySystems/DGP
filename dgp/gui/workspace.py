@@ -8,50 +8,49 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget
 import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtGui as QtGui
 
+from dgp.core.controllers.controller_interfaces import IBaseController
 from dgp.core.controllers.flight_controller import FlightController
 from dgp.core.oid import OID
 from .workspaces import *
 
 
-class FlightTab(QWidget):
+class WorkspaceTab(QWidget):
     """Top Level Tab created for each Flight object open in the workspace"""
 
     def __init__(self, flight: FlightController, parent=None, flags=0, **kwargs):
         super().__init__(parent=parent, flags=Qt.Widget)
         self.log = logging.getLogger(__name__)
-        self._flight = flight
+        self._root: IBaseController = flight
 
         self._layout = QVBoxLayout(self)
-        # _workspace is the inner QTabWidget containing the WorkspaceWidgets
-        self._workspace = QTabWidget()
-        self._workspace.setTabPosition(QTabWidget.West)
-        self._layout.addWidget(self._workspace)
+        self._setup_tasktabs()
 
+    def _setup_tasktabs(self):
         # Define Sub-Tabs within Flight space e.g. Plot, Transform, Maps
-        self._plot_tab = PlotTab(label="Plot", flight=flight)
+        self._tasktabs = QTabWidget()
+        self._tasktabs.setTabPosition(QTabWidget.West)
+        self._layout.addWidget(self._tasktabs)
 
-        self._workspace.addTab(self._plot_tab, "Plot")
+        self._plot_tab = PlotTab(label="Plot", flight=self._root)
+        self._tasktabs.addTab(self._plot_tab, "Plot")
 
-        self._transform_tab = TransformTab("Transforms", flight)
-        self._workspace.addTab(self._transform_tab, "Transforms")
+        self._transform_tab = TransformTab("Transforms", self._root)
+        self._tasktabs.addTab(self._transform_tab, "Transforms")
 
-        self._line_proc_tab = LineProcessTab("Line Processing", flight)
-        self._workspace.addTab(self._line_proc_tab, "Line Processing")
+        # self._line_proc_tab = LineProcessTab("Line Processing", flight)
+        # self._tasktabs.addTab(self._line_proc_tab, "Line Processing")
 
-        self._workspace.setCurrentIndex(0)
+        self._tasktabs.setCurrentIndex(0)
         self._plot_tab.update()
-
-    def subtab_widget(self):
-        return self._workspace.currentWidget().widget()
 
     @property
     def uid(self) -> OID:
         """Return the underlying Flight's UID"""
-        return self._flight.uid
+        return self._root.uid
 
     @property
-    def flight(self) -> FlightController:
-        return self._flight
+    def root(self) -> IBaseController:
+        return self._root
 
     @property
     def plot(self):

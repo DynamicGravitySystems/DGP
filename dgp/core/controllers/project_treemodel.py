@@ -3,8 +3,10 @@ from typing import Optional
 
 from PyQt5.QtCore import QObject, QModelIndex, pyqtSignal, pyqtSlot, QSortFilterProxyModel, Qt
 from PyQt5.QtGui import QStandardItemModel
+from PyQt5.QtWidgets import QWidget
 
-from dgp.core.controllers.controller_interfaces import IFlightController
+from dgp.core.oid import OID
+from dgp.core.controllers.controller_interfaces import IFlightController, IAirborneController
 from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.gui.utils import ProgressEvent
 
@@ -42,20 +44,28 @@ class ProjectTreeModel(QStandardItemModel):
 
     """
     projectMutated = pyqtSignal()
-    tabOpenRequested = pyqtSignal(IFlightController)
-    tabCloseRequested = pyqtSignal(IFlightController)
+    tabOpenRequested = pyqtSignal(OID, object, str)
+    tabCloseRequested = pyqtSignal(OID)
     progressNotificationRequested = pyqtSignal(ProgressEvent)
     progressUpdateRequested = pyqtSignal(ProgressEvent)
 
     def __init__(self, project: AirborneProjectController, parent: Optional[QObject]=None):
         super().__init__(parent)
         self.appendRow(project)
+        self._active = project
+
+    @property
+    def active_project(self) -> IAirborneController:
+        return self._active
 
     def active_changed(self, flight: IFlightController):
-        self.tabOpenRequested.emit(flight)
+        self.tabOpenRequested.emit(flight.uid, flight, flight.get_attr('name'))
+
+    def add_project(self, project: IAirborneController):
+        self.appendRow(project)
 
     def close_flight(self, flight: IFlightController):
-        self.tabCloseRequested.emit(flight)
+        self.tabCloseRequested.emit(flight.uid)
 
     def notify_tab_changed(self, flight: IFlightController):
         flight.get_parent().set_active_child(flight, emit=False)
@@ -68,17 +78,13 @@ class ProjectTreeModel(QStandardItemModel):
         if isinstance(item, IFlightController):
             item.get_parent().set_active_child(item, emit=False)
             self.active_changed(item)
+        elif isinstance(item, IAirborneController):
+            self._active = item
 
-    @pyqtSlot(QModelIndex, name='on_click')
-    def on_click(self, index: QModelIndex):  # pragma: no cover
-        pass
-
-    @pyqtSlot(QModelIndex, name='on_double_click')
-    def on_double_click(self, index: QModelIndex):
-        item = self.itemFromIndex(index)
-        if isinstance(item, IFlightController):
-            item.get_parent().set_active_child(item, emit=False)
-            self.active_changed(item)
+    def save_projects(self):
+        for i in range(self.rowCount()):
+            prj: IAirborneController = self.item(i, 0)
+            prj.save()
 
 
 # Experiment

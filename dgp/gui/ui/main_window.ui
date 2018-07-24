@@ -41,7 +41,7 @@
      <number>0</number>
     </property>
     <item>
-     <widget class="MainWorkspace" name="flight_tabs"/>
+     <widget class="MainWorkspace" name="workspace"/>
     </item>
    </layout>
   </widget>
