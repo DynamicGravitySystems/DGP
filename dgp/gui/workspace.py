@@ -11,7 +11,8 @@ import PyQt5.QtGui as QtGui
 from dgp.core.controllers.controller_interfaces import IBaseController
 from dgp.core.controllers.flight_controller import FlightController
 from dgp.core.oid import OID
-from .workspaces import *
+from .workspaces import PlotTab
+from .workspaces import TransformTab
 
 
 class WorkspaceTab(QWidget):

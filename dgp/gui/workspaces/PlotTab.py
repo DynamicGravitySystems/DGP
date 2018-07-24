@@ -11,13 +11,19 @@ import PyQt5.QtWidgets as QtWidgets
 from dgp.gui.widgets.channel_select_widget import ChannelSelectWidget
 from dgp.core.controllers.flight_controller import FlightController
 from dgp.gui.plotting.plotters import LineUpdate, PqtLineSelectPlot
-from . import BaseTab
+from .TaskTab import TaskTab
 
 
-class PlotTab(BaseTab):
+class PlotTab(TaskTab):
     """Sub-tab displayed within Flight tab interface. Displays canvas for
-    plotting data series."""
-    _name = "Line Selection"
+    plotting data series.
+
+    Parameters
+    ----------
+    label : str
+    flight : FlightController
+
+    """
 
     def __init__(self, label: str, flight: FlightController, **kwargs):
         # TODO: It will make more sense to associate a DataSet with the plot vs a Flight
@@ -43,10 +49,10 @@ class PlotTab(BaseTab):
         qhbl_top_buttons.addWidget(self._qpb_channel_toggle,
                                    alignment=Qt.AlignLeft)
 
-        self._mode_label = QtWidgets.QLabel('')
+        self._ql_mode = QtWidgets.QLabel('')
         # top_button_hlayout.addSpacing(20)
         qhbl_top_buttons.addStretch(2)
-        qhbl_top_buttons.addWidget(self._mode_label)
+        qhbl_top_buttons.addWidget(self._ql_mode)
         qhbl_top_buttons.addStretch(2)
         # top_button_hlayout.addSpacing(20)
         self._qpb_toggle_mode = QtWidgets.QPushButton("Toggle Line Selection Mode")
@@ -86,9 +92,9 @@ class PlotTab(BaseTab):
     def _toggle_selection(self, state: bool):
         self.plot.selection_mode = state
         if state:
-            self._mode_label.setText("<h2><b>Line Selection Active</b></h2>")
+            self._ql_mode.setText("<h2><b>Line Selection Active</b></h2>")
         else:
-            self._mode_label.setText("")
+            self._ql_mode.setText("")
 
     def _on_modified_line(self, update: LineUpdate):
         start = update.start
