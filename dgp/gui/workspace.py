@@ -2,9 +2,9 @@
 
 import logging
 
-from PyQt5.QtGui import QContextMenuEvent
+from PyQt5.QtGui import QContextMenuEvent, QKeySequence
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtBoundSignal
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QAction
 import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtGui as QtGui
 
@@ -67,27 +67,50 @@ class _WorkspaceTabBar(QtWidgets.QTabBar):
         self.setTabsClosable(True)
         self.setMovable(True)
 
-        self._actions = []  # Store action objects to keep a reference so no GC
         # Allow closing tab via Ctrl+W key shortcut
-        _close_action = QtWidgets.QAction("Close")
+        _close_action = QAction("Close")
+        _close_action.setShortcut(QKeySequence(Qt.CTRL + Qt.Key_W))
         _close_action.triggered.connect(
             lambda: self.tabCloseRequested.emit(self.currentIndex()))
-        _close_action.setShortcut(QtGui.QKeySequence("Ctrl+W"))
-        self.addAction(_close_action)
-        self._actions.append(_close_action)
+
+        tab_right_action = QAction("TabRight")
+        tab_right_action.setShortcut(QKeySequence(Qt.CTRL + Qt.Key_Tab))
+        # tab_right_action.setShortcut(QKeySequence("Ctrl+Tab"))
+        tab_right_action.triggered.connect(self._tab_right)
+
+        tab_left_action = QAction("TabLeft")
+        tab_left_action.setShortcut(QKeySequence(Qt.CTRL + Qt.SHIFT + Qt.Key_Tab))
+        tab_left_action.triggered.connect(self._tab_left)
+
+        self._actions = [_close_action, tab_right_action, tab_left_action]
+        for action in self._actions:
+            self.addAction(action)
+        # self.addAction(_close_action)
 
     def contextMenuEvent(self, event: QContextMenuEvent, *args, **kwargs):
         tab = self.tabAt(event.pos())
 
         menu = QtWidgets.QMenu()
         menu.setTitle('Tab: ')
-        kill_action = QtWidgets.QAction("Kill")
+        kill_action = QAction("Kill")
         kill_action.triggered.connect(lambda: self.tabCloseRequested.emit(tab))
 
         menu.addAction(kill_action)
 
         menu.exec_(event.globalPos())
         event.accept()
+
+    def _tab_right(self, *args):
+        index = self.currentIndex() + 1
+        if index > self.count() - 1:
+            index = 0
+        self.setCurrentIndex(index)
+
+    def _tab_left(self, *args):
+        index = self.currentIndex() - 1
+        if index < 0:
+            index = self.count() - 1
+        self.setCurrentIndex(index)
 
 
 class MainWorkspace(QtWidgets.QTabWidget):
@@ -97,3 +120,5 @@ class MainWorkspace(QtWidgets.QTabWidget):
     def __init__(self, parent=None):
         super().__init__(parent=parent)
         self.setTabBar(_WorkspaceTabBar())
+
+
