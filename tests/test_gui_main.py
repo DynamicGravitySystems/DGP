@@ -125,7 +125,7 @@ def test_MainWindow_new_project_dialog(window: MainWindow, tmpdir):
     assert 1 == len(projectCreated_spy)
     assert 2 == window.model.rowCount()
 
-    prj_dir = dest.joinpath("TestNewProject")
+    prj_dir = dest.joinpath(dlg.project.name)
     assert prj_dir.exists()
 
 
