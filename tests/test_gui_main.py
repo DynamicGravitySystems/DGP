@@ -139,16 +139,11 @@ def test_MainWindow_open_project_dialog(window: MainWindow, project_factory, tmp
     assert 1 == window.model.rowCount()
 
     window.open_project_dialog(path=prj2.path)
+    assert 2 == window.model.rowCount()
 
+    # Try to open an already open project
+    window.open_project_dialog(path=prj2.path)
     assert 2 == window.model.rowCount()
 
     window.open_project_dialog(path=tmpdir)
     assert 2 == window.model.rowCount()
-
-
-
-
-
-
-
-

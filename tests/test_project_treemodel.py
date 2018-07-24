@@ -30,6 +30,9 @@ def test_ProjectTreeModel_multiple_projects(project: AirborneProject,
     model.item_activated(model.index(prj_ctrl2.row(), 0))
     assert prj_ctrl2 == model.active_project
 
+    assert prj_ctrl in model.projects
+    assert prj_ctrl2 in model.projects
+
 
 def test_ProjectTreeModel_item_activated(prj_ctrl: AirborneProjectController,
                                          flt_ctrl: FlightController):

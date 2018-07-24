@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
-from typing import Optional
+from typing import Optional, Generator
 
-from PyQt5.QtCore import QObject, QModelIndex, pyqtSignal, pyqtSlot, QSortFilterProxyModel, Qt
+from PyQt5.QtCore import QObject, QModelIndex, pyqtSignal, QSortFilterProxyModel, Qt
 from PyQt5.QtGui import QStandardItemModel
-from PyQt5.QtWidgets import QWidget
 
 from dgp.core.oid import OID
 from dgp.core.controllers.controller_interfaces import IFlightController, IAirborneController
@@ -57,6 +56,11 @@ class ProjectTreeModel(QStandardItemModel):
     @property
     def active_project(self) -> IAirborneController:
         return self._active
+
+    @property
+    def projects(self) -> Generator[IAirborneController, None, None]:
+        for i in range(self.rowCount()):
+            yield self.item(i, 0)
 
     def active_changed(self, flight: IFlightController):
         self.tabOpenRequested.emit(flight.uid, flight, flight.get_attr('name'))

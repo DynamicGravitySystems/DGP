@@ -248,9 +248,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 return
             with prj_file.open('r') as fd:
                 project = AirborneProject.from_json(fd.read())
-                control = AirborneProjectController(project)
-                self.model.add_project(control)
-                self.save_projects()
+                if project.uid in [p.uid for p in self.model.projects]:
+                    self.log.warning("Project is already opened")
+                else:
+                    control = AirborneProjectController(project)
+                    self.model.add_project(control)
+                    self.save_projects()
 
         if path is not None:
             _project_selected([path])
