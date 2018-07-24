@@ -4,6 +4,8 @@ import logging
 from pathlib import Path
 from typing import Union, Callable
 
+from dgp.core.oid import OID
+
 LOG_FORMAT = logging.Formatter(fmt="%(asctime)s:%(levelname)s - %(module)s:"
                                    "%(funcName)s :: %(message)s",
                                datefmt="%H:%M:%S")
@@ -41,7 +43,28 @@ class ConsoleHandler(logging.Handler):
 
 
 class ProgressEvent:
-    pass
+    def __init__(self, uid: OID, label: str = None, start: int = 0,
+                 stop: int = 100, value: int = 0, modal: bool = True,
+                 receiver: object = None):
+        self.uid = uid
+        self.label = label
+        self.start = start
+        self.stop = stop
+        self._value = value
+        self.modal = modal
+        self.receiver = receiver
+
+    @property
+    def completed(self):
+        return self._value >= self.stop
+
+    @property
+    def value(self) -> int:
+        return self._value
+
+    @value.setter
+    def value(self, value: int) -> None:
+        self._value = value
 
 
 def get_project_file(path: Path) -> Union[Path, None]:

@@ -4,7 +4,7 @@ import pathlib
 import logging
 
 import PyQt5.QtWidgets as QtWidgets
-from PyQt5.QtCore import Qt, pyqtSlot
+from PyQt5.QtCore import Qt, pyqtSlot, QThread
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import QMainWindow, QProgressDialog, QFileDialog, QWidget, QDialog
 
@@ -15,7 +15,7 @@ from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.core.controllers.project_treemodel import ProjectTreeModel
 from dgp.core.models.project import AirborneProject
 from dgp.gui.utils import (ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP,
-                           LOG_COLOR_MAP, get_project_file)
+                           LOG_COLOR_MAP, get_project_file, ProgressEvent)
 from dgp.gui.dialogs.create_project_dialog import CreateProjectDialog
 
 from dgp.gui.workspace import WorkspaceTab
@@ -54,6 +54,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # Support for multiple projects
         self.model.tabOpenRequested.connect(self._tab_open_requested)
         self.model.tabCloseRequested.connect(self._tab_close_requested)
+        self.model.progressNotificationRequested.connect(self._progress_event_handler)
 
         # Initialize Variables
         self.import_base_path = pathlib.Path('~').expanduser().joinpath(
@@ -65,6 +66,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.workspace: QtWidgets.QTabWidget
         self._open_tabs = {}  # Track opened tabs by {uid: tab_widget, ...}
 
+        self._progress_events = {}
         self._mutated = False
 
         self._init_slots()
@@ -188,23 +190,36 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         else:
             self.log.debug("No flight tab open")
 
-    def show_progress_dialog(self, title, start=0, stop=1, label=None,
-                             cancel="Cancel", modal=False,
-                             flags=None) -> QProgressDialog:
-        """Generate a progress bar to show progress on long running event."""
-        if flags is None:
+    @pyqtSlot(ProgressEvent, name='_progress_event_handler')
+    def _progress_event_handler(self, event: ProgressEvent):
+        if event.uid in self._progress_events:
+            # Update progress
+            self.log.debug(f"Updating progress bar for UID {event.uid}")
+            dlg: QProgressDialog = self._progress_events[event.uid]
+            dlg.setValue(event.value)
+
+            if event.completed:
+                self.log.debug("Event completed, closing progress dialog")
+                dlg.reset()
+                dlg.close()
+                del self._progress_events[event.uid]
+                return
+
+            dlg.setLabelText(event.label)
+        else:
             flags = (Qt.WindowSystemMenuHint |
                      Qt.WindowTitleHint |
                      Qt.WindowMinimizeButtonHint)
-
-        dialog = QProgressDialog(label, cancel, start, stop, self, flags)
-        dialog.setWindowTitle(title)
-        dialog.setModal(modal)
-        dialog.setMinimumDuration(0)
-        # dialog.setCancelButton(None)
-        dialog.setValue(1)
-        dialog.show()
-        return dialog
+            dlg = QProgressDialog(event.label, "", event.start, event.stop, self, flags)
+            dlg.setMinimumDuration(0)
+            dlg.setModal(event.modal)
+            dlg.setValue(event.value)
+            if event.receiver:
+                dlg.open(event.receiver)
+            else:
+                dlg.setValue(1)
+                dlg.show()
+            self._progress_events[event.uid] = dlg
 
     def show_progress_status(self, start, stop, label=None) -> QtWidgets.QProgressBar:
         """Show a progress bar in the windows Status Bar"""
@@ -225,6 +240,20 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # Project create/open dialog functions  ###################################
 
     def new_project_dialog(self) -> QDialog:
+        """pyqtSlot()
+        Launch a :class:`CreateProjectDialog` to enable the user to create a new
+        project instance.
+        If a new project is created it is opened in a new MainWindow if the
+        dialog's sigProjectCreated new_window flag is True, else it is added
+        to the current window Project Tree View, below any already opened
+        projects.
+
+        Returns
+        -------
+        :class:`CreateProjectDialog`
+            Reference to modal CreateProjectDialog
+
+        """
         def _add_project(prj: AirborneProject, new_window: bool):
             self.log.info("Creating new project.")
             control = AirborneProjectController(prj)
@@ -239,8 +268,31 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         dialog.show()
         return dialog
 
-    def open_project_dialog(self, checked: bool = False, path=None) -> QFileDialog:
-        # TODO: Enable open in new window option
+    def open_project_dialog(self, *args, path: pathlib.Path=None) -> QFileDialog:
+        """pyqtSlot()
+        Opens an existing project within the current Project MainWindow,
+        adding the opened project as a tree item to the Project Tree navigator.
+
+        ToDo: Add prompt or flag to launch project in new MainWindow
+
+        Parameters
+        ----------
+        args
+            Consume positional arguments, some buttons connected to this slot
+            will pass a 'checked' boolean flag which is not applicable here.
+        path : :class:`pathlib.Path`
+            Path to a directory containing a dgp json project file.
+            Used to programmatically load a project (without launching the
+            FileDialog).
+
+        Returns
+        -------
+        QFileDialog
+            Reference to QFileDialog file-browser dialog when called with no
+            path argument.
+
+        """
+
         def _project_selected(directory):
             prj_file = get_project_file(pathlib.Path(directory[0]))
             if prj_file is None:
@@ -264,7 +316,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             dialog.accepted.connect(lambda: _project_selected(dialog.selectedFiles()))
             dialog.setModal(True)
             dialog.show()
-
             return dialog
 
     # Active Project Action Slots

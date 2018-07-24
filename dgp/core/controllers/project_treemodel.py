@@ -2,7 +2,7 @@
 from typing import Optional, Generator
 
 from PyQt5.QtCore import QObject, QModelIndex, pyqtSignal, QSortFilterProxyModel, Qt
-from PyQt5.QtGui import QStandardItemModel
+from PyQt5.QtGui import QStandardItemModel, QColor
 
 from dgp.core.oid import OID
 from dgp.core.controllers.controller_interfaces import IFlightController, IAirborneController
@@ -36,22 +36,18 @@ class ProjectTreeModel(QStandardItemModel):
     progressNotificationRequested : pyqtSignal[ProgressEvent]
         Signal emitted to request a QProgressDialog from the main window.
         ProgressEvent is passed defining the parameters for the progress bar
-    progressUpdateRequested : pyqtSignal[ProgressEvent]
-        Signal emitted to update an active QProgressDialog
-        ProgressEvent must reference an event already emitted by
-        progressNotificationRequested
 
     """
     projectMutated = pyqtSignal()
     tabOpenRequested = pyqtSignal(OID, object, str)
     tabCloseRequested = pyqtSignal(OID)
     progressNotificationRequested = pyqtSignal(ProgressEvent)
-    progressUpdateRequested = pyqtSignal(ProgressEvent)
 
     def __init__(self, project: AirborneProjectController, parent: Optional[QObject]=None):
         super().__init__(parent)
         self.appendRow(project)
         self._active = project
+        self._active.setBackground(QColor('green'))
 
     @property
     def active_project(self) -> IAirborneController:
@@ -83,6 +79,9 @@ class ProjectTreeModel(QStandardItemModel):
             item.get_parent().set_active_child(item, emit=False)
             self.active_changed(item)
         elif isinstance(item, IAirborneController):
+            for project in self.projects:
+                project.setBackground(QColor('white'))
+            item.setBackground(QColor('green'))
             self._active = item
 
     def save_projects(self):

@@ -2,12 +2,15 @@
 
 # Test gui/main.py
 import logging
+import time
 from pathlib import Path
 
 import pytest
-from PyQt5.QtTest import QSignalSpy
-from PyQt5.QtWidgets import QMainWindow, QFileDialog
+from PyQt5.QtCore import Qt
+from PyQt5.QtTest import QSignalSpy, QTest
+from PyQt5.QtWidgets import QMainWindow, QFileDialog, QProgressDialog, QPushButton
 
+from dgp.core.oid import OID
 from dgp.core.models.project import AirborneProject
 from dgp.core.controllers.project_treemodel import ProjectTreeModel
 from dgp.core.controllers.flight_controller import FlightController
@@ -15,6 +18,7 @@ from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.gui.main import MainWindow
 from dgp.gui.workspace import WorkspaceTab
 from dgp.gui.dialogs.create_project_dialog import CreateProjectDialog
+from dgp.gui.utils import ProgressEvent
 
 
 @pytest.fixture
@@ -147,3 +151,64 @@ def test_MainWindow_open_project_dialog(window: MainWindow, project_factory, tmp
 
     window.open_project_dialog(path=tmpdir)
     assert 2 == window.model.rowCount()
+
+
+def test_MainWindow_progress_event_handler(window: MainWindow,
+                                           flt_ctrl: FlightController):
+    model: ProjectTreeModel = window.model
+    progressEventRequested_spy = QSignalSpy(model.progressNotificationRequested)
+
+    prog_event = ProgressEvent(flt_ctrl.uid, label="Loading Data Set")
+    assert flt_ctrl.uid == prog_event.uid
+    assert not prog_event.completed
+    assert 0 == prog_event.value
+
+    model.progressNotificationRequested.emit(prog_event)
+    assert 1 == len(progressEventRequested_spy)
+    assert 1 == len(window._progress_events)
+    assert flt_ctrl.uid in window._progress_events
+    dlg = window._progress_events[flt_ctrl.uid]
+    assert isinstance(dlg, QProgressDialog)
+    assert dlg.isVisible()
+    assert prog_event.label == dlg.labelText()
+    assert 1 == dlg.value()
+
+    prog_event2 = ProgressEvent(flt_ctrl.uid, label="Loading Data Set 2",
+                                start=0, stop=100)
+    prog_event2.value = 35
+    model.progressNotificationRequested.emit(prog_event2)
+    assert 2 == len(progressEventRequested_spy)
+
+    assert dlg == window._progress_events[flt_ctrl.uid]
+    assert prog_event2.label == dlg.labelText()
+    assert prog_event2.value == dlg.value()
+
+    prog_event2.value = 100
+    assert prog_event2.completed
+    model.progressNotificationRequested.emit(prog_event2)
+    assert not dlg.isVisible()
+
+    assert 0 == len(window._progress_events)
+
+    model.progressNotificationRequested.emit(prog_event)
+    assert 1 == len(window._progress_events)
+
+    # Test progress bar with cancellation callback slot
+    received = False
+
+    def _receiver():
+        nonlocal received
+        received = True
+
+    _uid = OID()
+    prog_event_callback = ProgressEvent(_uid, "Testing Callback", receiver=_receiver)
+    model.progressNotificationRequested.emit(prog_event_callback)
+
+    dlg: QProgressDialog = window._progress_events[_uid]
+    cancel = QPushButton("Cancel")
+    dlg.setCancelButton(cancel)
+    assert dlg.isVisible()
+    QTest.mouseClick(cancel, Qt.LeftButton)
+
+    assert received
+
