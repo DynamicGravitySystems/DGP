@@ -39,8 +39,8 @@ class Flight:
         within the flight.
 
     """
-    __slots__ = ('uid', 'name', 'datasets', 'meter',
-                 'date', 'notes', 'sequence', 'duration', '_parent')
+    __slots__ = ('uid', 'name', 'datasets', 'date', 'notes', 'sequence',
+                 'duration', '_parent')
 
     def __init__(self, name: str, date: Optional[datetime] = None, notes: Optional[str] = None,
                  sequence: int = 0, duration: int = 0, meter: str = None,
@@ -55,7 +55,6 @@ class Flight:
         self.duration = duration
 
         self.datasets = kwargs.get('datasets', [])  # type: List[DataSet]
-        self.meter: Gravimeter = meter
 
     @property
     def parent(self):

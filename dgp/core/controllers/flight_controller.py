@@ -19,7 +19,6 @@ from dgp.core.models.meter import Gravimeter
 from dgp.core.types.enumerations import DataTypes
 from dgp.gui.dialogs.add_flight_dialog import AddFlightDialog
 from . import controller_helpers as helpers
-from .project_containers import ProjectFolder
 
 FOLDER_ICON = ":/icons/folder_open.png"
 
@@ -42,34 +41,32 @@ class FlightController(IFlightController):
     The FlightController class also acts as a proxy to the underlying :obj:`Flight`
     by implementing __getattr__, and allowing access to any @property decorated
     methods of the Flight.
+
+    Parameters
+    ----------
+    flight : :class:`Flight`
+    project : :class:`IAirborneController`, Optional
+
     """
 
     inherit_context = True
 
-    def __init__(self, flight: Flight, parent: IAirborneController = None):
+    def __init__(self, flight: Flight, project: IAirborneController = None):
         """Assemble the view/controller repr from the base flight object."""
         super().__init__()
         self.log = logging.getLogger(__name__)
         self._flight = flight
-        self._parent = parent
+        self._parent = project
         self.setData(flight, Qt.UserRole)
         self.setEditable(False)
 
-        self._datasets = ProjectFolder("Datasets", FOLDER_ICON)
         self._active_dataset: DataSetController = None
-
-        self._sensors = ProjectFolder("Sensors", FOLDER_ICON)
-        self.appendRow(self._datasets)
-        self.appendRow(self._sensors)
-
-        self._child_control_map = {DataSet: DataSetController,
-                                   Gravimeter: GravimeterController}
-        self._child_map = {DataSet: self._datasets,
-                           Gravimeter: self._sensors}
+        self._dataset_model = QStandardItemModel()
 
         for dataset in self._flight.datasets:
             control = DataSetController(dataset, self)
-            self._datasets.appendRow(control)
+            self.appendRow(control)
+            self._dataset_model.appendRow(control.clone())
 
         if not len(self._flight.datasets):
             self.add_child(DataSet(self._parent.hdf5path))
@@ -114,7 +111,7 @@ class FlightController(IFlightController):
 
     @property
     def datasets(self) -> QStandardItemModel:
-        return self._datasets.internal_model
+        return self._dataset_model
 
     @property
     def project(self) -> IAirborneController:
@@ -143,11 +140,12 @@ class FlightController(IFlightController):
             raise TypeError(f'Cannot set {dataset!r} to active (invalid type)')
         dataset.active = True
         self._active_dataset = dataset
+        dataset._update()
 
     def get_active_dataset(self) -> DataSetController:
         if self._active_dataset is None:
-            for i in range(self._datasets.rowCount()):
-                self._active_dataset = self._datasets.child(i, 0)
+            for i in range(self.rowCount()):
+                self._active_dataset = self.child(i, 0)
                 break
         return self._active_dataset
 
@@ -171,13 +169,14 @@ class FlightController(IFlightController):
             if child is not a :obj:`DataSet`
 
         """
-        child_key = type(child)
-        if child_key not in self._child_control_map:
-            raise TypeError("Invalid child type {0!s} supplied".format(child_key))
+        if not isinstance(child, DataSet):
+            raise TypeError(f'Invalid child of type {type(child)} supplied to'
+                            f'FlightController, must be {type(DataSet)}')
 
         self._flight.datasets.append(child)
         control = DataSetController(child, self)
-        self._datasets.appendRow(control)
+        self.appendRow(control)
+        self._dataset_model.appendRow(control.clone())
         return control
 
     def remove_child(self, uid: Union[OID, str], confirm: bool = True) -> bool:
@@ -205,26 +204,27 @@ class FlightController(IFlightController):
             if child is not a :obj:`FlightLine` or :obj:`DataFile`
 
         """
-        ctrl = self.get_child(uid)
-        if type(ctrl) not in self._child_control_map.values():
-            raise TypeError("Invalid child uid supplied. Invalid child type.")
+        child = self.get_child(uid)
+        if child is None:
+            raise KeyError(f'Child with uid {uid!s} not in flight {self!s}')
         if confirm:  # pragma: no cover
             if not helpers.confirm_action("Confirm Deletion",
-                                          "Are you sure you want to delete %s" % str(ctrl),
+                                          f'Are you sure you want to delete {child!r}',
                                           self.get_parent().get_parent()):
                 return False
 
-        if self._active_dataset == ctrl:
+        if self._active_dataset == child:
             self._active_dataset = None
-        self._flight.datasets.remove(ctrl.datamodel)
-        self._child_map[type(ctrl.datamodel)].removeRow(ctrl.row())
+        self._flight.datasets.remove(child.datamodel)
+        self._dataset_model.removeRow(child.row())
+        self.removeRow(child.row())
         return True
 
     def get_child(self, uid: Union[OID, str]) -> DataSetController:
-        """Retrieve a child controller by UIU
+        """Retrieve a child controller by UID
         A string base_uuid can be passed, or an :obj:`OID` object for comparison
         """
-        for item in self._datasets.items():  # type: DataSetController
+        for item in (self.child(i, 0) for i in range(self.rowCount())):  # type: DataSetController
             if item.uid == uid:
                 return item
 

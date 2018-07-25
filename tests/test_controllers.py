@@ -123,7 +123,7 @@ def test_flight_controller(project: AirborneProject):
 
     fc.set_parent(None)
 
-    with pytest.raises(TypeError):
+    with pytest.raises(KeyError):
         fc.remove_child("Not a real child", confirm=False)
 
     assert dsc2 == fc.get_child(dsc2.uid)
@@ -344,16 +344,16 @@ def test_dataset_reparenting(project: AirborneProject):
     assert isinstance(dsctrl, DataSetController)
 
     assert 1 == len(flt1ctrl.datamodel.datasets)
-    assert 1 == flt1ctrl.datasets.rowCount()
+    assert 1 == flt1ctrl.rowCount()
 
     assert 1 == len(flt2ctrl.datamodel.datasets)
-    assert 1 == flt2ctrl.datasets.rowCount()
+    assert 1 == flt2ctrl.rowCount()
 
     assert flt1ctrl == dsctrl.get_parent()
 
     dsctrl.set_parent(flt2ctrl)
-    assert 2 == flt2ctrl.datasets.rowCount()
-    assert 0 == flt1ctrl.datasets.rowCount()
+    assert 2 == flt2ctrl.rowCount()
+    assert 0 == flt1ctrl.rowCount()
     assert flt2ctrl == dsctrl.get_parent()
 
     # DataSetController is recreated when added to new flight.
