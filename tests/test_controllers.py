@@ -22,7 +22,7 @@ from dgp.core.controllers.dataset_controller import (DataSetController,
                                                      ACTIVE_COLOR,
                                                      INACTIVE_COLOR)
 from dgp.core.models.meter import Gravimeter
-from dgp.core.models.data import DataFile
+from dgp.core.models.datafile import DataFile
 from dgp.core.controllers.flight_controller import FlightController
 from dgp.core.models.flight import Flight
 from .context import APP

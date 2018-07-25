@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
+from pathlib import Path
 from typing import List, Union
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QBrush, QIcon, QStandardItemModel, QStandardItem
-from pandas import DataFrame
+from pandas import DataFrame, concat
 
+from dgp.core.hdf5_manager import HDF5Manager
 from dgp.core.controllers.project_containers import ProjectFolder
-from dgp.core.models.data import DataFile
+from dgp.core.models.datafile import DataFile
 from dgp.core.types.enumerations import DataTypes
 from dgp.core.oid import OID
 from dgp.core.controllers.controller_interfaces import (IFlightController,
@@ -96,6 +98,10 @@ class DataSetController(IDataSetController):
         return self._dataset.uid
 
     @property
+    def hdfpath(self) -> Path:
+        return self._flight.get_parent().hdf5path
+
+    @property
     def menu_bindings(self):  # pragma: no cover
         return self._menu_bindings
 
@@ -158,7 +164,7 @@ class DataSetController(IDataSetController):
         self._update()
 
     def add_datafile(self, datafile: DataFile) -> None:
-        datafile.set_parent(self)
+        # datafile.set_parent(self)
         if datafile.group == 'gravity':
             self._dataset.gravity = datafile
             self._grav_file.set_datafile(datafile)

@@ -15,7 +15,7 @@ import pandas as pd
 
 from dgp.core.models.project import AirborneProject
 from dgp.core.hdf5_manager import HDF5Manager
-from dgp.core.models.data import DataFile
+from dgp.core.models.datafile import DataFile
 from dgp.core.models.dataset import DataSet
 from dgp.core.models import flight
 from dgp.core.models.meter import Gravimeter

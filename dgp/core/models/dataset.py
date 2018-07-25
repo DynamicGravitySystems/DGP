@@ -1,12 +1,9 @@
 # -*- coding: utf-8 -*-
 from pathlib import Path
-from typing import List, Union
+from typing import List
 from datetime import datetime
 
-import pandas as pd
-
-from dgp.core.hdf5_manager import HDF5Manager
-from dgp.core.models.data import DataFile
+from dgp.core.models.datafile import DataFile
 from dgp.core.oid import OID
 
 __all__ = ['DataSegment', 'DataSet']

@@ -7,7 +7,7 @@ from dgp.core.oid import OID
 from dgp.core.controllers.controller_interfaces import IDataSetController
 from dgp.core.controllers.controller_interfaces import IFlightController
 from dgp.core.controllers.controller_mixins import AttributeProxy
-from dgp.core.models.data import DataFile
+from dgp.core.models.datafile import DataFile
 
 
 GRAV_ICON = ":/icons/gravity"

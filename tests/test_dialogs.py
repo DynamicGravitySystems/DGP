@@ -14,7 +14,6 @@ from PyQt5.QtWidgets import (QDialogButtonBox, QDialog, QFormLayout, QLineEdit, 
 
 from dgp.core.models.dataset import DataSet
 from dgp.core.controllers.flight_controller import FlightController
-from dgp.core.models.data import DataFile
 from dgp.core.models.flight import Flight
 from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.core.models.project import AirborneProject

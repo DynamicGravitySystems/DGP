@@ -10,11 +10,10 @@ from PyQt5.QtCore import Qt, pyqtSlot, pyqtSignal, QDate, QRegExp
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIcon, QRegExpValidator
 from PyQt5.QtWidgets import QDialog, QFileDialog, QListWidgetItem, QCalendarWidget, QWidget, QFormLayout
 
-import dgp.core.controllers.gravimeter_controller as mtr
-from dgp.core.oid import OID
+from dgp.core.controllers.gravimeter_controller import GravimeterController
 from dgp.core.controllers.dataset_controller import DataSetController
 from dgp.core.controllers.controller_interfaces import IAirborneController, IFlightController, IDataSetController
-from dgp.core.models.data import DataFile
+from dgp.core.models.datafile import DataFile
 from dgp.core.types.enumerations import DataTypes
 from dgp.gui.ui.data_import_dialog import Ui_DataImportDialog
 from .dialog_mixins import FormValidator
@@ -238,7 +237,7 @@ class DataImportDialog(QDialog, Ui_DataImportDialog, FormValidator):
         if not meter_ctrl:
             self.log.debug("No meter available")
             return
-        if isinstance(meter_ctrl, mtr.GravimeterController):
+        if isinstance(meter_ctrl, GravimeterController):
             sensor_type = meter_ctrl.get_attr('type') or "Unknown"
             self.qle_sensortype.setText(sensor_type)
             self.qle_grav_format.setText(meter_ctrl.get_attr('column_format'))

@@ -16,7 +16,7 @@ from dgp.core.oid import OID
 from .flight import Flight
 from .meter import Gravimeter
 from .dataset import DataSet, DataSegment
-from .data import DataFile
+from .datafile import DataFile
 
 PROJECT_FILE_NAME = 'dgp.json'
 project_entities = {'Flight': Flight,

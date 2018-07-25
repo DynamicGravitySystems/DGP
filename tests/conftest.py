@@ -7,7 +7,7 @@ import pytest
 
 from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.core.hdf5_manager import HDF5_NAME
-from dgp.core.models.data import DataFile
+from dgp.core.models.datafile import DataFile
 from dgp.core.models.dataset import DataSegment, DataSet
 from dgp.core.models.flight import Flight
 from dgp.core.models.meter import Gravimeter

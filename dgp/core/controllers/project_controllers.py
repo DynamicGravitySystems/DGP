@@ -28,7 +28,7 @@ from dgp.gui.dialogs.add_flight_dialog import AddFlightDialog
 from dgp.gui.dialogs.add_gravimeter_dialog import AddGravimeterDialog
 from dgp.gui.dialogs.data_import_dialog import DataImportDialog
 from dgp.gui.dialogs.project_properties_dialog import ProjectPropertiesDialog
-from dgp.core.models.data import DataFile
+from dgp.core.models.datafile import DataFile
 from dgp.core.models.flight import Flight
 from dgp.core.models.meter import Gravimeter
 from dgp.core.models.project import GravityProject, AirborneProject
@@ -246,7 +246,7 @@ class AirborneProjectController(IAirborneController):
 
         """
         # TODO: Insert DataFile into appropriate child
-        datafile.set_parent(dataset)
+        # datafile.set_parent(dataset)
         if HDF5Manager.save_data(data, datafile, path=self.hdf5path):
             self.log.info("Data imported and saved to HDF5 Store")
         dataset.add_datafile(datafile)

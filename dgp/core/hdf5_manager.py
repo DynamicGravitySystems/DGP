@@ -8,7 +8,7 @@ import tables
 import pandas.io.pytables
 from pandas import HDFStore, DataFrame
 
-from dgp.core.models.data import DataFile
+from dgp.core.models.datafile import DataFile
 
 __all__ = ['HDF5Manager']
 # Suppress PyTables warnings due to mixed data-types (typically NaN's in cols)
@@ -73,12 +73,12 @@ class HDF5Manager:
 
         with HDFStore(str(path)) as hdf:
             try:
-                hdf.put(datafile.hdfpath, data, format='fixed', data_columns=True)
+                hdf.put(datafile.nodepath, data, format='fixed', data_columns=True)
             except (IOError, PermissionError):  # pragma: no cover
                 cls.log.exception("Exception writing file to HDF5 _store.")
                 raise
             else:
-                cls.log.info("Wrote file to HDF5 _store at node: %s", datafile.hdfpath)
+                cls.log.info(f"Wrote file to HDF5 _store at node: {datafile.nodepath}")
 
         return True
 
@@ -108,14 +108,14 @@ class HDF5Manager:
             If data key (/flightid/grpid/uid) does not exist
         """
         if datafile in cls._cache:
-            cls.log.info("Loading data {} from cache.".format(datafile.uid))
+            cls.log.info(f"Loading data node {datafile.uid!s} from cache.")
             return cls._cache[datafile]
         else:
-            cls.log.debug("Loading data %s from hdf5 _store.", datafile.hdfpath)
+            cls.log.debug(f"Loading data node {datafile.nodepath} from hdf5store.")
 
             try:
                 with HDFStore(str(path), mode='r') as hdf:
-                    data = hdf.get(datafile.hdfpath)
+                    data = hdf.get(datafile.nodepath)
             except OSError as e:
                 cls.log.exception(e)
                 raise FileNotFoundError from e
@@ -142,7 +142,7 @@ class HDF5Manager:
             try:
                 return hdf.get_node(nodepath)._v_attrs._v_attrnames
             except tables.exceptions.NoSuchNodeError:
-                raise KeyError("Specified path %s does not exist.", path)
+                raise KeyError(f"Specified node {nodepath} does not exist.")
 
     @classmethod
     def _get_node_attr(cls, nodepath, attrname, path: Path):
@@ -158,8 +158,7 @@ class HDF5Manager:
             try:
                 hdf.set_node_attr(nodepath, attrname, value)
             except tables.exceptions.NoSuchNodeError:
-                cls.log.error("Unable to set attribute on path: %s key does not exist.")
-                raise KeyError("Node %s does not exist", nodepath)
+                raise KeyError(f"Specified node {nodepath} does not exist")
             else:
                 return True
 

@@ -8,7 +8,7 @@ from pprint import pprint
 import pandas as pd
 import pytest
 
-from dgp.core.models.data import DataFile
+from dgp.core.models.datafile import DataFile
 from dgp.core.models.flight import Flight
 from dgp.core.models.project import AirborneProject, ProjectEncoder, ProjectDecoder, PROJECT_FILE_NAME
 
