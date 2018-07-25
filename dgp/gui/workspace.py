@@ -22,7 +22,6 @@ class WorkspaceTab(QWidget):
         super().__init__(parent=parent, flags=Qt.Widget)
         self.log = logging.getLogger(__name__)
         self._root: IBaseController = flight
-
         self._layout = QVBoxLayout(self)
         self._setup_tasktabs()
 
@@ -53,10 +52,6 @@ class WorkspaceTab(QWidget):
     def root(self) -> IBaseController:
         return self._root
 
-    @property
-    def plot(self):
-        return self._plot
-
 
 class _WorkspaceTabBar(QtWidgets.QTabBar):
     """Custom Tab Bar to allow us to implement a custom Context Menu to
@@ -67,7 +62,6 @@ class _WorkspaceTabBar(QtWidgets.QTabBar):
         self.setTabsClosable(True)
         self.setMovable(True)
 
-        # Allow closing tab via Ctrl+W key shortcut
         _close_action = QAction("Close")
         _close_action.setShortcut(QKeySequence(Qt.CTRL + Qt.Key_W))
         _close_action.triggered.connect(
@@ -75,7 +69,6 @@ class _WorkspaceTabBar(QtWidgets.QTabBar):
 
         tab_right_action = QAction("TabRight")
         tab_right_action.setShortcut(QKeySequence(Qt.CTRL + Qt.Key_Tab))
-        # tab_right_action.setShortcut(QKeySequence("Ctrl+Tab"))
         tab_right_action.triggered.connect(self._tab_right)
 
         tab_left_action = QAction("TabLeft")

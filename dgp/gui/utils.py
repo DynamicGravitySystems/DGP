@@ -1,8 +1,11 @@
 # coding: utf-8
 
 import logging
+import time
 from pathlib import Path
 from typing import Union, Callable
+
+from PyQt5.QtCore import QThread, pyqtSignal
 
 from dgp.core.oid import OID
 
@@ -65,6 +68,22 @@ class ProgressEvent:
     @value.setter
     def value(self, value: int) -> None:
         self._value = value
+
+
+class ThreadedFunction(QThread):
+    result = pyqtSignal(object)
+
+    def __init__(self, functor, *args, parent):
+        super().__init__(parent)
+        self._functor = functor
+        self._args = args
+
+    def run(self):
+        try:
+            res = self._functor(*self._args)
+            self.result.emit(res)
+        except Exception as e:
+            print(e)
 
 
 def get_project_file(path: Path) -> Union[Path, None]:
