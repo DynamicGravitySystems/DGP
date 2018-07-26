@@ -18,6 +18,7 @@ from dgp.core.oid import OID
 from dgp.core.controllers.controller_interfaces import (IAirborneController, IFlightController, IParent,
                                                         IDataSetController)
 from dgp.core.hdf5_manager import HDF5Manager
+from dgp.gui.utils import ProgressEvent
 from .flight_controller import FlightController
 from .gravimeter_controller import GravimeterController
 from .project_containers import ProjectFolder
@@ -271,7 +272,6 @@ class AirborneProjectController(IAirborneController):
         dataset : IDataSetController, optional
             Set the default Dataset selected when launching the dialog
 
-
         """
         def load_data(datafile: DataFile, params: dict, parent: IDataSetController):
             if datafile.group == 'gravity':
@@ -281,10 +281,13 @@ class AirborneProjectController(IAirborneController):
             else:
                 self.log.error("Unrecognized data group: " + datafile.group)
                 return
+            progress_event = ProgressEvent(self.uid, f"Loading {datafile.group}", stop=0)
+            self.model().progressNotificationRequested.emit(progress_event)
             loader = FileLoader(datafile.source_path, method,
                                 parent=self.get_parent_widget(), **params)
             loader.loaded.connect(functools.partial(self._post_load, datafile,
                                                     parent))
+            loader.finished.connect(lambda: self.model().progressNotificationRequested.emit(progress_event))
             loader.start()
 
         dlg = DataImportDialog(self, datatype, parent=self.get_parent_widget())
