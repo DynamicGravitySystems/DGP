@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import List
 from datetime import datetime
 
+from dgp.core.types.reference import Reference
 from dgp.core.models.datafile import DataFile
 from dgp.core.oid import OID
 
@@ -71,12 +72,18 @@ class DataSet:
         self.uid = uid or OID(self)
         self.uid.set_pointer(self)
         self.segments = segments or []
+        self._sensor = Reference(self, 'sensor', sensor)
 
         self.gravity: DataFile = gravity
         self.trajectory: DataFile = trajectory
 
     @property
+    def sensor(self):
+        return self._sensor.dereference()
 
+    @sensor.setter
+    def sensor(self, value):
+        self._sensor.ref = value
 
     # TODO: Implement align_frames functionality as below
     # TODO: Consider the implications of multiple data files

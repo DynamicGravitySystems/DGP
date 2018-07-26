@@ -12,6 +12,7 @@ from pathlib import Path
 from pprint import pprint
 from typing import Optional, List, Any, Dict, Union
 
+from dgp.core.types.reference import Reference
 from dgp.core.oid import OID
 from .flight import Flight
 from .meter import Gravimeter
@@ -56,9 +57,6 @@ class ProjectEncoder(json.JSONEncoder):
             keys = o.__slots__ if hasattr(o, '__slots__') else o.__dict__.keys()
             attrs = {key.lstrip('_'): getattr(o, key) for key in keys}
             attrs['_type'] = o.__class__.__name__
-            if 'parent' in attrs:
-                # Serialize the UID of the parent, not the parent itself (circular-reference)
-                attrs['parent'] = getattr(attrs['parent'], 'uid', None)
             return attrs
         j_complex = {'_type': o.__class__.__name__}
         if isinstance(o, OID):
@@ -73,6 +71,8 @@ class ProjectEncoder(json.JSONEncoder):
         if isinstance(o, Path):
             # Path requires special handling due to OS dependant internal classes
             return {'_type': 'Path', 'path': str(o.resolve())}
+        if isinstance(o, Reference):
+            return o.serialize()
 
         return super().default(o)
 
@@ -104,15 +104,17 @@ class ProjectDecoder(json.JSONDecoder):
     def __init__(self, klass):
         super().__init__(object_hook=self.object_hook)
         self._registry = {}
-        self._child_parent_map = {}
+        self._references = []
         self._klass = klass
 
     def decode(self, s, _w=json.decoder.WHITESPACE.match):
         decoded = super().decode(s)
-        # Re-link parents & children
-        for child_uid, parent_uid in self._child_parent_map.items():
+        # Re-link References
+        for ref in self._references:
+            parent_uid, attr, child_uid = ref
+            parent = self._registry[parent_uid]
             child = self._registry[child_uid]
-            child.parent = self._registry.get(parent_uid, None)
+            setattr(parent, attr, child)
 
         return decoded
 
@@ -136,11 +138,6 @@ class ProjectDecoder(json.JSONDecoder):
             return json_o
         _type = json_o.pop('_type')
 
-        if 'parent' in json_o:
-            parent = json_o.pop('parent')  # type: OID
-        else:
-            parent = None
-
         params = {key.lstrip('_'): value for key, value in json_o.items()}
         if _type == OID.__name__:
             return OID(**params)
@@ -150,17 +147,25 @@ class ProjectDecoder(json.JSONDecoder):
             return datetime.date.fromordinal(*params.values())
         elif _type == Path.__name__:
             return Path(*params.values())
+        elif _type == Reference.__name__:
+            self._references.append((json_o['parent'], json_o['attr'], json_o['ref']))
+            return None
         else:
             # Handle project entity types
             klass = {self._klass.__name__: self._klass, **project_entities}.get(_type, None)
         if klass is None:  # pragma: no cover
             raise AttributeError(f"Unhandled class {_type} in JSON data. Class is not defined"
                                  f" in entity map.")
-        instance = klass(**params)
-        if parent is not None:
-            self._child_parent_map[instance.uid] = parent
-        self._registry[instance.uid] = instance
-        return instance
+        else:
+            try:
+                instance = klass(**params)
+            except TypeError:  # pragma: no cover
+                # This may occur if an outdated project JSON file is loaded
+                print(f'Exception instantiating class {klass} with params {params}')
+                raise
+            else:
+                self._registry[instance.uid] = instance
+                return instance
 
 
 class GravityProject:
@@ -201,7 +206,7 @@ class GravityProject:
     :class:`AirborneProject`
 
     """
-    def __init__(self, name: str, path: Union[Path], description: Optional[str] = None,
+    def __init__(self, name: str, path: Path, description: Optional[str] = None,
                  create_date: Optional[datetime.datetime] = None,
                  modify_date: Optional[datetime.datetime] = None,
                  uid: Optional[str] = None, **kwargs):
@@ -304,6 +309,8 @@ class AirborneProject(GravityProject):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._flights = kwargs.get('flights', [])
+        for flight in self._flights:
+            flight.parent = self
 
     @property
     def flights(self) -> List[Flight]:

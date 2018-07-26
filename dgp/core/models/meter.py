@@ -7,6 +7,7 @@ import configparser
 from pathlib import Path
 from typing import Optional, Union, Dict
 
+from dgp.core.types.reference import Reference
 from dgp.core.oid import OID
 
 
@@ -26,7 +27,7 @@ valid_fields = set().union(sensor_fields, cc_fields, platform_fields)
 
 class Gravimeter:
     def __init__(self, name: str, config: dict = None, uid: Optional[OID] = None, **kwargs):
-        self._parent = None
+        self._parent = Reference(self, 'parent')
         self.uid = uid or OID(self)
         self.uid.set_pointer(self)
         self.type = "AT1A"
@@ -37,11 +38,11 @@ class Gravimeter:
 
     @property
     def parent(self):
-        return self._parent
+        return self._parent.dereference()
 
     @parent.setter
     def parent(self, value):
-        self._parent = value
+        self._parent.ref = value
 
     @staticmethod
     def read_config(path: Path) -> Dict[str, Union[str, int, float]]:

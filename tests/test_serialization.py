@@ -8,6 +8,9 @@ from pprint import pprint
 import pandas as pd
 import pytest
 
+from dgp.core.types.reference import Reference
+from dgp.core.models.meter import Gravimeter
+from dgp.core.models.dataset import DataSet
 from dgp.core.models.datafile import DataFile
 from dgp.core.models.flight import Flight
 from dgp.core.models.project import AirborneProject, ProjectEncoder, ProjectDecoder, PROJECT_FILE_NAME
@@ -54,6 +57,7 @@ def test_project_deserialize(project: AirborneProject):
     flt_names = [flt.name for flt in prj_deserialized.flights]
     assert flt1.name in flt_names
     assert flt2.name in flt_names
+    assert flt1.parent is project
 
     f1_reconstructed = prj_deserialized.get_child(flt1.uid)
     assert flt1.uid in [flt.uid for flt in prj_deserialized.flights]
@@ -63,6 +67,7 @@ def test_project_deserialize(project: AirborneProject):
     assert flt1.uid not in [flt.uid for flt in prj_deserialized.flights]
     assert f1_reconstructed.name == flt1.name
     assert f1_reconstructed.uid == flt1.uid
+    assert f1_reconstructed.parent is prj_deserialized
 
     assert flt2.uid in [flt.uid for flt in prj_deserialized.flights]
 
@@ -90,3 +95,62 @@ def test_parent_child_serialization():
 
     assert 1 == len(decoded.flights)
     flt_ = decoded.flights[0]
+
+
+def test_Reference():
+    project = AirborneProject(name='Reference-Test', path=Path('.'))
+    flt = Flight('Flight-1')
+
+    ref = Reference(flt, 'parent', project)
+    assert not ref.isnull
+    expected = {
+        '_type': Reference.__name__,
+        'parent': flt.uid,
+        'attr': 'parent',
+        'ref': project.uid
+    }
+    assert expected == ref.serialize()
+
+    nullref = Reference(flt, 'parent')
+    assert nullref.isnull
+    assert nullref.serialize() is None
+
+
+def test_reference_serialization():
+    """Project objects should be able to use a Reference wrapper to serialize a
+    reference to a object higher in the project graph.
+    The referred object should be set as an attribute on the object when
+    de-serialization is completed.
+
+    """
+    sensor = Gravimeter('AT1A-12')
+    ds = DataSet(sensor=sensor)
+    ds_a = DataSet(sensor=sensor)
+    flt = Flight(name='Flight-1', datasets=[ds, ds_a])
+    prj = AirborneProject(name="Reference-Serialization-Test", path=Path('.'),
+                          flights=[flt])
+    prj.add_child(sensor)
+    assert flt.parent is prj
+    assert sensor == ds.sensor
+
+    serialized0 = prj.to_json(indent=2)
+
+    prj1 = prj.from_json(serialized0)
+    sensor1 = prj1.gravimeters[0]
+    flt1 = prj1.flights[0]
+    ds1 = flt1.datasets[0]
+    ds2 = flt1.datasets[1]
+
+    assert flt1.parent is prj1
+
+    assert sensor.name == sensor1.name
+    assert sensor.uid == sensor1.uid
+
+    assert flt.uid == flt1.uid
+    assert ds.uid == ds1.uid
+
+    assert ds.sensor.uid == ds1.sensor.uid
+    assert isinstance(ds1.sensor, Gravimeter)
+
+    assert ds1.sensor is sensor1
+    assert ds2.sensor is sensor1
