@@ -107,7 +107,7 @@ class IAirborneController(IBaseController, IParent):
 
 
 class IFlightController(IBaseController, IParent, IChild):
-    def set_active_child(self, child, emit: bool = True):
+    def get_parent(self) -> IAirborneController:
         raise NotImplementedError
 
     def get_active_dataset(self):

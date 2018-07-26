@@ -276,7 +276,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         """
 
         def _project_selected(directory):
-            prj_file = get_project_file(pathlib.Path(directory[0]))
+            prj_dir = pathlib.Path(directory[0])
+            prj_file = get_project_file(prj_dir)
             if prj_file is None:
                 self.log.warning("No valid DGP project file found in directory")
                 return
@@ -285,7 +286,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if project.uid in [p.uid for p in self.model.projects]:
                     self.log.warning("Project is already opened")
                 else:
-                    control = AirborneProjectController(project)
+                    control = AirborneProjectController(project, path=prj_dir)
                     control.set_parent_widget(self)
                     self.model.add_project(control)
                     self.save_projects()

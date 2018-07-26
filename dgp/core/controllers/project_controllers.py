@@ -43,10 +43,23 @@ MTR_ICON = ":/icons/meter_config.png"
 
 
 class AirborneProjectController(IAirborneController):
-    def __init__(self, project: AirborneProject):
+    """Construct an AirborneProjectController around an AirborneProject
+
+    Parameters
+    ----------
+    project : :class:`AirborneProject`
+    path : :class:`pathlib.Path`, Optional
+        Optionally supply the directory path where the project was loaded from
+        in order to update the stored state.
+
+    """
+    def __init__(self, project: AirborneProject, path: Path = None):
         super().__init__(project.name)
         self.log = logging.getLogger(__name__)
         self._project = project
+        if path:
+            self._project.path = path
+
         self._parent = None
         self._active = None
 
@@ -63,7 +76,7 @@ class AirborneProjectController(IAirborneController):
                            Gravimeter: self.meters}
 
         for flight in self.project.flights:
-            controller = FlightController(flight, parent=self)
+            controller = FlightController(flight, project=self)
             self.flights.appendRow(controller)
 
         for meter in self.project.gravimeters:
@@ -144,7 +157,7 @@ class AirborneProjectController(IAirborneController):
 
     def add_child(self, child: Union[Flight, Gravimeter]) -> Union[FlightController, GravimeterController, None]:
         if isinstance(child, Flight):
-            controller = FlightController(child, parent=self)
+            controller = FlightController(child, project=self)
             self.flights.appendRow(controller)
         elif isinstance(child, Gravimeter):
             controller = GravimeterController(child, parent=self)
@@ -245,11 +258,11 @@ class AirborneProjectController(IAirborneController):
             The ingested pandas DataFrame to be dumped to the HDF5 store
 
         """
-        # TODO: Insert DataFile into appropriate child
-        # datafile.set_parent(dataset)
         if HDF5Manager.save_data(data, datafile, path=self.hdf5path):
             self.log.info("Data imported and saved to HDF5 Store")
         dataset.add_datafile(datafile)
+        if self.model() is not None:
+            self.model().projectMutated.emit()
         return
 
     def load_file_dlg(self, datatype: DataTypes = DataTypes.GRAVITY,

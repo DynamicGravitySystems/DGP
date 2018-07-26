@@ -82,6 +82,7 @@ class DataSetController(IDataSetController):
         self._menu_bindings = [  # pragma: no cover
             ('addAction', ('Set Name', lambda: None)),
             ('addAction', ('Set Active', lambda: None)),
+            ('addAction', ('Set Sensor', self._set_sensor_dlg)),
             ('addAction', ('Add Segment', lambda: None)),
             ('addAction', ('Import Gravity',
                            lambda: self._project.load_file_dlg(DataTypes.GRAVITY))),
@@ -248,3 +249,8 @@ class DataSetController(IDataSetController):
             self.setBackground(QBrush(QColor(ACTIVE_COLOR)))
         else:
             self.setBackground(QBrush(QColor(INACTIVE_COLOR)))
+
+    # Context Menu Handlers
+    def _set_sensor_dlg(self):
+
+        pass

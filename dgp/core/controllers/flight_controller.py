@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import itertools
 import logging
+from _weakrefset import WeakSet
 from pathlib import Path
 from typing import Optional, Union, Any, Generator
 
@@ -89,6 +90,8 @@ class FlightController(IFlightController):
                            lambda: self._show_properties_dlg()))
         ]
 
+        self._clones = WeakSet()
+
         self.update()
 
     @property
@@ -128,9 +131,13 @@ class FlightController(IFlightController):
         self.setText(self._flight.name)
         self.setToolTip(str(self._flight.uid))
         super().update()
+        for clone in self._clones:
+            clone.update()
 
     def clone(self):
-        return FlightController(self._flight, parent=self.get_parent())
+        clone = FlightController(self._flight, project=self.get_parent())
+        self._clones.add(clone)
+        return clone
 
     def is_active(self):
         return self.get_parent().get_active_child() == self
