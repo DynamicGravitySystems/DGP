@@ -59,7 +59,6 @@ class DataSet:
     segments : List[:obj:`DataSegment`], optional
         Optional list of DataSegment's to initialize this DataSet with
     uid
-    parent
 
     Notes
     -----
@@ -67,56 +66,16 @@ class DataSet:
     a DataSet, they will not be permitted as direct children of Flights
 
     """
-    def __init__(self, path: Path = None, gravity: DataFile = None,
-                 trajectory: DataFile = None, segments: List[DataSegment]=None,
-                 uid: OID = None, parent=None):
-        self._parent = parent
+    def __init__(self, gravity: DataFile = None, trajectory: DataFile = None,
+                 segments: List[DataSegment]=None, sensor=None, uid: OID = None):
         self.uid = uid or OID(self)
         self.uid.set_pointer(self)
         self.segments = segments or []
-        self._path: Path = path
 
-        self.gravity = gravity
-        if self.gravity is not None:
-            self.gravity.set_parent(self)
-        self.trajectory = trajectory
-        if self.trajectory is not None:
-            self.trajectory.set_parent(self)
+        self.gravity: DataFile = gravity
+        self.trajectory: DataFile = trajectory
 
     @property
-    def gravity_frame(self) -> Union[pd.DataFrame, None]:
-        try:
-            return HDF5Manager.load_data(self.gravity, self._path)
-        except Exception:
-            return None
-
-    @property
-    def trajectory_frame(self) -> Union[pd.DataFrame, None]:
-        try:
-            return HDF5Manager.load_data(self.trajectory, self._path)
-        except Exception:
-            return None
-
-    @property
-    def dataframe(self) -> Union[pd.DataFrame, None]:
-        """Return the concatenated DataFrame of gravity and trajectory data."""
-        # TODO: What to do if grav or traj are None?
-        try:
-            grav_data = HDF5Manager.load_data(self.gravity, self._path)
-            traj_data = HDF5Manager.load_data(self.trajectory, self._path)
-            return pd.concat([grav_data, traj_data])
-        except OSError:
-            return None
-        except AttributeError:
-            return None
-
-    @property
-    def parent(self):
-        return self._parent
-
-    @parent.setter
-    def parent(self, value):
-        self._parent = value
 
 
     # TODO: Implement align_frames functionality as below

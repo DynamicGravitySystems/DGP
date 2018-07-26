@@ -86,7 +86,7 @@ def test_flight_controller(project: AirborneProject):
     flight = Flight('Test-Flt-1')
     data0 = DataFile('trajectory', datetime(2018, 5, 10), Path('./data0.dat'))
     data1 = DataFile('gravity', datetime(2018, 5, 15), Path('./data1.dat'))
-    dataset = DataSet(prj_ctrl.hdf5path, data1, data0)
+    dataset = DataSet(data1, data0)
     # dataset.set_active(True)
     flight.datasets.append(dataset)
 
@@ -109,7 +109,7 @@ def test_flight_controller(project: AirborneProject):
     assert isinstance(dsc, DataSetController)
     assert dsc == fc.get_active_dataset()
 
-    dataset2 = DataSet(prj_ctrl.hdf5path)
+    dataset2 = DataSet()
     dsc2 = fc.add_child(dataset2)
     assert isinstance(dsc2, DataSetController)
 
@@ -232,7 +232,7 @@ def test_dataset_controller(tmpdir):
     flt = Flight("TestFlt")
     grav_file = DataFile('gravity', datetime.now(), Path(tmpdir).joinpath('gravity.dat'))
     traj_file = DataFile('trajectory', datetime.now(), Path(tmpdir).joinpath('trajectory.txt'))
-    ds = DataSet(hdf, grav_file, traj_file)
+    ds = DataSet(grav_file, traj_file)
     seg0 = DataSegment(OID(), datetime.now().timestamp(), datetime.now().timestamp() + 5000, 0)
     ds.segments.append(seg0)
 
@@ -370,7 +370,7 @@ def test_dataset_data_api(project: AirborneProject, hdf5file, gravdata, gpsdata)
     gpsfile = DataFile('trajectory', datetime.now(),
                        Path('tests/sample_trajectory.txt'), column_format='hms')
 
-    dataset = DataSet(hdf5file, gravfile, gpsfile)
+    dataset = DataSet(gravfile, gpsfile)
 
     HDF5Manager.save_data(gravdata, gravfile, hdf5file)
     HDF5Manager.save_data(gpsdata, gpsfile, hdf5file)

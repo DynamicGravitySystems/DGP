@@ -68,8 +68,9 @@ class FlightController(IFlightController):
             self.appendRow(control)
             self._dataset_model.appendRow(control.clone())
 
+        # Add default DataSet if none defined
         if not len(self._flight.datasets):
-            self.add_child(DataSet(self._parent.hdf5path))
+            self.add_child(DataSet())
 
         # TODO: Consider adding MenuPrototype class which could provide the means to build QMenu
         self._bindings = [  # pragma: no cover
@@ -140,7 +141,6 @@ class FlightController(IFlightController):
             raise TypeError(f'Cannot set {dataset!r} to active (invalid type)')
         dataset.active = True
         self._active_dataset = dataset
-        dataset._update()
 
     def get_active_dataset(self) -> DataSetController:
         if self._active_dataset is None:

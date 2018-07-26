@@ -43,8 +43,7 @@ def project_factory():
         seg2 = DataSegment(OID(), get_ts(1501), get_ts(3000), 1, "seg2")
 
         if dataset:
-            dataset1 = DataSet(prj.path.joinpath('hdfstore.hdf5'), grav1, traj1,
-                               [seg1, seg2])
+            dataset1 = DataSet(grav1, traj1, [seg1, seg2])
             flt1.datasets.append(dataset1)
 
         prj.add_child(mtr)

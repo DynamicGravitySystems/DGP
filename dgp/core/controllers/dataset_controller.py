@@ -50,8 +50,7 @@ class DataSetController(IDataSetController):
                  name: str = ""):
         super().__init__()
         self._dataset = dataset
-        self._flight = flight
-        self._dataset.parent = flight
+        self._flight: IFlightController = flight
         self._project = self._flight.project
         self._name = name
         self._active = False
@@ -74,9 +73,11 @@ class DataSetController(IDataSetController):
         self.appendRow(self._traj_file)
         self.appendRow(self._segments)
 
-        self._dataframe = None
+        self._gravity: DataFrame = DataFrame()
+        self._trajectory: DataFrame = DataFrame()
+        self._dataframe: DataFrame = DataFrame()
+
         self._channel_model = QStandardItemModel()
-        self._update()
 
         self._menu_bindings = [  # pragma: no cover
             ('addAction', ('Set Name', lambda: None)),
@@ -111,6 +112,8 @@ class DataSetController(IDataSetController):
 
     @property
     def series_model(self) -> QStandardItemModel:
+        if 0 == self._channel_model.rowCount():
+            self._update_channel_model()
         return self._channel_model
 
     @property
@@ -121,38 +124,52 @@ class DataSetController(IDataSetController):
     def columns(self) -> List[str]:
         return [col for col in self.dataframe()]
 
-    def _update(self):
-        if self.dataframe() is not None:
-            self._channel_model.clear()
-            for col in self._dataframe:
-                series = QStandardItem(col)
-                series.setData(self._dataframe[col], Qt.UserRole)
-                self._channel_model.appendRow(series)
+    def _update_channel_model(self):
+        df = self.dataframe()
+        self._channel_model.clear()
+        for col in df:
+            series_item = QStandardItem(col)
+            series_item.setData(df[col], Qt.UserRole)
+            self._channel_model.appendRow(series_item)
 
     @property
-    def gravity(self) -> Union[DataFrame, None]:
-        return self._dataset.gravity_frame
+    def gravity(self) -> Union[DataFrame]:
+        if not self._gravity.empty:
+            return self._gravity
+        try:
+            self._gravity = HDF5Manager.load_data(self._dataset.gravity, self.hdfpath)
+        except Exception as e:
+            pass
+        finally:
+            return self._gravity
 
     @property
     def trajectory(self) -> Union[DataFrame, None]:
-        return self._dataset.trajectory_frame
+        if not self._trajectory.empty:
+            return self._trajectory
+        try:
+            self._trajectory = HDF5Manager.load_data(self._dataset.trajectory, self.hdfpath)
+        except Exception as e:
+            pass
+        finally:
+            return self._trajectory
 
     def dataframe(self) -> DataFrame:
-        if self._dataframe is None:
-            self._dataframe = self._dataset.dataframe
+        if self._dataframe.empty:
+            self._dataframe: DataFrame = concat([self.gravity, self.trajectory])
         return self._dataframe
 
-    def slice(self, segment_uid: OID):
-        df = self.dataframe()
-        if df is None:
-            return None
-
-        segment = self.get_segment(segment_uid).datamodel
-        # start = df.index.searchsorted(segment.start)
-        # stop = df.index.searchsorted(segment.stop)
-
-        segment_df = df.loc[segment.start:segment.stop]
-        return segment_df
+    # def slice(self, segment_uid: OID):
+    #     df = self.dataframe()
+    #     if df is None:
+    #         return None
+    #
+    #     segment = self.get_segment(segment_uid).datamodel
+    #     # start = df.index.searchsorted(segment.start)
+    #     # stop = df.index.searchsorted(segment.stop)
+    #
+    #     segment_df = df.loc[segment.start:segment.stop]
+    #     return segment_df
 
     def get_parent(self) -> IFlightController:
         return self._flight
@@ -161,21 +178,22 @@ class DataSetController(IDataSetController):
         self._flight.remove_child(self.uid, confirm=False)
         self._flight = parent
         self._flight.add_child(self.datamodel)
-        self._update()
 
     def add_datafile(self, datafile: DataFile) -> None:
         # datafile.set_parent(self)
         if datafile.group == 'gravity':
-            self._dataset.gravity = datafile
+            self.datamodel.gravity = datafile
             self._grav_file.set_datafile(datafile)
+            self._gravity = DataFrame()
         elif datafile.group == 'trajectory':
-            self._dataset.trajectory = datafile
+            self.datamodel.trajectory = datafile
             self._traj_file.set_datafile(datafile)
+            self._trajectory = DataFrame()
         else:
             raise TypeError("Invalid DataFile group provided.")
 
-        self._dataframe = None
-        self._update()
+        self._dataframe = DataFrame()
+        self._update_channel_model()
 
     def get_datafile(self, group) -> DataFileController:
         return self._child_map[group]
