@@ -8,7 +8,7 @@ from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QVBoxLayout, QWidget, QComboBox
 
-from dgp.core.controllers.dataset_controller import DataSegmentController
+from dgp.core.controllers.dataset_controller import DataSegmentController, DataSetController
 from dgp.core.controllers.flight_controller import FlightController
 from dgp.lib.transform.transform_graphs import SyncGravity, AirbornePost, TransformGraph
 from dgp.gui.plotting.plotters import TransformPlot
@@ -29,7 +29,7 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         self.setupUi(self)
         self.log = logging.getLogger(__name__)
         self._flight = flight
-        self._dataset = flight.get_active_dataset()
+        self._dataset: DataSetController = flight.get_active_dataset()
         self._plot = TransformPlot(rows=1)
 
         self._result: pd.DataFrame = None
@@ -80,15 +80,15 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         self.hlayout.addWidget(self._plot.widget, Qt.AlignLeft | Qt.AlignTop)
 
     @property
-    def raw_gravity(self):
+    def raw_gravity(self) -> pd.DataFrame:
         return self._dataset.gravity
 
     @property
-    def raw_trajectory(self):
+    def raw_trajectory(self) -> pd.DataFrame:
         return self._dataset.trajectory
 
     @property
-    def dataframe(self) -> Union[pd.DataFrame, None]:
+    def dataframe(self) -> pd.DataFrame:
         return self._dataset.dataframe()
 
     @property
@@ -221,7 +221,7 @@ class TransformWidget(QWidget, Ui_TransformInterface):
     def execute_transform(self):
         gravity = self.raw_gravity
         trajectory = self.raw_trajectory
-        if gravity is None or trajectory is None:
+        if gravity.empty or trajectory.empty:
             self.log.warning("Missing trajectory or gravity")
             return
 

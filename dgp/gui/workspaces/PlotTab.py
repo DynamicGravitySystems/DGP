@@ -63,7 +63,6 @@ class PlotTab(TaskTab):
         qvbl_plot_layout.addLayout(qhbl_top_buttons)
 
         channel_widget = ChannelSelectWidget(self._dataset.series_model)
-        self.log.debug(f'Dataset is {self._dataset!s} with {self._dataset.series_model.rowCount()} rows')
         channel_widget.channel_added.connect(self._channel_added)
         channel_widget.channel_removed.connect(self._channel_removed)
         channel_widget.channels_cleared.connect(self._clear_plot)
