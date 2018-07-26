@@ -85,16 +85,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.action_file_save.triggered.connect(self.save_projects)
 
         # Project Menu Actions #
-        self.action_import_gps.triggered.connect(self._import_gps)
-        self.action_import_grav.triggered.connect(self._import_gravity)
-        self.action_add_flight.triggered.connect(self._add_flight)
-        self.action_add_meter.triggered.connect(self._add_gravimeter)
+        self.action_import_gps.triggered.connect(self.model.import_gps)
+        self.action_import_grav.triggered.connect(self.model.import_gravity)
+        self.action_add_flight.triggered.connect(self.model.add_flight)
+        self.action_add_meter.triggered.connect(self.model.add_gravimeter)
 
         # Project Control Buttons #
-        self.prj_add_flight.clicked.connect(self._add_flight)
-        self.prj_add_meter.clicked.connect(self._add_gravimeter)
-        self.prj_import_gps.clicked.connect(self._import_gps)
-        self.prj_import_grav.clicked.connect(self._import_gravity)
+        self.prj_add_flight.clicked.connect(self.model.add_flight)
+        self.prj_add_meter.clicked.connect(self.model.add_gravimeter)
+        self.prj_import_gps.clicked.connect(self.model.import_gps)
+        self.prj_import_grav.clicked.connect(self.model.import_gravity)
 
         # Tab Browser Actions #
         self.workspace.tabCloseRequested.connect(self._tab_close_requested_local)
@@ -317,20 +317,3 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             dialog.setModal(True)
             dialog.show()
             return dialog
-
-    # Active Project Action Slots
-    @property
-    def project_(self) -> IAirborneController:
-        return self.model.active_project
-
-    def _import_gps(self):  # pragma: no cover
-        self.project_.load_file_dlg(enums.DataTypes.TRAJECTORY, )
-
-    def _import_gravity(self):  # pragma: no cover
-        self.project_.load_file_dlg(enums.DataTypes.GRAVITY, )
-
-    def _add_gravimeter(self):  # pragma: no cover
-        self.project_.add_gravimeter()
-
-    def _add_flight(self):  # pragma: no cover
-        self.project_.add_flight()

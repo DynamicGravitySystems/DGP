@@ -139,7 +139,7 @@ def test_MainWindow_open_project_dialog(window: MainWindow, project_factory, tmp
     prj2_ctrl.save()
     prj2_ctrl.hdf5path.touch(exist_ok=True)
 
-    assert window.project_.path != prj2_ctrl.path
+    assert window.model.active_project.path != prj2_ctrl.path
     assert 1 == window.model.rowCount()
 
     window.open_project_dialog(path=prj2.path)

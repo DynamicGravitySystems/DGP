@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (QFormLayout, QWidget, QLineEdit, QLabel, QHBoxLayou
                              QVBoxLayout, QComboBox)
 
 __all__ = ['FormValidator', 'VALIDATION_ERR_MSG']
-VALIDATION_ERR_MSG = "Ensure all marked fields are loaded."
+VALIDATION_ERR_MSG = "Ensure all marked fields are filled."
 
 
 class FormValidator:

@@ -72,7 +72,8 @@ class AirborneProjectController(IAirborneController):
         self._bindings = [
             ('addAction', ('Set Project Name', self.set_name)),
             ('addAction', ('Show in Explorer', self.show_in_explorer)),
-            ('addAction', ('Project Properties', self.properties_dlg))
+            ('addAction', ('Project Properties', self.properties_dlg)),
+            ('addAction', ('Close Project', self._close_project))
         ]
 
         # Experiment - declare underlying properties for UI use
@@ -295,3 +296,7 @@ class AirborneProjectController(IAirborneController):
     def properties_dlg(self):  # pragma: no cover
         dlg = ProjectPropertiesDialog(self)
         dlg.exec_()
+
+    def _close_project(self):
+        if self.model() is not None:
+            self.model().close_project(self)
