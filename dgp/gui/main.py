@@ -4,13 +4,12 @@ import pathlib
 import logging
 
 import PyQt5.QtWidgets as QtWidgets
-from PyQt5.QtCore import Qt, pyqtSlot, QThread
+from PyQt5.QtCore import Qt, pyqtSlot
 from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import QMainWindow, QProgressDialog, QFileDialog, QWidget, QDialog
+from PyQt5.QtWidgets import QMainWindow, QProgressDialog, QFileDialog, QDialog
 
-import dgp.core.types.enumerations as enums
 from dgp.core.oid import OID
-from dgp.core.controllers.controller_interfaces import IAirborneController, IBaseController
+from dgp.core.controllers.controller_interfaces import IBaseController
 from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.core.controllers.project_treemodel import ProjectTreeModel
 from dgp.core.models.project import AirborneProject
@@ -18,7 +17,7 @@ from dgp.gui.utils import (ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP,
                            LOG_COLOR_MAP, get_project_file, ProgressEvent)
 from dgp.gui.dialogs.create_project_dialog import CreateProjectDialog
 
-from dgp.gui.workspace import WorkspaceTab
+from dgp.gui.workspace import WorkspaceTab, MainWorkspace
 from dgp.gui.ui.main_window import Ui_MainWindow
 
 
@@ -29,6 +28,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         super().__init__(*args)
 
         self.setupUi(self)
+        self.workspace: MainWorkspace
+
         self.title = 'Dynamic Gravity Processor [*]'
         self.setWindowTitle(self.title)
 
@@ -51,20 +52,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.project_tree.setModel(self.model)
         self.project_tree.expandAll()
 
-        # Support for multiple projects
-        self.model.tabOpenRequested.connect(self._tab_open_requested)
-        self.model.tabCloseRequested.connect(self._tab_close_requested)
-        self.model.progressNotificationRequested.connect(self._progress_event_handler)
-
         # Initialize Variables
         self.import_base_path = pathlib.Path('~').expanduser().joinpath(
             'Desktop')
         self._default_status_timeout = 5000  # Status Msg timeout in milli-sec
-
-        # Issue #50 Flight Tabs
-        # workspace is a custom Qt Widget (dgp.gui.workspace) promoted within the .ui file
-        self.workspace: QtWidgets.QTabWidget
-        self._open_tabs = {}  # Track opened tabs by {uid: tab_widget, ...}
 
         self._progress_events = {}
         self._mutated = False
@@ -74,8 +65,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def _init_slots(self):  # pragma: no cover
         """Initialize PyQt Signals/Slots for UI Buttons and Menus"""
 
-        # Event Signals #
-        # self.model.flight_changed.connect(self._flight_changed)
+        # Model Event Signals #
+        self.model.tabOpenRequested.connect(self._tab_open_requested)
+        self.model.tabCloseRequested.connect(self.workspace.close_tab)
+        self.model.progressNotificationRequested.connect(self._progress_event_handler)
         self.model.projectMutated.connect(self._project_mutated)
 
         # File Menu Actions #
@@ -97,7 +90,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.prj_import_grav.clicked.connect(self.model.import_gravity)
 
         # Tab Browser Actions #
-        self.workspace.tabCloseRequested.connect(self._tab_close_requested_local)
         self.workspace.currentChanged.connect(self._tab_index_changed)
 
         # Console Window Actions #
@@ -138,52 +130,42 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.statusBar().showMessage(text, self._default_status_timeout)
 
     def _tab_open_requested(self, uid: OID, controller: IBaseController, label: str):
-        self.log.debug("Tab Open Requested")
-        if uid in self._open_tabs:
-            self.workspace.setCurrentWidget(self._open_tabs[uid])
+        """pyqtSlot(OID, IBaseController, str)
+
+        Parameters
+        ----------
+        uid
+        controller
+        label
+
+        Returns
+        -------
+
+        """
+        tab = self.workspace.get_tab(uid)
+        if tab is not None:
+            self.workspace.setCurrentWidget(tab)
         else:
             self.log.debug("Creating new tab and adding to workspace")
             ntab = WorkspaceTab(controller)
-            self._open_tabs[uid] = ntab
             self.workspace.addTab(ntab, label)
             self.workspace.setCurrentWidget(ntab)
 
-    @pyqtSlot(OID, name='_flight_close_requested')
-    def _tab_close_requested(self, uid: OID):
-        """pyqtSlot(:class:`OID`)
-
-        Close/dispose of the tab for the supplied flight if it exists, else
-        do nothing.
-
-        """
-        if uid in self._open_tabs:
-            tab = self._open_tabs[uid]
-            index = self.workspace.indexOf(tab)
-            self.workspace.removeTab(index)
-            del self._open_tabs[uid]
-
-    @pyqtSlot(int, name='_tab_close_requested_local')
-    def _tab_close_requested_local(self, index):
-        """pyqtSlot(int)
-
-        Close/dispose of tab specified by int index.
-        This slot is used to handle user interaction when clicking the close (x)
-        button on an opened tab.
-
-        """
-        self.log.debug(f'Tab close requested for tab at index {index}')
-        tab = self.workspace.widget(index)  # type: WorkspaceTab
-        del self._open_tabs[tab.uid]
-        self.workspace.removeTab(index)
-
     @pyqtSlot(name='_project_mutated')
     def _project_mutated(self):
+        """pyqtSlot(None)
+        Update the MainWindow title bar to reflect unsaved changes in the project
+
+        """
         self._mutated = True
         self.setWindowModified(True)
 
     @pyqtSlot(int, name='_tab_index_changed')
     def _tab_index_changed(self, index: int):
-        self.log.debug("Tab index changed to %d", index)
+        """pyqtSlot(int)
+        Notify the project model when the in-focus Workspace tab changes
+
+        """
         current: WorkspaceTab = self.workspace.currentWidget()
         if current is not None:
             self.model.notify_tab_changed(current.root)
@@ -304,6 +286,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     self.log.warning("Project is already opened")
                 else:
                     control = AirborneProjectController(project)
+                    control.set_parent_widget(self)
                     self.model.add_project(control)
                     self.save_projects()
 

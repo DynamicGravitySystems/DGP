@@ -4,18 +4,23 @@ import logging
 from PyQt5.QtWidgets import QWidget
 
 from dgp.core.oid import OID
-from dgp.core.controllers.controller_interfaces import IFlightController, IBaseController
+from dgp.core.controllers.controller_interfaces import IBaseController
 
 
 class TaskTab(QWidget):
     """Base Workspace Tab Widget - Subclass to specialize function
+    Provides interface to root tab object e.g. Flight, DataSet and a property
+    to access the UID associated with this tab (via the root object)
 
     Parameters
     ----------
     label : str
     root : :class:`IBaseController`
-    parent
+        Root project object encapsulated by this tab
+    parent : QWidget, Optional
+        Parent widget
     kwargs
+        Key-word arguments passed to QWidget constructor
 
     """
     def __init__(self, label: str, root: IBaseController, parent=None, **kwargs):

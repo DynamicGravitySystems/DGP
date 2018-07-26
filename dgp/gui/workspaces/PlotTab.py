@@ -26,8 +26,8 @@ class PlotTab(TaskTab):
     """
 
     def __init__(self, label: str, flight: FlightController, **kwargs):
-        # TODO: It will make more sense to associate a DataSet with the plot vs a Flight
-        super().__init__(label, flight, **kwargs)
+        # TODO: It may make more sense to associate a DataSet with the plot vs a Flight
+        super().__init__(label, root=flight, **kwargs)
         self.log = logging.getLogger(__name__)
         self._dataset = flight.get_active_dataset()
         self.plot: PqtLineSelectPlot = PqtLineSelectPlot(rows=2)

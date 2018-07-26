@@ -46,6 +46,15 @@ class ConsoleHandler(logging.Handler):
 
 
 class ProgressEvent:
+    """Progress Event is used to define a request for the application to display
+    a progress notification to the user, typically in the form of a QProgressBar
+
+    ProgressEvents are emitted from the ProjectTreeModel model class, and should
+    be captured by the application's MainWindow, which uses the ProgressEvent
+    object to generate and display a QProgressDialog, or QProgressBar somewhere
+    within the application.
+
+    """
     def __init__(self, uid: OID, label: str = None, start: int = 0,
                  stop: int = 100, value: int = 0, modal: bool = True,
                  receiver: object = None):

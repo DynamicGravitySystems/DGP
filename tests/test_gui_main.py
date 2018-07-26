@@ -49,20 +49,18 @@ def test_MainWindow_tab_open_requested(flt_ctrl: FlightController,
 
     tab_open_spy = QSignalSpy(window.model.tabOpenRequested)
     assert 0 == len(tab_open_spy)
-    assert 0 == len(window._open_tabs)
+    assert 0 == window.workspace.count()
 
     assert isinstance(flt_ctrl, FlightController)
-    assert flt_ctrl.uid not in window._open_tabs
+    assert window.workspace.get_tab(flt_ctrl.uid) is None
 
     window.model.active_changed(flt_ctrl)
     assert 1 == len(tab_open_spy)
-    assert 1 == len(window._open_tabs)
     assert 1 == window.workspace.count()
     assert isinstance(window.workspace.currentWidget(), WorkspaceTab)
 
     window.model.active_changed(flt_ctrl)
     assert 2 == len(tab_open_spy)
-    assert 1 == len(window._open_tabs)
     assert 1 == window.workspace.count()
 
 
@@ -70,7 +68,6 @@ def test_MainWindow_tab_close_requested(flt_ctrl: AirborneProjectController,
                                         window: MainWindow):
     tab_close_spy = QSignalSpy(window.model.tabCloseRequested)
     assert 0 == len(tab_close_spy)
-    assert 0 == len(window._open_tabs)
     assert 0 == window.workspace.count()
 
     window.model.active_changed(flt_ctrl)
@@ -79,11 +76,12 @@ def test_MainWindow_tab_close_requested(flt_ctrl: AirborneProjectController,
     window.model.close_flight(flt_ctrl)
     assert 1 == len(tab_close_spy)
     assert flt_ctrl.uid == tab_close_spy[0][0]
-    assert flt_ctrl.uid not in window._open_tabs
+    assert window.workspace.get_tab(flt_ctrl.uid) is None
 
     window.model.active_changed(flt_ctrl)
     assert 1 == window.workspace.count()
-    assert flt_ctrl.uid in window._open_tabs
+    assert window.workspace.get_tab(flt_ctrl.uid) is not None
+
     window.workspace.tabCloseRequested.emit(0)
     assert 0 == window.workspace.count()
 
