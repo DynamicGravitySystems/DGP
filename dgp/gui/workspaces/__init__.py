@@ -1,20 +1,7 @@
-# coding: utf-8
+# -*- coding: utf-8 -*-
 
-from importlib import import_module
-
-from .BaseTab import BaseTab
-from .LineTab import LineProcessTab
+from .TaskTab import TaskTab
 from .PlotTab import PlotTab
 from .TransformTab import TransformTab
 
-__all__ = ['BaseTab', 'LineProcessTab', 'PlotTab', 'TransformTab']
-
-_modules = []
-for name in ['BaseTab', 'LineTab', 'MapTab', 'PlotTab']:
-    mod = import_module('.%s' % name, __name__)
-    _modules.append(mod)
-
-tabs = []
-for mod in _modules:
-    tab = [cls for cls in mod.__dict__.values() if isinstance(cls, BaseTab)]
-    tabs.append(tab)
+__all__ = ['TaskTab', 'PlotTab', 'TransformTab']

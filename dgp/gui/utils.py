@@ -1,8 +1,13 @@
 # coding: utf-8
 
 import logging
+import time
 from pathlib import Path
 from typing import Union, Callable
+
+from PyQt5.QtCore import QThread, pyqtSignal
+
+from dgp.core.oid import OID
 
 LOG_FORMAT = logging.Formatter(fmt="%(asctime)s:%(levelname)s - %(module)s:"
                                    "%(funcName)s :: %(message)s",
@@ -38,6 +43,56 @@ class ConsoleHandler(logging.Handler):
             self._dest(entry, record.levelname.lower())
         except TypeError:
             self._dest(entry)
+
+
+class ProgressEvent:
+    """Progress Event is used to define a request for the application to display
+    a progress notification to the user, typically in the form of a QProgressBar
+
+    ProgressEvents are emitted from the ProjectTreeModel model class, and should
+    be captured by the application's MainWindow, which uses the ProgressEvent
+    object to generate and display a QProgressDialog, or QProgressBar somewhere
+    within the application.
+
+    """
+    def __init__(self, uid: OID, label: str = None, start: int = 0,
+                 stop: int = 100, value: int = 0, modal: bool = True,
+                 receiver: object = None):
+        self.uid = uid
+        self.label = label
+        self.start = start
+        self.stop = stop
+        self._value = value
+        self.modal = modal
+        self.receiver = receiver
+
+    @property
+    def completed(self):
+        return self._value >= self.stop
+
+    @property
+    def value(self) -> int:
+        return self._value
+
+    @value.setter
+    def value(self, value: int) -> None:
+        self._value = value
+
+
+class ThreadedFunction(QThread):
+    result = pyqtSignal(object)
+
+    def __init__(self, functor, *args, parent):
+        super().__init__(parent)
+        self._functor = functor
+        self._args = args
+
+    def run(self):
+        try:
+            res = self._functor(*self._args)
+            self.result.emit(res)
+        except Exception as e:
+            print(e)
 
 
 def get_project_file(path: Path) -> Union[Path, None]:

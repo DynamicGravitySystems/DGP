@@ -2,60 +2,51 @@
 
 import logging
 
-from PyQt5.QtGui import QContextMenuEvent
-from PyQt5.QtCore import Qt, pyqtSignal, pyqtBoundSignal
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget
+from PyQt5.QtGui import QContextMenuEvent, QKeySequence
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QAction
 import PyQt5.QtWidgets as QtWidgets
-import PyQt5.QtGui as QtGui
 
+from dgp.core.controllers.controller_interfaces import IBaseController
 from dgp.core.controllers.flight_controller import FlightController
 from dgp.core.oid import OID
-from .workspaces import *
+from .workspaces import PlotTab
+from .workspaces import TransformTab
 
 
-class FlightTab(QWidget):
+class WorkspaceTab(QWidget):
     """Top Level Tab created for each Flight object open in the workspace"""
 
     def __init__(self, flight: FlightController, parent=None, flags=0, **kwargs):
         super().__init__(parent=parent, flags=Qt.Widget)
         self.log = logging.getLogger(__name__)
-        self._flight = flight
-
+        self._root: IBaseController = flight
         self._layout = QVBoxLayout(self)
-        # _workspace is the inner QTabWidget containing the WorkspaceWidgets
-        self._workspace = QTabWidget()
-        self._workspace.setTabPosition(QTabWidget.West)
-        self._layout.addWidget(self._workspace)
+        self._setup_tasktabs()
 
+    def _setup_tasktabs(self):
         # Define Sub-Tabs within Flight space e.g. Plot, Transform, Maps
-        self._plot_tab = PlotTab(label="Plot", flight=flight)
+        self._tasktabs = QTabWidget()
+        self._tasktabs.setTabPosition(QTabWidget.West)
+        self._layout.addWidget(self._tasktabs)
 
-        self._workspace.addTab(self._plot_tab, "Plot")
+        self._plot_tab = PlotTab(label="Plot", flight=self._root)
+        self._tasktabs.addTab(self._plot_tab, "Plot")
 
-        self._transform_tab = TransformTab("Transforms", flight)
-        self._workspace.addTab(self._transform_tab, "Transforms")
+        self._transform_tab = TransformTab("Transforms", self._root)
+        self._tasktabs.addTab(self._transform_tab, "Transforms")
 
-        self._line_proc_tab = LineProcessTab("Line Processing", flight)
-        self._workspace.addTab(self._line_proc_tab, "Line Processing")
-
-        self._workspace.setCurrentIndex(0)
+        self._tasktabs.setCurrentIndex(0)
         self._plot_tab.update()
-
-    def subtab_widget(self):
-        return self._workspace.currentWidget().widget()
 
     @property
     def uid(self) -> OID:
         """Return the underlying Flight's UID"""
-        return self._flight.uid
+        return self._root.uid
 
     @property
-    def flight(self) -> FlightController:
-        return self._flight
-
-    @property
-    def plot(self):
-        return self._plot
+    def root(self) -> IBaseController:
+        return self._root
 
 
 class _WorkspaceTabBar(QtWidgets.QTabBar):
@@ -67,27 +58,47 @@ class _WorkspaceTabBar(QtWidgets.QTabBar):
         self.setTabsClosable(True)
         self.setMovable(True)
 
-        self._actions = []  # Store action objects to keep a reference so no GC
-        # Allow closing tab via Ctrl+W key shortcut
-        _close_action = QtWidgets.QAction("Close")
-        _close_action.triggered.connect(
+        key_close_action = QAction("Close")
+        key_close_action.setShortcut(QKeySequence(Qt.CTRL + Qt.Key_W))
+        key_close_action.triggered.connect(
             lambda: self.tabCloseRequested.emit(self.currentIndex()))
-        _close_action.setShortcut(QtGui.QKeySequence("Ctrl+W"))
-        self.addAction(_close_action)
-        self._actions.append(_close_action)
+
+        tab_right_action = QAction("TabRight")
+        tab_right_action.setShortcut(QKeySequence(Qt.CTRL + Qt.Key_Tab))
+        tab_right_action.triggered.connect(self._tab_right)
+
+        tab_left_action = QAction("TabLeft")
+        tab_left_action.setShortcut(QKeySequence(Qt.CTRL + Qt.SHIFT + Qt.Key_Tab))
+        tab_left_action.triggered.connect(self._tab_left)
+
+        self._actions = [key_close_action, tab_right_action, tab_left_action]
+        for action in self._actions:
+            self.addAction(action)
 
     def contextMenuEvent(self, event: QContextMenuEvent, *args, **kwargs):
         tab = self.tabAt(event.pos())
 
         menu = QtWidgets.QMenu()
         menu.setTitle('Tab: ')
-        kill_action = QtWidgets.QAction("Kill")
-        kill_action.triggered.connect(lambda: self.tabCloseRequested.emit(tab))
+        close_action = QAction("Close")
+        close_action.triggered.connect(lambda: self.tabCloseRequested.emit(tab))
 
-        menu.addAction(kill_action)
+        menu.addAction(close_action)
 
         menu.exec_(event.globalPos())
         event.accept()
+
+    def _tab_right(self, *args):
+        index = self.currentIndex() + 1
+        if index > self.count() - 1:
+            index = 0
+        self.setCurrentIndex(index)
+
+    def _tab_left(self, *args):
+        index = self.currentIndex() - 1
+        if index < 0:
+            index = self.count() - 1
+        self.setCurrentIndex(index)
 
 
 class MainWorkspace(QtWidgets.QTabWidget):
@@ -97,3 +108,26 @@ class MainWorkspace(QtWidgets.QTabWidget):
     def __init__(self, parent=None):
         super().__init__(parent=parent)
         self.setTabBar(_WorkspaceTabBar())
+        self.tabCloseRequested.connect(self.removeTab)
+
+    def widget(self, index: int) -> WorkspaceTab:
+        return super().widget(index)
+
+    # Utility functions for referencing Tab widgets by OID
+
+    def get_tab(self, uid: OID):
+        for i in range(self.count()):
+            tab = self.widget(i)
+            if tab.uid == uid:
+                return tab
+
+    def get_tab_index(self, uid: OID):
+        for i in range(self.count()):
+            if uid == self.widget(i).uid:
+                return i
+
+    def close_tab(self, uid: OID):
+        index = self.get_tab_index(uid)
+        if index is not None:
+            self.removeTab(index)
+

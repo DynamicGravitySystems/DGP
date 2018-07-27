@@ -12,7 +12,7 @@ from dgp.core.controllers.dataset_controller import DataSegmentController
 from dgp.core.controllers.flight_controller import FlightController
 from dgp.lib.transform.transform_graphs import SyncGravity, AirbornePost, TransformGraph
 from dgp.gui.plotting.plotters import TransformPlot
-from . import BaseTab
+from . import TaskTab
 from ..ui.transform_tab_widget import Ui_TransformInterface
 
 
@@ -233,7 +233,7 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         self.result.emit()
 
 
-class TransformTab(BaseTab):
+class TransformTab(TaskTab):
     """Sub-tab displayed within Flight tab interface. Displays interface for selecting
     Transform chains and plots for displaying the resultant data sets.
     """

@@ -11,7 +11,7 @@ from pandas import DataFrame
 
 class FileLoader(QThread):
     loaded = pyqtSignal(DataFrame, Path)
-    error = pyqtSignal(Exception)
+    error = pyqtSignal(object)
 
     def __init__(self, path: Path, method: Callable, parent, **kwargs):
         super().__init__(parent=parent)

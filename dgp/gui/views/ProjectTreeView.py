@@ -11,6 +11,15 @@ from dgp.core.controllers.project_treemodel import ProjectTreeModel
 
 
 class ProjectTreeView(QTreeView):
+    """ProjectTreeView is a customized QTreeView use to display and interact
+    with the hierarchy of a Gravity project(s) in the User Interface.
+
+    This class is instantiated as a Promoted Widget within a Qt .ui form
+    created wit Qt Designer.
+    Because of this, the constructor does not accept a model instance, and the
+    model should be instead set with the :func:`setModel` method.
+
+    """
     def __init__(self, parent: Optional[QObject]=None):
         super().__init__(parent=parent)
         self.setMinimumSize(QtCore.QSize(0, 300))
@@ -22,25 +31,51 @@ class ProjectTreeView(QTreeView):
         self.setHeaderHidden(True)
         self.setObjectName('project_tree_view')
         self.setContextMenuPolicy(QtCore.Qt.DefaultContextMenu)
+
+        # Set Stylesheet for Tree View, see:
+        # http://doc.qt.io/qt-5/stylesheet-examples.html#customizing-qtreeview
+        self.setStyleSheet("""
+            QTreeView::item {
+            }
+            QTreeView::branch {
+                /*background: palette(base);*/
+            }
+            QTreeView::branch:closed:has-children {
+                background: none;
+                image: url(:/icons/chevron-right);
+            }
+            QTreeView::branch:open:has-children {
+                background: none;
+                image: url(:/icons/chevron-down);
+            }
+        """)
+
         self._action_refs = []
 
     @staticmethod
     def _clear_signal(signal: pyqtBoundSignal):
+        """Utility method to clear all connections from a bound signal"""
         while True:
             try:
                 signal.disconnect()
             except TypeError:
                 break
 
+    def model(self) -> ProjectTreeModel:
+        return super().model()
+
     def setModel(self, model: ProjectTreeModel):
         """Set the View Model and connect signals to its slots"""
         self._clear_signal(self.clicked)
         self._clear_signal(self.doubleClicked)
-
         super().setModel(model)
-        self.clicked.connect(self.model().on_click)
+
+        self.clicked.connect(self._on_click)
         self.doubleClicked.connect(self._on_double_click)
-        self.doubleClicked.connect(self.model().on_double_click)
+
+    @pyqtSlot(QModelIndex, name='_on_click')
+    def _on_click(self, index: QModelIndex):
+        self.model().item_selected(index)
 
     @pyqtSlot(QModelIndex, name='_on_double_click')
     def _on_double_click(self, index: QModelIndex):
@@ -53,6 +88,7 @@ class ProjectTreeView(QTreeView):
                 self.setExpanded(index, True)
         else:
             self.setExpanded(index, not self.isExpanded(index))
+        self.model().item_activated(index)
 
     def _build_menu(self, menu: QMenu, bindings: List[Tuple[str, Tuple[Any]]]):
         self._action_refs.clear()

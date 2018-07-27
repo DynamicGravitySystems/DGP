@@ -8,7 +8,7 @@ from pathlib import Path
 from pprint import pprint
 from typing import Union, List
 
-from PyQt5.QtCore import Qt, QProcess, QObject, QRegExp
+from PyQt5.QtCore import Qt, QProcess, QObject, QRegExp, pyqtSignal
 from PyQt5.QtGui import QStandardItem, QBrush, QColor, QStandardItemModel, QIcon, QRegExpValidator
 from PyQt5.QtWidgets import QWidget
 from pandas import DataFrame
@@ -18,6 +18,7 @@ from dgp.core.oid import OID
 from dgp.core.controllers.controller_interfaces import (IAirborneController, IFlightController, IParent,
                                                         IDataSetController)
 from dgp.core.hdf5_manager import HDF5Manager
+from dgp.gui.utils import ProgressEvent
 from .flight_controller import FlightController
 from .gravimeter_controller import GravimeterController
 from .project_containers import ProjectFolder
@@ -41,7 +42,7 @@ FLT_ICON = ":/icons/airborne"
 MTR_ICON = ":/icons/meter_config.png"
 
 
-class AirborneProjectController(IAirborneController, AttributeProxy):
+class AirborneProjectController(IAirborneController):
     def __init__(self, project: AirborneProject):
         super().__init__(project.name)
         self.log = logging.getLogger(__name__)
@@ -72,7 +73,8 @@ class AirborneProjectController(IAirborneController, AttributeProxy):
         self._bindings = [
             ('addAction', ('Set Project Name', self.set_name)),
             ('addAction', ('Show in Explorer', self.show_in_explorer)),
-            ('addAction', ('Project Properties', self.properties_dlg))
+            ('addAction', ('Project Properties', self.properties_dlg)),
+            ('addAction', ('Close Project', self._close_project))
         ]
 
         # Experiment - declare underlying properties for UI use
@@ -164,6 +166,8 @@ class AirborneProjectController(IAirborneController, AttributeProxy):
                                   "Are you sure you want to delete {!s}"
                                   .format(child.get_attr('name'))):
                 return
+        if isinstance(child, IFlightController) and self.model() is not None:
+            self.model().close_flight(child)
         self.project.remove_child(child.uid)
         self._child_map[type(child.datamodel)].removeRow(child.row())
         self.update()
@@ -183,7 +187,7 @@ class AirborneProjectController(IAirborneController, AttributeProxy):
                 ctrl.setBackground(BASE_COLOR)
             child.setBackground(ACTIVE_COLOR)
             if emit and self.model() is not None:  # pragma: no cover
-                self.model().flight_changed.emit(child)
+                self.model().active_changed(child)
         else:
             raise ValueError("Child of type {0!s} cannot be set to active.".format(type(child)))
 
@@ -225,7 +229,7 @@ class AirborneProjectController(IAirborneController, AttributeProxy):
         data has been added/removed/modified in the project."""
         self.setText(self._project.name)
         if self.model() is not None:
-            self.model().project_changed.emit()
+            self.model().projectMutated.emit()
 
     def _post_load(self, datafile: DataFile, dataset: IDataSetController,
                    data: DataFrame) -> None:  # pragma: no cover
@@ -268,7 +272,6 @@ class AirborneProjectController(IAirborneController, AttributeProxy):
         dataset : IDataSetController, optional
             Set the default Dataset selected when launching the dialog
 
-
         """
         def load_data(datafile: DataFile, params: dict, parent: IDataSetController):
             if datafile.group == 'gravity':
@@ -278,10 +281,13 @@ class AirborneProjectController(IAirborneController, AttributeProxy):
             else:
                 self.log.error("Unrecognized data group: " + datafile.group)
                 return
+            progress_event = ProgressEvent(self.uid, f"Loading {datafile.group}", stop=0)
+            self.model().progressNotificationRequested.emit(progress_event)
             loader = FileLoader(datafile.source_path, method,
                                 parent=self.get_parent_widget(), **params)
             loader.loaded.connect(functools.partial(self._post_load, datafile,
                                                     parent))
+            loader.finished.connect(lambda: self.model().progressNotificationRequested.emit(progress_event))
             loader.start()
 
         dlg = DataImportDialog(self, datatype, parent=self.get_parent_widget())
@@ -293,3 +299,7 @@ class AirborneProjectController(IAirborneController, AttributeProxy):
     def properties_dlg(self):  # pragma: no cover
         dlg = ProjectPropertiesDialog(self)
         dlg.exec_()
+
+    def _close_project(self):
+        if self.model() is not None:
+            self.model().close_project(self)

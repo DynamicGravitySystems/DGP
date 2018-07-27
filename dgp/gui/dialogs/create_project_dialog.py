@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 from typing import List
 
-from PyQt5.QtCore import Qt, QRegExp
+from PyQt5.QtCore import Qt, QRegExp, pyqtSignal
 from PyQt5.QtGui import QIcon, QRegExpValidator
 from PyQt5.QtWidgets import QDialog, QListWidgetItem, QFileDialog, QFormLayout
 
@@ -15,6 +15,8 @@ from .custom_validators import DirectoryValidator
 
 
 class CreateProjectDialog(QDialog, Ui_CreateProjectDialog, FormValidator):
+    sigProjectCreated = pyqtSignal(AirborneProject, bool)
+
     def __init__(self, parent=None):
         super().__init__(parent=parent)
         self.setupUi(self)
@@ -67,6 +69,7 @@ class CreateProjectDialog(QDialog, Ui_CreateProjectDialog, FormValidator):
                 path.mkdir(parents=True)
 
             self._project = AirborneProject(name=name, path=path, description=self.qpte_notes.toPlainText())
+            self.sigProjectCreated.emit(self._project, False)
         else:  # pragma: no cover
             self.ql_validation_err.setText("Invalid Project Type - Not Implemented")
             return
@@ -78,6 +81,10 @@ class CreateProjectDialog(QDialog, Ui_CreateProjectDialog, FormValidator):
             self, "Select Project Parent Directory")
         if path:
             self.prj_dir.setText(path)
+
+    def show(self):
+        self.setModal(True)
+        super().show()
 
     @property
     def project(self):
