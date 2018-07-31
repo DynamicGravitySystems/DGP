@@ -70,6 +70,13 @@ class IBaseController(QStandardItem, AttributeProxy):
         """
         raise NotImplementedError
 
+    @property
+    def parent_widget(self) -> Union[QWidget, None]:
+        try:
+            return self.model().parent()
+        except AttributeError:
+            return None
+
 
 class IAirborneController(IBaseController, IParent):
     def add_flight(self):

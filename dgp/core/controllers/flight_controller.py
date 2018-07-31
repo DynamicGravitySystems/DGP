@@ -217,7 +217,7 @@ class FlightController(IFlightController):
         if confirm:  # pragma: no cover
             if not helpers.confirm_action("Confirm Deletion",
                                           f'Are you sure you want to delete {child!r}',
-                                          self.get_parent().get_parent()):
+                                          self.parent_widget):
                 return False
 
         if self._active_dataset == child:
@@ -242,9 +242,10 @@ class FlightController(IFlightController):
     def _delete_self(self, confirm: bool = True):
         self.get_parent().remove_child(self.uid, confirm)
 
-    def _set_name(self, parent: QWidget = None):  # pragma: no cover
+    def _set_name(self):  # pragma: no cover
         name = helpers.get_input("Set Name", "Enter a new name:",
-                                 self.get_attr('name'), parent)
+                                 self.get_attr('name'),
+                                 parent=self.parent_widget)
         if name:
             self.set_attr('name', name)
 
@@ -252,7 +253,8 @@ class FlightController(IFlightController):
         self.get_parent().load_file_dlg(datatype, flight=self)
 
     def _show_properties_dlg(self):  # pragma: no cover
-        AddFlightDialog.from_existing(self, self.get_parent()).exec_()
+        AddFlightDialog.from_existing(self, self.get_parent(),
+                                      parent=self.parent_widget).exec_()
 
     def __hash__(self):
         return hash(self._flight.uid)

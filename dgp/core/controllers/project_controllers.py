@@ -149,12 +149,6 @@ class AirborneProjectController(IAirborneController):
     def flight_model(self) -> QStandardItemModel:
         return self.flights.internal_model
 
-    def get_parent_widget(self) -> Union[QObject, QWidget, None]:
-        return self._parent
-
-    def set_parent_widget(self, value: Union[QObject, QWidget]) -> None:
-        self._parent = value
-
     def add_child(self, child: Union[Flight, Gravimeter]) -> Union[FlightController, GravimeterController, None]:
         if isinstance(child, Flight):
             controller = FlightController(child, project=self)
@@ -177,12 +171,13 @@ class AirborneProjectController(IAirborneController):
         if confirm:  # pragma: no cover
             if not confirm_action("Confirm Deletion",
                                   "Are you sure you want to delete {!s}"
-                                  .format(child.get_attr('name'))):
+                                  .format(child.get_attr('name')),
+                                  parent=self.parent_widget):
                 return
         if isinstance(child, IFlightController) and self.model() is not None:
             self.model().close_flight(child)
         self.project.remove_child(child.uid)
-        self._child_map[type(child.datamodel)].removeRow(child.row())
+        self._child_map[child.datamodel.__class__].removeRow(child.row())
         self.update()
 
     def get_child(self, uid: Union[str, OID]) -> Union[FlightController, GravimeterController, None]:
@@ -208,7 +203,8 @@ class AirborneProjectController(IAirborneController):
         return self.project.to_json(indent=2, to_file=to_file)
 
     def set_name(self):  # pragma: no cover
-        new_name = get_input("Set Project Name", "Enter a Project Name", self.project.name)
+        new_name = get_input("Set Project Name", "Enter a Project Name",
+                             self.project.name, parent=self.parent_widget)
         if new_name:
             self.set_attr('name', new_name)
 
@@ -229,12 +225,12 @@ class AirborneProjectController(IAirborneController):
 
     # TODO: What to do about these dialog methods - it feels wrong here
     def add_flight(self):  # pragma: no cover
-        dlg = AddFlightDialog(project=self, parent=self.get_parent_widget())
+        dlg = AddFlightDialog(project=self, parent=self.parent_widget)
         return dlg.exec_()
 
     def add_gravimeter(self):  # pragma: no cover
         """Launch a Dialog to import a Gravimeter configuration"""
-        dlg = AddGravimeterDialog(self, parent=self.get_parent_widget())
+        dlg = AddGravimeterDialog(self, parent=self.parent_widget)
         return dlg.exec_()
 
     def update(self):  # pragma: no cover
@@ -297,20 +293,20 @@ class AirborneProjectController(IAirborneController):
             progress_event = ProgressEvent(self.uid, f"Loading {datafile.group}", stop=0)
             self.model().progressNotificationRequested.emit(progress_event)
             loader = FileLoader(datafile.source_path, method,
-                                parent=self.get_parent_widget(), **params)
+                                parent=self.parent_widget, **params)
             loader.loaded.connect(functools.partial(self._post_load, datafile,
                                                     parent))
             loader.finished.connect(lambda: self.model().progressNotificationRequested.emit(progress_event))
             loader.start()
 
-        dlg = DataImportDialog(self, datatype, parent=self.get_parent_widget())
+        dlg = DataImportDialog(self, datatype, parent=self.parent_widget)
         if flight is not None:
             dlg.set_initial_flight(flight)
         dlg.load.connect(load_data)
         dlg.exec_()
 
     def properties_dlg(self):  # pragma: no cover
-        dlg = ProjectPropertiesDialog(self)
+        dlg = ProjectPropertiesDialog(self, parent=self.parent_widget)
         dlg.exec_()
 
     def _close_project(self):

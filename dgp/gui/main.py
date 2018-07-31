@@ -44,11 +44,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.log.addHandler(sb_handler)
         self.log.setLevel(logging.DEBUG)
 
-        # Setup Project
-        project.set_parent_widget(self)
-
         # Instantiate the Project Model and display in the ProjectTreeView
-        self.model = ProjectTreeModel(project)
+        self.model = ProjectTreeModel(project, parent=self)
         self.project_tree.setModel(self.model)
         self.project_tree.expandAll()
 
@@ -287,7 +284,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     self.log.warning("Project is already opened")
                 else:
                     control = AirborneProjectController(project, path=prj_dir)
-                    control.set_parent_widget(self)
                     self.model.add_project(control)
                     self.save_projects()
 

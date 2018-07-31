@@ -251,6 +251,13 @@ class DataSetController(IDataSetController):
             self.setBackground(QBrush(QColor(INACTIVE_COLOR)))
 
     # Context Menu Handlers
+    def _set_name(self):
+        name = controller_helpers.get_input("Set DataSet Name", "Enter a new name:",
+                                            self.get_attr('name'),
+                                            parent=self.parent_widget)
+        if name:
+            self.set_attr('name', name)
+
     def _set_sensor_dlg(self):
 
         pass
