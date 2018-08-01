@@ -24,7 +24,6 @@ from dgp.gui.dialogs.data_import_dialog import DataImportDialog
 from dgp.gui.dialogs.create_project_dialog import CreateProjectDialog
 from dgp.gui.dialogs.dialog_mixins import FormValidator
 from dgp.gui.dialogs.custom_validators import FileExistsValidator, DirectoryValidator
-from .context import APP
 
 
 @pytest.fixture

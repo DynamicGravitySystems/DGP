@@ -9,7 +9,6 @@ from dgp.core.controllers.dataset_controller import DataSetController
 from dgp.core.models.project import AirborneProject
 from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.gui.workspaces import PlotTab
-from .context import APP
 
 
 def test_plot_tab_init(project: AirborneProject):

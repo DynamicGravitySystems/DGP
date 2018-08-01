@@ -6,7 +6,6 @@ import pandas as pd
 import numpy as np
 import datetime
 
-from .context import dgp
 from dgp.lib import gravity_ingestor as gi
 
 
