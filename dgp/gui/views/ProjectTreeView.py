@@ -6,7 +6,7 @@ from PyQt5.QtCore import QObject, QModelIndex, pyqtSlot, pyqtBoundSignal
 from PyQt5.QtGui import QContextMenuEvent, QStandardItem
 from PyQt5.QtWidgets import QTreeView, QMenu
 
-from dgp.core.controllers.controller_interfaces import IFlightController, IAirborneController
+from dgp.core.controllers.controller_interfaces import IAirborneController, IChild
 from dgp.core.controllers.project_treemodel import ProjectTreeModel
 
 
@@ -81,8 +81,8 @@ class ProjectTreeView(QTreeView):
     def _on_double_click(self, index: QModelIndex):
         """Selectively expand/collapse an item depending on its active state"""
         item = self.model().itemFromIndex(index)
-        if isinstance(item, IFlightController):
-            if item.is_active():
+        if isinstance(item, IChild):
+            if item.is_active:
                 self.setExpanded(index, not self.isExpanded(index))
             else:
                 self.setExpanded(index, True)

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtTest import QSignalSpy
 
+from dgp.core.oid import OID
 from dgp.core.models.project import AirborneProject
 from dgp.core.controllers.flight_controller import FlightController
 from dgp.core.controllers.project_controllers import AirborneProjectController
@@ -37,13 +38,18 @@ def test_ProjectTreeModel_multiple_projects(project: AirborneProject,
 def test_ProjectTreeModel_item_activated(prj_ctrl: AirborneProjectController,
                                          flt_ctrl: FlightController):
     model = ProjectTreeModel(prj_ctrl)
+    assert prj_ctrl is model.active_project
     tabOpen_spy = QSignalSpy(model.tabOpenRequested)
 
     fc1_index = model.index(flt_ctrl.row(), 0,
                             parent=model.index(prj_ctrl.flights.row(), 0,
                                                parent=model.index(prj_ctrl.row(), 0)))
-    assert not flt_ctrl.is_active()
+    assert not flt_ctrl.is_active
     model.item_activated(fc1_index)
-    assert flt_ctrl.is_active()
+    assert flt_ctrl.is_active
     assert 1 == len(tabOpen_spy)
+    assert flt_ctrl is prj_ctrl.active_child
+
+    _no_exist_uid = OID()
+    assert prj_ctrl.activate_child(_no_exist_uid) is None
 

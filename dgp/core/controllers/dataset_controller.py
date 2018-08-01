@@ -80,15 +80,18 @@ class DataSetController(IDataSetController):
         self._channel_model = QStandardItemModel()
 
         self._menu_bindings = [  # pragma: no cover
-            ('addAction', ('Set Name', lambda: None)),
-            ('addAction', ('Set Active', lambda: None)),
-            ('addAction', ('Set Sensor', self._set_sensor_dlg)),
-            ('addAction', ('Add Segment', lambda: None)),
-            ('addAction', ('Import Gravity',
-                           lambda: self._project.load_file_dlg(DataTypes.GRAVITY))),
-            ('addAction', ('Import Trajectory',
-                           lambda: self._project.load_file_dlg(DataTypes.TRAJECTORY))),
-            ('addAction', ('Delete', lambda: None)),
+            ('addAction', ('Set Name', self._set_name)),
+            ('addAction', ('Set Active', lambda: self.get_parent().activate_child(self.uid))),
+            ('addAction', (QIcon(':/icons/meter_config.png'), 'Set Sensor',
+                           self._set_sensor_dlg)),
+            ('addSeparator', ()),
+            ('addAction', (QIcon(':/icons/gravity'), 'Import Gravity',
+                           lambda: self._project.load_file_dlg(DataTypes.GRAVITY, dataset=self))),
+            ('addAction', (QIcon(':/icons/gps'), 'Import Trajectory',
+                           lambda: self._project.load_file_dlg(DataTypes.TRAJECTORY, dataset=self))),
+            ('addAction', ('Align Data', self.align)),
+            ('addSeparator', ()),
+            ('addAction', ('Delete', lambda: self.get_parent().remove_child(self.uid))),
             ('addAction', ('Properties', lambda: None))
         ]
 
@@ -238,17 +241,20 @@ class DataSetController(IDataSetController):
         self._segments.removeRow(segment.row())
         self._dataset.segments.remove(segment.datamodel)
 
-    @property
-    def active(self) -> bool:
-        return self._active
+    def update(self):
+        self.setText(self._dataset.name)
+        super().update()
 
-    @active.setter
-    def active(self, active: bool) -> None:
-        self._active = active
-        if active:
-            self.setBackground(QBrush(QColor(ACTIVE_COLOR)))
+    def set_active(self, state: bool):
+        self._active = bool(state)
+        if self._active:
+            self.setBackground(QColor(StateColor.ACTIVE.value))
         else:
-            self.setBackground(QBrush(QColor(INACTIVE_COLOR)))
+            self.setBackground(QColor(StateColor.INACTIVE.value))
+
+    @property
+    def is_active(self) -> bool:
+        return self._active
 
     # Context Menu Handlers
     def _set_name(self):

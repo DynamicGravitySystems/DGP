@@ -17,7 +17,7 @@ def test_plot_tab_init(project: AirborneProject):
     flt1_ctrl = prj_ctrl.get_child(project.flights[0].uid)
     ds_ctrl = flt1_ctrl.get_child(flt1_ctrl.datamodel.datasets[0].uid)
     assert isinstance(ds_ctrl, DataSetController)
-    assert ds_ctrl == flt1_ctrl.get_active_dataset()
+    assert ds_ctrl == flt1_ctrl.active_child
     assert pd.DataFrame().equals(ds_ctrl.dataframe())
 
     tab = PlotTab("TestTab", flt1_ctrl)

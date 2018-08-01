@@ -29,7 +29,7 @@ class PlotTab(TaskTab):
         # TODO: It may make more sense to associate a DataSet with the plot vs a Flight
         super().__init__(label, root=flight, **kwargs)
         self.log = logging.getLogger(__name__)
-        self._dataset = flight.get_active_dataset()
+        self._dataset = flight.active_child
         self.plot: PqtLineSelectPlot = PqtLineSelectPlot(rows=2)
         self.plot.line_changed.connect(self._on_modified_line)
         self._setup_ui()

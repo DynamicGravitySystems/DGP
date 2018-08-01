@@ -18,9 +18,7 @@ from dgp.core.controllers.controller_mixins import AttributeProxy
 from dgp.core.controllers.controller_interfaces import IChild, IMeterController, IParent
 from dgp.core.controllers.gravimeter_controller import GravimeterController
 from dgp.core.controllers.dataset_controller import (DataSetController,
-                                                     DataSegmentController,
-                                                     ACTIVE_COLOR,
-                                                     INACTIVE_COLOR)
+                                                     DataSegmentController)
 from dgp.core.models.meter import Gravimeter
 from dgp.core.models.datafile import DataFile
 from dgp.core.controllers.flight_controller import FlightController
@@ -99,15 +97,16 @@ def test_flight_controller(project: AirborneProject):
     fc = prj_ctrl.add_child(flight)
     assert hash(fc)
     assert str(fc) == str(flight)
-    assert not fc.is_active()
-    prj_ctrl.set_active_child(fc)
-    assert fc.is_active()
+    assert not fc.is_active
+    prj_ctrl.activate_child(fc.uid)
+    assert fc.is_active
     assert flight.uid == fc.uid
     assert flight.name == fc.data(Qt.DisplayRole)
 
     dsc = fc.get_child(dataset.uid)
+    fc.activate_child(dsc.uid)
     assert isinstance(dsc, DataSetController)
-    assert dsc == fc.get_active_dataset()
+    assert dsc == fc.active_child
 
     dataset2 = DataSet()
     dsc2 = fc.add_child(dataset2)
@@ -116,10 +115,8 @@ def test_flight_controller(project: AirborneProject):
     with pytest.raises(TypeError):
         fc.add_child({1: "invalid child"})
 
-    with pytest.raises(TypeError):
-        fc.set_active_dataset("not a child")
-    fc.set_active_dataset(dsc)
-    assert dsc == fc.get_active_dataset()
+    fc.activate_child(dsc.uid)
+    assert dsc == fc.active_child
 
     fc.set_parent(None)
 
@@ -132,7 +129,7 @@ def test_flight_controller(project: AirborneProject):
 
     fc.remove_child(dsc.uid, confirm=False)
     assert 0 == len(fc.datamodel.datasets)
-    assert fc.get_active_dataset() is None
+    assert fc.active_child is None
 
 
 def test_FlightController_bindings(project: AirborneProject):
@@ -146,10 +143,10 @@ def test_FlightController_bindings(project: AirborneProject):
         assert 2 == len(binding)
         assert hasattr(QMenu, binding[0])
 
-    assert prj_ctrl.get_active_child() is None
+    assert prj_ctrl.active_child is None
     fc0._activate_self()
-    assert fc0 == prj_ctrl.get_active_child()
-    assert fc0.is_active()
+    assert fc0 == prj_ctrl.active_child
+    assert fc0.is_active
 
     assert fc0 == prj_ctrl.get_child(fc0.uid)
     fc0._delete_self(confirm=False)
@@ -168,9 +165,8 @@ def test_airborne_project_controller(project):
     project_ctrl = AirborneProjectController(project)
     assert project == project_ctrl.datamodel
     assert project_ctrl.path == project.path
-
-    project_ctrl.set_parent_widget(APP)
-    assert APP == project_ctrl.get_parent_widget()
+    # Need a model to have a parent
+    assert project_ctrl.parent_widget is None
 
     flight = Flight("Flt1")
     flight2 = Flight("Flt2")
@@ -194,11 +190,11 @@ def test_airborne_project_controller(project):
     assert isinstance(project_ctrl.meter_model, QStandardItemModel)
     assert isinstance(project_ctrl.flight_model, QStandardItemModel)
 
-    assert project_ctrl.get_active_child() is None
-    project_ctrl.set_active_child(fc)
-    assert fc == project_ctrl.get_active_child()
-    with pytest.raises(ValueError):
-        project_ctrl.set_active_child(mc)
+    assert project_ctrl.active_child is None
+    project_ctrl.activate_child(fc.uid)
+    assert fc == project_ctrl.active_child
+    # with pytest.raises(ValueError):
+    #     project_ctrl.activate_child(mc)
 
     project_ctrl.add_child(flight2)
 
@@ -241,7 +237,7 @@ def test_dataset_controller(tmpdir):
 
     prj_ctrl = AirborneProjectController(prj)
     fc0 = prj_ctrl.get_child(flt.uid)
-    dsc = fc0.get_child(ds.uid)
+    dsc: DataSetController = fc0.get_child(ds.uid)
     assert 1 == dsc._segments.rowCount()
 
     assert isinstance(dsc, DataSetController)
@@ -306,14 +302,6 @@ def test_dataset_controller(tmpdir):
     assert 1 == len(ds.segments)
     assert 1 == dsc._segments.rowCount()
 
-    # Test Active/Inactive setting and visual effects
-    assert not dsc.active
-    assert INACTIVE_COLOR == dsc.background().color().name()
-    dsc.active = True
-    assert ACTIVE_COLOR == dsc.background().color().name()
-    dsc.active = False
-    assert INACTIVE_COLOR == dsc.background().color().name()
-
 
 def test_dataset_datafiles(project: AirborneProject):
     prj_ctrl = AirborneProjectController(project)
@@ -377,8 +365,18 @@ def test_dataset_data_api(project: AirborneProject, hdf5file, gravdata, gpsdata)
 
     dataset_ctrl = DataSetController(dataset, flt_ctrl)
 
+    gravity_frame = HDF5Manager.load_data(gravfile, hdf5file)
+    assert gravity_frame.equals(dataset_ctrl.gravity)
+
+    trajectory_frame = HDF5Manager.load_data(gpsfile, hdf5file)
+    assert trajectory_frame.equals(dataset_ctrl.trajectory)
+
     assert dataset_ctrl.dataframe() is not None
-    expected: DataFrame = pd.concat([gravdata, gpsdata])
+    expected: DataFrame = pd.concat([gravdata, gpsdata], axis=1, sort=True)
+    for col in expected:
+        pass
+        # print(f'{col}: {expected[col][3]}')
+    # print(f'{expected}')
     expected_cols = [col for col in expected]
 
     assert expected.equals(dataset_ctrl.dataframe())
@@ -394,4 +392,52 @@ def test_dataset_data_api(project: AirborneProject, hdf5file, gravdata, gpsdata)
         series = item.data(Qt.UserRole)
 
         assert expected[col].equals(series)
+
+
+def test_parent_child_activations(project: AirborneProject):
+    """Test child/parent interaction of DataSet Controller with
+    FlightController
+    """
+    prj_ctrl = AirborneProjectController(project)
+    flt_ctrl = prj_ctrl.get_child(project.flights[0].uid)
+    flt2 = Flight("Flt-2")
+    flt2_ctrl = prj_ctrl.add_child(flt2)
+
+    _ds_name = "DataSet-Test"
+    dataset = DataSet(name=_ds_name)
+    ds_ctrl = flt_ctrl.add_child(dataset)
+
+    assert prj_ctrl is flt_ctrl.get_parent()
+    assert flt_ctrl is ds_ctrl.get_parent()
+
+    assert prj_ctrl.can_activate
+    assert flt_ctrl.can_activate
+    assert ds_ctrl.can_activate
+
+    assert not prj_ctrl.is_active
+    assert not flt_ctrl.is_active
+
+    from dgp.core.types.enumerations import StateColor
+    assert StateColor.INACTIVE.value == prj_ctrl.background().color().name()
+    assert StateColor.INACTIVE.value == flt_ctrl.background().color().name()
+    assert StateColor.INACTIVE.value == ds_ctrl.background().color().name()
+
+    prj_ctrl.set_active(True)
+    assert StateColor.ACTIVE.value == prj_ctrl.background().color().name()
+    flt_ctrl.set_active(True)
+
+    # Test exclusive/non-exclusive child activation
+    assert flt_ctrl is prj_ctrl.active_child
+    prj_ctrl.activate_child(flt2_ctrl.uid, exclusive=False)
+    assert flt_ctrl.is_active
+    assert flt2_ctrl.is_active
+
+    prj_ctrl.activate_child(flt2_ctrl.uid, exclusive=True)
+    assert flt2_ctrl.is_active
+    assert not flt_ctrl.is_active
+
+
+
+
+
 

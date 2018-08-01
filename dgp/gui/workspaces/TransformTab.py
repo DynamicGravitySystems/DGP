@@ -29,7 +29,7 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         self.setupUi(self)
         self.log = logging.getLogger(__name__)
         self._flight = flight
-        self._dataset: DataSetController = flight.get_active_dataset()
+        self._dataset: DataSetController = flight.active_child
         self._plot = TransformPlot(rows=1)
 
         self._result: pd.DataFrame = None

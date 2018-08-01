@@ -21,8 +21,6 @@ from dgp.core.types.enumerations import DataTypes
 from dgp.gui.dialogs.add_flight_dialog import AddFlightDialog
 from . import controller_helpers as helpers
 
-FOLDER_ICON = ":/icons/folder_open.png"
-
 
 class FlightController(IFlightController):
     """
@@ -58,10 +56,10 @@ class FlightController(IFlightController):
         self.log = logging.getLogger(__name__)
         self._flight = flight
         self._parent = project
+        self._active: bool = False
         self.setData(flight, Qt.UserRole)
         self.setEditable(False)
 
-        self._active_dataset: DataSetController = None
         self._dataset_model = QStandardItemModel()
 
         for dataset in self._flight.datasets:
@@ -75,7 +73,7 @@ class FlightController(IFlightController):
 
         # TODO: Consider adding MenuPrototype class which could provide the means to build QMenu
         self._bindings = [  # pragma: no cover
-            ('addAction', ('Add Dataset', lambda: None)),
+            ('addAction', ('Add Dataset', self._add_dataset)),
             ('addAction', ('Set Active',
                            lambda: self._activate_self())),
             ('addAction', ('Import Gravity',
@@ -97,6 +95,11 @@ class FlightController(IFlightController):
     @property
     def uid(self) -> OID:
         return self._flight.uid
+
+    @property
+    def children(self):
+        for i in range(self.rowCount()):
+            yield self.child(i, 0)
 
     @property
     def menu_bindings(self):  # pragma: no cover
@@ -139,22 +142,31 @@ class FlightController(IFlightController):
         self._clones.add(clone)
         return clone
 
+    @property
     def is_active(self):
-        return self.get_parent().get_active_child() == self
+        return self._active
 
-    # TODO: This is not fully implemented
-    def set_active_dataset(self, dataset: DataSetController):
-        if not isinstance(dataset, DataSetController):
-            raise TypeError(f'Cannot set {dataset!r} to active (invalid type)')
-        dataset.active = True
-        self._active_dataset = dataset
+    def set_active(self, state: bool):
+        self._active = bool(state)
+        if self._active:
+            self.setBackground(QColor('green'))
+        else:
+            self.setBackground(QColor('white'))
 
-    def get_active_dataset(self) -> DataSetController:
-        if self._active_dataset is None:
-            for i in range(self.rowCount()):
-                self._active_dataset = self.child(i, 0)
-                break
-        return self._active_dataset
+    @property
+    def active_child(self) -> DataSetController:
+        """active_child overrides method in IParent
+
+        If no child is active, try to activate the first child (row 0) and
+        return the newly active child.
+        If the flight has no children None will be returned
+
+        """
+        child = super().active_child
+        if child is None and self.rowCount():
+            self.activate_child(self.child(0).uid)
+            return self.active_child
+        return child
 
     def add_child(self, child: DataSet) -> DataSetController:
         """Adds a child to the underlying Flight, and to the model representation
@@ -220,24 +232,20 @@ class FlightController(IFlightController):
                                           self.parent_widget):
                 return False
 
-        if self._active_dataset == child:
-            self._active_dataset = None
         self._flight.datasets.remove(child.datamodel)
         self._dataset_model.removeRow(child.row())
         self.removeRow(child.row())
         return True
 
     def get_child(self, uid: Union[OID, str]) -> DataSetController:
-        """Retrieve a child controller by UID
-        A string base_uuid can be passed, or an :obj:`OID` object for comparison
-        """
-        for item in (self.child(i, 0) for i in range(self.rowCount())):  # type: DataSetController
-            if item.uid == uid:
-                return item
+        return super().get_child(uid)
 
     # Menu Action Handlers
     def _activate_self(self):
-        self.get_parent().set_active_child(self)
+        self.get_parent().activate_child(self.uid, emit=True)
+
+    def _add_dataset(self):
+        self.add_child(DataSet(name=f'DataSet-{self.datasets.rowCount()}'))
 
     def _delete_self(self, confirm: bool = True):
         self.get_parent().remove_child(self.uid, confirm)

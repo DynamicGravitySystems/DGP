@@ -82,7 +82,7 @@ class DataImportDialog(QDialog, Ui_DataImportDialog, FormValidator):
         self.qcb_gravimeter.currentIndexChanged.connect(self._gravimeter_changed)
         self._meter_model = self.project.meter_model  # type: QStandardItemModel
         self.qcb_gravimeter.setModel(self._meter_model)
-        self.qpb_add_sensor.clicked.connect(self.project.add_gravimeter)
+        self.qpb_add_sensor.clicked.connect(self.project.add_gravimeter_dlg)
         # if self._meter_model.rowCount() == 0:
         #     print("NO meters available")
         self.qcb_gravimeter.setCurrentIndex(0)
@@ -105,7 +105,7 @@ class DataImportDialog(QDialog, Ui_DataImportDialog, FormValidator):
         self.qle_filepath.textChanged.connect(self._filepath_changed)
         self.qlw_datatype.currentItemChanged.connect(self._datatype_changed)
         self.qpb_browse.clicked.connect(self._browse)
-        self.qpb_add_flight.clicked.connect(self.project.add_flight)
+        self.qpb_add_flight.clicked.connect(self.project.add_flight_dlg)
 
         self.qsw_advanced_properties.setCurrentIndex(self._type_map[datatype])
 
@@ -250,7 +250,5 @@ class DataImportDialog(QDialog, Ui_DataImportDialog, FormValidator):
 
     @pyqtSlot(int, name='_flight_changed')
     def _flight_changed(self, row: int):
-        flt: IFlightController = self.qcb_flight.model().item(row, 0)
-        self.qcb_dataset.setModel(flt.datasets)
-
+        self.qcb_dataset.setModel(self.flight.datasets)
 

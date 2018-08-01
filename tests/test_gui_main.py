@@ -54,12 +54,12 @@ def test_MainWindow_tab_open_requested(flt_ctrl: FlightController,
     assert isinstance(flt_ctrl, FlightController)
     assert window.workspace.get_tab(flt_ctrl.uid) is None
 
-    window.model.active_changed(flt_ctrl)
+    window.model.item_activated(flt_ctrl.index())
     assert 1 == len(tab_open_spy)
     assert 1 == window.workspace.count()
     assert isinstance(window.workspace.currentWidget(), WorkspaceTab)
 
-    window.model.active_changed(flt_ctrl)
+    window.model.item_activated(flt_ctrl.index())
     assert 2 == len(tab_open_spy)
     assert 1 == window.workspace.count()
 
@@ -70,7 +70,7 @@ def test_MainWindow_tab_close_requested(flt_ctrl: AirborneProjectController,
     assert 0 == len(tab_close_spy)
     assert 0 == window.workspace.count()
 
-    window.model.active_changed(flt_ctrl)
+    window.model.item_activated(flt_ctrl.index())
     assert 1 == window.workspace.count()
 
     window.model.close_flight(flt_ctrl)
@@ -78,7 +78,7 @@ def test_MainWindow_tab_close_requested(flt_ctrl: AirborneProjectController,
     assert flt_ctrl.uid == tab_close_spy[0][0]
     assert window.workspace.get_tab(flt_ctrl.uid) is None
 
-    window.model.active_changed(flt_ctrl)
+    window.model.item_activated(flt_ctrl.index())
     assert 1 == window.workspace.count()
     assert window.workspace.get_tab(flt_ctrl.uid) is not None
 
