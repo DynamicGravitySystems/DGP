@@ -50,28 +50,12 @@ class ProjectTreeView(QTreeView):
             }
         """)
 
+        self.clicked.connect(self._on_click)
+        self.doubleClicked.connect(self._on_double_click)
         self._action_refs = []
-
-    @staticmethod
-    def _clear_signal(signal: pyqtBoundSignal):
-        """Utility method to clear all connections from a bound signal"""
-        while True:
-            try:
-                signal.disconnect()
-            except TypeError:
-                break
 
     def model(self) -> ProjectTreeModel:
         return super().model()
-
-    def setModel(self, model: ProjectTreeModel):
-        """Set the View Model and connect signals to its slots"""
-        self._clear_signal(self.clicked)
-        self._clear_signal(self.doubleClicked)
-        super().setModel(model)
-
-        self.clicked.connect(self._on_click)
-        self.doubleClicked.connect(self._on_double_click)
 
     @pyqtSlot(QModelIndex, name='_on_click')
     def _on_click(self, index: QModelIndex):

@@ -2,23 +2,22 @@
 from pathlib import Path
 from typing import List, Union
 
+from pandas import DataFrame, concat
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QBrush, QIcon, QStandardItemModel, QStandardItem
-from pandas import DataFrame, concat
 
 from dgp.core.hdf5_manager import HDF5Manager
-from dgp.core.controllers.project_containers import ProjectFolder
+from dgp.core.oid import OID
 from dgp.core.controllers import controller_helpers
 from dgp.core.models.datafile import DataFile
-from dgp.core.types.enumerations import DataTypes
-from dgp.core.oid import OID
-from dgp.core.controllers.controller_interfaces import (IFlightController,
-                                                        IDataSetController)
-from dgp.core.types.enumerations import StateColor
-from dgp.core.controllers.datafile_controller import DataFileController
-from dgp.core.controllers.controller_bases import BaseController
 from dgp.core.models.dataset import DataSet, DataSegment
+from dgp.core.types.enumerations import DataTypes, StateColor
 from dgp.lib.etc import align_frames
+
+from .controller_interfaces import IFlightController, IDataSetController
+from .project_containers import ProjectFolder
+from .datafile_controller import DataFileController
+from .controller_bases import BaseController
 
 
 class DataSegmentController(BaseController):

@@ -3,23 +3,6 @@
 import enum
 import logging
 
-"""
-Dynamic Gravity Processor (DGP) :: lib/enumerations.py
-License: Apache License V2
-
-Overview:
-enumerations.py consolidates various enumeration structures used throughout the project
-
-Compatibility:
-As we are still currently targetting Python 3.5 the following Enum classes 
-cannot be used - they are not introduced until Python 3.6
-
-- enum.Flag
-- enum.IntFlag
-- enum.auto
-
-"""
-
 
 LOG_LEVEL_MAP = {'debug': logging.DEBUG, 'info': logging.INFO,
                  'warning': logging.WARNING, 'error': logging.ERROR,
@@ -33,15 +16,16 @@ class StateColor(enum.Enum):
 
 class Icon(enum.Enum):
     """Resource Icon paths for Qt resources"""
-    OPEN_FOLDER = ":/icons/folder_open.jpg"
+    AUTOSIZE = ":/icons/autosize"
+    OPEN_FOLDER = ":/icons/folder_open"
     AIRBORNE = ":/icons/airborne"
     MARINE = ":/icons/marine"
-    METER = ":/icons/meter_config.png"
+    METER = ":/icons/meter_config"
     DGS = ":/icons/dgs"
     GRAVITY = ":/icons/gravity"
     TRAJECTORY = ":/icons/gps"
-    NEW_FILE = ":/icons/new_file.png"
-    SAVE = ":/icons/save_project.png"
+    NEW_FILE = ":/icons/new_file"
+    SAVE = ":/icons/save"
     ARROW_LEFT = ":/icons/chevron-right"
     ARROW_DOWN = ":/icons/chevron-down"
 
@@ -85,7 +69,6 @@ class GravityTypes(enum.Enum):
     TAGS = ('tags', )
 
 
-# TODO: I don't like encoding the field tuples in enum - do a separate lookup?
 class GPSFields(enum.Enum):
     sow = ('week', 'sow', 'lat', 'long', 'ell_ht')
     hms = ('mdy', 'hms', 'lat', 'long', 'ell_ht')

@@ -142,9 +142,9 @@ class FlightController(IFlightController):
     def set_active(self, state: bool):
         self._active = bool(state)
         if self._active:
-            self.setBackground(QColor('green'))
+            self.setBackground(QColor(StateColor.ACTIVE.value))
         else:
-            self.setBackground(QColor('white'))
+            self.setBackground(QColor(StateColor.INACTIVE.value))
 
     @property
     def active_child(self) -> DataSetController:

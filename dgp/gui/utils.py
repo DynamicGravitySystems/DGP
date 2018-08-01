@@ -1,13 +1,15 @@
-# coding: utf-8
+# -*- coding: utf-8 -*-
 
 import logging
-import time
 from pathlib import Path
 from typing import Union, Callable
 
-from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt5.QtCore import QThread, pyqtSignal, pyqtBoundSignal
 
 from dgp.core.oid import OID
+
+__all__ = ['LOG_FORMAT', 'LOG_COLOR_MAP', 'LOG_LEVEL_MAP', 'ConsoleHandler',
+           'ProgressEvent', 'ThreadedFunction', 'clear_signal']
 
 LOG_FORMAT = logging.Formatter(fmt="%(asctime)s:%(levelname)s - %(module)s:"
                                    "%(funcName)s :: %(message)s",
@@ -17,6 +19,7 @@ LOG_COLOR_MAP = {'debug': 'blue', 'info': 'yellow', 'warning': 'brown',
 LOG_LEVEL_MAP = {'debug': logging.DEBUG, 'info': logging.INFO,
                  'warning': logging.WARNING, 'error': logging.ERROR,
                  'critical': logging.CRITICAL}
+_log = logging.getLogger(__name__)
 
 
 class ConsoleHandler(logging.Handler):
@@ -92,7 +95,7 @@ class ThreadedFunction(QThread):
             res = self._functor(*self._args)
             self.result.emit(res)
         except Exception as e:
-            print(e)
+            _log.exception(f"Exception executing {self.__name__}")
 
 
 def get_project_file(path: Path) -> Union[Path, None]:
@@ -113,3 +116,12 @@ def get_project_file(path: Path) -> Union[Path, None]:
     # TODO: Read JSON and check for presence of a magic attribute that marks a project file
     for child in sorted(path.glob('*.json')):
         return child.resolve()
+
+
+def clear_signal(signal: pyqtBoundSignal):
+    """Utility method to clear all connections from a bound signal"""
+    while True:
+        try:
+            signal.disconnect()
+        except TypeError:
+            break
