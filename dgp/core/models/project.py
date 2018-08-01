@@ -57,8 +57,10 @@ class ProjectEncoder(json.JSONEncoder):
             keys = o.__slots__ if hasattr(o, '__slots__') else o.__dict__.keys()
             attrs = {key.lstrip('_'): getattr(o, key) for key in keys}
             attrs['_type'] = o.__class__.__name__
+            attrs['_module'] = o.__class__.__module__
             return attrs
-        j_complex = {'_type': o.__class__.__name__}
+        j_complex = {'_type': o.__class__.__name__,
+                     '_module': o.__class__.__module__}
         if isinstance(o, OID):
             j_complex['base_uuid'] = o.base_uuid
             return j_complex
@@ -137,6 +139,10 @@ class ProjectDecoder(json.JSONDecoder):
         if '_type' not in json_o:
             return json_o
         _type = json_o.pop('_type')
+        try:
+            _module = json_o.pop('_module')
+        except KeyError:
+            _module = None
 
         params = {key.lstrip('_'): value for key, value in json_o.items()}
         if _type == OID.__name__:
