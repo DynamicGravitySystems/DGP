@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
-
 from pathlib import Path
 
 from PyQt5.uic import compileUiDir
 from PyQt5.pyrcc_main import processResourceFile
 
-import dgp
 
 """
 Utility script to build python compiled UI and resource files from Qt .ui and
@@ -22,7 +20,7 @@ See Also
 
 
 """
-BASE_DIR = Path(dgp.__path__[0])
+BASE_DIR = Path(Path(__file__).parent).joinpath('../dgp').absolute()
 RES_FILES = [
     str(BASE_DIR.joinpath('gui/ui/resources/resources.qrc'))
 ]
