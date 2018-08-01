@@ -18,6 +18,7 @@ from dgp.core.types.enumerations import StateColor
 from dgp.core.controllers.datafile_controller import DataFileController
 from dgp.core.controllers.controller_bases import BaseController
 from dgp.core.models.dataset import DataSet, DataSegment
+from dgp.lib.etc import align_frames
 
 
 class DataSegmentController(BaseController):
@@ -157,8 +158,23 @@ class DataSetController(IDataSetController):
 
     def dataframe(self) -> DataFrame:
         if self._dataframe.empty:
-            self._dataframe: DataFrame = concat([self.gravity, self.trajectory])
+            self._dataframe: DataFrame = concat([self.gravity, self.trajectory], axis=1, sort=True)
         return self._dataframe
+
+    def align(self):
+        if self.gravity.empty or self.trajectory.empty:
+            # debug
+            print(f'Gravity or Trajectory is empty, cannot align')
+            return
+        from dgp.lib.gravity_ingestor import DGS_AT1A_INTERP_FIELDS
+        from dgp.lib.trajectory_ingestor import TRAJECTORY_INTERP_FIELDS
+
+        fields = DGS_AT1A_INTERP_FIELDS | TRAJECTORY_INTERP_FIELDS
+        n_grav, n_traj = align_frames(self._gravity, self._trajectory,
+                                      interp_only=fields)
+        self._gravity = n_grav
+        self._trajectory = n_traj
+        print('DataFrame aligned')
 
     # def slice(self, segment_uid: OID):
     #     df = self.dataframe()

@@ -373,10 +373,6 @@ def test_dataset_data_api(project: AirborneProject, hdf5file, gravdata, gpsdata)
 
     assert dataset_ctrl.dataframe() is not None
     expected: DataFrame = pd.concat([gravdata, gpsdata], axis=1, sort=True)
-    for col in expected:
-        pass
-        # print(f'{col}: {expected[col][3]}')
-    # print(f'{expected}')
     expected_cols = [col for col in expected]
 
     assert expected.equals(dataset_ctrl.dataframe())
