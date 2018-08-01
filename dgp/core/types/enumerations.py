@@ -26,6 +26,26 @@ LOG_LEVEL_MAP = {'debug': logging.DEBUG, 'info': logging.INFO,
                  'critical': logging.CRITICAL}
 
 
+class StateColor(enum.Enum):
+    ACTIVE = '#11dd11'
+    INACTIVE = '#ffffff'
+
+
+class Icon(enum.Enum):
+    """Resource Icon paths for Qt resources"""
+    OPEN_FOLDER = ":/icons/folder_open.jpg"
+    AIRBORNE = ":/icons/airborne"
+    MARINE = ":/icons/marine"
+    METER = ":/icons/meter_config.png"
+    DGS = ":/icons/dgs"
+    GRAVITY = ":/icons/gravity"
+    TRAJECTORY = ":/icons/gps"
+    NEW_FILE = ":/icons/new_file.png"
+    SAVE = ":/icons/save_project.png"
+    ARROW_LEFT = ":/icons/chevron-right"
+    ARROW_DOWN = ":/icons/chevron-down"
+
+
 class LogColors(enum.Enum):
     DEBUG = 'blue'
     INFO = 'yellow'
@@ -71,43 +91,4 @@ class GPSFields(enum.Enum):
     hms = ('mdy', 'hms', 'lat', 'long', 'ell_ht')
     serial = ('datenum', 'lat', 'long', 'ell_ht')
 
-
-class QtItemFlags(enum.IntEnum):
-    """Qt Item Flags"""
-    NoItemFlags = 0
-    ItemIsSelectable = 1
-    ItemIsEditable = 2
-    ItemIsDragEnabled = 4
-    ItemIsDropEnabled = 8
-    ItemIsUserCheckable = 16
-    ItemIsEnabled = 32
-    ItemIsTristate = 64
-
-
-class QtDataRoles(enum.IntEnum):
-    """Qt Item Data Roles"""
-    # Data to be rendered as text (QString)
-    DisplayRole = 0
-    # Data to be rendered as decoration (QColor, QIcon, QPixmap)
-    DecorationRole = 1
-    # Data displayed in edit mode (QString)
-    EditRole = 2
-    # Data to be displayed in a tooltip on hover (QString)
-    ToolTipRole = 3
-    # Data to be displayed in the status bar on hover (QString)
-    StatusTipRole = 4
-    WhatsThisRole = 5
-    # Font used by the delegate to render this item (QFont)
-    FontRole = 6
-    TextAlignmentRole = 7
-    # Background color used to render this item (QBrush)
-    BackgroundRole = 8
-    # Foreground or font color used to render this item (QBrush)
-    ForegroundRole = 9
-    CheckStateRole = 10
-    SizeHintRole = 13
-    InitialSortOrderRole = 14
-
-    UserRole = 32
-    UIDRole = 33
 

@@ -8,17 +8,16 @@ from pandas import DataFrame, concat
 
 from dgp.core.hdf5_manager import HDF5Manager
 from dgp.core.controllers.project_containers import ProjectFolder
+from dgp.core.controllers import controller_helpers
 from dgp.core.models.datafile import DataFile
 from dgp.core.types.enumerations import DataTypes
 from dgp.core.oid import OID
 from dgp.core.controllers.controller_interfaces import (IFlightController,
                                                         IDataSetController)
+from dgp.core.types.enumerations import StateColor
 from dgp.core.controllers.datafile_controller import DataFileController
 from dgp.core.controllers.controller_bases import BaseController
 from dgp.core.models.dataset import DataSet, DataSegment
-
-ACTIVE_COLOR = "#85acea"
-INACTIVE_COLOR = "#ffffff"
 
 
 class DataSegmentController(BaseController):
@@ -46,19 +45,17 @@ class DataSegmentController(BaseController):
 
 
 class DataSetController(IDataSetController):
-    def __init__(self, dataset: DataSet, flight: IFlightController,
-                 name: str = ""):
+    def __init__(self, dataset: DataSet, flight: IFlightController):
         super().__init__()
         self._dataset = dataset
         self._flight: IFlightController = flight
         self._project = self._flight.project
-        self._name = name
         self._active = False
 
         self.setEditable(False)
-        self.setText("DataSet")
+        self.setText(self._dataset.name)
         self.setIcon(QIcon(":icons/folder_open.png"))
-        self.setBackground(QBrush(QColor(INACTIVE_COLOR)))
+        self.setBackground(QBrush(QColor(StateColor.INACTIVE.value)))
         self._grav_file = DataFileController(self._dataset.gravity, self)
         self._traj_file = DataFileController(self._dataset.trajectory, self)
         self._child_map = {'gravity': self._grav_file,

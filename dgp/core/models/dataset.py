@@ -68,9 +68,11 @@ class DataSet:
 
     """
     def __init__(self, gravity: DataFile = None, trajectory: DataFile = None,
-                 segments: List[DataSegment]=None, sensor=None, uid: OID = None):
+                 segments: List[DataSegment]=None, sensor=None,
+                 name: str = None, uid: OID = None):
         self.uid = uid or OID(self)
         self.uid.set_pointer(self)
+        self.name = name or "Data Set"
         self.segments = segments or []
         self._sensor = Reference(self, 'sensor', sensor)
 

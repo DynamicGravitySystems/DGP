@@ -1,25 +1,19 @@
 # -*- coding: utf-8 -*-
-import itertools
 import logging
 from _weakrefset import WeakSet
-from pathlib import Path
-from typing import Optional, Union, Any, Generator
+from typing import Union
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QStandardItemModel, QStandardItem
-from PyQt5.QtWidgets import QWidget
-from pandas import DataFrame
+from PyQt5.QtGui import QStandardItemModel, QColor
 
-from dgp.core.controllers.dataset_controller import DataSetController
+from . import controller_helpers as helpers
 from dgp.core.oid import OID
+from dgp.core.controllers.dataset_controller import DataSetController
 from dgp.core.controllers.controller_interfaces import IAirborneController, IFlightController
-from dgp.core.controllers.gravimeter_controller import GravimeterController
 from dgp.core.models.dataset import DataSet
 from dgp.core.models.flight import Flight
-from dgp.core.models.meter import Gravimeter
-from dgp.core.types.enumerations import DataTypes
+from dgp.core.types.enumerations import DataTypes, StateColor
 from dgp.gui.dialogs.add_flight_dialog import AddFlightDialog
-from . import controller_helpers as helpers
 
 
 class FlightController(IFlightController):
@@ -59,7 +53,9 @@ class FlightController(IFlightController):
         self._active: bool = False
         self.setData(flight, Qt.UserRole)
         self.setEditable(False)
+        self.setBackground(QColor(StateColor.INACTIVE.value))
 
+        self._clones = WeakSet()
         self._dataset_model = QStandardItemModel()
 
         for dataset in self._flight.datasets:
@@ -69,7 +65,7 @@ class FlightController(IFlightController):
 
         # Add default DataSet if none defined
         if not len(self._flight.datasets):
-            self.add_child(DataSet())
+            self.add_child(DataSet(name='DataSet-0'))
 
         # TODO: Consider adding MenuPrototype class which could provide the means to build QMenu
         self._bindings = [  # pragma: no cover
@@ -87,9 +83,6 @@ class FlightController(IFlightController):
             ('addAction', ('Properties',
                            lambda: self._show_properties_dlg()))
         ]
-
-        self._clones = WeakSet()
-
         self.update()
 
     @property
@@ -133,9 +126,9 @@ class FlightController(IFlightController):
     def update(self):
         self.setText(self._flight.name)
         self.setToolTip(str(self._flight.uid))
-        super().update()
         for clone in self._clones:
             clone.update()
+        super().update()
 
     def clone(self):
         clone = FlightController(self._flight, project=self.get_parent())
@@ -196,6 +189,7 @@ class FlightController(IFlightController):
         control = DataSetController(child, self)
         self.appendRow(control)
         self._dataset_model.appendRow(control.clone())
+        self.update()
         return control
 
     def remove_child(self, uid: Union[OID, str], confirm: bool = True) -> bool:
@@ -235,6 +229,7 @@ class FlightController(IFlightController):
         self._flight.datasets.remove(child.datamodel)
         self._dataset_model.removeRow(child.row())
         self.removeRow(child.row())
+        self.update()
         return True
 
     def get_child(self, uid: Union[OID, str]) -> DataSetController:

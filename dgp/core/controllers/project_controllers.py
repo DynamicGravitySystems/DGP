@@ -2,46 +2,36 @@
 import functools
 import itertools
 import logging
-import shlex
-import sys
 import warnings
 from pathlib import Path
-from pprint import pprint
-from typing import Union, List
+from typing import Union, List, Generator
 
-from PyQt5.QtCore import Qt, QProcess, QObject, QRegExp, pyqtSignal
-from PyQt5.QtGui import QStandardItem, QBrush, QColor, QStandardItemModel, QIcon, QRegExpValidator
-from PyQt5.QtWidgets import QWidget
+from PyQt5.QtCore import Qt, QRegExp
+from PyQt5.QtGui import QColor, QStandardItemModel, QIcon, QRegExpValidator
 from pandas import DataFrame
 
 from .project_treemodel import ProjectTreeModel
-from dgp.core.file_loader import FileLoader
-from dgp.core.oid import OID
-from dgp.core.controllers.controller_interfaces import (IAirborneController, IFlightController, IParent,
-                                                        IDataSetController)
-from dgp.core.hdf5_manager import HDF5Manager
-from dgp.gui.utils import ProgressEvent
 from .flight_controller import FlightController
 from .gravimeter_controller import GravimeterController
 from .project_containers import ProjectFolder
-from .controller_helpers import confirm_action, get_input
-from dgp.core.controllers.controller_mixins import AttributeProxy
-from dgp.gui.dialogs.add_flight_dialog import AddFlightDialog
-from dgp.gui.dialogs.add_gravimeter_dialog import AddGravimeterDialog
-from dgp.gui.dialogs.data_import_dialog import DataImportDialog
-from dgp.gui.dialogs.project_properties_dialog import ProjectPropertiesDialog
+from .controller_helpers import confirm_action, get_input, show_in_explorer
+from .controller_interfaces import (IAirborneController, IFlightController,
+                                    IDataSetController)
+from dgp.core.oid import OID
+from dgp.core.file_loader import FileLoader
+from dgp.core.hdf5_manager import HDF5Manager
 from dgp.core.models.datafile import DataFile
 from dgp.core.models.flight import Flight
 from dgp.core.models.meter import Gravimeter
 from dgp.core.models.project import GravityProject, AirborneProject
-from dgp.core.types.enumerations import DataTypes
+from dgp.core.types.enumerations import DataTypes, Icon, StateColor
+from dgp.gui.utils import ProgressEvent
+from dgp.gui.dialogs.add_flight_dialog import AddFlightDialog
+from dgp.gui.dialogs.add_gravimeter_dialog import AddGravimeterDialog
+from dgp.gui.dialogs.data_import_dialog import DataImportDialog
+from dgp.gui.dialogs.project_properties_dialog import ProjectPropertiesDialog
 from dgp.lib.gravity_ingestor import read_at1a
 from dgp.lib.trajectory_ingestor import import_trajectory
-
-BASE_COLOR = QBrush(QColor('white'))
-ACTIVE_COLOR = QBrush(QColor(108, 255, 63))
-FLT_ICON = ":/icons/airborne"
-MTR_ICON = ":/icons/meter_config.png"
 
 
 class AirborneProjectController(IAirborneController):
@@ -68,10 +58,11 @@ class AirborneProjectController(IAirborneController):
         self.setIcon(QIcon(":/icons/dgs"))
         self.setToolTip(str(self._project.path.resolve()))
         self.setData(project, Qt.UserRole)
+        self.setBackground(QColor(StateColor.INACTIVE.value))
 
-        self.flights = ProjectFolder("Flights", FLT_ICON)
+        self.flights = ProjectFolder("Flights", Icon.AIRBORNE.value)
         self.appendRow(self.flights)
-        self.meters = ProjectFolder("Gravimeters", MTR_ICON)
+        self.meters = ProjectFolder("Gravimeters", Icon.MARINE.value)
         self.appendRow(self.meters)
 
         self._child_map = {Flight: self.flights,
@@ -87,7 +78,8 @@ class AirborneProjectController(IAirborneController):
 
         self._bindings = [
             ('addAction', ('Set Project Name', self.set_name)),
-            ('addAction', ('Show in Explorer', self.show_in_explorer)),
+            ('addAction', ('Show in Explorer',
+                           lambda: show_in_explorer(self.path))),
             ('addAction', ('Project Properties', self.properties_dlg)),
             ('addAction', ('Close Project', self._close_project))
         ]
@@ -178,7 +170,7 @@ class AirborneProjectController(IAirborneController):
         if confirm:  # pragma: no cover
             if not confirm_action("Confirm Deletion",
                                   "Are you sure you want to delete {!s}"
-                                  .format(child.get_attr('name')),
+                                          .format(child.get_attr('name')),
                                   parent=self.parent_widget):
                 return
         if isinstance(child, IFlightController):
@@ -232,21 +224,6 @@ class AirborneProjectController(IAirborneController):
                              self.project.name, parent=self.parent_widget)
         if new_name:
             self.set_attr('name', new_name)
-
-    def show_in_explorer(self):  # pragma: no cover
-        # TODO Linux KDE/Gnome file browser launch
-        ppath = str(self.project.path.resolve())
-        if sys.platform == 'darwin':
-            script = 'oascript'
-            args = '-e tell application \"Finder\" -e activate -e select POSIX file \"' + ppath + '\" -e end tell'
-        elif sys.platform == 'win32':
-            script = 'explorer'
-            args = shlex.quote(ppath)
-        else:
-            self.log.warning("Platform %s is not supported for this action.", sys.platform)
-            return
-
-        QProcess.startDetached(script, shlex.split(args))
 
     def add_flight_dlg(self):  # pragma: no cover
         dlg = AddFlightDialog(project=self, parent=self.parent_widget)
