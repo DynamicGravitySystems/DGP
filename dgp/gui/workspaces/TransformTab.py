@@ -32,7 +32,7 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         self.log = logging.getLogger(__name__)
         self._flight = flight
         self._dataset: DataSetController = flight.active_child
-        self._plot = TransformPlot(rows=1)
+        self._plot = TransformPlot()
 
         self._result: pd.DataFrame = None
         self.result.connect(self._on_result)
@@ -79,7 +79,7 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         self.qtb_clear_mask.clicked.connect(self._clear_mask)
         self.qpb_stack_lines.clicked.connect(self._stack_lines)
 
-        self.hlayout.addWidget(self._plot.widget, Qt.AlignLeft | Qt.AlignTop)
+        self.hlayout.addWidget(self._plot, Qt.AlignLeft | Qt.AlignTop)
 
     @property
     def raw_gravity(self) -> pd.DataFrame:
@@ -94,10 +94,6 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         return self._dataset.dataframe()
 
     @property
-    def plot(self) -> TransformPlot:
-        return self._plot
-
-    @property
     def _channels(self) -> List[QStandardItem]:
         return [self._channel_model.item(i)
                 for i in range(self._channel_model.rowCount())]
@@ -106,12 +102,6 @@ class TransformWidget(QWidget, Ui_TransformInterface):
     def _segments(self) -> List[DataSegmentController]:
         return [self._dataset.segment_model.item(i)
                 for i in range(self._dataset.segment_model.rowCount())]
-
-    def _auto_range(self):
-        """Call autoRange on all plot surfaces to scale the view to its
-        contents"""
-        for plot in self.plot.plots:
-            plot.autoRange()
 
     def _view_transform_graph(self):
         """Print out the dictionary transform (or even the raw code) in GUI?"""
@@ -186,13 +176,10 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         if self._result is None:
             return
 
-        self.plot.clear()
         for channel in self._channels:
             if channel.checkState() == Qt.Checked:
                 channel.setCheckState(Qt.Unchecked)
                 channel.setCheckState(Qt.Checked)
-
-        self._auto_range()
 
     @pyqtSlot(name='_on_result')
     def _on_result(self):

@@ -115,11 +115,13 @@ class GridPlotWidget(GraphicsView):
             plot.addLegend(offset=(15, 15))
             plot.showGrid(x=grid, y=grid)
             plot.setYRange(-1, 1)  # Prevents overflow when labels are added
+            plot.setLimits(maxYRange=1e17, maxXRange=1e17)
 
             if row > 0 and sharex:
                 plot.setXLink(self.get_plot(0, 0))
             if multiy:
                 p2 = LinkedPlotItem(plot)
+                p2.setLimits(maxYRange=1e17, maxXRange=1e17)
                 self._rightaxis[(row, col)] = p2
 
         self.__signal_proxies = []
@@ -170,6 +172,8 @@ class GridPlotWidget(GraphicsView):
         yvals = pd.to_numeric(series.values, errors='coerce')
         item = plot.plot(x=xvals, y=yvals, name=series.name, pen=next(self._pens))
         self._items[key] = item
+        if autorange:
+            self.autorange_plot(row, col)
         return item
 
     def get_series(self, name: str, row, col=0, axis: Axis = Axis.LEFT) -> MaybeSeries:
@@ -184,13 +188,26 @@ class GridPlotWidget(GraphicsView):
         plot.legend.removeItem(name)
         del self._series[key]
         del self._items[key]
+        if autoscale:
+            self.autorange_plot(row, col)
 
     def clear(self):
-        # TODO: This won't clear right-axis plots yet
         for i in range(self.rows):
             for j in range(self.cols):
                 plot = self.get_plot(i, j)
-                plot.clear()
+                for curve in plot.curves[:]:
+                    name = curve.name()
+                    plot.removeItem(curve)
+                    plot.legend.removeItem(name)
+                if self._rightaxis:
+                    plot_r = self.get_plot(i, j, axis=Axis.RIGHT)
+                    for curve in plot_r.curves[:]:
+                        name = curve.name()
+                        plot_r.removeItem(curve)
+                        plot.legend.removeItem(name)  # Legend is only on left
+                        del curve
+        del self._items
+        del self._series
         self._items = {}
         self._series = {}
 
@@ -315,100 +332,4 @@ class GridPlotWidget(GraphicsView):
         if name is None or name is '':
             raise ValueError("Cannot create plot index from empty name.")
         return name.lower(), row, col, axis
-
-
-class PyQtGridPlotWidget(GraphicsView):  # pragma: no cover
-    # TODO: Use multiple Y-Axes to plot 2 lines of different scales
-    # See pyqtgraph/examples/MultiplePlotAxes.py
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
-              '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
-    colorcycle = cycle([{'color': v} for v in colors])
-
-    def __init__(self, rows=1, cols=1, background='w', grid=True,
-                 sharex=True, sharey=False, tickFormatter='date', parent=None):
-        super().__init__(parent=parent, background=background)
-        self._gl = GraphicsLayout(parent=parent)
-        self.setCentralItem(self._gl)
-        self._plots = []  # type: List[PlotItem]
-        self._lines = {}
-        # Store ref to signal proxies so they are not GC'd
-        self._sigproxies = []
-
-        for row in range(rows):
-            for col in range(cols):
-                plot_kwargs = dict(row=row, col=col, background=background)
-                if tickFormatter == 'date':
-                    date_fmtr = DateAxis(orientation='bottom')
-                    plot_kwargs['axisItems'] = {'bottom': date_fmtr}
-                plot = self._gl.addPlot(**plot_kwargs)
-                plot.getAxis('left').setWidth(40)
-
-                if len(self._plots) > 0:
-                    if sharex:
-                        plot.setXLink(self._plots[0])
-                    if sharey:
-                        plot.setYLink(self._plots[0])
-
-                plot.showGrid(x=grid, y=grid)
-                plot.addLegend(offset=(-15, 15))
-                self._plots.append(plot)
-
-    @property
-    def plots(self):
-        return self._plots
-
-    def __len__(self):
-        return len(self._plots)
-
-    def add_series(self, series: pd.Series, idx=0, formatter='date', *args, **kwargs):
-        # TODO why not get rid of the wrappers and perfrom the functionality here
-        # Remove a layer of confusing indirection
-        # return self._wrapped[idx].add_series(series, *args, **kwargs)
-        plot = self._plots[idx]
-        sid = id(series)
-        if sid in self._lines:
-            # Constraint - allow line on only 1 plot at a time
-            self.remove_series(series)
-
-        xvals = pd.to_numeric(series.index, errors='coerce')
-        yvals = pd.to_numeric(series.values, errors='coerce')
-        line = plot.plot(x=xvals, y=yvals, name=series.name, pen=next(self.colorcycle))
-        self._lines[sid] = line
-        return line
-
-    def remove_series(self, series: pd.Series):
-        # TODO: As above, remove the wrappers, do stuff here
-        sid = id(series)
-        if sid not in self._lines:
-
-            return
-        for plot in self._plots:  # type: PlotItem
-            plot.legend.removeItem(self._lines[sid].name())
-            plot.removeItem(self._lines[sid])
-        del self._lines[sid]
-
-    def clear(self):
-        """Clear all lines from all plots"""
-        for sid in self._lines:
-            for plot in self._plots:
-                plot.legend.removeItem(self._lines[sid].name())
-                plot.removeItem(self._lines[sid])
-
-        self._lines = {}
-
-
-    def add_onclick_handler(self, slot, rateLimit=60):
-        sp = SignalProxy(self._gl.scene().sigMouseClicked, rateLimit=rateLimit,
-                         slot=slot)
-        self._sigproxies.append(sp)
-        return sp
-
-    def get_xlim(self, index=0):
-        return self._plots[index].vb.viewRange()[0]
-
-    def get_ylim(self, index=0):
-        return self._plots[index].vb.viewRange()[1]
-
-    def get_plot(self, row):
-        return self._plots[row]
 
