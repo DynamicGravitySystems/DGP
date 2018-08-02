@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 from typing import List, Union
 
-from pandas import DataFrame, concat
+from pandas import DataFrame, Timestamp, concat
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QBrush, QIcon, QStandardItemModel, QStandardItem
 
@@ -53,11 +53,11 @@ class DataSegmentController(BaseController):
 class DataSetController(IDataSetController):
     def __init__(self, dataset: DataSet, flight: IFlightController):
         super().__init__()
-        self.log = logging.getLogger(__name__)
         self._dataset = dataset
         self._flight: IFlightController = flight
         self._project = self._flight.project
         self._active = False
+        self.log = logging.getLogger(__name__)
 
         self.setEditable(False)
         self.setText(self._dataset.name)
@@ -148,8 +148,8 @@ class DataSetController(IDataSetController):
             return self._gravity
         try:
             self._gravity = HDF5Manager.load_data(self._dataset.gravity, self.hdfpath)
-        except Exception as e:
-            pass
+        except Exception:
+            self.log.exception(f'Exception loading gravity from HDF')
         finally:
             return self._gravity
 
@@ -161,8 +161,8 @@ class DataSetController(IDataSetController):
             return self._trajectory
         try:
             self._trajectory = HDF5Manager.load_data(self._dataset.trajectory, self.hdfpath)
-        except Exception as e:
-            pass
+        except Exception:
+            self.log.exception(f'Exception loading trajectory data from HDF')
         finally:
             return self._trajectory
 
@@ -275,5 +275,5 @@ class DataSetController(IDataSetController):
             self.set_attr('name', name)
 
     def _set_sensor_dlg(self):
-
+        # TODO: Dialog to enable selection of sensor assoc with the dataset
         pass
