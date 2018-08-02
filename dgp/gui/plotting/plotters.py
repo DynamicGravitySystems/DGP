@@ -47,11 +47,9 @@ class TransformPlot:  # pragma: no cover
     def plots(self) -> List[PlotItem]:
         return self.widget.plots
 
-    def __getattr__(self, item):
-        try:
-            return getattr(self.widget, item)
-        except AttributeError:
-            raise AttributeError("Plot Widget has no Attribute: ", item)
+    def set_axis_formatters(self, formatter: AxisFormatter):
+        for i in range(self.rows):
+            self.set_xaxis_formatter(formatter, i, 0)
 
 
 class LineSelectPlot(GridPlotWidget):
@@ -120,7 +118,7 @@ class LineSelectPlot(GridPlotWidget):
 
         grpid = uid or OID(tag='segment')
         # Note pd.to_datetime(scalar) returns pd.Timestamp
-        update = LineUpdate('add', grpid,
+        update = LineUpdate(StateAction.CREATE, grpid,
                             pd.to_datetime(start), pd.to_datetime(stop), label)
 
         lfr_group = []
@@ -150,7 +148,7 @@ class LineSelectPlot(GridPlotWidget):
 
         grpid = item.group
         x0, x1 = item.getRegion()
-        update = LineUpdate('remove', grpid,
+        update = LineUpdate(StateAction.DELETE, grpid,
                             pd.to_datetime(x0), pd.to_datetime(x1), None)
         grp = self._segments[grpid]
         for i, plot in enumerate(self.plots):
@@ -172,7 +170,7 @@ class LineSelectPlot(GridPlotWidget):
             lfr.set_label(text)
 
         x0, x1 = item.getRegion()
-        update = LineUpdate('modify', item.group,
+        update = LineUpdate(StateAction.UPDATE, item.group,
                             pd.to_datetime(x0), pd.to_datetime(x1), text)
         self.sigSegmentChanged.emit(update)
 
@@ -239,9 +237,15 @@ class LineSelectPlot(GridPlotWidget):
         self._updating = False
 
     def _update_done(self):
+        """Called when the update_timer times out to emit the completed update
+
+        Create a :class:`LineUpdate` with the modified line segment parameters
+        start, stop, _label
+
+        """
         self._update_timer.stop()
         x0, x1 = self._line_update.getRegion()
-        update = LineUpdate('modify', self._line_update.group,
+        update = LineUpdate(StateAction.UPDATE, self._line_update.group,
                             pd.to_datetime(x0), pd.to_datetime(x1), None)
         self.sigSegmentChanged.emit(update)
         self._line_update = None

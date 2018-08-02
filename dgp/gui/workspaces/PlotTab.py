@@ -8,10 +8,12 @@ from PyQt5.QtGui import QStandardItem
 from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QDockWidget, QSizePolicy
 import PyQt5.QtWidgets as QtWidgets
 
+from dgp.core import StateAction
 from dgp.core.models.dataset import DataSegment
 from dgp.gui.widgets.channel_select_widget import ChannelSelectWidget
 from dgp.core.controllers.flight_controller import FlightController
 from dgp.gui.plotting.plotters import LineUpdate, LineSelectPlot
+from dgp.gui.plotting.backends import Axis
 from .TaskTab import TaskTab
 
 
@@ -85,12 +87,15 @@ class PlotTab(TaskTab):
         qhbl_main.addWidget(dock_widget)
         self.setLayout(qhbl_main)
 
-    def _channel_added(self, plot: int, item: QStandardItem):
-        item = self._plot.add_series(item.data(Qt.UserRole), plot)
-        plot = self._plot.get_plot(row=plot)
-        items = plot.curves
-        print(f'Plot data curves: {items}')
-        plot.autoRange(items=items)
+    def _channel_added(self, row: int, item: QStandardItem):
+        series: pd.Series = item.data(Qt.UserRole)
+        if series.max(skipna=True) < 1000:
+            axis = Axis.RIGHT
+        else:
+            axis = Axis.LEFT
+        self._plot.add_series(item.data(Qt.UserRole), row, axis=axis)
+        # plot = self._plot.get_plot(row=row)
+        # plot.autoRange(items=plot.curves)
 
     def _channel_removed(self, item: QStandardItem):
         # TODO: Fix this for new API
@@ -110,23 +115,16 @@ class PlotTab(TaskTab):
             self._ql_mode.setText("")
 
     def _on_modified_line(self, update: LineUpdate):
-        if update.action == 'remove':
+        if update.action is StateAction.DELETE:
             self._dataset.remove_segment(update.uid)
             return
 
-        start = update.start
-        stop = update.stop
-        print(f'start type {type(start)} stop {type(stop)}')
-        try:
-            if isinstance(start, pd.Timestamp):
-                start = start.timestamp()
-            if isinstance(stop, pd.Timestamp):
-                stop = stop.timestamp()
-        except OSError:
-            self.log.exception(f"Error converting Timestamp to float POSIX timestamp start {start} stop {stop}")
-            return
+        start: pd.Timestamp = update.start
+        stop: pd.Timestamp = update.stop
+        assert isinstance(start, pd.Timestamp)
+        assert isinstance(stop, pd.Timestamp)
 
-        if update.action == 'modify':
+        if update.action is StateAction.UPDATE:
             self._dataset.update_segment(update.uid, start, stop, update.label)
         else:
             self._dataset.add_segment(update.uid, start, stop, update.label)

@@ -16,9 +16,10 @@ from PyQt5.QtWidgets import QWidget, QGraphicsScene, QGraphicsSceneMouseEvent
 from pyqtgraph import GraphicsLayout, PlotItem, PlotDataItem, LegendItem, Point
 from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent
 
+from dgp.core import AxisFormatter
 from dgp.core.oid import OID
 from dgp.core.types.tuples import LineUpdate
-from dgp.gui.plotting.backends import GridPlotWidget
+from dgp.gui.plotting.backends import GridPlotWidget, Axis
 from dgp.gui.plotting.plotters import LineSelectPlot
 from dgp.gui.plotting.helpers import PolyAxis, LinearFlightRegion
 
@@ -47,16 +48,16 @@ def test_GridPlotWidget_init():
 
 
 def test_GridPlotWidget_make_index(gravdata):
-    assert ('gravity', 0, 1, 'left') == GridPlotWidget.make_index(gravdata['gravity'].name, 0, 1)
+    assert ('gravity', 0, 1, Axis.LEFT) == GridPlotWidget.make_index(gravdata['gravity'].name, 0, 1)
 
     unnamed_ser = pd.Series(np.zeros(14), name='')
     with pytest.raises(ValueError):
         GridPlotWidget.make_index(unnamed_ser.name, 1, 1)
 
     upper_ser = pd.Series(np.zeros(14), name='GraVitY')
-    assert ('gravity', 2, 0, 'left') == GridPlotWidget.make_index(upper_ser.name, 2, 0)
+    assert ('gravity', 2, 0, Axis.LEFT) == GridPlotWidget.make_index(upper_ser.name, 2, 0)
 
-    assert ('long_acc', 3, 1, 'left') == GridPlotWidget.make_index('long_acc', 3, 1, 'sideways')
+    assert ('long_acc', 3, 1, Axis.LEFT) == GridPlotWidget.make_index('long_acc', 3, 1, 'sideways')
 
 
 def test_GridPlotWidget_add_series(gravity):
@@ -104,20 +105,20 @@ def test_GridPlotWidget_add_series(gravity):
 def test_GridPlotWidget_remove_series(gravity):
     gpw = GridPlotWidget(rows=3, multiy=True)
     p0 = gpw.get_plot(row=0)
-    p0right = gpw.get_plot(row=0, axis='right')
+    p0right = gpw.get_plot(row=0, axis=Axis.RIGHT)
     p1 = gpw.get_plot(row=1)
     p2 = gpw.get_plot(row=2)
 
     assert 0 == len(p0.dataItems) == len(p1.dataItems) == len(p2.dataItems)
-    _grav0 = gpw.add_series(gravity, row=0, axis='left')
-    _grav1 = gpw.add_series(gravity, row=0, axis='right')
+    _grav0 = gpw.add_series(gravity, row=0, axis=Axis.LEFT)
+    _grav1 = gpw.add_series(gravity, row=0, axis=Axis.RIGHT)
 
     assert 1 == len(p0.dataItems) == len(p0right.dataItems)
 
-    gpw.remove_series(gravity.name, 0, axis='left')
+    gpw.remove_series(gravity.name, 0, axis=Axis.LEFT)
     assert 0 == len(p0.dataItems)
     assert 1 == len(p0right.dataItems)
-    gpw.remove_series(gravity.name, 0, axis='right')
+    gpw.remove_series(gravity.name, 0, axis=Axis.RIGHT)
     assert 0 == len(p0right.dataItems)
 
 
@@ -154,7 +155,7 @@ def test_GridPlotWidget_find_series(gravity):
     gpw.add_series(gravity, 0)
     gpw.add_series(gravity, 2)
 
-    expected = [(gravity.name, 0, 0, 'left'), (gravity.name, 2, 0, 'left')]
+    expected = [(gravity.name, 0, 0, Axis.LEFT), (gravity.name, 2, 0, Axis.LEFT)]
     result = gpw.find_series(gravity.name)
     assert expected == result
 
@@ -171,7 +172,7 @@ def test_GridPlotWidget_set_xaxis_formatter(gravity):
 
     p0 = gpw.get_plot(0)
     btm_axis_p0 = p0.getAxis('bottom')
-    gpw.set_xaxis_formatter(formatter='datetime', row=0)
+    gpw.set_xaxis_formatter(formatter=AxisFormatter.DATETIME, row=0)
     assert isinstance(btm_axis_p0, PolyAxis)
     assert btm_axis_p0.timeaxis
 
@@ -180,7 +181,7 @@ def test_GridPlotWidget_set_xaxis_formatter(gravity):
     assert isinstance(btm_axis_p1, PolyAxis)
     assert not btm_axis_p1.timeaxis
 
-    gpw.set_xaxis_formatter(formatter='scalar', row=0)
+    gpw.set_xaxis_formatter(formatter=AxisFormatter.SCALAR, row=0)
     assert not p0.getAxis('bottom').timeaxis
 
 
@@ -188,7 +189,7 @@ def test_GridPlotWidget_sharex(gravity):
     """Test linked vs unlinked x-axis scales"""
     gpw_unlinked = GridPlotWidget(rows=2, sharex=False)
 
-    gpw_unlinked.add_series(gravity, 0)
+    gpw_unlinked.add_series(gravity, 0, autorange=False)
     up0_xlim = gpw_unlinked.get_xlim(row=0)
     up1_xlim = gpw_unlinked.get_xlim(row=1)
 
@@ -245,16 +246,16 @@ def test_GridPlotWidget_multi_y(gravdata):
 
     p0 = gpw.get_plot(0)
     gpw.add_series(_gravity, 0)
-    gpw.add_series(_longacc, 0, axis='right')
+    gpw.add_series(_longacc, 0, axis=Axis.RIGHT)
 
     # Legend entry for right axis should appear on p0 legend
     assert _gravity.name in [label.text for _, label in p0.legend.items]
     assert _longacc.name in [label.text for _, label in p0.legend.items]
 
     assert 1 == len(gpw.get_plot(0).dataItems)
-    assert 1 == len(gpw.get_plot(0, axis='right').dataItems)
+    assert 1 == len(gpw.get_plot(0, axis=Axis.RIGHT).dataItems)
 
-    assert gpw.get_xlim(0) == gpw.get_plot(0, axis='right').vb.viewRange()[0]
+    assert gpw.get_xlim(0) == gpw.get_plot(0, axis=Axis.RIGHT).vb.viewRange()[0]
 
 
 @pytest.mark.skip

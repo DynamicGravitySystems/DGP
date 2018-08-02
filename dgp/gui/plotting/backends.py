@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from enum import Enum, auto
 from itertools import cycle
 from typing import List, Union, Tuple, Generator, Dict
 
@@ -8,10 +9,19 @@ from pyqtgraph.graphicsItems.GraphicsLayout import GraphicsLayout
 from pyqtgraph.graphicsItems.PlotItem import PlotItem
 from pyqtgraph import SignalProxy, PlotDataItem
 
-from .helpers import DateAxis, PolyAxis
+from dgp.core import AxisFormatter
+from .helpers import PolyAxis
 
-__all__ = ['GridPlotWidget', 'PyQtGridPlotWidget']
+__all__ = ['GridPlotWidget']
 
+
+class Axis(Enum):
+    LEFT = 'left'
+    RIGHT = 'right'
+
+
+MaybeSeries = Union[pd.Series, None]
+PlotIndex = Tuple[str, int, int, Axis]
 LINE_COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
                '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
 
@@ -114,8 +124,8 @@ class GridPlotWidget(GraphicsView):
 
         self.__signal_proxies = []
 
-    def get_plot(self, row: int, col: int = 0, axis: str = 'left') -> PlotItem:
-        if axis.lower() == 'right':
+    def get_plot(self, row: int, col: int = 0, axis: Axis = Axis.LEFT) -> PlotItem:
+        if axis is Axis.RIGHT:
             return self._rightaxis[(row, col)]
         else:
             return self.gl.getItem(row, col)
@@ -126,7 +136,7 @@ class GridPlotWidget(GraphicsView):
             yield self.get_plot(i, 0)
 
     def add_series(self, series: pd.Series, row: int, col: int = 0,
-                   axis: str = 'left'):
+                   axis: Axis = Axis.LEFT, autorange: bool = True) -> PlotItem:
         """Add a pandas :class:`pandas.Series` to the plot at the specified
         row/column
 
@@ -136,21 +146,23 @@ class GridPlotWidget(GraphicsView):
             The Pandas Series to add; series.index and series.values are taken
             to be the x and y axis respectively
         row : int
-        col : int
-        axis : str
+        col : int, optional
+        axis : str, optional
             'left' or 'right' - specifies which y-scale the series should be
             plotted on. Only has effect if self.multiy is True.
+        autorange : bool, optional
 
         Returns
         -------
+        PlotItem
 
         """
         key = self.make_index(series.name, row, col, axis)
         if self.get_series(*key) is not None:
-            return
+            return self._items[key]
 
         self._series[key] = series
-        if axis == 'right':
+        if axis is Axis.RIGHT:
             plot = self._rightaxis.get((row, col), self.get_plot(row, col))
         else:
             plot = self.get_plot(row, col)
@@ -160,11 +172,12 @@ class GridPlotWidget(GraphicsView):
         self._items[key] = item
         return item
 
-    def get_series(self, name: str, row, col=0, axis='left') -> Union[pd.Series, None]:
-        return self._series.get((name, row, col, axis), None)
+    def get_series(self, name: str, row, col=0, axis: Axis = Axis.LEFT) -> MaybeSeries:
+        idx = self.make_index(name, row, col, axis)
+        return self._series.get(idx, None)
 
     def remove_series(self, name: str, row: int, col: int = 0,
-                      axis: str = 'left') -> None:
+                      axis: Axis = Axis.LEFT, autoscale: bool = True) -> None:
         plot = self.get_plot(row, col, axis)
         key = self.make_index(name, row, col, axis)
         plot.removeItem(self._items[key])
@@ -180,6 +193,13 @@ class GridPlotWidget(GraphicsView):
                 plot.clear()
         self._items = {}
         self._series = {}
+
+    def autorange_plot(self, row: int, col: int = 0):
+        plot_l = self.get_plot(row, col, axis=Axis.LEFT)
+        plot_l.autoRange(items=plot_l.curves)
+        if self._rightaxis:
+            plot_r = self.get_plot(row, col, axis=Axis.RIGHT)
+            plot_r.autoRange(items=plot_r.curves)
 
     def remove_plotitem(self, item: PlotDataItem) -> None:
         """Alternative method of removing a line by its :class:`PlotDataItem`
@@ -202,7 +222,7 @@ class GridPlotWidget(GraphicsView):
 
                     del self._series[self.make_index(name, *index[0])]
 
-    def find_series(self, name: str) -> List[Tuple[str, int, int, str]]:
+    def find_series(self, name: str) -> List[PlotIndex]:
         """Find and return a list of all indexes where a series with
         Series.name == name
 
@@ -224,7 +244,7 @@ class GridPlotWidget(GraphicsView):
 
         return indexes
 
-    def set_xaxis_formatter(self, formatter: str, row: int, col: int = 0):
+    def set_xaxis_formatter(self, formatter: AxisFormatter, row: int, col: int = 0):
         """Allow setting of the X-Axis tick formatter to display DateTime or
         scalar values.
         This is an explicit call, as opposed to letting the AxisItem infer the
@@ -244,7 +264,7 @@ class GridPlotWidget(GraphicsView):
         """
         plot = self.get_plot(row, col)
         axis: PolyAxis = plot.getAxis('bottom')
-        if formatter.lower() == 'datetime':
+        if formatter is AxisFormatter.DATETIME:
             axis.timeaxis = True
         else:
             axis.timeaxis = False
@@ -289,9 +309,9 @@ class GridPlotWidget(GraphicsView):
         return sp
 
     @staticmethod
-    def make_index(name: str, row: int, col: int = 0, axis: str = 'left'):
-        if axis not in ('left', 'right'):
-            axis = 'left'
+    def make_index(name: str, row: int, col: int = 0, axis: Axis = Axis.LEFT) -> PlotIndex:
+        if axis not in Axis:
+            axis = Axis.LEFT
         if name is None or name is '':
             raise ValueError("Cannot create plot index from empty name.")
         return name.lower(), row, col, axis

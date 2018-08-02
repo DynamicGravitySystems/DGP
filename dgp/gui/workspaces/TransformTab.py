@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 
 import logging
-from typing import Union, List
+from enum import Enum, auto
+from typing import List
 
 import pandas as pd
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
-from PyQt5.QtWidgets import QVBoxLayout, QWidget, QComboBox
+from PyQt5.QtWidgets import QVBoxLayout, QWidget
 
+from dgp.core import AxisFormatter
 from dgp.core.controllers.dataset_controller import DataSegmentController, DataSetController
 from dgp.core.controllers.flight_controller import FlightController
 from dgp.lib.transform.transform_graphs import SyncGravity, AirbornePost, TransformGraph
