@@ -105,10 +105,10 @@ class PlotTab(TaskTab):
             self._plot.remove_series(*index)
 
     def _clear_plot(self):
-        self.plot.clear()
+        self._plot.clear()
 
     def _toggle_selection(self, state: bool):
-        self.plot.selection_mode = state
+        self._plot.selection_mode = state
         if state:
             self._ql_mode.setText("<h2><b>Line Selection Active</b></h2>")
         else:

@@ -142,15 +142,14 @@ class LinearFlightRegion(LinearRegionItem):
 
         self.parent = parent
         self._grpid = None
-        self._label_text = label or ''
-        self.label = TextItem(text=self._label_text, color=(0, 0, 0),
-                              anchor=(0, 0))
+        self._label = TextItem(text=label or '', color=(0, 0, 0),
+                               anchor=(0, 0))
         self._label_y = 0
-        self._move_label(self)
+        self._update_label_pos()
         self._menu = QMenu()
-        self._menu.addAction('Remove', self._remove)
-        self._menu.addAction('Set Label', self._getlabel)
-        self.sigRegionChanged.connect(self._move_label)
+        self._menu.addAction('Remove', lambda: self.sigDeleteRequested.emit(self))
+        self._menu.addAction('Set Label', self._get_label_dlg)
+        self.sigRegionChanged.connect(self._update_label_pos)
 
     @property
     def group(self):
@@ -159,6 +158,16 @@ class LinearFlightRegion(LinearRegionItem):
     @group.setter
     def group(self, value):
         self._grpid = value
+
+    @property
+    def label(self) -> str:
+        return self._label.textItem.toPlainText()
+
+    @label.setter
+    def label(self, value: str) -> None:
+        """Set the label text, limiting input to 10 characters"""
+        self._label.setText(value[:10])
+        self._update_label_pos()
 
     def mouseClickEvent(self, ev: MouseClickEvent):
         if not self.parent.selection_mode:
@@ -171,26 +180,17 @@ class LinearFlightRegion(LinearRegionItem):
         else:
             return super().mouseClickEvent(ev)
 
-    def _move_label(self, lfr):
+    def _update_label_pos(self):
         x0, x1 = self.getRegion()
         cx = x0 + (x1 - x0) / 2
-        self.label.setPos(cx, self.label.pos()[1])
+        self._label.setPos(cx, self._label.pos()[1])
 
-    def _remove(self):
-        try:
-            self.parent.remove_segment(self)
-        except AttributeError:
-            return
-
-    def _getlabel(self):
-        text, result = QInputDialog.getText(None, "Enter Label", "Line Label:",
-                                            text=self._label_text)
+    def _get_label_dlg(self):  # pragma: no cover
+        text, result = QInputDialog.getText(self.parent, "Enter Label",
+                                            "Line Label:", text=self.label)
         if not result:
             return
-        try:
-            self.parent.set_label(self, str(text).strip())
-        except AttributeError:
-            return
+        self.sigLabelChanged.emit(self, str(text).strip())
 
     def y_changed(self, vb, ylims):
         """pyqtSlot (ViewBox, Tuple[Float, Float])
@@ -198,13 +198,8 @@ class LinearFlightRegion(LinearRegionItem):
         Y-Limits have changed
 
         """
-        x = self.label.pos()[0]
+        x = self._label.pos()[0]
         y = ylims[0] + (ylims[1] - ylims[0]) / 2
-        self.label.setPos(x, y)
-
-    def set_label(self, text):
-        self._label_text = text[:10]
-        self.label.setText(self._label_text)
-        self._move_label(self)
+        self._label.setPos(x, y)
 
     # TODO: Add dialog action to manually adjust left/right bounds

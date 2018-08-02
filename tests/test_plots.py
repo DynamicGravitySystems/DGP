@@ -439,16 +439,16 @@ def test_LineSelectPlot_set_label(gravity: pd.Series):
     segment1 = segment_grp[1]
 
     assert isinstance(segment0, LinearFlightRegion)
-    assert '' == segment0.label.textItem.toPlainText()
-    assert '' == segment0._label_text
+    assert '' == segment0._label.textItem.toPlainText()
+    assert '' == segment0.label
 
     _label = 'Flight-1'
     plot.set_label(segment0, _label)
     assert 2 == len(update_spy)
     update = update_spy[1][0]
     assert _label == update.label
-    assert _label == segment0.label.textItem.toPlainText()
-    assert _label == segment1.label.textItem.toPlainText()
+    assert _label == segment0._label.textItem.toPlainText()
+    assert _label == segment1._label.textItem.toPlainText()
 
     with pytest.raises(TypeError):
         plot.set_label(uid, 'Fail')
@@ -473,3 +473,7 @@ def test_LineSelectPlot_check_proximity(gravdata):
     assert not plot._check_proximity(xpos, span, proximity=0.2)
     xpos = gravdata.index[4].value
     assert plot._check_proximity(xpos, span, proximity=0.2)
+
+
+def test_LineSelectPlot_clear():
+    pass

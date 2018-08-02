@@ -116,10 +116,12 @@ class LineSelectPlot(GridPlotWidget):
             lfr = LinearFlightRegion(parent=self, label=label)
             lfr.group = grpid
             plot.addItem(lfr)
-            plot.addItem(lfr.label)
+            plot.addItem(lfr._label)
             lfr.setRegion(patch_region)
             lfr.setMovable(self._selecting)
             lfr.sigRegionChanged.connect(self._update_segments)
+            lfr.sigLabelChanged.connect(self.set_label)
+            lfr.sigDeleteRequested.connect(self.remove_segment)
             plot.sigYRangeChanged.connect(lfr.y_changed)
 
             lfr_group.append(lfr)
@@ -150,17 +152,18 @@ class LineSelectPlot(GridPlotWidget):
                 plot.sigYRangeChanged.disconnect(lfr.y_changed)
             except TypeError:  # pragma: no cover
                 pass
-            plot.removeItem(lfr.label)
+            plot.removeItem(lfr._label)
             plot.removeItem(lfr)
         del self._segments[grpid]
         self.sigSegmentChanged.emit(update)
 
     def set_label(self, item: LinearFlightRegion, text: str):
+        """Set the text label of every LFR in the same group as item"""
         if not isinstance(item, LinearFlightRegion):
             raise TypeError(f'Item must be of type LinearFlightRegion')
         group = self._segments[item.group]
         for lfr in group:  # type: LinearFlightRegion
-            lfr.set_label(text)
+            lfr.label = text
 
         x0, x1 = item.getRegion()
         update = LineUpdate(StateAction.UPDATE, item.group,
