@@ -3,6 +3,8 @@ from pathlib import Path
 from typing import List
 from datetime import datetime
 
+from pandas import Timestamp
+
 from dgp.core.types.reference import Reference
 from dgp.core.models.datafile import DataFile
 from dgp.core.oid import OID
@@ -11,36 +13,51 @@ __all__ = ['DataSegment', 'DataSet']
 
 
 class DataSegment:
-    def __init__(self, uid: OID, start: float, stop: float, sequence: int,
+    def __init__(self, uid: OID, start: int, stop: int, sequence: int,
                  label: str = None):
         self.uid = uid
         self.uid.set_pointer(self)
-        self._start = start
-        self._stop = stop
+        if isinstance(start, Timestamp):
+            self._start = start.value
+        else:
+            self._start = start
+        if isinstance(stop, Timestamp):
+            self._stop = stop.value
+        else:
+            self._stop = stop
         self.sequence = sequence
         self.label = label
 
     @property
-    def start(self) -> datetime:
-        return datetime.fromtimestamp(self._start)
+    def start(self) -> Timestamp:
+        try:
+            return Timestamp(self._start)
+        except OSError:
+            return Timestamp(0)
 
     @start.setter
-    def start(self, value: float) -> None:
-        self._start = value
+    def start(self, value: Timestamp) -> None:
+        self._start = value.value
 
     @property
-    def stop(self) -> datetime:
-        return datetime.fromtimestamp(self._stop)
+    def stop(self) -> Timestamp:
+        try:
+            return Timestamp(self._stop)
+        except OSError:
+            return Timestamp(0)
 
     @stop.setter
-    def stop(self, value: float) -> None:
-        self._stop = value
+    def stop(self, value: Timestamp) -> None:
+        self._stop = value.value
 
     def __str__(self):
-        return f'<{self.start:%H:%M} - {self.stop:%H:%M}>'
+        return f'<{self.start.to_pydatetime(warn=False):%H:%M} -' \
+               f' {self.stop.to_pydatetime(warn=False):%H:%M}>'
 
     def __repr__(self):
-        return f'<DataSegment {self.uid!s} {self.start:%H:%M} - {self.stop:%H:%M}>'
+        return f'<DataSegment {self.uid!s} ' \
+               f'{self.start.to_pydatetime(warn=False):%H:%M} - ' \
+               f'{self.stop.to_pydatetime(warn=False):%H:%M}>'
 
 
 class DataSet:

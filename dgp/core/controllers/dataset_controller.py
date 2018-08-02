@@ -211,9 +211,10 @@ class DataSetController(IDataSetController):
     def get_datafile(self, group) -> DataFileController:
         return self._child_map[group]
 
-    def add_segment(self, uid: OID, start: float, stop: float,
+    def add_segment(self, uid: OID, start: Timestamp, stop: Timestamp,
                     label: str = "") -> DataSegmentController:
-        segment = DataSegment(uid, start, stop, self._segments.rowCount(), label)
+        segment = DataSegment(uid, start, stop,
+                              self._segments.rowCount(), label)
         self._dataset.segments.append(segment)
         seg_ctrl = DataSegmentController(segment)
         self._segments.appendRow(seg_ctrl)
@@ -224,8 +225,8 @@ class DataSetController(IDataSetController):
             if segment.uid == uid:
                 return segment
 
-    def update_segment(self, uid: OID, start: float = None, stop: float = None,
-                       label: str = None):
+    def update_segment(self, uid: OID, start: Timestamp = None,
+                       stop: Timestamp = None, label: str = None):
         segment = self.get_segment(uid)
         # TODO: Find a better way to deal with model item clones
         if segment is None:

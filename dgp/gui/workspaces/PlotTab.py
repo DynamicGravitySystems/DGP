@@ -36,15 +36,13 @@ class PlotTab(TaskTab):
         self._plot.sigSegmentChanged.connect(self._on_modified_line)
 
         for segment in self._dataset.datamodel.segments:  # type: DataSegment
-            self._plot.add_segment(segment.start.timestamp(), segment.stop.timestamp(),
-                                   segment.label, segment.uid, emit=False)
+            self._plot.add_segment(segment.start, segment.stop, segment.label,
+                                   segment.uid, emit=False)
 
         self._setup_ui()
 
         # TODO:There should also be a check to ensure that the lines are within the bounds of the data
         # Huge slowdowns occur when trying to plot a FlightLine and a channel when the points are weeks apart
-        # for line in flight.lines:
-        #     self.plot.add_linked_selection(line.start.timestamp(), line.stop.timestamp(), uid=line.uid, emit=False)
 
     def _setup_ui(self):
         qhbl_main = QHBoxLayout()

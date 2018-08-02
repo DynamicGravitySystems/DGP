@@ -60,16 +60,20 @@ class PolyAxis(AxisItem):
         labels = []
         for i, loc in enumerate(values):
             try:
-                dt: datetime = pd.to_datetime(loc)
+                ts: pd.Timestamp = pd.Timestamp(loc)
             except (OverflowError, ValueError, OSError):
                 LOG.exception(f'Exception converting {loc} to date string.')
                 labels.append('')
                 continue
 
-            if i == 0 and len(values) > 2:
-                label = dt.strftime('%d-%b-%y %H:%M:%S')
-            else:
-                label = dt.strftime(fmt)
+            try:
+                if i == 0 and len(values) > 2:
+                    label = ts.strftime('%d-%b-%y %H:%M:%S')
+                else:
+                    label = ts.strftime(fmt)
+            except ValueError:
+                LOG.warning("Timestamp conversion out-of-bounds")
+                label = 'OoB'
 
             labels.append(label)
         return labels
