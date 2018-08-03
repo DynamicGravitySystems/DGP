@@ -5,7 +5,7 @@ import logging
 from enum import auto
 
 __all__ = ['AxisFormatter', 'StateAction', 'StateColor', 'Icon', 'ProjectTypes',
-           'MeterTypes', 'DataTypes']
+           'MeterTypes', 'DataType']
 
 LOG_LEVEL_MAP = {'debug': logging.DEBUG, 'info': logging.INFO,
                  'warning': logging.WARNING, 'error': logging.ERROR,

@@ -13,9 +13,9 @@ before_script:
   - "export DISPLAY=:99.0"
   - "sh -e /etc/init.d/xvfb start"
   - sleep 3
-  - python utils/build_uic.py dgp/gui/ui
+  - python utils/build_uic.py
 script:
-  pytest --cov=dgp tests
+  pytest --capture=no --cov=dgp tests
 after_success:
   - coveralls
 notifications:
