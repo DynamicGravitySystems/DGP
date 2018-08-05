@@ -90,8 +90,8 @@ def test_flight_controller(project: AirborneProject):
     _traj_data = [0, 1, 5, 9]
     _grav_data = [2, 8, 1, 0]
     # Load test data into temporary project HDFStore
-    HDF5Manager.save_data(DataFrame(_traj_data), data0, path=prj_ctrl.hdf5path)
-    HDF5Manager.save_data(DataFrame(_grav_data), data1, path=prj_ctrl.hdf5path)
+    HDF5Manager.save_data(DataFrame(_traj_data), data0, path=prj_ctrl.hdfpath)
+    HDF5Manager.save_data(DataFrame(_grav_data), data1, path=prj_ctrl.hdfpath)
 
     fc = prj_ctrl.add_child(flight)
     assert hash(fc)
@@ -138,7 +138,7 @@ def test_FlightController_bindings(project: AirborneProject):
     assert isinstance(fc0, FlightController)
 
     # Validate menu bindings
-    for binding in fc0.menu_bindings:
+    for binding in fc0.menu:
         assert 2 == len(binding)
         assert hasattr(QMenu, binding[0])
 

@@ -6,7 +6,10 @@ from PyQt5.QtCore import QObject, QModelIndex, pyqtSlot, pyqtBoundSignal
 from PyQt5.QtGui import QContextMenuEvent, QStandardItem
 from PyQt5.QtWidgets import QTreeView, QMenu
 
-from dgp.core.controllers.controller_interfaces import IAirborneController, IChild
+from dgp.core.controllers.controller_interfaces import (IAirborneController,
+                                                        IChild,
+                                                        IBaseController,
+                                                        MenuBinding, IParent)
 from dgp.core.controllers.project_treemodel import ProjectTreeModel
 
 
@@ -74,20 +77,24 @@ class ProjectTreeView(QTreeView):
             self.setExpanded(index, not self.isExpanded(index))
         self.model().item_activated(index)
 
-    def _build_menu(self, menu: QMenu, bindings: List[Tuple[str, Tuple[Any]]]):
+    def _build_menu(self, menu: QMenu, bindings: List[MenuBinding]):
         self._action_refs.clear()
-        for attr, params in bindings:
+        for attr, args in bindings:
             if hasattr(QMenu, attr):
-                res = getattr(menu, attr)(*params)
+                res = getattr(menu, attr)(*args)
                 self._action_refs.append(res)
 
     def contextMenuEvent(self, event: QContextMenuEvent, *args, **kwargs):
         index = self.indexAt(event.pos())
-        item = self.model().itemFromIndex(index)  # type: QStandardItem
+        item: IBaseController = self.model().itemFromIndex(index)
         expanded = self.isExpanded(index)
 
         menu = QMenu(self)
-        bindings = getattr(item, 'menu_bindings', [])[:]  # type: List
+        # bindings = getattr(item, 'menu_bindings', [])[:]  # type: List
+        if isinstance(item, IBaseController):
+            bindings = item.menu[:]
+        else:
+            bindings = []
 
         # Experimental Menu Inheritance/Extend functionality
         # if hasattr(event_item, 'inherit_context') and event_item.inherit_context:
@@ -108,11 +115,13 @@ class ProjectTreeView(QTreeView):
         #     pprint(ancestor_bindings)
         #     bindings.extend(ancestor_bindings)
 
+        bindings.append(('addSeparator', ()))
         if isinstance(item, IAirborneController):
-            bindings.insert(0, ('addAction', ("Expand All", self.expandAll)))
+            bindings.append(('addAction', ("Expand All", self.expandAll)))
 
-        bindings.append(('addAction', ("Expand" if not expanded else "Collapse",
-                                       lambda: self.setExpanded(index, not expanded))))
+        if item.rowCount():
+            bindings.append(('addAction', ("Expand" if not expanded else "Collapse",
+                                           lambda: self.setExpanded(index, not expanded))))
         # bindings.append(('addAction', ("Properties", self._get_item_attr(item, 'properties'))))
 
         self._build_menu(menu, bindings)

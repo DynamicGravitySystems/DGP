@@ -138,6 +138,9 @@ class ProjectTreeModel(QStandardItemModel):
         elif isinstance(item, IDataSetController):
             item.get_parent().activate_child(item.uid)
 
+    def project_mutated(self, project: IAirborneController):
+        self.projectMutated.emit()
+
     def save_projects(self):
         for i in range(self.rowCount()):
             prj: IAirborneController = self.item(i, 0)

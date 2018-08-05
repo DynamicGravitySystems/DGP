@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 from pathlib import Path
 from typing import List, Union
 
@@ -6,8 +7,9 @@ from pandas import DataFrame, concat
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QBrush, QIcon, QStandardItemModel, QStandardItem
 
-from dgp.core.hdf5_manager import HDF5Manager
 from dgp.core.oid import OID
+from dgp.core.types.enumerations import Icon
+from dgp.core.hdf5_manager import HDF5Manager
 from dgp.core.controllers import controller_helpers
 from dgp.core.models.datafile import DataFile
 from dgp.core.models.dataset import DataSet, DataSegment
@@ -36,6 +38,10 @@ class DataSegmentController(BaseController):
     def datamodel(self) -> DataSegment:
         return self._segment
 
+    @property
+    def menu(self):
+        return []
+
     def update(self):
         self.setText(str(self._segment))
         self.setToolTip(repr(self._segment))
@@ -47,6 +53,7 @@ class DataSegmentController(BaseController):
 class DataSetController(IDataSetController):
     def __init__(self, dataset: DataSet, flight: IFlightController):
         super().__init__()
+        self.log = logging.getLogger(__name__)
         self._dataset = dataset
         self._flight: IFlightController = flight
         self._project = self._flight.project
@@ -54,7 +61,7 @@ class DataSetController(IDataSetController):
 
         self.setEditable(False)
         self.setText(self._dataset.name)
-        self.setIcon(QIcon(":icons/folder_open.png"))
+        self.setIcon(QIcon(Icon.OPEN_FOLDER.value))
         self.setBackground(QBrush(QColor(StateColor.INACTIVE.value)))
         self._grav_file = DataFileController(self._dataset.gravity, self)
         self._traj_file = DataFileController(self._dataset.trajectory, self)
@@ -79,12 +86,12 @@ class DataSetController(IDataSetController):
         self._menu_bindings = [  # pragma: no cover
             ('addAction', ('Set Name', self._set_name)),
             ('addAction', ('Set Active', lambda: self.get_parent().activate_child(self.uid))),
-            ('addAction', (QIcon(':/icons/meter_config.png'), 'Set Sensor',
+            ('addAction', (QIcon(Icon.METER.value), 'Set Sensor',
                            self._set_sensor_dlg)),
             ('addSeparator', ()),
-            ('addAction', (QIcon(':/icons/gravity'), 'Import Gravity',
+            ('addAction', (QIcon(Icon.GRAVITY.value), 'Import Gravity',
                            lambda: self._project.load_file_dlg(DataTypes.GRAVITY, dataset=self))),
-            ('addAction', (QIcon(':/icons/gps'), 'Import Trajectory',
+            ('addAction', (QIcon(Icon.TRAJECTORY.value), 'Import Trajectory',
                            lambda: self._project.load_file_dlg(DataTypes.TRAJECTORY, dataset=self))),
             ('addAction', ('Align Data', self.align)),
             ('addSeparator', ()),
@@ -101,10 +108,10 @@ class DataSetController(IDataSetController):
 
     @property
     def hdfpath(self) -> Path:
-        return self._flight.get_parent().hdf5path
+        return self._flight.get_parent().hdfpath
 
     @property
-    def menu_bindings(self):  # pragma: no cover
+    def menu(self):  # pragma: no cover
         return self._menu_bindings
 
     @property
@@ -162,8 +169,7 @@ class DataSetController(IDataSetController):
 
     def align(self):
         if self.gravity.empty or self.trajectory.empty:
-            # debug
-            print(f'Gravity or Trajectory is empty, cannot align')
+            self.log.info(f'Gravity or Trajectory is empty, cannot align.')
             return
         from dgp.lib.gravity_ingestor import DGS_AT1A_INTERP_FIELDS
         from dgp.lib.trajectory_ingestor import TRAJECTORY_INTERP_FIELDS
@@ -173,7 +179,7 @@ class DataSetController(IDataSetController):
                                       interp_only=fields)
         self._gravity = n_grav
         self._trajectory = n_traj
-        print('DataFrame aligned')
+        self.log.info(f'DataFrame aligned.')
 
     # def slice(self, segment_uid: OID):
     #     df = self.dataframe()

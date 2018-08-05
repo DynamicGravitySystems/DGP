@@ -32,7 +32,7 @@ class GravimeterController(IMeterController):
         return self._meter
 
     @property
-    def menu_bindings(self):
+    def menu(self):
         return self._bindings
 
     def get_parent(self) -> IAirborneController:

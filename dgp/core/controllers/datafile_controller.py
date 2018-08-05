@@ -1,17 +1,14 @@
 # -*- coding: utf-8 -*-
 import logging
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QStandardItem, QIcon
+from PyQt5.QtGui import QIcon
 
 from dgp.core.oid import OID
 from dgp.core.controllers.controller_interfaces import IDataSetController
 from dgp.core.controllers.controller_interfaces import IFlightController
 from dgp.core.controllers.controller_mixins import AttributeProxy
+from dgp.core.types.enumerations import Icon
 from dgp.core.models.datafile import DataFile
-
-
-GRAV_ICON = ":/icons/gravity"
-GPS_ICON = ":/icons/gps"
 
 
 class DataFileController(QStandardItem, AttributeProxy):
@@ -33,11 +30,11 @@ class DataFileController(QStandardItem, AttributeProxy):
         return self._datafile.uid
 
     @property
-    def dataset(self) -> 'IDataSetController':
+    def dataset(self) -> IDataSetController:
         return self._dataset
 
     @property
-    def menu_bindings(self):  # pragma: no cover
+    def menu(self):  # pragma: no cover
         return self._bindings
 
     @property
@@ -59,9 +56,9 @@ class DataFileController(QStandardItem, AttributeProxy):
             self.setToolTip("Source path: {!s}".format(datafile.source_path))
             self.setData(datafile, role=Qt.UserRole)
             if self._datafile.group == 'gravity':
-                self.setIcon(QIcon(GRAV_ICON))
+                self.setIcon(QIcon(Icon.GRAVITY.value))
             elif self._datafile.group == 'trajectory':
-                self.setIcon(QIcon(GPS_ICON))
+                self.setIcon(QIcon(Icon.TRAJECTORY.value))
 
     def _describe(self):
         pass

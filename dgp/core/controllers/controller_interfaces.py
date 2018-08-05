@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from pathlib import Path
-from typing import Union, Generator
+from typing import Union, Generator, List, Tuple, Any
 
 from PyQt5.QtGui import QStandardItem, QStandardItemModel
 from PyQt5.QtWidgets import QWidget
@@ -19,6 +19,8 @@ Abstract Base Classes (collections.ABC) are not used due to the complications
 invited with multiple inheritance and metaclass mis-matching. As most controller
 level classes also subclass QStandardItem and/or AttributeProxy.
 """
+
+MenuBinding = Tuple[str, Tuple[Any, ...]]
 
 
 class DGPObject:
@@ -193,6 +195,10 @@ class IBaseController(QStandardItem, AttributeProxy, DGPObject):
         except AttributeError:
             return None
 
+    @property
+    def menu(self) -> List[MenuBinding]:
+        raise NotImplementedError
+
 
 class IAirborneController(IBaseController, IParent, IChild):
     def add_flight_dlg(self):
@@ -207,7 +213,7 @@ class IAirborneController(IBaseController, IParent, IChild):
         raise NotImplementedError
 
     @property
-    def hdf5path(self) -> Path:
+    def hdfpath(self) -> Path:
         raise NotImplementedError
 
     @property
@@ -236,12 +242,19 @@ class IFlightController(IBaseController, IParent, IChild):
     def project(self) -> IAirborneController:
         raise NotImplementedError
 
+    def get_parent(self) -> IAirborneController:
+        raise NotImplementedError
+
 
 class IMeterController(IBaseController, IChild):
     pass
 
 
 class IDataSetController(IBaseController, IChild):
+    @property
+    def hdfpath(self) -> Path:
+        raise NotImplementedError
+
     @property
     def can_activate(self):
         return True

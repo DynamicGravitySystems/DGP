@@ -95,14 +95,7 @@ class FlightController(IFlightController):
             yield self.child(i, 0)
 
     @property
-    def menu_bindings(self):  # pragma: no cover
-        """
-        Returns
-        -------
-        List[Tuple[str, Tuple[str, Callable],...]
-            A list of tuples declaring the QMenu construction parameters for this
-            object.
-        """
+    def menu(self):  # pragma: no cover
         return self._bindings
 
     @property

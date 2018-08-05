@@ -133,11 +133,11 @@ class AirborneProjectController(IAirborneController):
         return self._project.path
 
     @property
-    def menu_bindings(self):  # pragma: no cover
+    def menu(self):  # pragma: no cover
         return self._bindings
 
     @property
-    def hdf5path(self) -> Path:
+    def hdfpath(self) -> Path:
         return self._project.path.joinpath("dgpdata.hdf5")
 
     @property
@@ -239,10 +239,9 @@ class AirborneProjectController(IAirborneController):
         data has been added/removed/modified in the project."""
         self.setText(self._project.name)
         try:
-            self.get_parent().projectMutated.emit()
+            self.get_parent().project_mutated(self)
         except AttributeError:
-            warnings.warn(f"project model not set for project "
-                          f"{self.get_attr('name')}")
+            self.log.warning(f"project {self.get_attr('name')} has no parent")
 
     def _post_load(self, datafile: DataFile, dataset: IDataSetController,
                    data: DataFrame) -> None:  # pragma: no cover
@@ -258,14 +257,13 @@ class AirborneProjectController(IAirborneController):
             The ingested pandas DataFrame to be dumped to the HDF5 store
 
         """
-        if HDF5Manager.save_data(data, datafile, path=self.hdf5path):
+        if HDF5Manager.save_data(data, datafile, path=self.hdfpath):
             self.log.info("Data imported and saved to HDF5 Store")
         dataset.add_datafile(datafile)
         try:
-            self.get_parent().projectMutated.emit()
+            self.get_parent().project_mutated(self)
         except AttributeError:
-            warnings.warn(f"parent model not set for project "
-                          f"{self.get_attr('name')}")
+            self.log.warning(f"project {self.get_attr('name')} has no parent")
 
     def load_file_dlg(self, datatype: DataTypes = DataTypes.GRAVITY,
                       flight: IFlightController = None,
@@ -319,5 +317,4 @@ class AirborneProjectController(IAirborneController):
         try:
             self.get_parent().remove_project(self)
         except AttributeError:
-            warnings.warn(f"unable to close project, parent model is not set"
-                          f"for project {self.get_attr('name')}")
+            self.log.warning(f"project {self.get_attr('name')} has no parent")

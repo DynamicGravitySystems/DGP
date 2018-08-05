@@ -135,7 +135,7 @@ def test_MainWindow_open_project_dialog(window: MainWindow, project_factory, tmp
     prj2: AirborneProject = project_factory("Proj2", tmpdir, dataset=False)
     prj2_ctrl = AirborneProjectController(prj2)
     prj2_ctrl.save()
-    prj2_ctrl.hdf5path.touch(exist_ok=True)
+    prj2_ctrl.hdfpath.touch(exist_ok=True)
 
     assert window.model.active_project.path != prj2_ctrl.path
     assert 1 == window.model.rowCount()
