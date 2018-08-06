@@ -25,26 +25,28 @@ class FlightController(IFlightController):
     through a FlightController in order to ensure that the data and presentation
     state is kept synchronized.
 
-    As a child of :obj:`QStandardItem` the FlightController can be directly
+    As a subclass of :obj:`QStandardItem` the FlightController can be directly
     added as a child to another QStandardItem, or as a row/child in a
     :obj:`QAbstractItemModel` or :obj:`QStandardItemModel`
     The default display behavior is to provide the Flights Name.
     A :obj:`QIcon` or string path to a resource can be provided for decoration.
 
-    The FlightController class also acts as a proxy to the underlying :obj:`Flight`
-    by implementing __getattr__, and allowing access to any @property decorated
-    methods of the Flight.
+    FlightController implements the AttributeProxy mixin (via IBaseController),
+    which allows access to the underlying :class:`Flight` attributes via the
+    get_attr and set_attr methods.
 
     Parameters
     ----------
     flight : :class:`Flight`
-    project : :class:`IAirborneController`, Optional
+        The underlying Flight model object to wrap with this controller
+    project : :class:`IAirborneController`
+        The parent (owning) project for this flight controller
 
     """
 
     inherit_context = True
 
-    def __init__(self, flight: Flight, project: IAirborneController = None):
+    def __init__(self, flight: Flight, project: IAirborneController):
         """Assemble the view/controller repr from the base flight object."""
         super().__init__()
         self.log = logging.getLogger(__name__)

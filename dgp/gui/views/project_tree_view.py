@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-from typing import Optional, Tuple, Any, List
+from typing import Optional, List
 
 from PyQt5 import QtCore
-from PyQt5.QtCore import QObject, QModelIndex, pyqtSlot, pyqtBoundSignal
-from PyQt5.QtGui import QContextMenuEvent, QStandardItem
+from PyQt5.QtCore import QObject, QModelIndex, pyqtSlot
+from PyQt5.QtGui import QContextMenuEvent
 from PyQt5.QtWidgets import QTreeView, QMenu
 
 from dgp.core.controllers.controller_interfaces import (IAirborneController,
                                                         IChild,
                                                         IBaseController,
-                                                        MenuBinding, IParent)
+                                                        MenuBinding)
 from dgp.core.controllers.project_treemodel import ProjectTreeModel
 
 

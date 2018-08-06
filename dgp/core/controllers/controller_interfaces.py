@@ -21,6 +21,7 @@ level classes also subclass QStandardItem and/or AttributeProxy.
 """
 
 MenuBinding = Tuple[str, Tuple[Any, ...]]
+MaybeChild = Union['IChild', None]
 
 
 class DGPObject:
@@ -50,13 +51,16 @@ class IChild(DGPObject):
 
     """
     def get_parent(self) -> 'IParent':
+        """Return the parent object of this child"""
         raise NotImplementedError
 
     def set_parent(self, parent) -> None:
+        """Set the parent object of this child"""
         raise NotImplementedError
 
     @property
     def can_activate(self) -> bool:
+        """Return whether this child can be activated"""
         return False
 
     @property
@@ -125,10 +129,10 @@ class IParent(DGPObject):
         """
         raise NotImplementedError
 
-    def remove_child(self, child, confirm: bool = True) -> None:
+    def remove_child(self, child, confirm: bool = True) -> bool:
         raise NotImplementedError
 
-    def get_child(self, uid: Union[str, OID]) -> IChild:
+    def get_child(self, uid: Union[str, OID]) -> MaybeChild:
         """Get a child of this object by matching OID
 
         Parameters
@@ -148,7 +152,7 @@ class IParent(DGPObject):
                 return child
 
     def activate_child(self, uid: OID, exclusive: bool = True,
-                       emit: bool = False) -> Union[IChild, None]:
+                       emit: bool = False) -> MaybeChild:
         """Activate a child referenced by the given OID, and return a reference
         to the activated child.
         Children may be exclusively activated (default behavior), in which case
@@ -179,9 +183,14 @@ class IParent(DGPObject):
             return child
 
     @property
-    def active_child(self) -> Union[IChild, None]:
-        """Returns the first active child object, or None if no children are
-        active.
+    def active_child(self) -> MaybeChild:
+        """Get the active child of this parent.
+
+        Returns
+        -------
+        IChild, None
+            The first active child, or None if there are no children which are
+            active.
 
         """
         return next((child for child in self.children if child.is_active), None)
@@ -251,6 +260,12 @@ class IMeterController(IBaseController, IChild):
 
 
 class IDataSetController(IBaseController, IChild):
+    def get_parent(self) -> IFlightController:
+        raise NotImplementedError
+
+    def set_parent(self, parent) -> None:
+        raise NotImplementedError
+
     @property
     def hdfpath(self) -> Path:
         raise NotImplementedError

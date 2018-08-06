@@ -131,7 +131,7 @@ def test_reference_serialization():
                           flights=[flt])
     prj.add_child(sensor)
     assert flt.parent is prj
-    assert sensor == ds.sensor
+    assert sensor is ds.sensor
 
     serialized0 = prj.to_json(indent=2)
 
