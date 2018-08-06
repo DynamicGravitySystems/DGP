@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import QWidget
 
 from dgp.core.controllers.controller_mixins import AttributeProxy
 from dgp.core.oid import OID
-from dgp.core.types.enumerations import DataTypes
+from dgp.core.types.enumerations import DataType
 
 
 """
@@ -207,7 +207,7 @@ class IAirborneController(IBaseController, IParent, IChild):
     def add_gravimeter_dlg(self):
         raise NotImplementedError
 
-    def load_file_dlg(self, datatype: DataTypes,
+    def load_file_dlg(self, datatype: DataType,
                       flight: 'IFlightController' = None,
                       dataset: 'IDataSetController' = None):  # pragma: no cover
         raise NotImplementedError

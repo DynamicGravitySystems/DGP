@@ -3,6 +3,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from dgp.core import DataType
 from dgp.core.oid import OID
 
 
@@ -26,12 +27,12 @@ class DataFile:
     __slots__ = ('uid', 'date', 'name', 'group', 'source_path',
                  'column_format')
 
-    def __init__(self, group: str, date: datetime, source_path: Path,
+    def __init__(self, group: DataType, date: datetime, source_path: Path,
                  name: Optional[str] = None, column_format=None,
                  uid: Optional[OID] = None):
         self.uid = uid or OID(self)
         self.uid.set_pointer(self)
-        self.group = group.lower()
+        self.group = group
         self.date = date
         self.source_path = Path(source_path)
         self.name = name or self.source_path.name
@@ -39,7 +40,7 @@ class DataFile:
 
     @property
     def label(self) -> str:
-        return f'[{self.group}] {self.name}'
+        return f'[{self.group.value}] {self.name}'
 
     @property
     def nodepath(self) -> str:
@@ -51,10 +52,10 @@ class DataFile:
         An underscore (_) is prepended to the parent and uid ID's to avoid the
         NaturalNameWarning generated if the UID begins with a number.
         """
-        return f'/{self.group}/_{self.uid.base_uuid}'
+        return f'/{self.group.value}/_{self.uid.base_uuid}'
 
     def __str__(self):
-        return f'({self.group}) :: {self.nodepath}'
+        return f'({self.group.value}) :: {self.nodepath}'
 
     def __hash__(self):
         return hash(self.uid)

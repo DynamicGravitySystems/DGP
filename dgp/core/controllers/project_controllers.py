@@ -24,7 +24,7 @@ from dgp.core.models.datafile import DataFile
 from dgp.core.models.flight import Flight
 from dgp.core.models.meter import Gravimeter
 from dgp.core.models.project import GravityProject, AirborneProject
-from dgp.core.types.enumerations import DataTypes, Icon, StateColor
+from dgp.core.types.enumerations import DataType, Icon, StateColor
 from dgp.gui.utils import ProgressEvent
 from dgp.gui.dialogs.add_flight_dialog import AddFlightDialog
 from dgp.gui.dialogs.add_gravimeter_dialog import AddGravimeterDialog
@@ -265,7 +265,7 @@ class AirborneProjectController(IAirborneController):
         except AttributeError:
             self.log.warning(f"project {self.get_attr('name')} has no parent")
 
-    def load_file_dlg(self, datatype: DataTypes = DataTypes.GRAVITY,
+    def load_file_dlg(self, datatype: DataType = DataType.GRAVITY,
                       flight: IFlightController = None,
                       dataset: IDataSetController = None) -> None:  # pragma: no cover
         """
@@ -278,7 +278,7 @@ class AirborneProjectController(IAirborneController):
 
         Parameters
         ----------
-        datatype : DataTypes
+        datatype : DataType
 
         flight : IFlightController, optional
             Set the default flight selected when launching the dialog
@@ -286,15 +286,15 @@ class AirborneProjectController(IAirborneController):
             Set the default Dataset selected when launching the dialog
 
         """
-        def load_data(datafile: DataFile, params: dict, parent: IDataSetController):
-            if datafile.group == 'gravity':
+        def _on_load(datafile: DataFile, params: dict, parent: IDataSetController):
+            if datafile.group is DataType.GRAVITY:
                 method = read_at1a
-            elif datafile.group == 'trajectory':
+            elif datafile.group is DataType.TRAJECTORY:
                 method = import_trajectory
             else:
                 self.log.error("Unrecognized data group: " + datafile.group)
                 return
-            progress_event = ProgressEvent(self.uid, f"Loading {datafile.group}", stop=0)
+            progress_event = ProgressEvent(self.uid, f"Loading {datafile.group.value}", stop=0)
             self.get_parent().progressNotificationRequested.emit(progress_event)
             loader = FileLoader(datafile.source_path, method,
                                 parent=self.parent_widget, **params)
@@ -306,7 +306,7 @@ class AirborneProjectController(IAirborneController):
         dlg = DataImportDialog(self, datatype, parent=self.parent_widget)
         if flight is not None:
             dlg.set_initial_flight(flight)
-        dlg.load.connect(load_data)
+        dlg.load.connect(_on_load)
         dlg.exec_()
 
     def properties_dlg(self):  # pragma: no cover

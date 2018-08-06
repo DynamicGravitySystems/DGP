@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 import pandas as pd
 
+from dgp.core import DataType
 from dgp.core.models.project import AirborneProject
 from dgp.core.hdf5_manager import HDF5Manager
 from dgp.core.models.datafile import DataFile
@@ -112,8 +113,8 @@ def test_gravimeter():
 
 def test_dataset(tmpdir):
     path = Path(tmpdir).joinpath("test.hdf5")
-    df_grav = DataFile('gravity', datetime.utcnow(), Path('gravity.dat'))
-    df_traj = DataFile('trajectory', datetime.utcnow(), Path('gps.dat'))
+    df_grav = DataFile(DataType.GRAVITY, datetime.utcnow(), Path('gravity.dat'))
+    df_traj = DataFile(DataType.TRAJECTORY, datetime.utcnow(), Path('gps.dat'))
     dataset = DataSet(df_grav, df_traj)
 
     assert df_grav == dataset.gravity

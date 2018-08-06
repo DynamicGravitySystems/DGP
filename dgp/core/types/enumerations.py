@@ -51,7 +51,7 @@ class MeterTypes(enum.Enum):
     TAGS = 'tags'
 
 
-class DataTypes(enum.Enum):
+class DataType(enum.Enum):
     """Gravity/Trajectory Data Types"""
     GRAVITY = 'gravity'
     TRAJECTORY = 'trajectory'

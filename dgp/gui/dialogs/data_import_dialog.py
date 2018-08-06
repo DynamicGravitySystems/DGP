@@ -10,11 +10,11 @@ from PyQt5.QtCore import Qt, pyqtSlot, pyqtSignal, QDate, QRegExp
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIcon, QRegExpValidator
 from PyQt5.QtWidgets import QDialog, QFileDialog, QListWidgetItem, QCalendarWidget, QWidget, QFormLayout
 
+from dgp.core import Icon, DataType
 from dgp.core.controllers.gravimeter_controller import GravimeterController
 from dgp.core.controllers.dataset_controller import DataSetController
 from dgp.core.controllers.controller_interfaces import IAirborneController, IFlightController, IDataSetController
 from dgp.core.models.datafile import DataFile
-from dgp.core.types.enumerations import DataTypes
 from dgp.gui.ui.data_import_dialog import Ui_DataImportDialog
 from .dialog_mixins import FormValidator
 from .custom_validators import FileExistsValidator
@@ -27,7 +27,7 @@ class DataImportDialog(QDialog, Ui_DataImportDialog, FormValidator):
     load = pyqtSignal(DataFile, dict, DataSetController)
 
     def __init__(self, project: IAirborneController,
-                 datatype: DataTypes, base_path: str = None,
+                 datatype: DataType, base_path: str = None,
                  parent: Optional[QWidget] = None):
         super().__init__(parent=parent)
         self.setupUi(self)
@@ -36,19 +36,19 @@ class DataImportDialog(QDialog, Ui_DataImportDialog, FormValidator):
         self._project = project
         self._datatype = datatype
         self._base_path = base_path or str(Path().home().resolve())
-        self._type_map = {DataTypes.GRAVITY: 0, DataTypes.TRAJECTORY: 1}
-        self._type_filters = {DataTypes.GRAVITY: "Gravity (*.dat *.csv);;Any (*.*)",
-                              DataTypes.TRAJECTORY: "Trajectory (*.dat *.csv *.txt);;Any (*.*)"}
+        self._type_map = {DataType.GRAVITY: 0, DataType.TRAJECTORY: 1}
+        self._type_filters = {DataType.GRAVITY: "Gravity (*.dat *.csv);;Any (*.*)",
+                              DataType.TRAJECTORY: "Trajectory (*.dat *.csv *.txt);;Any (*.*)"}
 
         # Declare parameter names and values mapped from the dialog for specific DataType
         # These match up with the methods in trajectory/gravity_ingestor
         self._params_map = {
-            DataTypes.GRAVITY: {
+            DataType.GRAVITY: {
                 'columns': lambda: None,  # TODO: Change in future based on Sensor Type
                 'interp': lambda: self.qchb_grav_interp.isChecked(),
                 'skiprows': lambda: 1 if self.qchb_grav_hasheader.isChecked() else 0
             },
-            DataTypes.TRAJECTORY: {
+            DataType.TRAJECTORY: {
                 'timeformat': lambda: self.qcb_traj_timeformat.currentText().lower(),
                 'columns': lambda: self.qcb_traj_timeformat.currentData(Qt.UserRole),
                 'skiprows': lambda: 1 if self.qchb_traj_hasheader.isChecked() else 0,
@@ -56,10 +56,10 @@ class DataImportDialog(QDialog, Ui_DataImportDialog, FormValidator):
             }
         }
 
-        self._gravity = QListWidgetItem(QIcon(":/icons/gravity"), "Gravity")
-        self._gravity.setData(Qt.UserRole, DataTypes.GRAVITY)
-        self._trajectory = QListWidgetItem(QIcon(":/icons/gps"), "Trajectory")
-        self._trajectory.setData(Qt.UserRole, DataTypes.TRAJECTORY)
+        self._gravity = QListWidgetItem(QIcon(Icon.GRAVITY.value), "Gravity")
+        self._gravity.setData(Qt.UserRole, DataType.GRAVITY)
+        self._trajectory = QListWidgetItem(QIcon(Icon.TRAJECTORY.value), "Trajectory")
+        self._trajectory.setData(Qt.UserRole, DataType.TRAJECTORY)
 
         self.qlw_datatype.addItem(self._gravity)
         self.qlw_datatype.addItem(self._trajectory)
@@ -67,10 +67,6 @@ class DataImportDialog(QDialog, Ui_DataImportDialog, FormValidator):
 
         self.qcb_flight.currentIndexChanged.connect(self._flight_changed)
         self.qcb_flight.setModel(self.project.flight_model)
-
-        # Dataset support - experimental
-        # self._dataset_model = QStandardItemModel()
-        # self.qcb_dataset.setModel(self._dataset_model)
 
         self.qde_date.setDate(datetime.today())
         self._calendar = QCalendarWidget()
@@ -150,7 +146,7 @@ class DataImportDialog(QDialog, Ui_DataImportDialog, FormValidator):
         return Path(self.qle_filepath.text())
 
     @property
-    def datatype(self) -> DataTypes:
+    def datatype(self) -> DataType:
         return self.qlw_datatype.currentItem().data(Qt.UserRole)
 
     @property
@@ -167,7 +163,7 @@ class DataImportDialog(QDialog, Ui_DataImportDialog, FormValidator):
             print("Dialog input not valid")
             return
 
-        file = DataFile(self.datatype.value.lower(), date=self.date,
+        file = DataFile(self.datatype, date=self.date,
                         source_path=self.file_path, name=self.qle_rename.text())
         param_map = self._params_map[self.datatype]
         params = {key: value() for key, value in param_map.items()}

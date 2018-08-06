@@ -3,6 +3,7 @@ import logging
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 
+from dgp.core import DataType
 from dgp.core.oid import OID
 from dgp.core.controllers.controller_interfaces import IDataSetController
 from dgp.core.controllers.controller_interfaces import IFlightController
@@ -58,9 +59,9 @@ class DataFileController(QStandardItem, AttributeProxy):
             self.setText(datafile.label)
             self.setToolTip("Source path: {!s}".format(datafile.source_path))
             self.setData(datafile, role=Qt.UserRole)
-            if self._datafile.group == 'gravity':
+            if self._datafile.group is DataType.GRAVITY:
                 self.setIcon(QIcon(Icon.GRAVITY.value))
-            elif self._datafile.group == 'trajectory':
+            elif self._datafile.group is DataType.TRAJECTORY:
                 self.setIcon(QIcon(Icon.TRAJECTORY.value))
 
     def _describe(self):

@@ -9,6 +9,7 @@ from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QWidget, QMenu
 from pandas import DataFrame
 
+from dgp.core import DataType
 from dgp.core.oid import OID
 from dgp.core.hdf5_manager import HDF5Manager
 from dgp.core.models.dataset import DataSet, DataSegment
@@ -81,8 +82,8 @@ def test_gravimeter_controller(tmpdir):
 def test_flight_controller(project: AirborneProject):
     prj_ctrl = AirborneProjectController(project)
     flight = Flight('Test-Flt-1')
-    data0 = DataFile('trajectory', datetime(2018, 5, 10), Path('./data0.dat'))
-    data1 = DataFile('gravity', datetime(2018, 5, 15), Path('./data1.dat'))
+    data0 = DataFile(DataType.TRAJECTORY, datetime(2018, 5, 10), Path('./data0.dat'))
+    data1 = DataFile(DataType.GRAVITY, datetime(2018, 5, 15), Path('./data1.dat'))
     dataset = DataSet(data1, data0)
     # dataset.set_active(True)
     flight.datasets.append(dataset)
@@ -225,8 +226,8 @@ def test_dataset_controller(tmpdir):
     hdf = Path(tmpdir).joinpath('test.hdf5')
     prj = AirborneProject(name="TestPrj", path=Path(tmpdir))
     flt = Flight("TestFlt")
-    grav_file = DataFile('gravity', datetime.now(), Path(tmpdir).joinpath('gravity.dat'))
-    traj_file = DataFile('trajectory', datetime.now(), Path(tmpdir).joinpath('trajectory.txt'))
+    grav_file = DataFile(DataType.GRAVITY, datetime.now(), Path(tmpdir).joinpath('gravity.dat'))
+    traj_file = DataFile(DataType.TRAJECTORY, datetime.now(), Path(tmpdir).joinpath('trajectory.txt'))
     ds = DataSet(grav_file, traj_file)
     seg0 = DataSegment(OID(), datetime.now().timestamp(), datetime.now().timestamp() + 5000, 0)
     ds.segments.append(seg0)
@@ -244,11 +245,11 @@ def test_dataset_controller(tmpdir):
     assert grav_file == dsc.get_datafile(grav_file.group).datamodel
     assert traj_file == dsc.get_datafile(traj_file.group).datamodel
 
-    grav1_file = DataFile('gravity', datetime.now(), Path(tmpdir).joinpath('gravity2.dat'))
+    grav1_file = DataFile(DataType.GRAVITY, datetime.now(), Path(tmpdir).joinpath('gravity2.dat'))
     dsc.add_datafile(grav1_file)
     assert grav1_file == dsc.get_datafile(grav1_file.group).datamodel
 
-    traj1_file = DataFile('trajectory', datetime.now(), Path(tmpdir).joinpath('traj2.txt'))
+    traj1_file = DataFile(DataType.TRAJECTORY, datetime.now(), Path(tmpdir).joinpath('traj2.txt'))
     dsc.add_datafile(traj1_file)
     assert traj1_file == dsc.get_datafile(traj1_file.group).datamodel
 
@@ -308,9 +309,9 @@ def test_dataset_datafiles(project: AirborneProject):
     ds_ctrl = flt_ctrl.get_child(flt_ctrl.datamodel.datasets[0].uid)
 
     grav_file = ds_ctrl.datamodel.gravity
-    grav_file_ctrl = ds_ctrl.get_datafile('gravity')
+    grav_file_ctrl = ds_ctrl.get_datafile(DataType.GRAVITY)
     gps_file = ds_ctrl.datamodel.trajectory
-    gps_file_ctrl = ds_ctrl.get_datafile('trajectory')
+    gps_file_ctrl = ds_ctrl.get_datafile(DataType.TRAJECTORY)
 
     assert grav_file.uid == grav_file_ctrl.uid
     assert ds_ctrl == grav_file_ctrl.dataset
@@ -352,9 +353,9 @@ def test_dataset_data_api(project: AirborneProject, hdf5file, gravdata, gpsdata)
     prj_ctrl = AirborneProjectController(project)
     flt_ctrl = prj_ctrl.get_child(project.flights[0].uid)
 
-    gravfile = DataFile('gravity', datetime.now(),
+    gravfile = DataFile(DataType.GRAVITY, datetime.now(),
                         Path('tests/sample_gravity.csv'))
-    gpsfile = DataFile('trajectory', datetime.now(),
+    gpsfile = DataFile(DataType.TRAJECTORY, datetime.now(),
                        Path('tests/sample_trajectory.txt'), column_format='hms')
 
     dataset = DataSet(gravfile, gpsfile)

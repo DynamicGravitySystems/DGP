@@ -10,6 +10,7 @@ import pytest
 from PyQt5 import QtCore
 from PyQt5.QtWidgets import QApplication
 
+from dgp.core import DataType
 from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.core.hdf5_manager import HDF5_NAME
 from dgp.core.models.datafile import DataFile
@@ -77,8 +78,8 @@ def project_factory():
 
         mtr = Gravimeter.from_ini(Path('tests').joinpath('at1m.ini'), name="AT1A-X")
 
-        grav1 = DataFile('gravity', datetime.now(), base_dir.joinpath('gravity1.dat'))
-        traj1 = DataFile('trajectory', datetime.now(), base_dir.joinpath('gps1.dat'))
+        grav1 = DataFile(DataType.GRAVITY, datetime.now(), base_dir.joinpath('gravity1.dat'))
+        traj1 = DataFile(DataType.TRAJECTORY, datetime.now(), base_dir.joinpath('gps1.dat'))
         seg1 = DataSegment(OID(), get_ts(0), get_ts(1500), 0, "seg1")
         seg2 = DataSegment(OID(), get_ts(1501), get_ts(3000), 1, "seg2")
 

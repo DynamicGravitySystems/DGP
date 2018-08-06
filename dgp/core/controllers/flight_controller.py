@@ -12,7 +12,7 @@ from dgp.core.controllers.dataset_controller import DataSetController
 from dgp.core.controllers.controller_interfaces import IAirborneController, IFlightController
 from dgp.core.models.dataset import DataSet
 from dgp.core.models.flight import Flight
-from dgp.core.types.enumerations import DataTypes, StateColor
+from dgp.core.types.enumerations import DataType, StateColor
 from dgp.gui.dialogs.add_flight_dialog import AddFlightDialog
 
 
@@ -73,9 +73,9 @@ class FlightController(IFlightController):
             ('addAction', ('Set Active',
                            lambda: self._activate_self())),
             ('addAction', ('Import Gravity',
-                           lambda: self._load_file_dialog(DataTypes.GRAVITY))),
+                           lambda: self._load_file_dialog(DataType.GRAVITY))),
             ('addAction', ('Import Trajectory',
-                           lambda: self._load_file_dialog(DataTypes.TRAJECTORY))),
+                           lambda: self._load_file_dialog(DataType.TRAJECTORY))),
             ('addSeparator', ()),
             ('addAction', (f'Delete {self._flight.name}',
                            lambda: self._delete_self(confirm=True))),
@@ -245,7 +245,7 @@ class FlightController(IFlightController):
         if name:
             self.set_attr('name', name)
 
-    def _load_file_dialog(self, datatype: DataTypes):  # pragma: no cover
+    def _load_file_dialog(self, datatype: DataType):  # pragma: no cover
         self.get_parent().load_file_dlg(datatype, flight=self)
 
     def _show_properties_dlg(self):  # pragma: no cover

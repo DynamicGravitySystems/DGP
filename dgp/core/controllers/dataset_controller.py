@@ -13,7 +13,7 @@ from dgp.core.hdf5_manager import HDF5Manager
 from dgp.core.controllers import controller_helpers
 from dgp.core.models.datafile import DataFile
 from dgp.core.models.dataset import DataSet, DataSegment
-from dgp.core.types.enumerations import DataTypes, StateColor
+from dgp.core.types.enumerations import DataType, StateColor
 from dgp.lib.etc import align_frames
 
 from .controller_interfaces import IFlightController, IDataSetController
@@ -65,8 +65,8 @@ class DataSetController(IDataSetController):
         self.setBackground(QBrush(QColor(StateColor.INACTIVE.value)))
         self._grav_file = DataFileController(self._dataset.gravity, self)
         self._traj_file = DataFileController(self._dataset.trajectory, self)
-        self._child_map = {'gravity': self._grav_file,
-                           'trajectory': self._traj_file}
+        self._child_map = {DataType.GRAVITY: self._grav_file,
+                           DataType.TRAJECTORY: self._traj_file}
 
         self._segments = ProjectFolder("Segments")
         for segment in dataset.segments:
@@ -90,9 +90,9 @@ class DataSetController(IDataSetController):
                            self._set_sensor_dlg)),
             ('addSeparator', ()),
             ('addAction', (QIcon(Icon.GRAVITY.value), 'Import Gravity',
-                           lambda: self._project.load_file_dlg(DataTypes.GRAVITY, dataset=self))),
+                           lambda: self._project.load_file_dlg(DataType.GRAVITY, dataset=self))),
             ('addAction', (QIcon(Icon.TRAJECTORY.value), 'Import Trajectory',
-                           lambda: self._project.load_file_dlg(DataTypes.TRAJECTORY, dataset=self))),
+                           lambda: self._project.load_file_dlg(DataType.TRAJECTORY, dataset=self))),
             ('addAction', ('Align Data', self.align)),
             ('addSeparator', ()),
             ('addAction', ('Delete', lambda: self.get_parent().remove_child(self.uid))),
@@ -203,11 +203,11 @@ class DataSetController(IDataSetController):
 
     def add_datafile(self, datafile: DataFile) -> None:
         # datafile.set_parent(self)
-        if datafile.group == 'gravity':
+        if datafile.group is DataType.GRAVITY:
             self.datamodel.gravity = datafile
             self._grav_file.set_datafile(datafile)
             self._gravity = DataFrame()
-        elif datafile.group == 'trajectory':
+        elif datafile.group is DataType.TRAJECTORY:
             self.datamodel.trajectory = datafile
             self._traj_file.set_datafile(datafile)
             self._trajectory = DataFrame()

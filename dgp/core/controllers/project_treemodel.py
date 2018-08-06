@@ -5,7 +5,7 @@ from typing import Optional, Generator, Union
 from PyQt5.QtCore import QObject, QModelIndex, pyqtSignal, QSortFilterProxyModel, Qt
 from PyQt5.QtGui import QStandardItemModel
 
-from dgp.core.types.enumerations import DataTypes
+from dgp.core.types.enumerations import DataType
 from dgp.core.oid import OID
 from dgp.core.controllers.controller_interfaces import (IFlightController,
                                                         IAirborneController,
@@ -149,12 +149,12 @@ class ProjectTreeModel(QStandardItemModel):
     def import_gps(self):  # pragma: no cover
         if self.active_project is None:
             return self._warn_no_active_project()
-        self.active_project.load_file_dlg(DataTypes.TRAJECTORY)
+        self.active_project.load_file_dlg(DataType.TRAJECTORY)
 
     def import_gravity(self):  # pragma: no cover
         if self.active_project is None:
             return self._warn_no_active_project()
-        self.active_project.load_file_dlg(DataTypes.GRAVITY)
+        self.active_project.load_file_dlg(DataType.GRAVITY)
 
     def add_gravimeter(self):  # pragma: no cover
         if self.active_project is None:

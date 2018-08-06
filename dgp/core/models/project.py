@@ -12,6 +12,7 @@ from pathlib import Path
 from pprint import pprint
 from typing import Optional, List, Any, Dict, Union
 
+from dgp.core import DataType
 from dgp.core.types.reference import Reference
 from dgp.core.oid import OID
 from .flight import Flight
@@ -75,6 +76,9 @@ class ProjectEncoder(json.JSONEncoder):
             return {'_type': 'Path', 'path': str(o.resolve())}
         if isinstance(o, Reference):
             return o.serialize()
+        if isinstance(o, DataType):
+            j_complex['value'] = o.value
+            return j_complex
 
         return super().default(o)
 
@@ -153,6 +157,8 @@ class ProjectDecoder(json.JSONDecoder):
             return datetime.date.fromordinal(*params.values())
         elif _type == Path.__name__:
             return Path(*params.values())
+        elif _type == DataType.__name__:
+            return DataType(*params.values())
         elif _type == Reference.__name__:
             self._references.append((json_o['parent'], json_o['attr'], json_o['ref']))
             return None

@@ -17,7 +17,7 @@ from dgp.core.controllers.flight_controller import FlightController
 from dgp.core.models.flight import Flight
 from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.core.models.project import AirborneProject
-from dgp.core.types.enumerations import DataTypes
+from dgp.core.types.enumerations import DataType
 from dgp.gui.dialogs.add_gravimeter_dialog import AddGravimeterDialog
 from dgp.gui.dialogs.add_flight_dialog import AddFlightDialog
 from dgp.gui.dialogs.data_import_dialog import DataImportDialog
@@ -132,7 +132,7 @@ class TestDialogs:
         fc1 = project_ctrl.add_child(flt1)  # type: FlightController
         fc2 = project_ctrl.add_child(flt2)
 
-        dlg = DataImportDialog(project_ctrl, datatype=DataTypes.GRAVITY)
+        dlg = DataImportDialog(project_ctrl, datatype=DataType.GRAVITY)
         load_spy = QtTest.QSignalSpy(dlg.load)
 
         # test set_initial_flight
@@ -151,12 +151,12 @@ class TestDialogs:
 
         dlg.qchb_grav_interp.setChecked(True)
         assert dlg.qchb_grav_interp.isChecked()
-        _grav_map = dlg._params_map[DataTypes.GRAVITY]
+        _grav_map = dlg._params_map[DataType.GRAVITY]
         assert _grav_map['columns']() is None
         assert _grav_map['interp']()
         assert not _grav_map['skiprows']()
 
-        _traj_map = dlg._params_map[DataTypes.TRAJECTORY]
+        _traj_map = dlg._params_map[DataType.TRAJECTORY]
         _time_col_map = {
             'hms': ['mdy', 'hms', 'lat', 'long', 'ell_ht'],
             'sow': ['week', 'sow', 'lat', 'long', 'ell_ht'],
@@ -178,7 +178,7 @@ class TestDialogs:
 
         # Test emission of DataFile on _load_file
         # TODO: Fix this, need an actual file to test loading
-        # assert dlg.datatype == DataTypes.GRAVITY
+        # assert dlg.datatype == DataType.GRAVITY
         # dlg.qcb_flight.setCurrentIndex(0)
         # dlg.qcb_dataset.setCurrentIndex(0)
         # dlg.accept()
