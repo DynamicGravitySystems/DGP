@@ -8,6 +8,7 @@ from dgp.core.controllers.controller_interfaces import IDataSetController
 from dgp.core.controllers.controller_interfaces import IFlightController
 from dgp.core.controllers.controller_mixins import AttributeProxy
 from dgp.core.types.enumerations import Icon
+from dgp.core.controllers.controller_helpers import show_in_explorer
 from dgp.core.models.datafile import DataFile
 
 
@@ -23,6 +24,8 @@ class DataFileController(QStandardItem, AttributeProxy):
         self._bindings = [
             ('addAction', ('Describe', self._describe)),
             # ('addAction', ('Delete <%s>' % self._datafile, lambda: None))
+            ('addAction', (QIcon(Icon.OPEN_FOLDER.value), 'Show in Explorer',
+                           self._launch_explorer))
         ]
 
     @property
@@ -65,3 +68,6 @@ class DataFileController(QStandardItem, AttributeProxy):
         # df = self.flight.load_data(self)
         # self.log.debug(df.describe())
 
+    def _launch_explorer(self):
+        if self._datafile is not None:
+            show_in_explorer(self._datafile.source_path.parent)

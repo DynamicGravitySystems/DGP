@@ -70,7 +70,6 @@ def show_in_explorer(path: Path):  # pragma: no cover
     ----------
     path : :class:`pathlib.Path`
 
-    ToDo: Linux file explorer handling
     """
     dest = path.absolute().resolve()
     if sys.platform == 'darwin':
@@ -79,6 +78,9 @@ def show_in_explorer(path: Path):  # pragma: no cover
                f'"{dest!s}" -e end tell'
     elif sys.platform == 'win32':
         target = 'explorer'
+        args = shlex.quote(f'{dest!s}')
+    elif sys.platform == 'linux':
+        target = 'xdg-open'
         args = shlex.quote(f'{dest!s}')
     else:
         return
