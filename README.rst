@@ -7,7 +7,7 @@ DGP (Dynamic Gravity Processor)
     :target: https://ci.appveyor.com/project/bradyzp/dgp
 
 .. image:: https://coveralls.io/repos/github/DynamicGravitySystems/DGP/badge.svg?branch=feature%2Fproject-structure
-    :target: https://coveralls.io/github/DynamicGravitySystems/DGP?branch=feature%2Fproject-structure
+    :target: https://coveralls.io/github/DynamicGravitySystems/DGP?branch=develop
 
 .. image:: https://readthedocs.org/projects/dgp/badge/?version=develop
     :target: https://dgp.readthedocs.io/en/develop
