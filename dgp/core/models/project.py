@@ -2,8 +2,8 @@
 import json
 import json.decoder
 import datetime
+import warnings
 from pathlib import Path
-from pprint import pprint
 from typing import Optional, List, Any, Dict, Union, Tuple, Callable
 
 from dgp.core import DataType
@@ -311,14 +311,34 @@ class GravityProject:
         return json.loads(json_str, cls=ProjectDecoder, klass=cls)
 
     def to_json(self, to_file=False, indent=None) -> Union[str, bool]:
-        # TODO: Dump file to a temp file, then if successful overwrite the original
-        # Else an error in the serialization process can corrupt the entire project
+        """Encode the Project to a JSON string, optionally writing to disk
+
+        This function will perform the json encoding operation and store the
+        result in memory before writing the result to the project file
+        (if to_file is True), this should prevent corruption of the project file
+        in cases where the JSON encoder fails partway through the serialization,
+        leaving the output file in an inconsistent state.
+
+        Parameters
+        ----------
+        to_file : bool, optional
+            If False the JSON string will be returned to the caller
+            If True the JSON string will be written to the project file
+        indent : None, int, optional
+            Optionally provide an indent value to nicely format the JSON output
+        """
+        try:
+            json_s = json.dumps(self, cls=ProjectEncoder, indent=indent)
+        except TypeError as e:
+            warnings.warn(f"Unable to encode project: {e!s}")
+            return False
+
         if to_file:
             with self.path.joinpath(self._projectfile).open('w') as fp:
-                json.dump(self, fp, cls=ProjectEncoder, indent=indent)
-            # pprint(json.dumps(self, cls=ProjectEncoder, indent=2))
+                fp.write(json_s)
             return True
-        return json.dumps(self, cls=ProjectEncoder, indent=indent)
+        else:
+            return json_s
 
 
 class AirborneProject(GravityProject):

@@ -4,7 +4,7 @@ import itertools
 import logging
 import warnings
 from pathlib import Path
-from typing import Union, List, Generator
+from typing import Union, List, Generator, cast
 
 from PyQt5.QtCore import Qt, QRegExp
 from PyQt5.QtGui import QColor, QStandardItemModel, QIcon, QRegExpValidator
@@ -148,7 +148,7 @@ class AirborneProjectController(IAirborneController):
     def flight_model(self) -> QStandardItemModel:
         return self.flights.internal_model
 
-    def add_child(self, child: Union[Flight, Gravimeter]) -> Union[FlightController, GravimeterController, None]:
+    def add_child(self, child: Union[Flight, Gravimeter]) -> Union[FlightController, GravimeterController]:
         if isinstance(child, Flight):
             controller = FlightController(child, project=self)
             self.flights.appendRow(controller)
@@ -187,7 +187,7 @@ class AirborneProjectController(IAirborneController):
         return self.model()
 
     def get_child(self, uid: Union[str, OID]) -> IFlightController:
-        return super().get_child(uid)
+        return cast(IFlightController, super().get_child(uid))
 
     @property
     def active_child(self) -> IFlightController:
@@ -198,11 +198,11 @@ class AirborneProjectController(IAirborneController):
         child: IFlightController = super().activate_child(uid, exclusive, False)
         if emit:
             try:
-                self.get_parent().tabOpenRequested.emit(child.uid, child, child.get_attr('name'))
+                self.get_parent().item_activated(child.index())
+                # self.get_parent().tabOpenRequested.emit(child.uid, child,
+                #                                         child.get_attr('name'))
             except AttributeError:
-                warnings.warn(f"project model not set for project "
-                              f"{self.get_attr('name')}")
-
+                self.log.warning(f"project {self.get_attr('name')} has no parent")
         return child
 
     def set_active(self, state: bool):
