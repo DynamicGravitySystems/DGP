@@ -27,7 +27,7 @@ def test_project_serialize(project: AirborneProject, tmpdir):
     decoded_dict = json.loads(encoded)
 
     assert project.name == decoded_dict['name']
-    assert {'_type': 'Path', 'path': str(project.path.resolve())} == decoded_dict['path']
+    assert {'_type': 'Path', '_module': 'pathlib', 'path': str(project.path.resolve())} == decoded_dict['path']
     for flight_obj in decoded_dict['flights']:
         assert '_type' in flight_obj and flight_obj['_type'] == 'Flight'
 
