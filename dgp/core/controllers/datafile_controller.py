@@ -4,27 +4,25 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 
 from dgp.core import DataType
+from dgp.core.hdf5_manager import HDF5Manager
 from dgp.core.oid import OID
-from dgp.core.controllers.controller_interfaces import IDataSetController
-from dgp.core.controllers.controller_interfaces import IFlightController
-from dgp.core.controllers.controller_mixins import AttributeProxy
 from dgp.core.types.enumerations import Icon
+from dgp.core.controllers.controller_interfaces import IDataSetController, IBaseController
 from dgp.core.controllers.controller_helpers import show_in_explorer
 from dgp.core.models.datafile import DataFile
 
 
-class DataFileController(QStandardItem, AttributeProxy):
+class DataFileController(IBaseController):
     def __init__(self, datafile: DataFile, dataset=None):
         super().__init__()
         self._datafile = datafile
-        self._dataset = dataset  # type: IDataSetController
+        self._dataset: IDataSetController = dataset
         self.log = logging.getLogger(__name__)
 
         self.set_datafile(datafile)
 
         self._bindings = [
-            ('addAction', ('Describe', self._describe)),
-            # ('addAction', ('Delete <%s>' % self._datafile, lambda: None))
+            ('addAction', ('Properties', self._properties_dlg)),
             ('addAction', (QIcon(Icon.OPEN_FOLDER.value), 'Show in Explorer',
                            self._launch_explorer))
         ]
@@ -64,10 +62,12 @@ class DataFileController(QStandardItem, AttributeProxy):
             elif self._datafile.group is DataType.TRAJECTORY:
                 self.setIcon(QIcon(Icon.TRAJECTORY.value))
 
-    def _describe(self):
-        pass
-        # df = self.flight.load_data(self)
-        # self.log.debug(df.describe())
+    def _properties_dlg(self):
+        if self._datafile is None:
+            return
+        # TODO: Launch dialog to show datafile properties (name, path, data etc)
+        data = HDF5Manager.load_data(self._datafile, self.dataset.hdfpath)
+        self.log.info(f'\n{data.describe()}')
 
     def _launch_explorer(self):
         if self._datafile is not None:

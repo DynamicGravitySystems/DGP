@@ -144,6 +144,8 @@ class DataSetController(IDataSetController):
     def gravity(self) -> Union[DataFrame]:
         if not self._gravity.empty:
             return self._gravity
+        if self._dataset.gravity is None:
+            return self._gravity
         try:
             self._gravity = HDF5Manager.load_data(self._dataset.gravity, self.hdfpath)
         except Exception as e:
@@ -154,6 +156,8 @@ class DataSetController(IDataSetController):
     @property
     def trajectory(self) -> Union[DataFrame, None]:
         if not self._trajectory.empty:
+            return self._trajectory
+        if self._dataset.trajectory is None:
             return self._trajectory
         try:
             self._trajectory = HDF5Manager.load_data(self._dataset.trajectory, self.hdfpath)
