@@ -233,7 +233,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             Reference to modal CreateProjectDialog
 
         """
-        def _add_project(prj: AirborneProject, new_window: bool):
+        def _add_project(prj: AirborneProject):
+            new_window = False
             self.log.info("Creating new project.")
             control = AirborneProjectController(prj)
             if new_window:

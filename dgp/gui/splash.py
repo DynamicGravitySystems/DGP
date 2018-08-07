@@ -3,22 +3,26 @@ import sys
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Union
+from typing import Union
 
 import PyQt5.QtWidgets as QtWidgets
-import PyQt5.QtCore as QtCore
+from PyQt5.QtCore import QModelIndex
 
 from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.core.models.project import AirborneProject, GravityProject
+from dgp.gui import settings, RecentProjectManager
 from dgp.gui.main import MainWindow
 from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, LOG_COLOR_MAP, get_project_file
 from dgp.gui.dialogs.create_project_dialog import CreateProjectDialog
-from dgp.gui.ui.splash_screen import Ui_Launcher
+from dgp.gui.ui.splash_screen import Ui_ProjectLauncher
 
 
-class SplashScreen(QtWidgets.QDialog, Ui_Launcher):
+class SplashScreen(QtWidgets.QDialog, Ui_ProjectLauncher):
     def __init__(self, *args):
         super().__init__(*args)
+        self.setupUi(self)
+
+        # Configure Logging
         self.log = self.setup_logging()
         # Experimental: Add a logger that sets the label_error text
         error_handler = ConsoleHandler(self.write_error)
@@ -26,26 +30,15 @@ class SplashScreen(QtWidgets.QDialog, Ui_Launcher):
         error_handler.setLevel(logging.DEBUG)
         self.log.addHandler(error_handler)
 
-        self.setupUi(self)
+        self.recents = RecentProjectManager(settings())
 
-        # TODO: Change this to support other OS's
-        self.settings_dir = Path.home().joinpath(
-            'AppData\Local\DynamicGravitySystems\DGP')
-        self.recent_file = self.settings_dir.joinpath('recent.json')
-        if not self.settings_dir.exists():
-            self.log.info("Settings Directory doesn't exist, creating.")
-            self.settings_dir.mkdir(parents=True)
+        self.qpb_new_project.clicked.connect(self.new_project)
+        self.qpb_browse.clicked.connect(self.browse_project)
+        self.qpb_clear_recents.clicked.connect(self.recents.clear)
 
-        self.btn_newproject.clicked.connect(self.new_project)
-        self.btn_browse.clicked.connect(self.browse_project)
-        self.list_projects.currentItemChanged.connect(
-            lambda item: self.set_selection(item, accept=False))
-        self.list_projects.itemDoubleClicked.connect(
-            lambda item: self.set_selection(item, accept=True))
+        self.qlv_recents.setModel(self.recents.model)
+        self.qlv_recents.doubleClicked.connect(self._activated)
 
-        self.project_path = None  # type: Path
-
-        self.set_recent_list()
         self.show()
 
     @staticmethod
@@ -57,146 +50,56 @@ class SplashScreen(QtWidgets.QDialog, Ui_Launcher):
         root_log.addHandler(std_err_handler)
         return logging.getLogger(__name__)
 
-    def accept(self, project: Union[GravityProject, None] = None):
-        """
-        Runs some basic verification before calling super(QDialog).accept().
-        """
+    def _activated(self, index: QModelIndex):
+        self.accept()
 
-        # Case where project object is passed to accept()
-        if isinstance(project, GravityProject):
-            self.log.debug("Opening new project: {}".format(project.name))
-        elif not self.project_path:
-            self.log.error("No valid project selected.")
-        else:
-            try:
-                # project = prj.AirborneProject.load(self.project_path)
-                with open(self.project_path, 'r') as fd:
-                    project = AirborneProject.from_json(fd.read())
-            except FileNotFoundError:
-                self.log.error("Project could not be loaded from path: {}"
-                               .format(self.project_path))
-                return
+    @property
+    def project_path(self) -> Union[Path, None]:
+        return self.recents.path(self.qlv_recents.currentIndex())
 
-        self.update_recent_files(self.recent_file,
-                                 {project.name: project.path})
-
-        controller = AirborneProjectController(project)
-        main_window = MainWindow(controller)
-        main_window.load()
-        super().accept()
-        return main_window
-
-    def set_recent_list(self) -> None:
-        recent_files = self.get_recent_files(self.recent_file)
-        if not recent_files:
-            no_recents = QtWidgets.QListWidgetItem("No Recent Projects",
-                                                   self.list_projects)
-            no_recents.setFlags(QtCore.Qt.NoItemFlags)
-            return None
-
-        for name, path in recent_files.items():
-            item = QtWidgets.QListWidgetItem('{name} :: {path}'.format(
-                name=name, path=str(path)), self.list_projects)
-            item.setData(QtCore.Qt.UserRole, path)
-            item.setToolTip(str(path.resolve()))
-        self.list_projects.setCurrentRow(0)
-        return None
-
-    def set_selection(self, item: QtWidgets.QListWidgetItem, accept=False):
-        """Called when a recent item is selected"""
-        self.project_path = get_project_file(item.data(QtCore.Qt.UserRole))
-        if not self.project_path:
-            item.setText("{} - Project Moved or Deleted"
-                         .format(item.data(QtCore.Qt.UserRole)))
+    def load_project_from_dir(self, path: Path):
+        if not path.exists():
+            self.log.error("Path does not exist")
             return
+        prj_file = get_project_file(path)
+        # TODO: Err handling and project type handling/dispatch
+        with prj_file.open('r') as fd:
+            project = AirborneProject.from_json(fd.read())
+        return project
 
-        self.log.debug("Project path set to {}".format(self.project_path))
-        if accept:
-            self.accept()
+    def load_project(self, project, path: Path = None, spawn: bool = True):
+        if isinstance(project, AirborneProject):
+            controller = AirborneProjectController(project, path=path or project.path)
+        else:
+            raise TypeError(f"Unsupported project type {type(project)}")
+        if spawn:
+            window = MainWindow(controller)
+            window.load()
+            super().accept()
+            return window
+        else:
+            return controller
+
+    def accept(self):
+        if self.project_path is not None:
+            project = self.load_project_from_dir(self.project_path)
+            self.load_project(project, self.project_path, spawn=True)
+            super().accept()
 
     def new_project(self):
         """Allow the user to create a new project"""
-        dialog = CreateProjectDialog()
-        if dialog.exec_():
-            project = dialog.project  # type: AirborneProject
-            if not project.path.exists():
-                print("Making directory")
-                project.path.mkdir(parents=True)
-            project.to_json(to_file=True)
-
-            self.accept(project)
+        dialog = CreateProjectDialog(parent=self)
+        dialog.sigProjectCreated.connect(self.load_project)
+        dialog.exec_()
 
     def browse_project(self):
         """Allow the user to browse for a project directory and load."""
         path = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Project Dir")
         if not path:
             return
-
-        prj_file = get_project_file(Path(path))
-        if not prj_file:
-            self.log.error("No project files found")
-            return
-
-        self.project_path = prj_file
-        self.accept()
+        project = self.load_project_from_dir(Path(path))
+        self.load_project(project, path, spawn=True)
 
     def write_error(self, msg, level=None) -> None:
         self.label_error.setText(msg)
         self.label_error.setStyleSheet('color: {}'.format(LOG_COLOR_MAP[level]))
-
-    @staticmethod
-    def update_recent_files(path: Path, update: Dict[str, Path]) -> None:
-        recents = SplashScreen.get_recent_files(path)
-        recents.update(update)
-        SplashScreen.set_recent_files(recents, path)
-
-    @staticmethod
-    def get_recent_files(path: Path) -> Dict[str, Path]:
-        """
-        Ingests a JSON file specified by path, containing project_name:
-        project_directory mappings and returns dict of valid projects (
-        conducting path checking and conversion to pathlib.Path)
-        Parameters
-        ----------
-        path : Path
-            Path object referencing JSON object containing mappings of recent
-            projects -> project directories
-
-        Returns
-        -------
-        Dict
-            Dictionary of (str) project_name: (pathlib.Path) project_directory mappings
-            If the specified path cannot be found, an empty dictionary is returned
-        """
-        try:
-            with path.open('r') as fd:
-                raw_dict = json.load(fd)
-            _checked = {}
-            for name, strpath in raw_dict.items():
-                _path = Path(strpath)
-                if get_project_file(_path) is not None:
-                    _checked[name] = _path
-        except FileNotFoundError:
-            return {}
-        else:
-            return _checked
-
-    @staticmethod
-    def set_recent_files(recent_files: Dict[str, Path], path: Path) -> None:
-        """
-        Take a dictionary of recent projects (project_name: project_dir) and
-        write it out to a JSON formatted file
-        specified by path
-        Parameters
-        ----------
-        recent_files : Dict[str, Path]
-
-        path : Path
-
-        Returns
-        -------
-        None
-        """
-        serializable = {name: str(path) for name, path in recent_files.items()}
-        with path.open('w+') as fd:
-            json.dump(serializable, fd)
