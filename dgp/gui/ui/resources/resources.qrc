@@ -14,6 +14,7 @@
     <file alias="chevron-right">tree-view/3x/chevron-right@3x.png</file>
   </qresource>
   <qresource prefix="images">
+    <file alias="splash">dgp-splash.png</file>
     <file alias="geoid">geoid.png</file>
   </qresource>
 </RCC>

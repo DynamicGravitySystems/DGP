@@ -1,14 +1,15 @@
-# coding: utf-8
-
-import os
+# -*- coding: utf-8 -*-
 import sys
+import time
 import traceback
 
-sys.path.append(os.path.dirname(__file__))
-
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QPixmap
 from PyQt5 import QtCore
-from PyQt5.QtWidgets import QApplication
-from dgp.gui.splash import SplashScreen
+from PyQt5.QtWidgets import QApplication, QSplashScreen
+
+from dgp.gui.main import MainWindow
+# sys.path.append(os.path.dirname(__file__))
 
 
 def excepthook(type_, value, traceback_):
@@ -24,13 +25,21 @@ def excepthook(type_, value, traceback_):
 
 
 app = None
+_align = Qt.AlignBottom | Qt.AlignHCenter
 
 
 def main():
     global app
     sys.excepthook = excepthook
     app = QApplication(sys.argv)
-    form = SplashScreen()
+    splash = QSplashScreen(QPixmap(":/images/splash"))
+    splash.showMessage("Loading Dynamic Gravity Processor", _align)
+    splash.show()
+    time.sleep(.5)
+    window = MainWindow()
+    window.sigStatusMessage.connect(lambda msg: splash.showMessage(msg, _align))
+    window.load()
+    splash.finish(window)
     sys.exit(app.exec_())
 
 
