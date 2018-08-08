@@ -1,4 +1,5 @@
 # coding: utf-8
+import os
 
 from .context import dgp
 import unittest
@@ -8,6 +9,7 @@ import pandas as pd
 from dgp.lib.timesync import find_time_delay, shift_frame
 
 
+@unittest.skipIf(os.getenv("development", False), "Skip slow unit-tests in dev env")
 class TestTimesync(unittest.TestCase):
     def test_timedelay_array(self):
         rnd_offset = 1.1

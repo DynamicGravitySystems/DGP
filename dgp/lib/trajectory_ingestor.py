@@ -110,7 +110,7 @@ def import_trajectory(filepath, delim_whitespace=False, interval=0,
     # remove leap second
     if is_utc:
         # TO DO: Check dates at beginning and end to determine whether a leap second was added in the middle of the survey.
-        shift = leap_seconds(df.index[0])
+        shift = leap_seconds(datetime=df.index[0])
         df.index = df.index.shift(-shift, freq='S')
 
     # set or infer the interval
