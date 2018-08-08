@@ -185,18 +185,6 @@ class DataSetController(IDataSetController):
         self._trajectory = n_traj
         self.log.info(f'DataFrame aligned.')
 
-    # def slice(self, segment_uid: OID):
-    #     df = self.dataframe()
-    #     if df is None:
-    #         return None
-    #
-    #     segment = self.get_segment(segment_uid).datamodel
-    #     # start = df.index.searchsorted(segment.start)
-    #     # stop = df.index.searchsorted(segment.stop)
-    #
-    #     segment_df = df.loc[segment.start:segment.stop]
-    #     return segment_df
-
     def get_parent(self) -> IFlightController:
         return self._flight
 
@@ -206,7 +194,6 @@ class DataSetController(IDataSetController):
         self._flight.add_child(self.datamodel)
 
     def add_datafile(self, datafile: DataFile) -> None:
-        # datafile.set_parent(self)
         if datafile.group is DataType.GRAVITY:
             self.datamodel.gravity = datafile
             self._grav_file.set_datafile(datafile)

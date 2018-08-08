@@ -2,7 +2,6 @@
 import functools
 import itertools
 import logging
-import warnings
 from pathlib import Path
 from typing import Union, List, Generator, cast
 
@@ -199,8 +198,6 @@ class AirborneProjectController(IAirborneController):
         if emit:
             try:
                 self.get_parent().item_activated(child.index())
-                # self.get_parent().tabOpenRequested.emit(child.uid, child,
-                #                                         child.get_attr('name'))
             except AttributeError:
                 self.log.warning(f"project {self.get_attr('name')} has no parent")
         return child
