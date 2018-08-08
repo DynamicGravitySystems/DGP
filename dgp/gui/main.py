@@ -1,37 +1,40 @@
 # -*- coding: utf-8 -*-
 
-import pathlib
 import logging
+from pathlib import Path
 
 import PyQt5.QtWidgets as QtWidgets
-from PyQt5.QtCore import Qt, pyqtSlot
-from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import QMainWindow, QProgressDialog, QFileDialog, QDialog
+from PyQt5.QtCore import Qt, pyqtSlot, pyqtSignal, QByteArray
+from PyQt5.QtGui import QColor, QCloseEvent
+from PyQt5.QtWidgets import QMainWindow, QProgressDialog, QFileDialog, QDialog, QMessageBox, QMenu, QApplication
 
 from dgp.core.oid import OID
 from dgp.core.controllers.controller_interfaces import IBaseController
 from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.core.controllers.project_treemodel import ProjectTreeModel
-from dgp.core.models.project import AirborneProject
+from dgp.core.models.project import AirborneProject, GravityProject
+from dgp.gui import settings, SettingsKey, RecentProjectManager, UserSettings
 from dgp.gui.utils import (ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP,
-                           LOG_COLOR_MAP, get_project_file, ProgressEvent)
+                           LOG_COLOR_MAP, ProgressEvent, load_project_from_path)
 from dgp.gui.dialogs.create_project_dialog import CreateProjectDialog
-
+from dgp.gui.dialogs.recent_project_dialog import RecentProjectDialog
 from dgp.gui.workspace import WorkspaceTab, MainWorkspace
 from dgp.gui.ui.main_window import Ui_MainWindow
 
 
 class MainWindow(QMainWindow, Ui_MainWindow):
     """An instance of the Main Program Window"""
+    sigStatusMessage = pyqtSignal(str)
 
-    def __init__(self, project: AirborneProjectController, *args):
+    def __init__(self, *args):
         super().__init__(*args)
-
         self.setupUi(self)
-        self.workspace: MainWorkspace
-
         self.title = 'Dynamic Gravity Processor [*]'
+
         self.setWindowTitle(self.title)
+        self.workspace: MainWorkspace
+        self.recents = RecentProjectManager()
+        self.user_settings = UserSettings()
 
         # Attach to the root logger to capture all child events
         self.log = logging.getLogger()
@@ -45,18 +48,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.log.setLevel(logging.DEBUG)
 
         # Instantiate the Project Model and display in the ProjectTreeView
-        self.model = ProjectTreeModel(project, parent=self)
+        self.model = ProjectTreeModel(parent=self)
         self.project_tree.setModel(self.model)
-        self.project_tree.expandAll()
+
+        # Add sub-menu to display recent projects
+        self.recent_menu = QMenu("Recent Projects")
+        self.menuFile.addMenu(self.recent_menu)
 
         # Initialize Variables
-        self.import_base_path = pathlib.Path('~').expanduser().joinpath(
-            'Desktop')
+        self.import_base_path = Path('~').expanduser().joinpath('Desktop')
         self._default_status_timeout = 5000  # Status Msg timeout in milli-sec
 
         self._progress_events = {}
         self._mutated = False
-
         self._init_slots()
 
     def _init_slots(self):  # pragma: no cover
@@ -93,18 +97,125 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.combo_console_verbosity.currentIndexChanged[str].connect(
             self.set_logging_level)
 
-    def load(self):
-        """Called from splash screen to initialize and load main window.
-        This may be safely deprecated as we currently do not perform any long
-        running operations on initial load as we once did."""
-        self.setWindowState(Qt.WindowMaximized)
-        self.save_projects()
+        # Define recent projects menu action
+        self.recents.sigRecentProjectsChanged.connect(self._update_recent_menu)
+        self.model.projectClosed.connect(lambda x: self._update_recent_menu())
+        self._update_recent_menu()
+
+    def load(self, project: GravityProject = None, restore: bool = True):
+        """Interactively load the DGP MainWindow, restoring previous widget/dock
+        state, and any saved geometry state.
+
+        If a project is explicitly specified then the project will be loaded into
+        the MainWindow, and the window shown.
+        If no project is specified, the users local settings are checked for the
+        last project that was active/opened, and it will be loaded into the
+        window.
+        Otherwise, a RecentProjectDialog is shown where the user can select from
+        a list of known recent projects, browse for a project folder, or create
+        a new project.
+
+        Parameters
+        ----------
+        project : :class:`GravityProject`
+            Explicitly pass a GravityProject or sub-type to be loaded into the
+            main window.
+        restore : bool, optional
+            If True (default) the MainWindow state and geometry will be restored
+            from the local settings repository.
+
+        """
+        if restore:
+            self.restoreState(settings().value(SettingsKey.WindowState(), QByteArray()))
+            self.restoreGeometry(settings().value(SettingsKey.WindowGeom(), QByteArray()))
+
+        if project is not None:
+            self.sigStatusMessage.emit(f'Loading project {project.name}')
+            self.add_project(project)
+        elif self.recents.last_project_path() is not None and self.user_settings.reopen_last:
+            self.sigStatusMessage.emit(f'Loading last project')
+            self.log.info(f"Loading most recent project.")
+            project = load_project_from_path(self.recents.last_project_path())
+            self.add_project(project)
+        else:
+            self.sigStatusMessage.emit("Selecting project")
+            recent_dlg = RecentProjectDialog()
+            recent_dlg.sigProjectLoaded.connect(self.add_project)
+            recent_dlg.exec_()
+
+        self.project_tree.expandAll()
         self.show()
 
-    def closeEvent(self, *args, **kwargs):
+    def add_project(self, project: GravityProject):
+        """Add a project model to the window, first wrapping it in an
+        appropriate controller class
+
+        Parameters
+        ----------
+        project : :class:`GravityProject`
+        path : :class:`pathlib.Path`
+
+
+        """
+        if isinstance(project, AirborneProject):
+            control = AirborneProjectController(project)
+        else:
+            raise TypeError(f'Unsupported project type: {type(project)}')
+
+        self.model.add_project(control)
+        self.project_tree.setExpanded(control.index(), True)
+        self.recents.add_recent_project(control.uid, control.get_attr('name'),
+                                        control.path)
+
+    def open_project(self, path: Path, prompt: bool = True) -> None:
+        """Open/load a project from the given path.
+
+        Parameters
+        ----------
+        path : :class:`pathlib.Path`
+            Directory path containing valid DGP project *.json file
+        prompt : bool, optional
+            If True display a message box asking the user if they would like to
+            open the project in a new window.
+            Else the project is opened into the current MainWindow
+
+        """
+        project = load_project_from_path(path)
+        if prompt and self.model.rowCount() > 0:
+            msg_dlg = QMessageBox(QMessageBox.Question,
+                                  "Open in New Window",
+                                  "Open Project in New Window?",
+                                  QMessageBox.Yes | QMessageBox.No, self)
+            res = msg_dlg.exec_()
+        else:
+            res = QMessageBox.No
+
+        if res == QMessageBox.Yes:  # Open new MainWindow instance
+            window = MainWindow()
+            window.load(project, restore=False)
+            window.activateWindow()
+        elif res == QMessageBox.No:  # Open in current MainWindow
+            if project.uid in [p.uid for p in self.model.projects]:
+                self.log.warning("Project already opened in current workspace")
+            else:
+                self.add_project(project)
+                self.raise_()
+
+    def closeEvent(self, event: QCloseEvent):
         self.log.info("Saving project and closing.")
         self.save_projects()
-        super().closeEvent(*args, **kwargs)
+        settings().setValue(SettingsKey.WindowState(), self.saveState())
+        settings().setValue(SettingsKey.WindowGeom(), self.saveGeometry())
+
+        # Set last project to active project
+        if self.model.active_project is not None:
+            settings().setValue(SettingsKey.LastProjectUid(),
+                                self.model.active_project.uid.base_uuid)
+            settings().setValue(SettingsKey.LastProjectPath(),
+                                str(self.model.active_project.path.absolute()))
+            settings().setValue(SettingsKey.LastProjectName(),
+                                self.model.active_project.get_attr("name"))
+        super().closeEvent(event)
 
     def set_logging_level(self, name: str):
         """PyQt Slot: Changes logging level to passed logging level name."""
@@ -126,6 +237,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if level.lower() == 'error' or level.lower() == 'info':
             self.statusBar().showMessage(text, self._default_status_timeout)
 
+    def _update_recent_menu(self):
+        self.recent_menu.clear()
+        recents = [ref for ref in self.recents.project_refs
+                   if ref.uid not in [p.uid for p in self.model.projects]]
+        if len(recents) == 0:
+            self.recent_menu.setEnabled(False)
+        else:
+            self.recent_menu.setEnabled(True)
+        for ref in recents:
+            self.recent_menu.addAction(ref.name, lambda: self.open_project(Path(ref.path)))
+
     def _tab_open_requested(self, uid: OID, controller: IBaseController, label: str):
         """pyqtSlot(OID, IBaseController, str)
 
@@ -143,7 +265,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if tab is not None:
             self.workspace.setCurrentWidget(tab)
         else:
-            self.log.debug("Creating new tab and adding to workspace")
+            self.log.info("Loading flight data")
             ntab = WorkspaceTab(controller)
             self.workspace.addTab(ntab, label)
             self.workspace.setCurrentWidget(ntab)
@@ -233,22 +355,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             Reference to modal CreateProjectDialog
 
         """
-        def _add_project(prj: AirborneProject):
-            new_window = False
-            self.log.info("Creating new project.")
-            control = AirborneProjectController(prj)
-            if new_window:
-                return MainWindow(control)
-            else:
-                self.model.add_project(control)
-                self.save_projects()
-
         dialog = CreateProjectDialog(parent=self)
-        dialog.sigProjectCreated.connect(_add_project)
+        dialog.sigProjectCreated.connect(lambda prj: self.open_project(prj.path, prompt=False))
         dialog.show()
         return dialog
 
-    def open_project_dialog(self, *args, path: pathlib.Path=None) -> QFileDialog:
+    def open_project_dialog(self, *args):  # pragma: no cover
         """pyqtSlot()
         Opens an existing project within the current Project MainWindow,
         adding the opened project as a tree item to the Project Tree navigator.
@@ -260,41 +372,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         args
             Consume positional arguments, some buttons connected to this slot
             will pass a 'checked' boolean flag which is not applicable here.
-        path : :class:`pathlib.Path`
-            Path to a directory containing a dgp json project file.
-            Used to programmatically load a project (without launching the
-            FileDialog).
-
-        Returns
-        -------
-        QFileDialog
-            Reference to QFileDialog file-browser dialog when called with no
-            path argument.
 
         """
-
-        def _project_selected(directory):
-            prj_dir = pathlib.Path(directory[0])
-            prj_file = get_project_file(prj_dir)
-            if prj_file is None:
-                self.log.warning("No valid DGP project file found in directory")
-                return
-            with prj_file.open('r') as fd:
-                project = AirborneProject.from_json(fd.read())
-                if project.uid in [p.uid for p in self.model.projects]:
-                    self.log.warning("Project is already opened")
-                else:
-                    control = AirborneProjectController(project, path=prj_dir)
-                    self.model.add_project(control)
-                    self.save_projects()
-
-        if path is not None:
-            _project_selected([path])
-        else:  # pragma: no cover
-            dialog = QFileDialog(self, "Open Project", str(self.import_base_path))
-            dialog.setFileMode(QFileDialog.DirectoryOnly)
-            dialog.setViewMode(QFileDialog.List)
-            dialog.accepted.connect(lambda: _project_selected(dialog.selectedFiles()))
-            dialog.setModal(True)
-            dialog.show()
-            return dialog
+        dialog = QFileDialog(self, "Open Project", str(self.import_base_path))
+        dialog.setFileMode(QFileDialog.DirectoryOnly)
+        dialog.setViewMode(QFileDialog.List)
+        dialog.fileSelected.connect(lambda file: self.open_project(Path(file)))
+        dialog.exec_()
