@@ -5,7 +5,6 @@ import unittest
 import pandas as pd
 import numpy as np
 
-from .context import dgp
 from dgp.lib import trajectory_ingestor as ti
 
 

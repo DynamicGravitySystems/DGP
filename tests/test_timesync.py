@@ -1,6 +1,5 @@
 # coding: utf-8
 
-from .context import dgp
 import unittest
 import numpy as np
 import pandas as pd

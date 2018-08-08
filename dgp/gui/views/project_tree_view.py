@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
-from typing import Optional, Tuple, Any, List
+from typing import Optional, List
 
 from PyQt5 import QtCore
-from PyQt5.QtCore import QObject, QModelIndex, pyqtSlot, pyqtBoundSignal
-from PyQt5.QtGui import QContextMenuEvent, QStandardItem
+from PyQt5.QtCore import QObject, QModelIndex, pyqtSlot
+from PyQt5.QtGui import QContextMenuEvent
 from PyQt5.QtWidgets import QTreeView, QMenu
 
-from dgp.core.controllers.controller_interfaces import IFlightController, IAirborneController
+from dgp.core.controllers.controller_interfaces import (IAirborneController,
+                                                        IChild,
+                                                        IBaseController,
+                                                        MenuBinding)
 from dgp.core.controllers.project_treemodel import ProjectTreeModel
 
 
@@ -50,28 +53,12 @@ class ProjectTreeView(QTreeView):
             }
         """)
 
+        self.clicked.connect(self._on_click)
+        self.doubleClicked.connect(self._on_double_click)
         self._action_refs = []
-
-    @staticmethod
-    def _clear_signal(signal: pyqtBoundSignal):
-        """Utility method to clear all connections from a bound signal"""
-        while True:
-            try:
-                signal.disconnect()
-            except TypeError:
-                break
 
     def model(self) -> ProjectTreeModel:
         return super().model()
-
-    def setModel(self, model: ProjectTreeModel):
-        """Set the View Model and connect signals to its slots"""
-        self._clear_signal(self.clicked)
-        self._clear_signal(self.doubleClicked)
-        super().setModel(model)
-
-        self.clicked.connect(self._on_click)
-        self.doubleClicked.connect(self._on_double_click)
 
     @pyqtSlot(QModelIndex, name='_on_click')
     def _on_click(self, index: QModelIndex):
@@ -81,8 +68,8 @@ class ProjectTreeView(QTreeView):
     def _on_double_click(self, index: QModelIndex):
         """Selectively expand/collapse an item depending on its active state"""
         item = self.model().itemFromIndex(index)
-        if isinstance(item, IFlightController):
-            if item.is_active():
+        if isinstance(item, IChild):
+            if item.is_active:
                 self.setExpanded(index, not self.isExpanded(index))
             else:
                 self.setExpanded(index, True)
@@ -90,20 +77,24 @@ class ProjectTreeView(QTreeView):
             self.setExpanded(index, not self.isExpanded(index))
         self.model().item_activated(index)
 
-    def _build_menu(self, menu: QMenu, bindings: List[Tuple[str, Tuple[Any]]]):
+    def _build_menu(self, menu: QMenu, bindings: List[MenuBinding]):
         self._action_refs.clear()
-        for attr, params in bindings:
+        for attr, args in bindings:
             if hasattr(QMenu, attr):
-                res = getattr(menu, attr)(*params)
+                res = getattr(menu, attr)(*args)
                 self._action_refs.append(res)
 
     def contextMenuEvent(self, event: QContextMenuEvent, *args, **kwargs):
         index = self.indexAt(event.pos())
-        item = self.model().itemFromIndex(index)  # type: QStandardItem
+        item: IBaseController = self.model().itemFromIndex(index)
         expanded = self.isExpanded(index)
 
         menu = QMenu(self)
-        bindings = getattr(item, 'menu_bindings', [])[:]  # type: List
+        # bindings = getattr(item, 'menu_bindings', [])[:]  # type: List
+        if isinstance(item, IBaseController):
+            bindings = item.menu[:]
+        else:
+            bindings = []
 
         # Experimental Menu Inheritance/Extend functionality
         # if hasattr(event_item, 'inherit_context') and event_item.inherit_context:
@@ -124,11 +115,13 @@ class ProjectTreeView(QTreeView):
         #     pprint(ancestor_bindings)
         #     bindings.extend(ancestor_bindings)
 
+        bindings.append(('addSeparator', ()))
         if isinstance(item, IAirborneController):
-            bindings.insert(0, ('addAction', ("Expand All", self.expandAll)))
+            bindings.append(('addAction', ("Expand All", self.expandAll)))
 
-        bindings.append(('addAction', ("Expand" if not expanded else "Collapse",
-                                       lambda: self.setExpanded(index, not expanded))))
+        if item.rowCount():
+            bindings.append(('addAction', ("Expand" if not expanded else "Collapse",
+                                           lambda: self.setExpanded(index, not expanded))))
         # bindings.append(('addAction', ("Properties", self._get_item_attr(item, 'properties'))))
 
         self._build_menu(menu, bindings)

@@ -1,13 +1,19 @@
 # -*- coding: utf-8 -*-
+import os
+import sys
+import traceback
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 import pytest
+from PyQt5 import QtCore
+from PyQt5.QtWidgets import QApplication
 
+from dgp.core import DataType
 from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.core.hdf5_manager import HDF5_NAME
-from dgp.core.models.data import DataFile
+from dgp.core.models.datafile import DataFile
 from dgp.core.models.dataset import DataSegment, DataSet
 from dgp.core.models.flight import Flight
 from dgp.core.models.meter import Gravimeter
@@ -16,12 +22,47 @@ from dgp.core.oid import OID
 from dgp.lib.gravity_ingestor import read_at1a
 from dgp.lib.trajectory_ingestor import import_trajectory
 
-# Import QApplication object for any Qt GUI test cases
-from .context import APP
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+"""Global pytest configuration file for DGP test suite.
+
+This takes care of configuring a QApplication instance for executing tests 
+against UI code which requires an event loop (signals etc).
+If a handle to the QApplication is required, e.g. to use as the parent to a test 
+object, the qt_app fixture can be used.
+
+The sys.excepthook is also replaced to enable catching of some critical errors
+raised within the Qt domain that would otherwise not be printed.
+
+"""
+
+
+def excepthook(type_, value, traceback_):
+    """This allows IDE to properly display unhandled exceptions which are
+    otherwise silently ignored as the application is terminated.
+    Override default excepthook with
+    >>> sys.excepthook = excepthook
+
+    See Also
+    --------
+
+    http://pyqt.sourceforge.net/Docs/PyQt5/incompatibilities.html
+    """
+    traceback.print_exception(type_, value, traceback_)
+    QtCore.qFatal('')
+
+
+sys.excepthook = excepthook
+APP = QApplication([])
 
 
 def get_ts(offset=0):
     return datetime.now().timestamp() + offset
+
+
+@pytest.fixture(scope='module')
+def qt_app():
+    return APP
 
 
 @pytest.fixture()
@@ -37,14 +78,13 @@ def project_factory():
 
         mtr = Gravimeter.from_ini(Path('tests').joinpath('at1m.ini'), name="AT1A-X")
 
-        grav1 = DataFile('gravity', datetime.now(), base_dir.joinpath('gravity1.dat'))
-        traj1 = DataFile('trajectory', datetime.now(), base_dir.joinpath('gps1.dat'))
+        grav1 = DataFile(DataType.GRAVITY, datetime.now(), base_dir.joinpath('gravity1.dat'))
+        traj1 = DataFile(DataType.TRAJECTORY, datetime.now(), base_dir.joinpath('gps1.dat'))
         seg1 = DataSegment(OID(), get_ts(0), get_ts(1500), 0, "seg1")
         seg2 = DataSegment(OID(), get_ts(1501), get_ts(3000), 1, "seg2")
 
         if dataset:
-            dataset1 = DataSet(prj.path.joinpath('hdfstore.hdf5'), grav1, traj1,
-                               [seg1, seg2])
+            dataset1 = DataSet(grav1, traj1, [seg1, seg2])
             flt1.datasets.append(dataset1)
 
         prj.add_child(mtr)

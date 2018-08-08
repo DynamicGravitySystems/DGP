@@ -213,7 +213,7 @@
          </property>
          <property name="icon">
           <iconset resource="resources/resources.qrc">
-           <normaloff>:/icons/meter_config.png</normaloff>:/icons/meter_config.png</iconset>
+           <normaloff>:/icons/meter_config</normaloff>:/icons/meter_config</iconset>
          </property>
         </widget>
        </item>
@@ -526,7 +526,7 @@
   <action name="action_file_new">
    <property name="icon">
     <iconset resource="resources/resources.qrc">
-     <normaloff>:/icons/new_file.png</normaloff>:/icons/new_file.png</iconset>
+     <normaloff>:/icons/new_file</normaloff>:/icons/new_file</iconset>
    </property>
    <property name="text">
     <string>New Project...</string>
@@ -538,7 +538,7 @@
   <action name="action_file_open">
    <property name="icon">
     <iconset resource="resources/resources.qrc">
-     <normaloff>:/icons/folder_open.png</normaloff>:/icons/folder_open.png</iconset>
+     <normaloff>:/icons/folder_open</normaloff>:/icons/folder_open</iconset>
    </property>
    <property name="text">
     <string>Open Project</string>
@@ -550,7 +550,7 @@
   <action name="action_file_save">
    <property name="icon">
     <iconset resource="resources/resources.qrc">
-     <normaloff>:/icons/save_project.png</normaloff>:/icons/save_project.png</iconset>
+     <normaloff>:/icons/save</normaloff>:/icons/save</iconset>
    </property>
    <property name="text">
     <string>Save Project</string>
@@ -574,7 +574,7 @@
   <action name="action_add_meter">
    <property name="icon">
     <iconset resource="resources/resources.qrc">
-     <normaloff>:/icons/meter_config.png</normaloff>:/icons/meter_config.png</iconset>
+     <normaloff>:/icons/meter_config</normaloff>:/icons/meter_config</iconset>
    </property>
    <property name="text">
     <string>Add Meter</string>
@@ -647,7 +647,7 @@
   <customwidget>
    <class>ProjectTreeView</class>
    <extends>QTreeView</extends>
-   <header>dgp.gui.views.ProjectTreeView</header>
+   <header>dgp.gui.views.project_tree_view</header>
   </customwidget>
   <customwidget>
    <class>MainWorkspace</class>

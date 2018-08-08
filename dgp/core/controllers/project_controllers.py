@@ -2,68 +2,73 @@
 import functools
 import itertools
 import logging
-import shlex
-import sys
 from pathlib import Path
-from pprint import pprint
-from typing import Union, List
+from typing import Union, List, Generator, cast
 
-from PyQt5.QtCore import Qt, QProcess, QObject, QRegExp, pyqtSignal
-from PyQt5.QtGui import QStandardItem, QBrush, QColor, QStandardItemModel, QIcon, QRegExpValidator
-from PyQt5.QtWidgets import QWidget
+from PyQt5.QtCore import Qt, QRegExp
+from PyQt5.QtGui import QColor, QStandardItemModel, QIcon, QRegExpValidator
 from pandas import DataFrame
 
-from dgp.core.file_loader import FileLoader
-from dgp.core.oid import OID
-from dgp.core.controllers.controller_interfaces import (IAirborneController, IFlightController, IParent,
-                                                        IDataSetController)
-from dgp.core.hdf5_manager import HDF5Manager
-from dgp.gui.utils import ProgressEvent
+from .project_treemodel import ProjectTreeModel
 from .flight_controller import FlightController
 from .gravimeter_controller import GravimeterController
 from .project_containers import ProjectFolder
-from .controller_helpers import confirm_action, get_input
-from dgp.core.controllers.controller_mixins import AttributeProxy
+from .controller_helpers import confirm_action, get_input, show_in_explorer
+from .controller_interfaces import (IAirborneController, IFlightController,
+                                    IDataSetController)
+from dgp.core.oid import OID
+from dgp.core.file_loader import FileLoader
+from dgp.core.hdf5_manager import HDF5Manager
+from dgp.core.models.datafile import DataFile
+from dgp.core.models.flight import Flight
+from dgp.core.models.meter import Gravimeter
+from dgp.core.models.project import GravityProject, AirborneProject
+from dgp.core.types.enumerations import DataType, Icon, StateColor
+from dgp.gui.utils import ProgressEvent
 from dgp.gui.dialogs.add_flight_dialog import AddFlightDialog
 from dgp.gui.dialogs.add_gravimeter_dialog import AddGravimeterDialog
 from dgp.gui.dialogs.data_import_dialog import DataImportDialog
 from dgp.gui.dialogs.project_properties_dialog import ProjectPropertiesDialog
-from dgp.core.models.data import DataFile
-from dgp.core.models.flight import Flight
-from dgp.core.models.meter import Gravimeter
-from dgp.core.models.project import GravityProject, AirborneProject
-from dgp.core.types.enumerations import DataTypes
 from dgp.lib.gravity_ingestor import read_at1a
 from dgp.lib.trajectory_ingestor import import_trajectory
 
-BASE_COLOR = QBrush(QColor('white'))
-ACTIVE_COLOR = QBrush(QColor(108, 255, 63))
-FLT_ICON = ":/icons/airborne"
-MTR_ICON = ":/icons/meter_config.png"
-
 
 class AirborneProjectController(IAirborneController):
-    def __init__(self, project: AirborneProject):
+    """Construct an AirborneProjectController around an AirborneProject
+
+    Parameters
+    ----------
+    project : :class:`AirborneProject`
+    path : :class:`pathlib.Path`, Optional
+        Optionally supply the directory path where the project was loaded from
+        in order to update the stored state.
+
+    """
+    def __init__(self, project: AirborneProject, path: Path = None):
         super().__init__(project.name)
         self.log = logging.getLogger(__name__)
         self._project = project
+        if path:
+            self._project.path = path
+
         self._parent = None
         self._active = None
 
-        self.setIcon(QIcon(":/icons/dgs"))
+        self.setIcon(QIcon(Icon.DGS.value))
         self.setToolTip(str(self._project.path.resolve()))
         self.setData(project, Qt.UserRole)
+        self.setBackground(QColor(StateColor.INACTIVE.value))
 
-        self.flights = ProjectFolder("Flights", FLT_ICON)
+        self.flights = ProjectFolder("Flights", Icon.AIRBORNE.value)
         self.appendRow(self.flights)
-        self.meters = ProjectFolder("Gravimeters", MTR_ICON)
+        self.meters = ProjectFolder("Gravimeters", Icon.METER.value)
         self.appendRow(self.meters)
 
         self._child_map = {Flight: self.flights,
                            Gravimeter: self.meters}
 
         for flight in self.project.flights:
-            controller = FlightController(flight, parent=self)
+            controller = FlightController(flight, project=self)
             self.flights.appendRow(controller)
 
         for meter in self.project.gravimeters:
@@ -72,7 +77,8 @@ class AirborneProjectController(IAirborneController):
 
         self._bindings = [
             ('addAction', ('Set Project Name', self.set_name)),
-            ('addAction', ('Show in Explorer', self.show_in_explorer)),
+            ('addAction', ('Show in Explorer',
+                           lambda: show_in_explorer(self.path))),
             ('addAction', ('Project Properties', self.properties_dlg)),
             ('addAction', ('Close Project', self._close_project))
         ]
@@ -100,6 +106,11 @@ class AirborneProjectController(IAirborneController):
         return True
 
     @property
+    def children(self) -> Generator[IFlightController, None, None]:
+        for child in itertools.chain(self.flights.items(), self.meters.items()):
+            yield child
+
+    @property
     def fields(self) -> List[str]:
         """Return list of public attribute keys (for UI display)"""
         return list(self._fields.keys())
@@ -121,11 +132,11 @@ class AirborneProjectController(IAirborneController):
         return self._project.path
 
     @property
-    def menu_bindings(self):  # pragma: no cover
+    def menu(self):  # pragma: no cover
         return self._bindings
 
     @property
-    def hdf5path(self) -> Path:
+    def hdfpath(self) -> Path:
         return self._project.path.joinpath("dgpdata.hdf5")
 
     @property
@@ -136,15 +147,9 @@ class AirborneProjectController(IAirborneController):
     def flight_model(self) -> QStandardItemModel:
         return self.flights.internal_model
 
-    def get_parent_widget(self) -> Union[QObject, QWidget, None]:
-        return self._parent
-
-    def set_parent_widget(self, value: Union[QObject, QWidget]) -> None:
-        self._parent = value
-
-    def add_child(self, child: Union[Flight, Gravimeter]) -> Union[FlightController, GravimeterController, None]:
+    def add_child(self, child: Union[Flight, Gravimeter]) -> Union[FlightController, GravimeterController]:
         if isinstance(child, Flight):
-            controller = FlightController(child, parent=self)
+            controller = FlightController(child, project=self)
             self.flights.appendRow(controller)
         elif isinstance(child, Gravimeter):
             controller = GravimeterController(child, parent=self)
@@ -164,72 +169,76 @@ class AirborneProjectController(IAirborneController):
         if confirm:  # pragma: no cover
             if not confirm_action("Confirm Deletion",
                                   "Are you sure you want to delete {!s}"
-                                  .format(child.get_attr('name'))):
+                                          .format(child.get_attr('name')),
+                                  parent=self.parent_widget):
                 return
-        if isinstance(child, IFlightController) and self.model() is not None:
-            self.model().close_flight(child)
+        if isinstance(child, IFlightController):
+            try:
+                self.get_parent().close_flight(child)
+            except AttributeError:
+                pass
+
         self.project.remove_child(child.uid)
-        self._child_map[type(child.datamodel)].removeRow(child.row())
+        self._child_map[child.datamodel.__class__].removeRow(child.row())
         self.update()
 
-    def get_child(self, uid: Union[str, OID]) -> Union[FlightController, GravimeterController, None]:
-        for child in itertools.chain(self.flights.items(), self.meters.items()):
-            if child.uid == uid:
-                return child
+    def get_parent(self) -> ProjectTreeModel:
+        return self.model()
 
-    def get_active_child(self):
-        return self._active
+    def get_child(self, uid: Union[str, OID]) -> IFlightController:
+        return cast(IFlightController, super().get_child(uid))
 
-    def set_active_child(self, child: IFlightController, emit: bool = True):
-        if isinstance(child, IFlightController):
-            self._active = child
-            for ctrl in self.flights.items():  # type: QStandardItem
-                ctrl.setBackground(BASE_COLOR)
-            child.setBackground(ACTIVE_COLOR)
-            if emit and self.model() is not None:  # pragma: no cover
-                self.model().active_changed(child)
+    @property
+    def active_child(self) -> IFlightController:
+        return next((child for child in self.children if child.is_active), None)
+
+    def activate_child(self, uid: OID, exclusive: bool = True,
+                       emit: bool = False):
+        child: IFlightController = super().activate_child(uid, exclusive, False)
+        if emit:
+            try:
+                self.get_parent().item_activated(child.index())
+            except AttributeError:
+                self.log.warning(f"project {self.get_attr('name')} has no parent")
+        return child
+
+    def set_active(self, state: bool):
+        self._active = bool(state)
+        if self._active:
+            self.setBackground(QColor(StateColor.ACTIVE.value))
         else:
-            raise ValueError("Child of type {0!s} cannot be set to active.".format(type(child)))
+            self.setBackground(QColor(StateColor.INACTIVE.value))
+
+    @property
+    def is_active(self):
+        return self._active
 
     def save(self, to_file=True):
         return self.project.to_json(indent=2, to_file=to_file)
 
     def set_name(self):  # pragma: no cover
-        new_name = get_input("Set Project Name", "Enter a Project Name", self.project.name)
+        new_name = get_input("Set Project Name", "Enter a Project Name",
+                             self.project.name, parent=self.parent_widget)
         if new_name:
             self.set_attr('name', new_name)
 
-    def show_in_explorer(self):  # pragma: no cover
-        # TODO Linux KDE/Gnome file browser launch
-        ppath = str(self.project.path.resolve())
-        if sys.platform == 'darwin':
-            script = 'oascript'
-            args = '-e tell application \"Finder\" -e activate -e select POSIX file \"' + ppath + '\" -e end tell'
-        elif sys.platform == 'win32':
-            script = 'explorer'
-            args = shlex.quote(ppath)
-        else:
-            self.log.warning("Platform %s is not supported for this action.", sys.platform)
-            return
-
-        QProcess.startDetached(script, shlex.split(args))
-
-    # TODO: What to do about these dialog methods - it feels wrong here
-    def add_flight(self):  # pragma: no cover
-        dlg = AddFlightDialog(project=self, parent=self.get_parent_widget())
+    def add_flight_dlg(self):  # pragma: no cover
+        dlg = AddFlightDialog(project=self, parent=self.parent_widget)
         return dlg.exec_()
 
-    def add_gravimeter(self):  # pragma: no cover
+    def add_gravimeter_dlg(self):  # pragma: no cover
         """Launch a Dialog to import a Gravimeter configuration"""
-        dlg = AddGravimeterDialog(self, parent=self.get_parent_widget())
+        dlg = AddGravimeterDialog(self, parent=self.parent_widget)
         return dlg.exec_()
 
     def update(self):  # pragma: no cover
         """Emit an update event from the parent Model, signalling that
         data has been added/removed/modified in the project."""
         self.setText(self._project.name)
-        if self.model() is not None:
-            self.model().projectMutated.emit()
+        try:
+            self.get_parent().project_mutated(self)
+        except AttributeError:
+            self.log.warning(f"project {self.get_attr('name')} has no parent")
 
     def _post_load(self, datafile: DataFile, dataset: IDataSetController,
                    data: DataFrame) -> None:  # pragma: no cover
@@ -245,14 +254,15 @@ class AirborneProjectController(IAirborneController):
             The ingested pandas DataFrame to be dumped to the HDF5 store
 
         """
-        # TODO: Insert DataFile into appropriate child
-        datafile.set_parent(dataset)
-        if HDF5Manager.save_data(data, datafile, path=self.hdf5path):
+        if HDF5Manager.save_data(data, datafile, path=self.hdfpath):
             self.log.info("Data imported and saved to HDF5 Store")
         dataset.add_datafile(datafile)
-        return
+        try:
+            self.get_parent().project_mutated(self)
+        except AttributeError:
+            self.log.warning(f"project {self.get_attr('name')} has no parent")
 
-    def load_file_dlg(self, datatype: DataTypes = DataTypes.GRAVITY,
+    def load_file_dlg(self, datatype: DataType = DataType.GRAVITY,
                       flight: IFlightController = None,
                       dataset: IDataSetController = None) -> None:  # pragma: no cover
         """
@@ -265,7 +275,7 @@ class AirborneProjectController(IAirborneController):
 
         Parameters
         ----------
-        datatype : DataTypes
+        datatype : DataType
 
         flight : IFlightController, optional
             Set the default flight selected when launching the dialog
@@ -273,33 +283,35 @@ class AirborneProjectController(IAirborneController):
             Set the default Dataset selected when launching the dialog
 
         """
-        def load_data(datafile: DataFile, params: dict, parent: IDataSetController):
-            if datafile.group == 'gravity':
+        def _on_load(datafile: DataFile, params: dict, parent: IDataSetController):
+            if datafile.group is DataType.GRAVITY:
                 method = read_at1a
-            elif datafile.group == 'trajectory':
+            elif datafile.group is DataType.TRAJECTORY:
                 method = import_trajectory
             else:
                 self.log.error("Unrecognized data group: " + datafile.group)
                 return
-            progress_event = ProgressEvent(self.uid, f"Loading {datafile.group}", stop=0)
-            self.model().progressNotificationRequested.emit(progress_event)
+            progress_event = ProgressEvent(self.uid, f"Loading {datafile.group.value}", stop=0)
+            self.get_parent().progressNotificationRequested.emit(progress_event)
             loader = FileLoader(datafile.source_path, method,
-                                parent=self.get_parent_widget(), **params)
+                                parent=self.parent_widget, **params)
             loader.loaded.connect(functools.partial(self._post_load, datafile,
                                                     parent))
-            loader.finished.connect(lambda: self.model().progressNotificationRequested.emit(progress_event))
+            loader.finished.connect(lambda: self.get_parent().progressNotificationRequested.emit(progress_event))
             loader.start()
 
-        dlg = DataImportDialog(self, datatype, parent=self.get_parent_widget())
+        dlg = DataImportDialog(self, datatype, parent=self.parent_widget)
         if flight is not None:
             dlg.set_initial_flight(flight)
-        dlg.load.connect(load_data)
+        dlg.load.connect(_on_load)
         dlg.exec_()
 
     def properties_dlg(self):  # pragma: no cover
-        dlg = ProjectPropertiesDialog(self)
+        dlg = ProjectPropertiesDialog(self, parent=self.parent_widget)
         dlg.exec_()
 
     def _close_project(self):
-        if self.model() is not None:
-            self.model().close_project(self)
+        try:
+            self.get_parent().remove_project(self)
+        except AttributeError:
+            self.log.warning(f"project {self.get_attr('name')} has no parent")

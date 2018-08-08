@@ -4,7 +4,6 @@ import unittest
 from datetime import datetime
 import pandas as pd
 
-from .context import dgp
 from dgp.lib import time_utils as tu
 
 class TestTimeUtils(unittest.TestCase):

@@ -44,11 +44,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.log.addHandler(sb_handler)
         self.log.setLevel(logging.DEBUG)
 
-        # Setup Project
-        project.set_parent_widget(self)
-
         # Instantiate the Project Model and display in the ProjectTreeView
-        self.model = ProjectTreeModel(project)
+        self.model = ProjectTreeModel(project, parent=self)
         self.project_tree.setModel(self.model)
         self.project_tree.expandAll()
 
@@ -276,7 +273,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         """
 
         def _project_selected(directory):
-            prj_file = get_project_file(pathlib.Path(directory[0]))
+            prj_dir = pathlib.Path(directory[0])
+            prj_file = get_project_file(prj_dir)
             if prj_file is None:
                 self.log.warning("No valid DGP project file found in directory")
                 return
@@ -285,8 +283,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if project.uid in [p.uid for p in self.model.projects]:
                     self.log.warning("Project is already opened")
                 else:
-                    control = AirborneProjectController(project)
-                    control.set_parent_widget(self)
+                    control = AirborneProjectController(project, path=prj_dir)
                     self.model.add_project(control)
                     self.save_projects()
 

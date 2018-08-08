@@ -1,10 +1,10 @@
 <RCC>
   <qresource prefix="icons">
-    <file>AutosizeStretch_16x.png</file>
-    <file>folder_open.png</file>
-    <file>meter_config.png</file>
-    <file>new_file.png</file>
-    <file>save_project.png</file>
+    <file alias="autosize">AutosizeStretch_16x.png</file>
+    <file alias="folder_open">folder_open.png</file>
+    <file alias="meter_config">meter_config.png</file>
+    <file alias="new_file">new_file.png</file>
+    <file alias="save">save_project.png</file>
     <file alias="gps">gps_icon.png</file>
     <file alias="gravity">grav_icon.png</file>
     <file alias="dgs">dgs_icon.xpm</file>

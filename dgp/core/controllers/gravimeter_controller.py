@@ -19,7 +19,7 @@ class GravimeterController(IMeterController):
 
         self._bindings = [
             ('addAction', ('Delete <%s>' % self._meter.name,
-                           (lambda: self.get_parent().remove_child(self._meter, self.row(), True)))),
+                           (lambda: self.get_parent().remove_child(self.uid, True)))),
             ('addAction', ('Rename', self.set_name_dlg))
         ]
 
@@ -32,7 +32,7 @@ class GravimeterController(IMeterController):
         return self._meter
 
     @property
-    def menu_bindings(self):
+    def menu(self):
         return self._bindings
 
     def get_parent(self) -> IAirborneController:
@@ -45,7 +45,8 @@ class GravimeterController(IMeterController):
         self.setData(self._meter.name, Qt.DisplayRole)
 
     def set_name_dlg(self):  # pragma: no cover
-        name = get_input("Set Name", "Enter a new name:", self._meter.name)
+        name = get_input("Set Name", "Enter a new name:", self._meter.name,
+                         self.parent_widget)
         if name:
             self.set_attr('name', name)
 

@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 from pathlib import Path
-from typing import Any, Union, Optional
+from typing import Union, Generator, List, Tuple, Any
 
 from PyQt5.QtGui import QStandardItem, QStandardItemModel
+from PyQt5.QtWidgets import QWidget
 
 from dgp.core.controllers.controller_mixins import AttributeProxy
 from dgp.core.oid import OID
-from dgp.core.types.enumerations import DataTypes
+from dgp.core.types.enumerations import DataType
 
 
 """
@@ -19,17 +20,95 @@ invited with multiple inheritance and metaclass mis-matching. As most controller
 level classes also subclass QStandardItem and/or AttributeProxy.
 """
 
+MenuBinding = Tuple[str, Tuple[Any, ...]]
+MaybeChild = Union['IChild', None]
 
-class IChild:
-    def get_parent(self):
+
+class DGPObject:
+    @property
+    def uid(self) -> OID:
+        """Returns the unique Object IDentifier of the object
+
+        Returns
+        -------
+        :class:`~dgp.core.oid.OID`
+            Unique Object Identifier of the object.
+
+        """
+        raise NotImplementedError
+
+
+class IChild(DGPObject):
+    """A class sub-classing IChild can be a child object of a class which is an
+    :class:`IParent`.
+
+    The IChild interface defines properties to determine if the child can be
+    activated, and if it is currently activated.
+    Methods are defined so that the child may retrieve or set a reference to its
+    parent object.
+    The set_active method is provided for the Parent object to notify the child
+    of an activation state change and to update its visual state.
+
+    """
+    def get_parent(self) -> 'IParent':
+        """Return the parent object of this child"""
         raise NotImplementedError
 
     def set_parent(self, parent) -> None:
+        """Set the parent object of this child"""
+        raise NotImplementedError
+
+    @property
+    def can_activate(self) -> bool:
+        """Return whether this child can be activated"""
+        return False
+
+    @property
+    def is_active(self) -> bool:
+        if not self.can_activate:
+            return False
+        raise NotImplementedError
+
+    def set_active(self, state: bool) -> None:
+        """Called to visually set the child to the active state.
+
+        If a child needs to activate itself it should call activate_child on its
+        parent object, this ensures that siblings can be deactivated if the
+        child should be exclusively active.
+
+        Parameters
+        ----------
+        state : bool
+            Set the objects active state to the boolean state
+
+        """
+        if not self.can_activate:
+            return
         raise NotImplementedError
 
 
-class IParent:
-    def add_child(self, child) -> 'IBaseController':
+# TODO: Rename to AbstractParent
+class IParent(DGPObject):
+    """A class sub-classing IParent provides the ability to add/get/remove
+    :class:`IChild` objects, as well as a method to iterate through children.
+
+    Child objects may be activated by the parent if child.can_activate is True.
+    Parent objects should call set_active on children to update their internal
+    active state, and to allow children to perform any necessary visual updates.
+
+    """
+    @property
+    def children(self) -> Generator[IChild, None, None]:
+        """Return a generator of IChild objects specific to the parent.
+
+        Returns
+        -------
+        Generator[IChild, None, None]
+
+        """
+        raise NotImplementedError
+
+    def add_child(self, child) -> 'IChild':
         """Add a child object to the controller, and its underlying
         data object.
 
@@ -50,41 +129,100 @@ class IParent:
         """
         raise NotImplementedError
 
-    def remove_child(self, child, confirm: bool = True) -> None:
+    def remove_child(self, child, confirm: bool = True) -> bool:
         raise NotImplementedError
 
-    def get_child(self, uid: Union[str, OID]) -> IChild:
-        raise NotImplementedError
+    def get_child(self, uid: Union[str, OID]) -> MaybeChild:
+        """Get a child of this object by matching OID
 
-
-class IBaseController(QStandardItem, AttributeProxy):
-    @property
-    def uid(self) -> OID:
-        """Return the Object IDentifier of the underlying
-        model object
+        Parameters
+        ----------
+        uid : :class:`~dgp.core.oid.OID`
+            Unique identifier of the child to get
 
         Returns
         -------
-        :obj:`~dgp.core.oid.OID`
-            The OID of the underlying data model object
+        IChild or None
+            Returns the child object referred to by uid if it exists
+            else None
+
         """
+        for child in self.children:
+            if uid == child.uid:
+                return child
+
+    def activate_child(self, uid: OID, exclusive: bool = True,
+                       emit: bool = False) -> MaybeChild:
+        """Activate a child referenced by the given OID, and return a reference
+        to the activated child.
+        Children may be exclusively activated (default behavior), in which case
+        all other children of the parent will be set to inactive.
+
+        Parameters
+        ----------
+        uid : :class:`~dgp.core.oid.OID`
+        exclusive : bool, Optional
+            If exclusive is True, all other children will be deactivated
+        emit : bool, Optional
+
+        Returns
+        -------
+        :class:`IChild`
+            The child object that was activated
+
+        """
+        child = self.get_child(uid)
+        try:
+            child.set_active(True)
+            if exclusive:
+                for other in [c for c in self.children if c.uid != uid]:
+                    other.set_active(False)
+        except AttributeError:
+            return None
+        else:
+            return child
+
+    @property
+    def active_child(self) -> MaybeChild:
+        """Get the active child of this parent.
+
+        Returns
+        -------
+        IChild, None
+            The first active child, or None if there are no children which are
+            active.
+
+        """
+        return next((child for child in self.children if child.is_active), None)
+
+
+class IBaseController(QStandardItem, AttributeProxy, DGPObject):
+    @property
+    def parent_widget(self) -> Union[QWidget, None]:
+        try:
+            return self.model().parent()
+        except AttributeError:
+            return None
+
+    @property
+    def menu(self) -> List[MenuBinding]:
         raise NotImplementedError
 
 
-class IAirborneController(IBaseController, IParent):
-    def add_flight(self):
+class IAirborneController(IBaseController, IParent, IChild):
+    def add_flight_dlg(self):
         raise NotImplementedError
 
-    def add_gravimeter(self):
+    def add_gravimeter_dlg(self):
         raise NotImplementedError
 
-    def load_file_dlg(self, datatype: DataTypes,
+    def load_file_dlg(self, datatype: DataType,
                       flight: 'IFlightController' = None,
                       dataset: 'IDataSetController' = None):  # pragma: no cover
         raise NotImplementedError
 
     @property
-    def hdf5path(self) -> Path:
+    def hdfpath(self) -> Path:
         raise NotImplementedError
 
     @property
@@ -99,22 +237,21 @@ class IAirborneController(IBaseController, IParent):
     def meter_model(self) -> QStandardItemModel:
         raise NotImplementedError
 
-    def set_active_child(self, child, emit: bool = True):
-        raise NotImplementedError
-
-    def get_active_child(self):
-        raise NotImplementedError
+    @property
+    def can_activate(self):
+        return True
 
 
 class IFlightController(IBaseController, IParent, IChild):
-    def set_active_child(self, child, emit: bool = True):
-        raise NotImplementedError
-
-    def get_active_dataset(self):
-        raise NotImplementedError
+    @property
+    def can_activate(self):
+        return True
 
     @property
     def project(self) -> IAirborneController:
+        raise NotImplementedError
+
+    def get_parent(self) -> IAirborneController:
         raise NotImplementedError
 
 
@@ -123,6 +260,20 @@ class IMeterController(IBaseController, IChild):
 
 
 class IDataSetController(IBaseController, IChild):
+    def get_parent(self) -> IFlightController:
+        raise NotImplementedError
+
+    def set_parent(self, parent) -> None:
+        raise NotImplementedError
+
+    @property
+    def hdfpath(self) -> Path:
+        raise NotImplementedError
+
+    @property
+    def can_activate(self):
+        return True
+
     def add_datafile(self, datafile) -> None:
         """
         Add a :obj:`DataFile` to the :obj:`DataSetController`, potentially

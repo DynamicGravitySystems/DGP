@@ -29,7 +29,7 @@ class PlotTab(TaskTab):
         # TODO: It may make more sense to associate a DataSet with the plot vs a Flight
         super().__init__(label, root=flight, **kwargs)
         self.log = logging.getLogger(__name__)
-        self._dataset = flight.get_active_dataset()
+        self._dataset = flight.active_child
         self.plot: PqtLineSelectPlot = PqtLineSelectPlot(rows=2)
         self.plot.line_changed.connect(self._on_modified_line)
         self._setup_ui()
@@ -63,7 +63,6 @@ class PlotTab(TaskTab):
         qvbl_plot_layout.addLayout(qhbl_top_buttons)
 
         channel_widget = ChannelSelectWidget(self._dataset.series_model)
-        self.log.debug(f'Dataset is {self._dataset!s} with {self._dataset.series_model.rowCount()} rows')
         channel_widget.channel_added.connect(self._channel_added)
         channel_widget.channel_removed.connect(self._channel_removed)
         channel_widget.channels_cleared.connect(self._clear_plot)

@@ -2,6 +2,7 @@
 from datetime import datetime
 from typing import List, Optional, Union
 
+from dgp.core.types.reference import Reference
 from dgp.core.models.dataset import DataSet
 from dgp.core.models.meter import Gravimeter
 from dgp.core.oid import OID
@@ -39,13 +40,13 @@ class Flight:
         within the flight.
 
     """
-    __slots__ = ('uid', 'name', 'datasets', 'meter',
-                 'date', 'notes', 'sequence', 'duration', '_parent')
+    __slots__ = ('uid', 'name', 'datasets', 'date', 'notes', 'sequence',
+                 'duration', '_parent')
 
     def __init__(self, name: str, date: Optional[datetime] = None, notes: Optional[str] = None,
-                 sequence: int = 0, duration: int = 0, meter: str = None,
+                 sequence: int = 0, duration: int = 0,
                  uid: Optional[OID] = None, **kwargs):
-        self._parent = None
+        self._parent = Reference(self, 'parent')
         self.uid = uid or OID(self, name)
         self.uid.set_pointer(self)
         self.name = name
@@ -55,15 +56,14 @@ class Flight:
         self.duration = duration
 
         self.datasets = kwargs.get('datasets', [])  # type: List[DataSet]
-        self.meter: Gravimeter = meter
 
     @property
     def parent(self):
-        return self._parent
+        return self._parent.dereference()
 
     @parent.setter
     def parent(self, value):
-        self._parent = value
+        self._parent.ref = value
 
     def __str__(self) -> str:
         return self.name

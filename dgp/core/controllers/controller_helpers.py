@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
+import shlex
+import sys
+from pathlib import Path
 from typing import Optional, Union
 
-from PyQt5.QtCore import QObject
+from PyQt5.QtCore import QObject, QProcess
 from PyQt5.QtWidgets import QWidget, QMessageBox, QInputDialog
 
-__all__ = ['confirm_action', 'get_input']
+__all__ = ['confirm_action', 'get_input', 'show_in_explorer']
 
 
 def confirm_action(title: str, message: str,
@@ -59,4 +62,28 @@ def get_input(title: str, label: str, text: str = "", parent: QWidget=None):  # 
         return new_text
     return False
 
+
+def show_in_explorer(path: Path):  # pragma: no cover
+    """Reveal the specified path in the OS's explorer/file-browser/finder
+
+    Parameters
+    ----------
+    path : :class:`pathlib.Path`
+
+    """
+    dest = path.absolute().resolve()
+    if sys.platform == 'darwin':
+        target = 'oascript'
+        args = f'-e tell application "Finder" -e activate -e select POSIX file ' \
+               f'"{dest!s}" -e end tell'
+    elif sys.platform == 'win32':
+        target = 'explorer'
+        args = shlex.quote(f'{dest!s}')
+    elif sys.platform == 'linux':
+        target = 'xdg-open'
+        args = shlex.quote(f'{dest!s}')
+    else:
+        return
+
+    QProcess.startDetached(target, shlex.split(args))
 

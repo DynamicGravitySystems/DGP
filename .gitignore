@@ -15,11 +15,12 @@ venv/
 docs/build/
 .cache/
 .pytest_cache/
+build/
+dist/
 
 # Specific Directives
 examples/local*
 tests/sample_data/eotvos_long_result.csv
 tests/sample_data/eotvos_long_input.txt
 dgp/gui/ui/*.py
-build/
-dist/
+dgp/resources_rc.py
