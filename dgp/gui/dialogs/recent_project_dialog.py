@@ -1,23 +1,26 @@
 # -*- coding: utf-8 -*-
 import sys
-import json
 import logging
 from pathlib import Path
 from typing import Union
 
 import PyQt5.QtWidgets as QtWidgets
-from PyQt5.QtCore import QModelIndex
+from PyQt5.QtCore import QModelIndex, pyqtSignal
 
-from dgp.core.controllers.project_controllers import AirborneProjectController
-from dgp.core.models.project import AirborneProject, GravityProject
-from dgp.gui import settings, RecentProjectManager
-from dgp.gui.main import MainWindow
-from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, LOG_COLOR_MAP, get_project_file
+from dgp.gui import RecentProjectManager
+from dgp.gui.utils import ConsoleHandler, LOG_FORMAT, LOG_COLOR_MAP, load_project_from_path
 from dgp.gui.dialogs.create_project_dialog import CreateProjectDialog
-from dgp.gui.ui.splash_screen import Ui_ProjectLauncher
+from dgp.gui.ui.recent_project_dialog import Ui_RecentProjects
 
 
-class SplashScreen(QtWidgets.QDialog, Ui_ProjectLauncher):
+class RecentProjectDialog(QtWidgets.QDialog, Ui_RecentProjects):
+    """Display a QDialog with a recent project's list, and ability to browse for,
+    or create a new project.
+    Recent projects are retrieved via the QSettings object and global DGP keys.
+
+    """
+    sigProjectLoaded = pyqtSignal(object)
+
     def __init__(self, *args):
         super().__init__(*args)
         self.setupUi(self)
@@ -30,7 +33,7 @@ class SplashScreen(QtWidgets.QDialog, Ui_ProjectLauncher):
         error_handler.setLevel(logging.DEBUG)
         self.log.addHandler(error_handler)
 
-        self.recents = RecentProjectManager(settings())
+        self.recents = RecentProjectManager()
 
         self.qpb_new_project.clicked.connect(self.new_project)
         self.qpb_browse.clicked.connect(self.browse_project)
@@ -57,48 +60,43 @@ class SplashScreen(QtWidgets.QDialog, Ui_ProjectLauncher):
     def project_path(self) -> Union[Path, None]:
         return self.recents.path(self.qlv_recents.currentIndex())
 
-    def load_project_from_dir(self, path: Path):
-        if not path.exists():
-            self.log.error("Path does not exist")
-            return
-        prj_file = get_project_file(path)
-        # TODO: Err handling and project type handling/dispatch
-        with prj_file.open('r') as fd:
-            project = AirborneProject.from_json(fd.read())
-        return project
+    def load_project(self, path: Path):
+        """Load a project from file and emit the result
 
-    def load_project(self, project, path: Path = None, spawn: bool = True):
-        if isinstance(project, AirborneProject):
-            controller = AirborneProjectController(project, path=path or project.path)
-        else:
-            raise TypeError(f"Unsupported project type {type(project)}")
-        if spawn:
-            window = MainWindow(controller)
-            window.load()
-            super().accept()
-            return window
-        else:
-            return controller
+        Parameters
+        ----------
+        path
+
+        Returns
+        -------
+
+        """
+        assert isinstance(path, Path)
+        project = load_project_from_path(path)
+        project.path = path  # update project's path in case folder was moved
+        self.sigProjectLoaded.emit(project)
+        super().accept()
 
     def accept(self):
         if self.project_path is not None:
-            project = self.load_project_from_dir(self.project_path)
-            self.load_project(project, self.project_path, spawn=True)
+            self.load_project(self.project_path)
             super().accept()
+        else:
+            self.log.warning("No project selected")
 
     def new_project(self):
         """Allow the user to create a new project"""
         dialog = CreateProjectDialog(parent=self)
-        dialog.sigProjectCreated.connect(self.load_project)
-        dialog.exec_()
+        dialog.sigProjectCreated.connect(self.sigProjectLoaded.emit)
+        if dialog.exec_():
+            super().accept()
 
     def browse_project(self):
         """Allow the user to browse for a project directory and load."""
         path = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Project Dir")
         if not path:
             return
-        project = self.load_project_from_dir(Path(path))
-        self.load_project(project, path, spawn=True)
+        self.load_project(Path(path))
 
     def write_error(self, msg, level=None) -> None:
         self.label_error.setText(msg)

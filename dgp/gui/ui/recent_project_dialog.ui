@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>ProjectLauncher</class>
- <widget class="QDialog" name="ProjectLauncher">
+ <class>RecentProjects</class>
+ <widget class="QDialog" name="RecentProjects">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -236,7 +236,7 @@
   <connection>
    <sender>dialog_buttons</sender>
    <signal>rejected()</signal>
-   <receiver>ProjectLauncher</receiver>
+   <receiver>RecentProjects</receiver>
    <slot>reject()</slot>
    <hints>
     <hint type="sourcelabel">
@@ -252,7 +252,7 @@
   <connection>
    <sender>dialog_buttons</sender>
    <signal>accepted()</signal>
-   <receiver>ProjectLauncher</receiver>
+   <receiver>RecentProjects</receiver>
    <slot>accept()</slot>
    <hints>
     <hint type="sourcelabel">
