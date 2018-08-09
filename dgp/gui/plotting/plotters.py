@@ -30,12 +30,21 @@ a section of interesting data).
 class TransformPlot(GridPlotWidget):
     """Plot interface used for displaying transformation results.
     May need to display data plotted against time series or scalar series.
-    """
 
-    # TODO: Duplication of params? Use kwargs?
-    def __init__(self, rows=1, cols=1, grid=True, parent=None):
-        super().__init__(rows=rows, cols=cols, grid=grid, sharex=True,
-                         multiy=False, timeaxis=True, parent=parent)
+    Parameters
+    ----------
+    kwargs :
+        Keyword arguments are supplied to the base :class:`GridPlotWidget`
+        The TransformPlot sets sharex=True, multiy=False and timeaxis=True by
+        default
+
+        rows : int
+        cols : int
+        grid : bool
+
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs, sharex=True, multiy=False, timeaxis=True)
 
     def set_axis_formatters(self, formatter: AxisFormatter):
         for i in range(self.rows):

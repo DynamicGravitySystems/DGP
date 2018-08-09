@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
-from datetime import datetime
 
-import numpy as np
 import pandas as pd
 
 from PyQt5.QtCore import Qt, QPoint, pyqtSignal
@@ -116,11 +114,7 @@ class PolyAxis(AxisItem):
         else:  # pragma: no cover
             return super().tickStrings(values, scale, spacing)
 
-    # def tickValues(self, minVal, maxVal, size):
-    #     return super().tickValues(minVal, maxVal, size)
 
-    # def tickSpacing(self, minVal, maxVal, size):
-    #     return super().tickSpacing(minVal, maxVal, size)
 
 
 class LinearSegment(LinearRegionItem):
