@@ -22,6 +22,9 @@
        <verstretch>0</verstretch>
       </sizepolicy>
      </property>
+     <property name="toolTip">
+      <string>Enable transparency for plot data curves</string>
+     </property>
      <property name="title">
       <string>Trace Alpha</string>
      </property>
@@ -31,6 +34,9 @@
      <layout class="QVBoxLayout" name="verticalLayout_2">
       <item>
        <widget class="QSlider" name="alphaSlider">
+        <property name="toolTip">
+         <string>Adjust the alpha (transparency) of the curves on this plot</string>
+        </property>
         <property name="maximum">
          <number>1000</number>
         </property>
@@ -65,6 +71,9 @@
      <layout class="QFormLayout" name="formLayout_2">
       <item row="0" column="1">
        <widget class="QSlider" name="gridAlphaSlider">
+        <property name="toolTip">
+         <string>Adjust the alpha (transparency) of the grid lines</string>
+        </property>
         <property name="maximum">
          <number>255</number>
         </property>
@@ -84,6 +93,9 @@
       </item>
       <item row="1" column="1">
        <widget class="QCheckBox" name="xGridCheck">
+        <property name="toolTip">
+         <string>Show or hide vertical (x-axis) grid-lines</string>
+        </property>
         <property name="text">
          <string>X</string>
         </property>
@@ -94,6 +106,9 @@
       </item>
       <item row="2" column="1">
        <widget class="QCheckBox" name="yGridCheck">
+        <property name="toolTip">
+         <string>Show or hide horizontal (y-axis) grid lines for the left y-axis</string>
+        </property>
         <property name="text">
          <string>Y (Left)</string>
         </property>
@@ -111,6 +126,9 @@
       </item>
       <item row="3" column="1">
        <widget class="QCheckBox" name="yGridCheckRight">
+        <property name="toolTip">
+         <string>Show or hide horizontal (y-axis) grid lines for the right y-axis</string>
+        </property>
         <property name="text">
          <string>Y (Right)</string>
         </property>
@@ -121,6 +139,9 @@
    </item>
    <item>
     <widget class="QCheckBox" name="averageCheck">
+     <property name="toolTip">
+      <string>Compute and display an average curve of all curves displayed on the primary (left) axis.</string>
+     </property>
      <property name="text">
       <string>Show Average Curve</string>
      </property>
@@ -128,6 +149,9 @@
    </item>
    <item>
     <widget class="QGroupBox" name="downsampleCheck">
+     <property name="toolTip">
+      <string>Enable down-sampling to visually decimate data (may improve interactive performance)</string>
+     </property>
      <property name="title">
       <string>Down Sampling</string>
      </property>
@@ -172,6 +196,9 @@
    </item>
    <item>
     <widget class="QPushButton" name="qpbReset">
+     <property name="toolTip">
+      <string>Reset plot options to their default values.</string>
+     </property>
      <property name="text">
       <string>Reset Options</string>
      </property>

@@ -175,6 +175,10 @@ class DgpPlotItem(PlotItem):
         self.clearAction = QAction("Clear Plot", self)
         self.clearAction.triggered.connect(self.clearPlots)
 
+        # Connect the 'View All' action so it autoRanges both (left/right) plots
+        self.vb.menu.viewAll.triggered.disconnect()
+        self.vb.menu.viewAll.triggered.connect(self.autoRange)
+
         # Configure right-y plot (sharing x-axis)
         self._right = LinkedPlotItem(self) if multiy else None
 
