@@ -4,17 +4,12 @@ import enum
 import logging
 from enum import auto
 
-__all__ = ['AxisFormatter', 'StateAction', 'StateColor', 'Icon', 'ProjectTypes',
+__all__ = ['StateAction', 'StateColor', 'Icon', 'ProjectTypes',
            'MeterTypes', 'DataType']
 
 LOG_LEVEL_MAP = {'debug': logging.DEBUG, 'info': logging.INFO,
                  'warning': logging.WARNING, 'error': logging.ERROR,
                  'critical': logging.CRITICAL}
-
-
-class AxisFormatter(enum.Enum):
-    DATETIME = auto()
-    SCALAR = auto()
 
 
 class StateAction(enum.Enum):

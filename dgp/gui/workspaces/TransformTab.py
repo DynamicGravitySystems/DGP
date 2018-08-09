@@ -10,11 +10,10 @@ from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QVBoxLayout, QWidget, QInputDialog, QTextEdit
 
-from dgp.core import AxisFormatter
 from dgp.core.controllers.dataset_controller import DataSegmentController, DataSetController
 from dgp.core.controllers.flight_controller import FlightController
 from dgp.lib.transform.transform_graphs import SyncGravity, AirbornePost, TransformGraph
-from dgp.gui.plotting.plotters import TransformPlot
+from dgp.gui.plotting.plotters import TransformPlot, AxisFormatter
 from . import TaskTab
 from ..ui.transform_tab_widget import Ui_TransformInterface
 

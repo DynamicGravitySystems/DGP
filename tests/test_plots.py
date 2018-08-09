@@ -16,12 +16,11 @@ from PyQt5.QtWidgets import QWidget, QGraphicsScene, QGraphicsSceneMouseEvent
 from pyqtgraph import GraphicsLayout, PlotItem, PlotDataItem, LegendItem, Point
 from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent
 
-from dgp.core import AxisFormatter
 from dgp.core.oid import OID
 from dgp.core.types.tuples import LineUpdate
-from dgp.gui.plotting.backends import GridPlotWidget, Axis
+from dgp.gui.plotting.backends import GridPlotWidget, Axis, AxisFormatter
 from dgp.gui.plotting.plotters import LineSelectPlot
-from dgp.gui.plotting.helpers import PolyAxis, LinearFlightRegion
+from dgp.gui.plotting.helpers import PolyAxis, LinearSegment
 
 
 @pytest.fixture
@@ -344,7 +343,7 @@ def test_LineSelectPlot_selection_mode():
     assert 1 == len(plot._segments)
 
     for lfr_grp in plot._segments.values():
-        for lfr in lfr_grp:  # type: LinearFlightRegion
+        for lfr in lfr_grp:  # type: LinearSegment
             assert lfr.movable
 
     plot.selection_mode = False
@@ -438,7 +437,7 @@ def test_LineSelectPlot_set_label(gravity: pd.Series):
     segment0 = segment_grp[0]
     segment1 = segment_grp[1]
 
-    assert isinstance(segment0, LinearFlightRegion)
+    assert isinstance(segment0, LinearSegment)
     assert '' == segment0._label.textItem.toPlainText()
     assert '' == segment0.label
 

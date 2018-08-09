@@ -2,18 +2,19 @@
 import logging
 
 import pandas as pd
-import PyQt5.QtCore as QtCore
-from PyQt5.QtCore import pyqtSignal
-from pyqtgraph import PlotItem, Point
+from PyQt5.QtCore import pyqtSignal, Qt, QTimer
+from pyqtgraph import Point
 
-from dgp.core import AxisFormatter
 from dgp.core import StateAction
 from dgp.core.oid import OID
 from dgp.core.types.tuples import LineUpdate
-from .helpers import LinearFlightRegion
-from .backends import GridPlotWidget
+from .helpers import LinearSegment
+from .backends import GridPlotWidget, AxisFormatter
 
-from pyqtgraph.graphicsItems.LinearRegionItem import LinearRegionItem
+
+__all__ = ['TransformPlot', 'LineSelectPlot', 'AxisFormatter']
+
+_log = logging.getLogger(__name__)
 
 """
 Task specific Plotting Interface definitions.
@@ -24,7 +25,6 @@ and user-interaction features to allow a user to create line-segments (defining
 a section of interesting data).
 
 """
-_log = logging.getLogger(__name__)
 
 
 class TransformPlot(GridPlotWidget):
@@ -57,8 +57,8 @@ class LineSelectPlot(GridPlotWidget):
         self._updating = False
 
         # Rate-limit line updates using a timer.
-        self._line_update: LinearFlightRegion = None
-        self._update_timer = QtCore.QTimer(self)
+        self._line_update: LinearSegment = None
+        self._update_timer = QTimer(self)
         self._update_timer.setInterval(100)
         self._update_timer.timeout.connect(self._update_done)
 
@@ -72,13 +72,13 @@ class LineSelectPlot(GridPlotWidget):
     def selection_mode(self, value):
         self._selecting = bool(value)
         for group in self._segments.values():
-            for lfr in group:  # type: LinearFlightRegion
+            for lfr in group:  # type: LinearSegment
                 lfr.setMovable(value)
 
     def add_segment(self, start: float, stop: float, label: str = None,
                     uid: OID = None, emit=True) -> None:
         """
-        Add a LinearFlightRegion selection across all linked x-axes
+        Add a LinearSegment selection across all linked x-axes
         With width ranging from start:stop and an optional label.
 
         To non-interactively add a segment group (e.g. when loading a saved
@@ -113,7 +113,7 @@ class LineSelectPlot(GridPlotWidget):
 
         lfr_group = []
         for i, plot in enumerate(self.plots):
-            lfr = LinearFlightRegion(parent=self, label=label)
+            lfr = LinearSegment(parent=self, label=label)
             lfr.group = grpid
             plot.addItem(lfr)
             plot.addItem(lfr._label)
@@ -122,7 +122,7 @@ class LineSelectPlot(GridPlotWidget):
             lfr.sigRegionChanged.connect(self._update_segments)
             lfr.sigLabelChanged.connect(self.set_label)
             lfr.sigDeleteRequested.connect(self.remove_segment)
-            plot.sigYRangeChanged.connect(lfr.y_changed)
+            plot.sigYRangeChanged.connect(lfr.y_rng_changed)
 
             lfr_group.append(lfr)
 
@@ -133,13 +133,13 @@ class LineSelectPlot(GridPlotWidget):
     def get_segment(self, uid: OID):
         return self._segments[uid][0]
 
-    def remove_segment(self, item: LinearFlightRegion):
+    def remove_segment(self, item: LinearSegment):
         """Remove the segment 'item' and all of its siblings (in the same group)
 
         """
-        if not isinstance(item, LinearFlightRegion):
+        if not isinstance(item, LinearSegment):
             raise TypeError(f'{item!r} is not a valid type. Expected '
-                            f'LinearFlightRegion')
+                            f'LinearSegment')
 
         grpid = item.group
         x0, x1 = item.getRegion()
@@ -147,9 +147,9 @@ class LineSelectPlot(GridPlotWidget):
                             pd.to_datetime(x0), pd.to_datetime(x1), None)
         grp = self._segments[grpid]
         for i, plot in enumerate(self.plots):
-            lfr: LinearFlightRegion = grp[i]
+            lfr: LinearSegment = grp[i]
             try:
-                plot.sigYRangeChanged.disconnect(lfr.y_changed)
+                plot.sigYRangeChanged.disconnect(lfr.y_rng_changed)
             except TypeError:  # pragma: no cover
                 pass
             plot.removeItem(lfr._label)
@@ -157,12 +157,12 @@ class LineSelectPlot(GridPlotWidget):
         del self._segments[grpid]
         self.sigSegmentChanged.emit(update)
 
-    def set_label(self, item: LinearFlightRegion, text: str):
+    def set_label(self, item: LinearSegment, text: str):
         """Set the text label of every LFR in the same group as item"""
-        if not isinstance(item, LinearFlightRegion):
-            raise TypeError(f'Item must be of type LinearFlightRegion')
+        if not isinstance(item, LinearSegment):
+            raise TypeError(f'Item must be of type LinearSegment')
         group = self._segments[item.group]
-        for lfr in group:  # type: LinearFlightRegion
+        for lfr in group:  # type: LinearSegment
             lfr.label = text
 
         x0, x1 = item.getRegion()
@@ -182,10 +182,10 @@ class LineSelectPlot(GridPlotWidget):
             # Avoid error when clicking around plot, due to an attempt to
             #  call mapFromScene on None in pyqtgraph/mouseEvents.py
             return
-        if event.button() == QtCore.Qt.RightButton:
+        if event.button() == Qt.RightButton:
             return
 
-        if event.button() == QtCore.Qt.LeftButton:
+        if event.button() == Qt.LeftButton:
             if not self.selection_mode:
                 return
             p0 = self.get_plot(row=0)
@@ -203,7 +203,7 @@ class LineSelectPlot(GridPlotWidget):
             stop = xpos + (vb_span * 0.05)
             self.add_segment(start, stop)
 
-    def _update_segments(self, item: LinearFlightRegion):
+    def _update_segments(self, item: LinearSegment):
         """Update other LinearRegionItems in the group of 'item' to match the
         new region.
         A flag (_updating) is set here as we only want to process updates from
@@ -265,7 +265,7 @@ class LineSelectPlot(GridPlotWidget):
         """
         prox = span * proximity
         for group in self._segments.values():
-            lri0 = group[0]  # type: LinearRegionItem
+            lri0 = group[0]  # type: LinearSegment
             lx0, lx1 = lri0.getRegion()
             if lx0 - prox <= x <= lx1 + prox:
                 print("New point is too close")

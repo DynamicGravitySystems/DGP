@@ -59,6 +59,6 @@ Helpers
     :undoc-members:
     :show-inheritance:
 
-.. autoclass:: dgp.gui.plotting.helpers.LinearFlightRegion
+.. autoclass:: dgp.gui.plotting.helpers.LinearSegment
     :undoc-members:
     :show-inheritance:

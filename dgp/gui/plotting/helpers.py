@@ -123,7 +123,7 @@ class PolyAxis(AxisItem):
     #     return super().tickSpacing(minVal, maxVal, size)
 
 
-class LinearFlightRegion(LinearRegionItem):
+class LinearSegment(LinearRegionItem):
     """Custom LinearRegionItem class to provide override methods on various
     click events.
 
@@ -180,6 +180,16 @@ class LinearFlightRegion(LinearRegionItem):
         else:
             return super().mouseClickEvent(ev)
 
+    def y_rng_changed(self, vb, ylims):  # pragma: no cover
+        """pyqtSlot (ViewBox, Tuple[Float, Float])
+        Center the label vertically within the ViewBox when the ViewBox
+        Y-Limits have changed
+
+        """
+        x = self._label.pos()[0]
+        y = ylims[0] + (ylims[1] - ylims[0]) / 2
+        self._label.setPos(x, y)
+
     def _update_label_pos(self):
         x0, x1 = self.getRegion()
         cx = x0 + (x1 - x0) / 2
@@ -192,14 +202,3 @@ class LinearFlightRegion(LinearRegionItem):
             return
         self.sigLabelChanged.emit(self, str(text).strip())
 
-    def y_changed(self, vb, ylims):
-        """pyqtSlot (ViewBox, Tuple[Float, Float])
-        Center the label vertically within the ViewBox when the ViewBox
-        Y-Limits have changed
-
-        """
-        x = self._label.pos()[0]
-        y = ylims[0] + (ylims[1] - ylims[0]) / 2
-        self._label.setPos(x, y)
-
-    # TODO: Add dialog action to manually adjust left/right bounds

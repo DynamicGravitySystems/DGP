@@ -9,10 +9,15 @@ from pyqtgraph.graphicsItems.GraphicsLayout import GraphicsLayout
 from pyqtgraph.graphicsItems.PlotItem import PlotItem
 from pyqtgraph import SignalProxy, PlotDataItem
 
-from dgp.core import AxisFormatter
 from .helpers import PolyAxis
 
-__all__ = ['GridPlotWidget']
+
+__all__ = ['GridPlotWidget', 'Axis', 'AxisFormatter']
+
+
+class AxisFormatter(Enum):
+    DATETIME = auto()
+    SCALAR = auto()
 
 
 class Axis(Enum):
@@ -87,7 +92,6 @@ class GridPlotWidget(GraphicsView):
     :func:`pyqtgraph.functions.mkColor` for color options in the plot (creates a QtGui.QColor)
 
     """
-
     def __init__(self, rows=1, cols=1, background='w', grid=True, sharex=False,
                  multiy=False, timeaxis=False, parent=None):
         super().__init__(background=background, parent=parent)
