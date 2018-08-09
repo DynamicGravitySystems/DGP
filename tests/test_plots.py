@@ -1,26 +1,24 @@
 # -*- coding: utf-8 -*-
-
-"""
-Test/Develop Plots using PyQtGraph for high-performance user-interactive plots
-within the application.
-"""
 from datetime import datetime
 
 import pytest
 import numpy as np
 import pandas as pd
-from PyQt5.QtCore import QObject, QEvent, QPointF, Qt
-from PyQt5.QtGui import QMouseEvent
+from PyQt5.QtCore import QObject
 from PyQt5.QtTest import QSignalSpy
-from PyQt5.QtWidgets import QWidget, QGraphicsScene, QGraphicsSceneMouseEvent
-from pyqtgraph import GraphicsLayout, PlotItem, PlotDataItem, LegendItem, Point
-from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent
+from PyQt5.QtWidgets import QWidget
+from pyqtgraph import GraphicsLayout, PlotItem, PlotDataItem, LegendItem
 
 from dgp.core.oid import OID
 from dgp.core.types.tuples import LineUpdate
 from dgp.gui.plotting.backends import GridPlotWidget, Axis, AxisFormatter
 from dgp.gui.plotting.plotters import LineSelectPlot
 from dgp.gui.plotting.helpers import PolyAxis, LinearSegment
+
+"""Test/Develop Plots using PyQtGraph for high-performance user-interactive 
+plots within the application.
+
+"""
 
 
 @pytest.fixture
@@ -77,16 +75,16 @@ def test_GridPlotWidget_add_series(gravity):
     assert gravity.name in [label.text for _, label in p0.legend.items]
 
     # Re-plotting an existing series on the same plot should do nothing
-    _items_len = len(gpw._items.values())
+    _items_len = len(list(gpw._items.values()))
     gpw.add_series(gravity, row=0)
     assert 1 == len(p0.dataItems)
-    assert _items_len == len(gpw._items.values())
+    assert _items_len == len(list(gpw._items.values()))
 
     # Allow plotting of a duplicate series to a second plot
-    _items_len = len(gpw._items.values())
+    _items_len = len(list(gpw._items.values()))
     gpw.add_series(gravity, row=1)
     assert 1 == len(p1.dataItems)
-    assert _items_len + 1 == len(gpw._items.values())
+    assert _items_len + 1 == len(list(gpw._items.values()))
 
     # Remove series only by name (assuming it can only ever be plotted once)
     # or specify which plot to remove it from?

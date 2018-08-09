@@ -315,10 +315,11 @@ class GridPlotWidget(GraphicsView):
 
         # Note: increasing pen width can drastically reduce performance
         self._pens = cycle([{'color': v, 'width': 1} for v in LINE_COLORS])
-        self._series = {}  # type: Dict[pd.Series: Tuple[str, int, int]]
-        self._items = {}  # type: Dict[PlotDataItem: Tuple[str, int, int]]
 
-        # TODO: use plot.setLimits to restrict zoom-out level (prevent OverflowError)
+        # Maintain weak references to Series/PlotDataItems for lookups
+        self._series: Dict[PlotIndex: pd.Series] = WeakValueDictionary()
+        self._items: Dict[PlotIndex: PlotDataItem] = WeakValueDictionary()
+
         col = 0
         for row in range(self.rows):
             axis_items = {'bottom': PolyAxis(orientation='bottom',
@@ -334,16 +335,21 @@ class GridPlotWidget(GraphicsView):
 
         self.__signal_proxies = []
 
-    def get_plot(self, row: int, col: int = 0, axis: Axis = Axis.LEFT) -> PlotItem:
-        if axis is Axis.RIGHT:
-            return self._rightaxis[(row, col)]
-        else:
-            return self.gl.getItem(row, col)
-
     @property
-    def plots(self) -> Generator[PlotItem, None, None]:
+    def plots(self) -> Generator[DgpPlotItem, None, None]:
         for i in range(self.rows):
             yield self.get_plot(i, 0)
+
+    @property
+    def pen(self):
+        return next(self._pens)
+
+    def get_plot(self, row: int, col: int = 0, axis: Axis = Axis.LEFT) -> MaybePlot:
+        plot: DgpPlotItem = self.gl.getItem(row, col)
+        if axis is Axis.RIGHT:
+            return plot.right
+        else:
+            return plot
 
     def add_series(self, series: pd.Series, row: int, col: int = 0,
                    axis: Axis = Axis.LEFT, autorange: bool = True) -> PlotItem:
@@ -366,19 +372,22 @@ class GridPlotWidget(GraphicsView):
         -------
         PlotItem
 
+        Raises
+        ------
+        :exc:`AttributeError`
+            If the provided axis is invalid for the plot, i.e. axis=Axis.RIGHT
+            but multiy is not enabled.
+
         """
         key = self.make_index(series.name, row, col, axis)
-        if self.get_series(*key) is not None:
+        if self._items.get(key, None) is not None:
             return self._items[key]
 
         self._series[key] = series
-        if axis is Axis.RIGHT:
-            plot = self._rightaxis.get((row, col), self.get_plot(row, col))
-        else:
-            plot = self.get_plot(row, col)
+        plot = self.get_plot(row, col, axis)
         xvals = pd.to_numeric(series.index, errors='coerce')
         yvals = pd.to_numeric(series.values, errors='coerce')
-        item = plot.plot(x=xvals, y=yvals, name=series.name, pen=next(self._pens))
+        item = plot.plot(x=xvals, y=yvals, name=series.name, pen=self.pen)
         self._items[key] = item
         if autorange:
             plot.autoRange()
@@ -390,16 +399,27 @@ class GridPlotWidget(GraphicsView):
 
     def remove_series(self, name: str, row: int, col: int = 0,
                       axis: Axis = Axis.LEFT, autorange: bool = True) -> None:
+        """Remove a named series from the plot at the specified row/col/axis
+
+        Parameters
+        ----------
+        name : str
+        row : int
+        col : int, optional
+        axis : Axis, optional
+        autorange : bool, optional
+            Readjust plot x/y view limits after removing the series
+
+        """
         plot = self.get_plot(row, col, axis)
         key = self.make_index(name, row, col, axis)
         plot.removeItem(self._items[key])
         plot.legend.removeItem(name)
-        del self._series[key]
-        del self._items[key]
         if autorange:
             plot.autoRange()
 
     def clear(self):
+        """Clear all plot curves from all plots"""
         for i in range(self.rows):
             for j in range(self.cols):
                 plot = self.get_plot(i, j)
@@ -412,11 +432,6 @@ class GridPlotWidget(GraphicsView):
                     for curve in plot_r.curves[:]:
                         plot_r.legend.removeItem(curve.name())
                         plot_r.removeItem(curve)
-        del self._items
-        del self._series
-        self._items = {}
-        self._series = {}
-
 
     def remove_plotitem(self, item: PlotDataItem) -> None:
         """Alternative method of removing a line by its :class:`PlotDataItem`
@@ -436,11 +451,9 @@ class GridPlotWidget(GraphicsView):
                     plot.legend.removeItem(item.name())
                     plot.removeItem(item)
 
-                    del self._series[self.make_index(name, *index[0])]
-
     def find_series(self, name: str) -> List[PlotIndex]:
-        """Find and return a list of all indexes where a series with
-        Series.name == name
+        """Find and return a list of all plot indexes where a series with
+        'name' is plotted
 
         Parameters
         ----------
@@ -449,7 +462,7 @@ class GridPlotWidget(GraphicsView):
 
         Returns
         -------
-        List
+        List of PlotIndex
             List of Series indexes, see :func:`make_index`
 
         """
@@ -463,6 +476,7 @@ class GridPlotWidget(GraphicsView):
     def set_xaxis_formatter(self, formatter: AxisFormatter, row: int, col: int = 0):
         """Allow setting of the X-Axis tick formatter to display DateTime or
         scalar values.
+
         This is an explicit call, as opposed to letting the AxisItem infer the
         axis type due to the possibility of plotting two series with different
         indexes. This may be revised in future.
@@ -482,7 +496,15 @@ class GridPlotWidget(GraphicsView):
         axis: PolyAxis = plot.getAxis('bottom')
         axis.timeaxis = formatter is AxisFormatter.DATETIME
 
-    def get_xlim(self, row: int, col: int = 0):
+    def get_xlim(self, row: int, col: int = 0) -> Tuple[float, float]:
+        """Get the x-limits (span) for the plot at row/col
+
+        Returns
+        -------
+        tuple of float, float
+            Tuple of minimum/maximum x-values (xmin, xmax)
+
+        """
         return self.get_plot(row, col).vb.viewRange()[0]
 
     def set_xlink(self, linked: bool = True, autorange: bool = False):
@@ -523,9 +545,21 @@ class GridPlotWidget(GraphicsView):
 
     @staticmethod
     def make_index(name: str, row: int, col: int = 0, axis: Axis = Axis.LEFT) -> PlotIndex:
+        """Generate an index referring to a specific plot curve
+
+        Plot curves (items) can be uniquely identified within the GridPlotWidget
+        by their name, and the specific plot which they reside on (row/col/axis)
+        A plot item can only be plotted once on a given plot, so the index is
+        guaranteed to be unique for the specific named item.
+
+        Raises
+        ------
+        :exc:`ValueError`
+            If supplied name is invalid (None or empty string: '')
+
+        """
         if axis not in Axis:
             axis = Axis.LEFT
         if name is None or name is '':
             raise ValueError("Cannot create plot index from empty name.")
         return name.lower(), row, col, axis
-
