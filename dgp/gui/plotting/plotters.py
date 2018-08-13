@@ -113,6 +113,10 @@ class LineSelectPlot(GridPlotWidget):
             update = LineUpdate(StateAction.CREATE, uid, group.left,
                                 group.right, group.label_text)
             self.sigSegmentChanged.emit(update)
+        return group
+
+    def get_segment(self, uid: OID) -> LinearSegmentGroup:
+        return self._segments.get(uid, None)
 
     def onclick(self, ev):  # pragma: no cover
         """Onclick handler for mouse left/right click.

@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 import logging
+import weakref
 from pathlib import Path
-from typing import List, Union
+from typing import List, Union, Generator, Set
 
 from pandas import DataFrame, Timestamp, concat
 from PyQt5.QtCore import Qt
@@ -14,21 +15,33 @@ from dgp.core.controllers import controller_helpers
 from dgp.core.models.datafile import DataFile
 from dgp.core.models.dataset import DataSet, DataSegment
 from dgp.core.types.enumerations import DataType, StateColor
+from dgp.gui.plotting.helpers import LinearSegmentGroup
 from dgp.lib.etc import align_frames
 
-from .controller_interfaces import IFlightController, IDataSetController
+from .controller_interfaces import IFlightController, IDataSetController, IBaseController
 from .project_containers import ProjectFolder
 from .datafile_controller import DataFileController
-from .controller_bases import BaseController
 
 
-class DataSegmentController(BaseController):
-    def __init__(self, segment: DataSegment, clone=False):
+class DataSegmentController(IBaseController):
+    """Controller for :class:`DataSegment`
+
+    Implements reference tracking feature allowing the mutation of segments
+    representations displayed on a plot surface.
+    """
+    def __init__(self, segment: DataSegment, parent: IDataSetController = None,
+                 clone=False):
         super().__init__()
         self._segment = segment
+        self._parent = parent
+        self._refs: Set[LinearSegmentGroup] = weakref.WeakSet()
         self._clone = clone
         self.setData(segment, Qt.UserRole)
         self.update()
+
+        self._menu = [
+            ('addAction', ('Delete', lambda: self._delete()))
+        ]
 
     @property
     def uid(self) -> OID:
@@ -40,7 +53,10 @@ class DataSegmentController(BaseController):
 
     @property
     def menu(self):
-        return []
+        return self._menu
+
+    def add_reference(self, group: LinearSegmentGroup):
+        self._refs.add(group)
 
     def update(self):
         self.setText(str(self._segment))
@@ -48,6 +64,18 @@ class DataSegmentController(BaseController):
 
     def clone(self) -> 'DataSegmentController':
         return DataSegmentController(self._segment, clone=True)
+
+    def _delete(self):
+        """Delete this data segment from any active plots (via weak ref), and
+        from its parent DataSet/Controller
+
+        """
+        for ref in self._refs:
+            ref.delete()
+        try:
+            self._parent.remove_segment(self.uid)
+        except KeyError:
+            pass
 
 
 class DataSetController(IDataSetController):
@@ -70,7 +98,7 @@ class DataSetController(IDataSetController):
 
         self._segments = ProjectFolder("Segments")
         for segment in dataset.segments:
-            seg_ctrl = DataSegmentController(segment)
+            seg_ctrl = DataSegmentController(segment, parent=self)
             self._segments.appendRow(seg_ctrl)
 
         self.appendRow(self._grav_file)
@@ -127,6 +155,11 @@ class DataSetController(IDataSetController):
     @property
     def segment_model(self) -> QStandardItemModel:
         return self._segments.internal_model
+
+    @property
+    def segments(self) -> Generator[DataSegmentController, None, None]:
+        for i in range(self._segments.rowCount()):
+            yield self._segments.child(i)
 
     @property
     def columns(self) -> List[str]:
@@ -216,7 +249,7 @@ class DataSetController(IDataSetController):
         segment = DataSegment(uid, start, stop,
                               self._segments.rowCount(), label)
         self._dataset.segments.append(segment)
-        seg_ctrl = DataSegmentController(segment)
+        seg_ctrl = DataSegmentController(segment, parent=self)
         self._segments.appendRow(seg_ctrl)
         return seg_ctrl
 

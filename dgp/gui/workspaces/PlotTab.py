@@ -9,7 +9,6 @@ from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QDockWidget, QSizePolicy
 import PyQt5.QtWidgets as QtWidgets
 
 from dgp.core import StateAction
-from dgp.core.models.dataset import DataSegment
 from dgp.gui.widgets.channel_select_widget import ChannelSelectWidget
 from dgp.core.controllers.flight_controller import FlightController
 from dgp.gui.plotting.plotters import LineUpdate, LineSelectPlot
@@ -37,9 +36,12 @@ class PlotTab(TaskTab):
         self._plot = LineSelectPlot(rows=2)
         self._plot.sigSegmentChanged.connect(self._on_modified_line)
 
-        for segment in self._dataset.datamodel.segments:  # type: DataSegment
-            self._plot.add_segment(segment.start, segment.stop, segment.label,
-                                   segment.uid, emit=False)
+        for segment in self._dataset.segments:
+            group = self._plot.add_segment(segment.get_attr('start'),
+                                           segment.get_attr('stop'),
+                                           segment.get_attr('label'),
+                                           segment.uid, emit=False)
+            segment.add_reference(group)
 
         self._setup_ui()
 
@@ -127,4 +129,5 @@ class PlotTab(TaskTab):
         if update.action is StateAction.UPDATE:
             self._dataset.update_segment(update.uid, start, stop, update.label)
         else:
-            self._dataset.add_segment(update.uid, start, stop, update.label)
+            seg = self._dataset.add_segment(update.uid, start, stop, update.label)
+            seg.add_reference(self._plot.get_segment(seg.uid))
