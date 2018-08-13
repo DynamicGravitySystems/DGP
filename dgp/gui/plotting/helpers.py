@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
+from collections import namedtuple
+from typing import List, Iterable, Tuple
 
 import pandas as pd
 
@@ -9,6 +11,8 @@ from pyqtgraph import LinearRegionItem, TextItem, AxisItem
 from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent
 
 LOG = logging.getLogger(__name__)
+LineUpdate = namedtuple('LineUpdate', ['action', 'uid', 'start', 'stop',
+                                       'label'])
 
 
 class PolyAxis(AxisItem):

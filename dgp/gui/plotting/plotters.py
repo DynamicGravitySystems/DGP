@@ -7,12 +7,10 @@ from pyqtgraph import Point
 
 from dgp.core import StateAction
 from dgp.core.oid import OID
-from dgp.core.types.tuples import LineUpdate
-from .helpers import LinearSegment
+from .helpers import LinearSegmentGroup, LineUpdate
 from .backends import GridPlotWidget, AxisFormatter
 
-
-__all__ = ['TransformPlot', 'LineSelectPlot', 'AxisFormatter']
+__all__ = ['TransformPlot', 'LineSelectPlot', 'AxisFormatter', 'LineUpdate']
 
 _log = logging.getLogger(__name__)
 

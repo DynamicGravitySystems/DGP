@@ -10,10 +10,9 @@ from PyQt5.QtWidgets import QWidget
 from pyqtgraph import GraphicsLayout, PlotItem, PlotDataItem, LegendItem
 
 from dgp.core.oid import OID
-from dgp.core.types.tuples import LineUpdate
 from dgp.gui.plotting.backends import GridPlotWidget, Axis, AxisFormatter
 from dgp.gui.plotting.plotters import LineSelectPlot
-from dgp.gui.plotting.helpers import PolyAxis, LinearSegment
+from dgp.gui.plotting.helpers import PolyAxis, LinearSegment, LinearSegmentGroup, LineUpdate
 
 """Test/Develop Plots using PyQtGraph for high-performance user-interactive 
 plots within the application.
