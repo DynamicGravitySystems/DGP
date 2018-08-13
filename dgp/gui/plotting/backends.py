@@ -348,6 +348,11 @@ class GridPlotWidget(GraphicsView):
     def pen(self):
         return next(self._pens)
 
+    def autorange(self):
+        """Call auto-range on all plots in the GridPlotWidget"""
+        for plot in self.plots:
+            plot.autoRange()
+
     def get_plot(self, row: int, col: int = 0, axis: Axis = Axis.LEFT) -> MaybePlot:
         plot: DgpPlotItem = self.gl.getItem(row, col)
         if axis is Axis.RIGHT:

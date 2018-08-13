@@ -67,11 +67,10 @@ class LineSelectPlot(GridPlotWidget):
     def selection_mode(self):
         return self._selecting
 
-    @selection_mode.setter
-    def selection_mode(self, value):
-        self._selecting = bool(value)
+    def set_select_mode(self, mode: bool):
+        self._selecting = mode
         for group in self._segments.values():
-            group.set_movable(self._selecting)
+            group.set_movable(mode)
 
     def add_segment(self, start: float, stop: float, label: str = None,
                     uid: OID = None, emit=True) -> LinearSegmentGroup:

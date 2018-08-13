@@ -331,7 +331,7 @@ def test_LineSelectPlot_init():
 def test_LineSelectPlot_selection_mode():
     plot = LineSelectPlot(rows=3)
     assert not plot.selection_mode
-    plot.selection_mode = True
+    plot.set_select_mode(True)
     assert plot.selection_mode
 
     plot.add_segment(datetime.now().timestamp(),
@@ -342,7 +342,7 @@ def test_LineSelectPlot_selection_mode():
     for lfr_grp in plot._segments.values():  # type: LinearSegmentGroup
         assert lfr_grp.movable
 
-    plot.selection_mode = False
+    plot.set_select_mode(False)
     for lfr_grp in plot._segments.values():
         assert not lfr_grp.movable
 
