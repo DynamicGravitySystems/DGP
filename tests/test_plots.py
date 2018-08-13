@@ -339,14 +339,12 @@ def test_LineSelectPlot_selection_mode():
 
     assert 1 == len(plot._segments)
 
-    for lfr_grp in plot._segments.values():
-        for lfr in lfr_grp:  # type: LinearSegment
-            assert lfr.movable
+    for lfr_grp in plot._segments.values():  # type: LinearSegmentGroup
+        assert lfr_grp.movable
 
     plot.selection_mode = False
     for lfr_grp in plot._segments.values():
-        for lfr in lfr_grp:
-            assert not lfr.movable
+        assert not lfr_grp.movable
 
 
 def test_LineSelectPlot_add_segment():
@@ -368,14 +366,14 @@ def test_LineSelectPlot_add_segment():
     assert 1 == len(update_spy)
     assert 1 == len(plot._segments)
     lfr_grp = plot._segments[ts_oid]
-    assert _rows == len(lfr_grp)
+    assert _rows == len(lfr_grp._segments)
 
     # Test adding segment using pandas.Timestamp values
     plot.add_segment(pd_start, pd_stop, uid=pd_oid)
     assert 2 == len(update_spy)
     assert 2 == len(plot._segments)
     lfr_grp = plot._segments[pd_oid]
-    assert _rows == len(lfr_grp)
+    assert _rows == len(lfr_grp._segments)
 
     # Test adding segment with no signal emission
     plot.add_segment(ts_start + 2000, ts_stop + 2000, emit=False)
@@ -396,29 +394,12 @@ def test_LineSelectPlot_remove_segment():
     assert isinstance(update_spy[0][0], LineUpdate)
 
     assert 1 == len(plot._segments)
-    segments = plot._segments[lfr_oid]
-    assert segments[0] in plot.get_plot(row=0).items
-    assert segments[1] in plot.get_plot(row=1).items
+    group = plot._segments[lfr_oid]
+    assert group._segments[0] in plot.get_plot(row=0).items
+    assert group._segments[1] in plot.get_plot(row=1).items
 
-    assert lfr_oid == segments[0].group
-    assert lfr_oid == segments[1].group
-
-    with pytest.raises(TypeError):
-        plot.remove_segment("notavalidtype")
-
-    plot.remove_segment(segments[0])
+    group.delete()
     assert 0 == len(plot._segments)
-
-
-def test_LineSelectPlot_get_segment():
-    # Test ability to retrieve segment reference (for possible UI interaction)
-    plot = LineSelectPlot(rows=2)
-
-    uid = OID(tag='test_segment')
-    plot.add_segment(2, 7, uid=uid, emit=False)
-
-    segment = plot.get_segment(uid)
-    assert plot._segments[uid][0] == segment
 
 
 def test_LineSelectPlot_set_label(gravity: pd.Series):
@@ -431,23 +412,20 @@ def test_LineSelectPlot_set_label(gravity: pd.Series):
     assert 1 == len(update_spy)
 
     segment_grp = plot._segments[uid]
-    segment0 = segment_grp[0]
-    segment1 = segment_grp[1]
+    segment0 = segment_grp._segments[0]
+    segment1 = segment_grp._segments[1]
 
     assert isinstance(segment0, LinearSegment)
     assert '' == segment0._label.textItem.toPlainText()
-    assert '' == segment0.label
+    assert '' == segment0.label_text
 
     _label = 'Flight-1'
-    plot.set_label(segment0, _label)
+    segment_grp._update_label(_label)
     assert 2 == len(update_spy)
     update = update_spy[1][0]
     assert _label == update.label
     assert _label == segment0._label.textItem.toPlainText()
     assert _label == segment1._label.textItem.toPlainText()
-
-    with pytest.raises(TypeError):
-        plot.set_label(uid, 'Fail')
 
 
 def test_LineSelectPlot_check_proximity(gravdata):

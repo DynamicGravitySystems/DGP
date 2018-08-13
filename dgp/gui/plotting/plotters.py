@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 import logging
+from typing import Dict
 
 import pandas as pd
-from PyQt5.QtCore import pyqtSignal, Qt, QTimer
+from PyQt5.QtCore import pyqtSignal, Qt
 from pyqtgraph import Point
 
 from dgp.core import StateAction
@@ -58,17 +59,8 @@ class LineSelectPlot(GridPlotWidget):
     def __init__(self, rows=1, parent=None):
         super().__init__(rows=rows, cols=1, grid=True, sharex=True,
                          multiy=True, timeaxis=True, parent=parent)
-
         self._selecting = False
-        self._segments = {}
-        self._updating = False
-
-        # Rate-limit line updates using a timer.
-        self._line_update: LinearSegment = None
-        self._update_timer = QTimer(self)
-        self._update_timer.setInterval(100)
-        self._update_timer.timeout.connect(self._update_done)
-
+        self._segments: Dict[OID, LinearSegmentGroup] = {}
         self.add_onclick_handler(self.onclick)
 
     @property
@@ -79,11 +71,10 @@ class LineSelectPlot(GridPlotWidget):
     def selection_mode(self, value):
         self._selecting = bool(value)
         for group in self._segments.values():
-            for lfr in group:  # type: LinearSegment
-                lfr.setMovable(value)
+            group.set_movable(self._selecting)
 
     def add_segment(self, start: float, stop: float, label: str = None,
-                    uid: OID = None, emit=True) -> None:
+                    uid: OID = None, emit=True) -> LinearSegmentGroup:
         """
         Add a LinearSegment selection across all linked x-axes
         With width ranging from start:stop and an optional label.
@@ -106,76 +97,22 @@ class LineSelectPlot(GridPlotWidget):
             segment
 
         """
-
         if isinstance(start, pd.Timestamp):
             start = start.value
         if isinstance(stop, pd.Timestamp):
             stop = stop.value
-        patch_region = [start, stop]
 
-        grpid = uid or OID(tag='segment')
-        # Note pd.to_datetime(scalar) returns pd.Timestamp
-        update = LineUpdate(StateAction.CREATE, grpid,
-                            pd.to_datetime(start), pd.to_datetime(stop), label)
+        uid = uid or OID(tag='segment')
+        group = LinearSegmentGroup(self.plots, uid, start, stop, label=label,
+                                   movable=self._selecting)
+        group.sigSegmentUpdate.connect(self.sigSegmentChanged.emit)
+        group.sigSegmentUpdate.connect(self._segment_updated)
+        self._segments[uid] = group
 
-        lfr_group = []
-        for i, plot in enumerate(self.plots):
-            lfr = LinearSegment(parent=self, label=label)
-            lfr.group = grpid
-            plot.addItem(lfr)
-            plot.addItem(lfr._label)
-            lfr.setRegion(patch_region)
-            lfr.setMovable(self._selecting)
-            lfr.sigRegionChanged.connect(self._update_segments)
-            lfr.sigLabelChanged.connect(self.set_label)
-            lfr.sigDeleteRequested.connect(self.remove_segment)
-            plot.sigYRangeChanged.connect(lfr.y_rng_changed)
-
-            lfr_group.append(lfr)
-
-        self._segments[grpid] = lfr_group
         if emit:
+            update = LineUpdate(StateAction.CREATE, uid, group.left,
+                                group.right, group.label_text)
             self.sigSegmentChanged.emit(update)
-
-    def get_segment(self, uid: OID):
-        return self._segments[uid][0]
-
-    def remove_segment(self, item: LinearSegment):
-        """Remove the segment 'item' and all of its siblings (in the same group)
-
-        """
-        if not isinstance(item, LinearSegment):
-            raise TypeError(f'{item!r} is not a valid type. Expected '
-                            f'LinearSegment')
-
-        grpid = item.group
-        x0, x1 = item.getRegion()
-        update = LineUpdate(StateAction.DELETE, grpid,
-                            pd.to_datetime(x0), pd.to_datetime(x1), None)
-        grp = self._segments[grpid]
-        for i, plot in enumerate(self.plots):
-            lfr: LinearSegment = grp[i]
-            try:
-                plot.sigYRangeChanged.disconnect(lfr.y_rng_changed)
-            except TypeError:  # pragma: no cover
-                pass
-            plot.removeItem(lfr._label)
-            plot.removeItem(lfr)
-        del self._segments[grpid]
-        self.sigSegmentChanged.emit(update)
-
-    def set_label(self, item: LinearSegment, text: str):
-        """Set the text label of every LFR in the same group as item"""
-        if not isinstance(item, LinearSegment):
-            raise TypeError(f'Item must be of type LinearSegment')
-        group = self._segments[item.group]
-        for lfr in group:  # type: LinearSegment
-            lfr.label = text
-
-        x0, x1 = item.getRegion()
-        update = LineUpdate(StateAction.UPDATE, item.group,
-                            pd.to_datetime(x0), pd.to_datetime(x1), text)
-        self.sigSegmentChanged.emit(update)
 
     def onclick(self, ev):  # pragma: no cover
         """Onclick handler for mouse left/right click.
@@ -187,7 +124,7 @@ class LineSelectPlot(GridPlotWidget):
             pos: Point = event.pos()
         except AttributeError:
             # Avoid error when clicking around plot, due to an attempt to
-            #  call mapFromScene on None in pyqtgraph/mouseEvents.py
+            # call mapFromScene on None in pyqtgraph/mouseEvents.py
             return
         if event.button() == Qt.RightButton:
             return
@@ -209,46 +146,6 @@ class LineSelectPlot(GridPlotWidget):
             start = xpos - (vb_span * 0.05)
             stop = xpos + (vb_span * 0.05)
             self.add_segment(start, stop)
-
-    def _update_segments(self, item: LinearSegment):
-        """Update other LinearRegionItems in the group of 'item' to match the
-        new region.
-        A flag (_updating) is set here as we only want to process updates from
-        the first item - as this function will be called during the update
-        process by each item in the group when LinearRegionItem.setRegion()
-        emits a sigRegionChanged event.
-
-        A timer (_update_timer) is also used to avoid emitting a
-        :class:`LineUpdate` with every pixel adjustment.
-        _update_done will be called after the QTimer times-out (100ms default)
-        in order to emit the intermediate or final update.
-
-        """
-        if self._updating:
-            return
-
-        self._update_timer.start()
-        self._updating = True
-        self._line_update = item
-        new_region = item.getRegion()
-        group = self._segments[item.group]
-        for lri in [i for i in group if i is not item]:
-            lri.setRegion(new_region)
-        self._updating = False
-
-    def _update_done(self):
-        """Called when the update_timer times out to emit the completed update
-
-        Create a :class:`LineUpdate` with the modified line segment parameters
-        start, stop, _label
-
-        """
-        self._update_timer.stop()
-        x0, x1 = self._line_update.getRegion()
-        update = LineUpdate(StateAction.UPDATE, self._line_update.group,
-                            pd.to_datetime(x0), pd.to_datetime(x1), None)
-        self.sigSegmentChanged.emit(update)
-        self._line_update = None
 
     def _check_proximity(self, x, span, proximity=0.03) -> bool:
         """
@@ -272,9 +169,12 @@ class LineSelectPlot(GridPlotWidget):
         """
         prox = span * proximity
         for group in self._segments.values():
-            lri0 = group[0]  # type: LinearSegment
-            lx0, lx1 = lri0.getRegion()
-            if lx0 - prox <= x <= lx1 + prox:
-                print("New point is too close")
+            x0, x1 = group.region
+            if x0 - prox <= x <= x1 + prox:
+                _log.warning("New segment is too close to an existing segment")
                 return False
         return True
+
+    def _segment_updated(self, update: LineUpdate):
+        if update.action is StateAction.DELETE:
+            del self._segments[update.uid]
