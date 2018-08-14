@@ -213,7 +213,7 @@
          </property>
          <property name="icon">
           <iconset resource="resources/resources.qrc">
-           <normaloff>:/icons/meter_config</normaloff>:/icons/meter_config</iconset>
+           <normaloff>:/icons/sensor</normaloff>:/icons/sensor</iconset>
          </property>
         </widget>
        </item>
@@ -574,7 +574,7 @@
   <action name="action_add_meter">
    <property name="icon">
     <iconset resource="resources/resources.qrc">
-     <normaloff>:/icons/meter_config</normaloff>:/icons/meter_config</iconset>
+     <normaloff>:/icons/sensor</normaloff>:/icons/sensor</iconset>
    </property>
    <property name="text">
     <string>Add Meter</string>
@@ -586,7 +586,7 @@
   <action name="action_project_info">
    <property name="icon">
     <iconset resource="resources/resources.qrc">
-     <normaloff>:/icons/dgs</normaloff>:/icons/dgs</iconset>
+     <normaloff>:/icons/info</normaloff>:/icons/info</iconset>
    </property>
    <property name="text">
     <string>Project Info...</string>
@@ -633,7 +633,7 @@
    </property>
    <property name="icon">
     <iconset resource="resources/resources.qrc">
-     <normaloff>:/icons/dgs</normaloff>:/icons/dgs</iconset>
+     <normaloff>:/icons/tree</normaloff>:/icons/tree</iconset>
    </property>
    <property name="text">
     <string>Project Dock</string>

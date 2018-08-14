@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-
 import enum
 import logging
-from enum import auto
+from enum import Enum, auto
 
 from PyQt5.QtGui import QIcon
 
@@ -31,26 +30,31 @@ class Icon(enum.Enum):
     OPEN_FOLDER = ":/icons/folder_open"
     AIRBORNE = ":/icons/airborne"
     MARINE = ":/icons/marine"
-    METER = ":/icons/meter_config"
+    METER = ":/icons/sensor"
     DGS = ":/icons/dgs"
+    DGP = ":/icons/dgp_large"
+    DGP_SMALL = ":/icons/dgp"
+    DGP_NOTEXT = ":/icons/dgp_notext"
     GRAVITY = ":/icons/gravity"
     TRAJECTORY = ":/icons/gps"
     NEW_FILE = ":/icons/new_file"
     SAVE = ":/icons/save"
+    DELETE = ":/icons/delete"
     ARROW_LEFT = ":/icons/chevron-right"
     ARROW_DOWN = ":/icons/chevron-down"
-    DELETE = ""
-    GRID = ""
-    HELP = ""
-    LINE_MODE = ""
-    PLOT_LINE = ""
-    SETTINGS = ""
+    LINE_MODE = ":/icons/line_mode"
+    PLOT_LINE = ":/icons/plot_line"
+    SETTINGS = ":/icons/settings"
+    INFO = ":/icons/info"
+    HELP = ":/icons/help_outline"
+    GRID = ":/icons/grid_on"
+    NO_GRID = ":/icons/grid_off"
 
     def icon(self):
         return QIcon(self.value)
 
 
-class LogColors(enum.Enum):
+class LogColors(Enum):
     DEBUG = 'blue'
     INFO = 'yellow'
     WARNING = 'brown'
