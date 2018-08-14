@@ -18,11 +18,13 @@ __all__ = ['GridPlotWidget', 'Axis', 'AxisFormatter']
 
 
 class AxisFormatter(Enum):
+    """Enumeration defining axis formatter types"""
     DATETIME = auto()
     SCALAR = auto()
 
 
 class Axis(Enum):
+    """Enumeration of selectable plot axis' Left/Right"""
     LEFT = 'left'
     RIGHT = 'right'
 
@@ -34,7 +36,7 @@ LINE_COLORS = {'#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
 # type aliases
 MaybePlot = Union['DgpPlotItem', None]
 MaybeSeries = Union[pd.Series, None]
-PlotIndex = Tuple[str, int, int, Axis]
+SeriesIndex = Tuple[str, int, int, Axis]
 
 
 class _CustomPlotControl(QWidget, Ui_PlotOptions):
@@ -66,20 +68,26 @@ class _CustomPlotControl(QWidget, Ui_PlotOptions):
 class LinkedPlotItem(PlotItem):
     """LinkedPlotItem creates a twin plot linked to the right y-axis of the base
 
-    This class is used by DgpPlotItem to enable plots which have a second
-    y-axis scale in order to display two (or potentially more) Series on the
-    same plot with different magnitudes.
+    This class is used by DgpPlotItem to enable plots which have a dual y-axis
+    scale in order to display two (or potentially more) Series on the same plot
+    with different magnitudes.
+
+    Parameters
+    ----------
+    base : :class:`pyqtgraph.PlotItem` or :class:`DgpPlotItem`
+        The base PlotItem which this plot will link itself to
 
     Notes
     -----
-    This class is a simple wrapper around a base pyqtgraph PlotItem, it sets
+    This class is a simple wrapper around a :class:`~pyqtgraph.PlotItem`, it sets
     some sensible default parameters, and configures itself to link its x-axis
     to the specified 'base' PlotItem, and finally inserts itself into the layout
     container of the parent plot.
+
     Also note that the linked plot does not use its own independent legend,
     it links its legend attribute to the base plot's legend (so that legend
-    add/remove actions can be performed without validating the specific plot
-    reference).
+    add/remove actions can be performed without validating or looking up the
+    explicit base plot reference).
 
     """
     def __init__(self, base: PlotItem):
@@ -100,11 +108,12 @@ class LinkedPlotItem(PlotItem):
 
 
 class DgpPlotItem(PlotItem):
-    """Custom PlotItem derived from pyqtgraph's :class:`PlotItem`
+    """Custom PlotItem derived from pyqtgraph's :class:`~pyqtgraph.PlotItem`
 
     The primary focus of this custom PlotItem is to override the default
     'Plot Options' sub-menu provided by PlotItem for context-menu (right-click)
     events on the plot surface.
+
     Secondarily this class provides a simple way to create/enable a secondary
     y-axis, for plotting multiple data curves of differing magnitudes.
 
@@ -124,11 +133,12 @@ class DgpPlotItem(PlotItem):
         Curves can be plotted to the second (right axis) plot using the 'right'
         property
     kwargs
-        See valid parameters for :class:`PlotItem`
+        See valid kwargs for :class:`~pyqtgraph.PlotItem`
 
     Notes
     -----
     Custom menu functionality provided:
+
     - Plot curve alpha (transparency) setting
     - Grid line visibility (on/off/transparency)
     - Average curve (on/off)
@@ -184,15 +194,41 @@ class DgpPlotItem(PlotItem):
 
     @property
     def left(self) -> 'DgpPlotItem':
+        """@property: Return the primary plot (self). This is an identity
+        property and is provided for symmetry with the `right` property.
+
+        Returns
+        -------
+        :class:`DgpPlotItem`
+            Left axis plot surface (self)
+
+        """
         return self
 
     @property
     def right(self) -> MaybePlot:
-        """Return the sibling plot linked to the right y-axis (if it exists)"""
+        """@property: Return the sibling plot linked to the right y-axis
+        (if it exists).
+
+        Returns
+        -------
+        :class:`LinkedPlotItem`
+            Right axis plot surface if it is enabled/created, else :const:`None`
+
+        """
         return self._right
 
+    def autoRange(self, *args, **kwargs):
+        """Overrides :meth:`pyqtgraph.ViewBox.autoRange`
+
+        Auto-fit left/right plot :class:`~pyqtgraph.ViewBox` to curve data limits
+        """
+        self.vb.autoRange(items=self.curves)
+        if self.right is not None:
+            self.right.vb.autoRange(items=self.right.curves)
+
     def clearPlots(self):
-        """Override PlotItem::clearPlots
+        """Overrides :meth:`pyqtgraph.PlotItem.clearPlots`
 
         Clear all curves from left and right plots, as well as removing any
         legend entries.
@@ -207,12 +243,12 @@ class DgpPlotItem(PlotItem):
                 self.legend.removeItem(c.name())
                 self.right.removeItem(c)
 
-    def autoRange(self, *args, **kwargs):
-        self.vb.autoRange(items=self.curves)
-        if self.right is not None:
-            self.right.vb.autoRange(items=self.right.curves)
-
     def updateAlpha(self, *args):
+        """Overrides :meth:`pyqtgraph.PlotItem.updateAlpha`
+
+        Override the base implementation to update alpha value of curves on the
+        right plot (if it is enabled)
+        """
         super().updateAlpha(*args)
         if self.right is not None:
             alpha, auto_ = self.alphaState()
@@ -220,7 +256,7 @@ class DgpPlotItem(PlotItem):
                 c.setAlpha(alpha**2, auto_)
 
     def updateDownsampling(self):
-        """Override PlotItem::updateDownsampling
+        """Extends :meth:`pyqtgraph.PlotItem.updateDownsampling`
 
         Override the base implementation in order to effect updates on the right
         plot (if it is enabled).
@@ -232,12 +268,11 @@ class DgpPlotItem(PlotItem):
                 c.setDownsampling(ds, auto_, method)
 
     def downsampleMode(self):
-        """Override PlotItem::downsampleMode
+        """Overrides :meth:`pyqtgraph.PlotItem.downsampleMode`
 
         Called by updateDownsampling to get control state. Our custom
         implementation does not allow for all of the options that the original
         does.
-
         """
         if self.ctrl.downsampleCheck.isChecked():
             ds = self.ctrl.downsampleSpin.value()
@@ -246,6 +281,12 @@ class DgpPlotItem(PlotItem):
         return ds, False, 'subsample'
 
     def updateGrid(self, *args):
+        """Overrides :meth:`pyqtgraph.PlotItem.updateGrid`
+
+        This method provides special handling of the left/right axis grids.
+        The plot custom control allows the user to show/hide either the left
+        or right y-axis grid lines independently.
+        """
         alpha = self.customControl.gridAlphaSlider.value()
         x = alpha if self.customControl.xGridCheck.isChecked() else False
         y = alpha if self.customControl.yGridCheck.isChecked() else False
@@ -264,8 +305,9 @@ class DgpPlotItem(PlotItem):
 
 class GridPlotWidget(GraphicsView):
     """
-    Base plotting class used to create a group of 1 or more :class:`PlotItem`
-    in a layout (rows/columns).
+    Base plotting class used to create a group of one or more
+    :class:`pyqtgraph.PlotItem` in a layout
+    (rows/columns).
     This class is a subclass of :class:`QWidget` and can be directly added to a
     QtWidget based application.
 
@@ -280,8 +322,8 @@ class GridPlotWidget(GraphicsView):
         Rows of plots to generate (stacked from top to bottom), default is 1
     background : Optional
         Background color for the widget and nested plots. Can be any value
-        accepted by :func:`mkBrush` or :func:`mkColor` e.g. QColor, hex string,
-        RGB(A) tuple
+        accepted by :func:`pyqtgraph.mkBrush` or :func:`pyqtgraph.mkColor`
+        e.g. QColor, hex string, RGB(A) tuple
     grid : bool
         If True displays gridlines on the plot surface
     sharex : bool
@@ -290,19 +332,19 @@ class GridPlotWidget(GraphicsView):
         If True all plots will have a sister plot with its own y-axis and scale
         enabling the plotting of 2 (or more) Series with differing scales on a
         single plot surface.
-    parent
+    parent : QWidget, optional
+        Optional QWidget parent for the underlying QGraphicsView object
 
     Notes
     -----
     The GridPlotWidget explicitly disables the :class:`pyqtgraph.GraphicsScene`
-    'Export' context menu action, as the export dialog is not fully suitable for
-    our purposes. Similar functionality may be added to the application later,
-    but not via the plotting interface.
+    'Export' context menu action, as the default pyqtgraph export dialog is not
+    stable and causes runtime errors in various contexts.
 
     See Also
     --------
-    :func:`pyqtgraph.functions.mkPen` for customizing plot-line pens (creates a QgGui.QPen)
-    :func:`pyqtgraph.functions.mkColor` for color options in the plot (creates a QtGui.QColor)
+    :func:`pyqtgraph.mkPen` for customizing plot-line pens (creates a QgGui.QPen)
+    :func:`pyqtgraph.mkColor` for color options in the plot (creates a QtGui.QColor)
 
     """
     def __init__(self, rows=1, cols=1, background='w', grid=True, sharex=False,
@@ -311,7 +353,7 @@ class GridPlotWidget(GraphicsView):
         self.gl = GraphicsLayout(parent=parent)
         self.setCentralItem(self.gl)
 
-        # Remove the 'Export' option from the scene context menu
+        # Clear the 'Export' action from the scene context menu
         self.sceneObj.contextMenu = []
 
         self.rows = rows
@@ -321,39 +363,69 @@ class GridPlotWidget(GraphicsView):
         self._pens = cycle([{'color': v, 'width': 1} for v in LINE_COLORS])
 
         # Maintain weak references to Series/PlotDataItems for lookups
-        self._series: Dict[PlotIndex: pd.Series] = WeakValueDictionary()
-        self._items: Dict[PlotIndex: PlotDataItem] = WeakValueDictionary()
+        self._series: Dict[SeriesIndex: pd.Series] = WeakValueDictionary()
+        self._items: Dict[SeriesIndex: PlotDataItem] = WeakValueDictionary()
 
-        col = 0
         for row in range(self.rows):
-            axis_items = {'bottom': PolyAxis(orientation='bottom',
-                                             timeaxis=timeaxis)}
-            plot = DgpPlotItem(background=background, axisItems=axis_items,
-                               multiy=multiy)
-            self.gl.addItem(plot, row=row, col=col)
-            plot.clear()
-            plot.showGrid(x=grid, y=grid)
+            for col in range(self.cols):
+                axis_items = {'bottom': PolyAxis(orientation='bottom',
+                                                 timeaxis=timeaxis)}
+                plot = DgpPlotItem(background=background, axisItems=axis_items,
+                                   multiy=multiy)
+                self.gl.addItem(plot, row=row, col=col)
+                plot.clear()
+                plot.showGrid(x=grid, y=grid)
 
-            if row > 0 and sharex:
-                plot.setXLink(self.get_plot(0, 0))
+                if row > 0 and sharex:
+                    plot.setXLink(self.get_plot(0, 0))
 
         self.__signal_proxies = []
 
     @property
     def plots(self) -> Generator[DgpPlotItem, None, None]:
+        """Yields each plot by row in this GridPlotWidget
+
+        Yields
+        ------
+        :class:`.DgpPlotItem`
+
+        Warnings
+        --------
+        This property does not yet account for GridPlotWidgets with more than a
+        single column.
+        Also note that it will not yield RIGHT plots, only the base LEFT plot.
+        """
         for i in range(self.rows):
             yield self.get_plot(i, 0)
 
     @property
     def pen(self):
+        """Return the next pen parameters in the cycle"""
         return next(self._pens)
 
     def autorange(self):
-        """Call auto-range on all plots in the GridPlotWidget"""
+        """Calls auto-range on all plots in the GridPlotWidget"""
         for plot in self.plots:
             plot.autoRange()
 
     def get_plot(self, row: int, col: int = 0, axis: Axis = Axis.LEFT) -> MaybePlot:
+        """Get the DgpPlotItem within this GridPlotWidget specified by row/col/axis
+
+        Parameters
+        ----------
+        row : int
+        col : int, optional
+            Column index of the plot to retrieve, optional, default is 0
+        axis : Axis, optional
+            Select the LEFT or RIGHT axis plot, optional, default is Axis.LEFT
+
+        Returns
+        -------
+        :data:`~.MaybePlot`
+            :class:`DgpPlotItem` if a plot exists at the given row/col/axis
+            else :const:`None`
+
+        """
         plot: DgpPlotItem = self.gl.getItem(row, col)
         if axis is Axis.RIGHT:
             return plot.right
@@ -379,7 +451,8 @@ class GridPlotWidget(GraphicsView):
 
         Returns
         -------
-        PlotItem
+        :class:`pyqtgraph.PlotItem`
+            The generated PlotItem or derivative created from the data
 
         Raises
         ------
@@ -388,47 +461,69 @@ class GridPlotWidget(GraphicsView):
             but multiy is not enabled.
 
         """
-        key = self.make_index(series.name, row, col, axis)
-        if self._items.get(key, None) is not None:
-            return self._items[key]
+        index = self.make_index(series.name, row, col, axis)
+        if self._items.get(index, None) is not None:
+            return self._items[index]
 
-        self._series[key] = series
+        self._series[index] = series
         plot = self.get_plot(row, col, axis)
         xvals = pd.to_numeric(series.index, errors='coerce')
         yvals = pd.to_numeric(series.values, errors='coerce')
         item = plot.plot(x=xvals, y=yvals, name=series.name, pen=self.pen)
-        self._items[key] = item
+        self._items[index] = item
         if autorange:
             plot.autoRange()
         return item
 
-    def get_series(self, name: str, row, col=0, axis: Axis = Axis.LEFT) -> MaybeSeries:
+    def get_series(self, name: str, row: int, col: int = 0,
+                   axis: Axis = Axis.LEFT) -> MaybeSeries:
+        """Get the pandas.Series data for a plotted series
+
+        Parameters
+        ----------
+        name : str
+        row, col : int
+            Row/column index of the plot where target series is plotted.
+            Column is optional, default is 0
+        axis : :data:`Axis`, optional
+            Plot axis where the series is plotted (LEFT or RIGHT), defaults to
+            :data:`Axis.LEFT`
+
+        Returns
+        -------
+        :data:`MaybeSeries`
+            Returns a :class:`pandas.Series` object if the series is found with
+            the specified parameters or else returns :const:`None`
+
+        """
         idx = self.make_index(name, row, col, axis)
         return self._series.get(idx, None)
 
     def remove_series(self, name: str, row: int, col: int = 0,
                       axis: Axis = Axis.LEFT, autorange: bool = True) -> None:
-        """Remove a named series from the plot at the specified row/col/axis
+        """Remove a named series from the plot at the specified row/col/axis.
 
         Parameters
         ----------
         name : str
         row : int
         col : int, optional
-        axis : Axis, optional
+            Defaults to 0
+        axis : :data:`Axis`, optional
+            Defaults to :data:`Axis.LEFT`
         autorange : bool, optional
-            Readjust plot x/y view limits after removing the series
+            Auto-range plot x/y view after removing the series, default True
 
         """
         plot = self.get_plot(row, col, axis)
-        key = self.make_index(name, row, col, axis)
-        plot.removeItem(self._items[key])
+        index = self.make_index(name, row, col, axis)
+        plot.removeItem(self._items[index])
         plot.legend.removeItem(name)
         if autorange:
             plot.autoRange()
 
-    def clear(self):
-        """Clear all plot curves from all plots"""
+    def clear(self) -> None:
+        """Clear all plot data curves from all plots"""
         for i in range(self.rows):
             for j in range(self.cols):
                 plot = self.get_plot(i, j)
@@ -443,13 +538,14 @@ class GridPlotWidget(GraphicsView):
                         plot_r.removeItem(curve)
 
     def remove_plotitem(self, item: PlotDataItem) -> None:
-        """Alternative method of removing a line by its :class:`PlotDataItem`
-        reference, as opposed to using remove_series to remove a named series
-        from a specific plot at row/col index.
+        """Alternative method of removing a line by its
+        :class:`pyqtgraph.PlotDataItem` reference, as opposed to using
+        remove_series to remove a named series from a specific plot at row/col
+        index.
 
         Parameters
         ----------
-        item : :class:`PlotDataItem`
+        item : :class:`~pyqtgraph.PlotDataItem`
             The PlotDataItem reference to be removed from whichever plot it
             resides
 
@@ -460,9 +556,9 @@ class GridPlotWidget(GraphicsView):
                     plot.legend.removeItem(item.name())
                     plot.removeItem(item)
 
-    def find_series(self, name: str) -> List[PlotIndex]:
+    def find_series(self, name: str) -> List[SeriesIndex]:
         """Find and return a list of all plot indexes where a series with
-        'name' is plotted
+        'name' is plotted.
 
         Parameters
         ----------
@@ -471,8 +567,9 @@ class GridPlotWidget(GraphicsView):
 
         Returns
         -------
-        List of PlotIndex
+        List of :data:`SeriesIndex`
             List of Series indexes, see :func:`make_index`
+            If no indexes are found an empty list is returned
 
         """
         indexes = []
@@ -492,13 +589,11 @@ class GridPlotWidget(GraphicsView):
 
         Parameters
         ----------
-        formatter : str
-            'datetime' will set the bottom AxisItem to display datetime values
-            Any other value will set the AxisItem to its default scalar display
+        formatter : :data:`AxisFormatter`
         row : int
             Plot row index
-        col : int
-            Plot column index
+        col : int, optional
+            Plot column index, optional, defaults to 0
 
         """
         plot = self.get_plot(row, col)
@@ -506,12 +601,19 @@ class GridPlotWidget(GraphicsView):
         axis.timeaxis = formatter is AxisFormatter.DATETIME
 
     def get_xlim(self, row: int, col: int = 0) -> Tuple[float, float]:
-        """Get the x-limits (span) for the plot at row/col
+        """Get the x-limits (left-right span) for the plot ViewBox at the
+        specified row/column.
+
+        Parameters
+        ----------
+        row : int
+        col : int, optional
+            Plot column index, optional, defaults to 0
 
         Returns
         -------
-        tuple of float, float
-            Tuple of minimum/maximum x-values (xmin, xmax)
+        Tuple (float, float)
+            2-Tuple of minimum/maximum x-limits of the current view (xmin, xmax)
 
         """
         return self.get_plot(row, col).vb.viewRange()[0]
@@ -524,8 +626,10 @@ class GridPlotWidget(GraphicsView):
         linked : bool, Optional
             If True sets all plots to link x-axis scales with plot 0, 0
             If False, un-links all plot x-axis'
+            Default is True (enable x-link)
         autorange : bool, Optional
-            If True automatically re-scale the view box after linking/unlinking
+            If True automatically re-scale the view box after linking/unlinking.
+            Default is False
 
         """
         base = self.get_plot(0, 0) if linked else None
@@ -542,7 +646,7 @@ class GridPlotWidget(GraphicsView):
         Parameters
         ----------
         slot : pyqtSlot(MouseClickEvent)
-            pyqtSlot accepting a :class:`MouseClickEvent`
+            pyqtSlot accepting a :class:`pyqtgraph.MouseClickEvent`
         ratelimit : int, optional
             Limit the SignalProxy to an emission rate of `ratelimit` signals/sec
 
@@ -553,13 +657,32 @@ class GridPlotWidget(GraphicsView):
         return sp
 
     @staticmethod
-    def make_index(name: str, row: int, col: int = 0, axis: Axis = Axis.LEFT) -> PlotIndex:
+    def make_index(name: str, row: int, col: int = 0, axis: Axis = Axis.LEFT) -> SeriesIndex:
         """Generate an index referring to a specific plot curve
 
         Plot curves (items) can be uniquely identified within the GridPlotWidget
         by their name, and the specific plot which they reside on (row/col/axis)
         A plot item can only be plotted once on a given plot, so the index is
         guaranteed to be unique for the specific named item.
+
+        Parameters
+        ----------
+        name : str
+            Name for the data series this index refers to. Note that the name
+            value is automatically lower-cased, and as such two indexes created
+            with differently cased but identical names will be equivalent when
+            all other properties are the same.
+        row, col : int
+            Row/column plot index (col is optional, defaults to 0)
+        axis : Axis, optional
+            Optionally specify the plot axis this index is for (LEFT or RIGHT),
+            defaults to Axis.LEFT
+
+        Returns
+        -------
+        :data:`SeriesIndex`
+            A :data:`SeriesIndex` tuple of (str, int, int, Axis) corresponding
+            to: (name, row, col, Axis)
 
         Raises
         ------

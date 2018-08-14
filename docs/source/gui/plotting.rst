@@ -26,8 +26,33 @@ specific functionality to the base 'backend' plots, for example to enable
 graphical click-drag selection of data segments by the user.
 
 
+Types/Consts/Enums
+------------------
 
 .. py:module:: dgp.gui.plotting
+
+.. py:data:: backends.MaybePlot
+    :annotation: = Union[ DgpPlotItem, None ]
+
+    Typedef for a function which returns a :class:`DgpPlotItem` or :const:`None`
+
+.. py:data:: backends.MaybeSeries
+    :annotation: = Union[ pandas.Series, None ]
+
+    Typedef for a function which returns a :class:`pandas.Series` or :const:`None`
+
+.. py:data:: backends.SeriesIndex
+    :annotation: = Tuple[ str, int, int, Axis ]
+
+    Typedef for a tuple representing the unique index of a series on a plot
+    within a :class:`GridPlotWidget`
+
+.. autoclass:: dgp.gui.plotting.backends.Axis
+    :undoc-members:
+
+.. autoclass:: dgp.gui.plotting.backends.AxisFormatter
+    :undoc-members:
+
 
 .. _bases:
 
@@ -36,6 +61,9 @@ Bases
 
 .. autoclass:: dgp.gui.plotting.backends.GridPlotWidget
     :undoc-members:
+    :show-inheritance:
+
+.. autoclass:: dgp.gui.plotting.backends.DgpPlotItem
     :show-inheritance:
 
 .. autoclass:: dgp.gui.plotting.backends.LinkedPlotItem
@@ -62,3 +90,8 @@ Helpers
 .. autoclass:: dgp.gui.plotting.helpers.LinearSegment
     :undoc-members:
     :show-inheritance:
+
+.. autoclass:: dgp.gui.plotting.helpers.LinearSegmentGroup
+    :undoc-members:
+    :show-inheritance:
+

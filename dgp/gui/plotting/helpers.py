@@ -29,8 +29,20 @@ class PolyAxis(AxisItem):
     timeaxis : bool, optional
         Enable the time-axis formatter, default is False
     kwargs
-        See :class:`~pyqtgraph.graphicsItems.AxisItem.AxisItem` for allowed
-        kwargs
+        See :class:`pyqtgraph.AxisItem` for permitted kwargs
+
+    Attributes
+    ----------
+    timeaxis : bool
+        If True format tick strings by their date values,
+        If False use the default scalar formatter
+
+    See Also
+    --------
+    :class:`pyqtgraph.AxisItem`
+    :meth:`pyqtgraph.AxisItem.tickStrings`
+    :meth:`pyqtgraph.AxisItem.tickSpacing`
+    :meth:`pyqtgraph.AxisItem.tickValues`
 
     """
     def __init__(self, orientation='bottom', timeaxis=False, **kwargs):
@@ -53,12 +65,13 @@ class PolyAxis(AxisItem):
         Parameters
         ----------
         values : List
+            List of values to generate tick strings for
         spacing : float
 
         Returns
         -------
         List[str]
-            List of string labels corresponding to each input value.
+            List of labels corresponding to each input value.
 
         """
         # Select the first formatter where the scale (sec/min/hour/day etc) is
@@ -97,7 +110,7 @@ class PolyAxis(AxisItem):
         Parameters
         ----------
         values : List
-            List of values to return strings for
+            List of values to generate tick strings for
         scale : Scalar
             Used to specify the scale of the values, useful when the axis label
             is configured to show the display as some SI fraction (e.g. milli),
@@ -116,7 +129,8 @@ class PolyAxis(AxisItem):
         where multiple tick-levels are defined i.e. Major/Minor/Sub-Minor ticks.
         The range of the values may also differ between invocations depending on
         the positioning of the chart. And the spacing will be different
-        dependent on how the ticks were placed by the tickSpacing() method.
+        dependent on how the ticks were placed by the
+        :meth:`pyqtgraph.AxisItem.tickSpacing` method.
 
         """
         if self.timeaxis:
@@ -130,27 +144,38 @@ class LinearSegment(LinearRegionItem):
 
     Parameters
     ----------
-    plot : :class:`PlotItem`
-    values : tuple of float, float
+    plot : :class:`~pyqtgraph.PlotItem` or :class:`.DgpPlotItem`
+        PlotItem to add the LinearSegment to
+    left, right : float
         Initial left/right values for the segment
-    uid : :class:`~dgp.core.OID`
     label : str, optional
+        Set the initial label text for this segment
+    movable : bool, optional
+        Set the initial movable/editable state of the LinearSegment
+
+    Attributes
+    ----------
+    sigLabelChanged : :class:`~pyqt.pyqtSignal` ( :class:`str` )
+        Emitted when the label text of this segment has changed
+    sigDeleteRequested : :class:`~pyqt.pyqtSignal` ()
+        Emitted when a delete action is triggered for this segment
 
     """
     sigLabelChanged = pyqtSignal(str)
-    sigDeleteRequested = pyqtSignal(object)
+    sigDeleteRequested = pyqtSignal()
 
-    def __init__(self, plot: PlotItem, values, label=None,
-                 brush=None, movable=False, bounds=None):
-        super().__init__(values=values, orientation=LinearRegionItem.Vertical,
-                         brush=brush, movable=movable, bounds=bounds)
+    def __init__(self, plot: PlotItem, left, right, label=None, movable=False):
+        super().__init__(values=(left, right),
+                         orientation=LinearRegionItem.Vertical,
+                         movable=movable, brush=None, bounds=None)
         self._plot = weakref.ref(plot)
         self._label = TextItem(text=label or '', color=(0, 0, 0), anchor=(0, 0))
         self._update_label_pos()
-        self._menu = QMenu()
-        self._menu.addAction('Remove', lambda: self.sigDeleteRequested.emit(self))
-        self._menu.addAction('Set Label', self._get_label_dlg)
         self.sigRegionChanged.connect(self._update_label_pos)
+
+        self._menu = QMenu()
+        self._menu.addAction('Remove', lambda: self.sigDeleteRequested.emit())
+        self._menu.addAction('Set Label', self._get_label_dlg)
 
         plot.addItem(self)
         plot.addItem(self._label)
@@ -158,6 +183,7 @@ class LinearSegment(LinearRegionItem):
 
     @property
     def label_text(self) -> str:
+        """@property Returns the current plain-text of the segment's label"""
         return self._label.textItem.toPlainText()
 
     @label_text.setter
@@ -192,18 +218,22 @@ class LinearSegment(LinearRegionItem):
             return super().mouseClickEvent(ev)
 
     def y_rng_changed(self, vb, ylims):  # pragma: no cover
-        """Update label position on change of ViewBox y-limits"""
+        """:class:`pyqtSlot`: Update label position on change of ViewBox y-limits"""
         x = self._label.pos()[0]
         y = ylims[1]
         self._label.setPos(x, y)
 
     def _update_label_pos(self):
-        """Update label position to new segment/view bounds"""
+        """:class:`pyqtSlot`: Update label position to new segment/view bounds"""
         x0, _ = self.getRegion()
         _, y1 = self._plot().viewRange()[1]
         self._label.setPos(x0, y1)
 
     def _get_label_dlg(self):  # pragma: no cover
+        """:class:`pyqtSlot`: Popup an Input Dialog to take user string input
+
+        Emits sigLabelChanged(str) with the result of the accepted dialog value
+        """
         # TODO: Assign parent or create dialog with Icon
         text, result = QInputDialog.getText(None, "Enter Label", "Segment Label:",
                                             text=self.label_text)
@@ -263,7 +293,7 @@ class LinearSegmentGroup(QObject):
         self._timer.timeout.connect(self._update_done)
 
         for plot in plots:
-            segment = LinearSegment(plot, (left, right), label=label,
+            segment = LinearSegment(plot, left, right, label=label,
                                     movable=movable)
             segment.sigRegionChanged.connect(self._update_region)
             segment.sigLabelChanged.connect(self._update_label)
@@ -280,6 +310,7 @@ class LinearSegmentGroup(QObject):
 
     @property
     def region(self) -> Tuple[float, float]:
+        """Return the left/right region bounds of the group"""
         for segment in self._segments:
             return segment.getRegion()
 
@@ -292,14 +323,39 @@ class LinearSegmentGroup(QObject):
         return self._label_text
 
     def set_movable(self, movable: bool):
+        """Set the movable property of the segments in this group"""
         for segment in self._segments:
             segment.setMovable(movable)
 
+    def delete(self):
+        """Delete all child segments and emit a DELETE update"""
+        for segment in self._segments:
+            segment.remove()
+        self.emit_update(StateAction.DELETE)
+
+    def emit_update(self, action: StateAction = StateAction.UPDATE):
+        """Emit a LineUpdate object with the current segment attributes
+
+        Creates and emits a LineUpdate named-tuple with the current left and
+        right x-values of the segment, and the current label-text.
+
+        Parameters
+        ----------
+        action : StateAction, optional
+            Optionally specify the action for the update, defaults to UPDATE.
+            Use this parameter to trigger a DELETE action for instance.
+
+        """
+        update = LineUpdate(action, self._uid, self.left, self.right,
+                            self._label_text)
+        self.sigSegmentUpdate.emit(update)
+
     def _update_label(self, label: str):
+        """Updates the label text on all sibling segments and emits an update"""
         for segment in self._segments:
             segment.label_text = label
         self._label_text = label
-        self._emit_update(StateAction.UPDATE)
+        self.emit_update(StateAction.UPDATE)
 
     def _update_region(self, segment: LinearSegment):
         """Update sibling segments to new region bounds"""
@@ -315,27 +371,5 @@ class LinearSegmentGroup(QObject):
     def _update_done(self):
         """Emit an update object when the rate-limit timer has expired"""
         self._timer.stop()
-        self._emit_update(StateAction.UPDATE)
+        self.emit_update(StateAction.UPDATE)
 
-    def delete(self):
-        """Delete all child segments and emit a DELETE update"""
-        for segment in self._segments:
-            segment.remove()
-        self._emit_update(StateAction.DELETE)
-
-    def _emit_update(self, action: StateAction = StateAction.UPDATE):
-        """Emit a LineUpdate object with the current segment parameters
-
-        Creates and emits a LineUpdate named-tuple with the current left and
-        right x-values of the segment, and the current label-text.
-
-        Parameters
-        ----------
-        action : StateAction, optional
-            Optionally specify the action for the update, defaults to UPDATE.
-            Use this parameter to trigger a DELETE action for instance.
-
-        """
-        update = LineUpdate(action, self._uid, self.left, self.right,
-                            self._label_text)
-        self.sigSegmentUpdate.emit(update)

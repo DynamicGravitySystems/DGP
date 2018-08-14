@@ -5,6 +5,7 @@ from typing import Dict
 import pandas as pd
 from PyQt5.QtCore import pyqtSignal, Qt
 from pyqtgraph import Point
+from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent
 
 from dgp.core import StateAction
 from dgp.core.oid import OID
@@ -16,7 +17,7 @@ __all__ = ['TransformPlot', 'LineSelectPlot', 'AxisFormatter', 'LineUpdate']
 _log = logging.getLogger(__name__)
 
 """
-Task specific Plotting Interface definitions.
+Task specific Plotting Class definitions.
 
 This module adds various Plotting classes based on :class:`GridPlotWidget`
 which are tailored for specific tasks, e.g. the LineSelectPlot provides methods
@@ -51,7 +52,22 @@ class TransformPlot(GridPlotWidget):
 
 
 class LineSelectPlot(GridPlotWidget):
-    """LineSelectPlot
+    """LineSelectPlot is a task specific plot widget which provides the user
+    with a click/drag interaction allowing them to create and edit data
+    'segments' visually on the plot surface.
+
+    Parameters
+    ----------
+    rows : int, optional
+        Number of rows of linked plots to create, default is 1
+    parent : QWidget, optional
+
+    Attributes
+    ----------
+    sigSegmentChanged : :class:`~pyqt.pyqtSignal` [ :class:`LineUpdate` ]
+        Qt Signal emitted whenever a data segment (LinearSegment) is created,
+        modified, or deleted.
+        Emits a :class:`.LineUpdate`
 
     """
     sigSegmentChanged = pyqtSignal(LineUpdate)
@@ -64,19 +80,28 @@ class LineSelectPlot(GridPlotWidget):
         self.add_onclick_handler(self.onclick)
 
     @property
-    def selection_mode(self):
+    def selection_mode(self) -> bool:
+        """@property Return the current selection mode state
+
+        Returns
+        -------
+        bool
+            True if selection mode is enabled, else False
+        """
         return self._selecting
 
-    def set_select_mode(self, mode: bool):
+    def set_select_mode(self, mode: bool) -> None:
+        """Set the selection mode of the LineSelectPlot
+
+        """
         self._selecting = mode
         for group in self._segments.values():
             group.set_movable(mode)
 
     def add_segment(self, start: float, stop: float, label: str = None,
-                    uid: OID = None, emit=True) -> LinearSegmentGroup:
-        """
-        Add a LinearSegment selection across all linked x-axes
-        With width ranging from start:stop and an optional label.
+                    uid: OID = None, emit: bool = True) -> LinearSegmentGroup:
+        """Add a LinearSegment selection across all linked x-axes with width
+        ranging from start -> stop with an optional label.
 
         To non-interactively add a segment group (e.g. when loading a saved
         project) this method should be called with the uid parameter, and emit
@@ -86,14 +111,19 @@ class LineSelectPlot(GridPlotWidget):
         ----------
         start : float
         stop : float
-        label : str, Optional
+        label : str, optional
             Optional text label to display within the segment on the plot
-        uid : :class:`OID`, Optional
+        uid : :class:`.OID`, optional
             Specify the uid of the segment group, used for re-creating segments
             when loading a plot
-        emit : bool, Optional
+        emit : bool, optional
             If False, sigSegmentChanged will not be emitted on addition of the
             segment
+
+        Returns
+        -------
+        :class:`.LinearSegmentGroup`
+            A reference to the newly created :class:`.LinearSegmentGroup`
 
         """
         if isinstance(start, pd.Timestamp):
@@ -115,14 +145,21 @@ class LineSelectPlot(GridPlotWidget):
         return group
 
     def get_segment(self, uid: OID) -> LinearSegmentGroup:
+        """Get a :class:`.LinearSegmentGroup` by its :class:`.OID`
+
+        Returns
+        -------
+        :class:`.LinearSegmentGroup` or :const:`None`
+            The Segment group by the given OID if it exists, else None
+        """
         return self._segments.get(uid, None)
 
     def onclick(self, ev):  # pragma: no cover
         """Onclick handler for mouse left/right click.
 
-        Create a new data-segment if _selection_mode is True on left-click
+        Creates a new data-segment if :attr:`.selection_mode` is True on left-click
         """
-        event = ev[0]
+        event: MouseClickEvent = ev[0]
         try:
             pos: Point = event.pos()
         except AttributeError:
@@ -151,8 +188,7 @@ class LineSelectPlot(GridPlotWidget):
             self.add_segment(start, stop)
 
     def _check_proximity(self, x, span, proximity=0.03) -> bool:
-        """
-        Check the proximity of a mouse click at location 'x' in relation to
+        """Check the proximity of a mouse click at location 'x' in relation to
         any already existing LinearRegions.
 
         Parameters
@@ -162,12 +198,12 @@ class LineSelectPlot(GridPlotWidget):
         span : float
             X-axis span of the view box
         proximity : float
-            Proximity as a percentage of the view box span
+            Proximity as a percentage of the ViewBox span
 
         Returns
         -------
         True if x is not in proximity to any existing LinearRegionItems
-        False if x is within or in proximity to an existing LinearRegionItem
+        False if x is inside or in proximity to an existing LinearRegionItem
 
         """
         prox = span * proximity
