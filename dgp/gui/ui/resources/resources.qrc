@@ -1,5 +1,7 @@
 <RCC>
   <qresource prefix="icons">
+    <file alias="chevron-left">chevron_left.png</file>
+    <file alias="chevron-up">chevron_up.png</file>
     <file alias="dgp_notext">dgp_simple.png</file>
     <file alias="dgp">dgp_icon.png</file>
     <file alias="dgp_large">dgp_icon_large.png</file>

@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import enum
 import logging
 from enum import Enum, auto
 
@@ -13,45 +12,47 @@ LOG_LEVEL_MAP = {'debug': logging.DEBUG, 'info': logging.INFO,
                  'critical': logging.CRITICAL}
 
 
-class StateAction(enum.Enum):
+class StateAction(Enum):
     CREATE = auto()
     UPDATE = auto()
     DELETE = auto()
 
 
-class StateColor(enum.Enum):
+class StateColor(Enum):
     ACTIVE = '#11dd11'
     INACTIVE = '#ffffff'
 
 
-class Icon(enum.Enum):
+class Icon(Enum):
     """Resource Icon paths for Qt resources"""
-    AUTOSIZE = ":/icons/autosize"
-    OPEN_FOLDER = ":/icons/folder_open"
-    AIRBORNE = ":/icons/airborne"
-    MARINE = ":/icons/marine"
-    METER = ":/icons/sensor"
-    DGS = ":/icons/dgs"
-    DGP = ":/icons/dgp_large"
-    DGP_SMALL = ":/icons/dgp"
-    DGP_NOTEXT = ":/icons/dgp_notext"
-    GRAVITY = ":/icons/gravity"
-    TRAJECTORY = ":/icons/gps"
-    NEW_FILE = ":/icons/new_file"
-    SAVE = ":/icons/save"
-    DELETE = ":/icons/delete"
-    ARROW_LEFT = ":/icons/chevron-right"
-    ARROW_DOWN = ":/icons/chevron-down"
-    LINE_MODE = ":/icons/line_mode"
-    PLOT_LINE = ":/icons/plot_line"
-    SETTINGS = ":/icons/settings"
-    INFO = ":/icons/info"
-    HELP = ":/icons/help_outline"
-    GRID = ":/icons/grid_on"
-    NO_GRID = ":/icons/grid_off"
+    AUTOSIZE = "autosize"
+    OPEN_FOLDER = "folder_open"
+    AIRBORNE = "airborne"
+    MARINE = "marine"
+    METER = "sensor"
+    DGS = "dgs"
+    DGP = "dgp_large"
+    DGP_SMALL = "dgp"
+    DGP_NOTEXT = "dgp_notext"
+    GRAVITY = "gravity"
+    TRAJECTORY = "gps"
+    NEW_FILE = "new_file"
+    SAVE = "save"
+    DELETE = "delete"
+    ARROW_LEFT = "chevron-left"
+    ARROW_RIGHT = "chevron-right"
+    ARROW_UP = "chevron-up"
+    ARROW_DOWN = "chevron-down"
+    LINE_MODE = "line_mode"
+    PLOT_LINE = "plot_line"
+    SETTINGS = "settings"
+    INFO = "info"
+    HELP = "help_outline"
+    GRID = "grid_on"
+    NO_GRID = "grid_off"
 
-    def icon(self):
-        return QIcon(self.value)
+    def icon(self, prefix="icons"):
+        return QIcon(f':/{prefix}/{self.value}')
 
 
 class LogColors(Enum):
@@ -62,12 +63,12 @@ class LogColors(Enum):
     CRITICAL = 'orange'
 
 
-class ProjectTypes(enum.Enum):
+class ProjectTypes(Enum):
     AIRBORNE = 'airborne'
     MARINE = 'marine'
 
 
-class MeterTypes(enum.Enum):
+class MeterTypes(Enum):
     """Gravity Meter Types"""
     AT1A = 'at1a'
     AT1M = 'at1m'
@@ -75,13 +76,13 @@ class MeterTypes(enum.Enum):
     TAGS = 'tags'
 
 
-class DataType(enum.Enum):
+class DataType(Enum):
     """Gravity/Trajectory Data Types"""
     GRAVITY = 'gravity'
     TRAJECTORY = 'trajectory'
 
 
-class GravityTypes(enum.Enum):
+class GravityTypes(Enum):
     # TODO: add set of fields specific to each dtype
     AT1A = ('gravity', 'long_accel', 'cross_accel', 'beam', 'temp', 'status',
             'pressure', 'Etemp', 'gps_week', 'gps_sow')
@@ -93,7 +94,7 @@ class GravityTypes(enum.Enum):
     TAGS = ('tags', )
 
 
-class GPSFields(enum.Enum):
+class GPSFields(Enum):
     sow = ('week', 'sow', 'lat', 'long', 'ell_ht')
     hms = ('mdy', 'hms', 'lat', 'long', 'ell_ht')
     serial = ('datenum', 'lat', 'long', 'ell_ht')

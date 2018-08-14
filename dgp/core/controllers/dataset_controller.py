@@ -6,7 +6,7 @@ from typing import List, Union, Generator, Set
 
 from pandas import DataFrame, Timestamp, concat
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QColor, QBrush, QIcon, QStandardItemModel, QStandardItem
+from PyQt5.QtGui import QColor, QBrush, QStandardItemModel, QStandardItem
 
 from dgp.core.oid import OID
 from dgp.core.types.enumerations import Icon
@@ -89,14 +89,14 @@ class DataSetController(IDataSetController):
 
         self.setEditable(False)
         self.setText(self._dataset.name)
-        self.setIcon(QIcon(Icon.OPEN_FOLDER.value))
+        self.setIcon(Icon.PLOT_LINE.icon())
         self.setBackground(QBrush(QColor(StateColor.INACTIVE.value)))
         self._grav_file = DataFileController(self._dataset.gravity, self)
         self._traj_file = DataFileController(self._dataset.trajectory, self)
         self._child_map = {DataType.GRAVITY: self._grav_file,
                            DataType.TRAJECTORY: self._traj_file}
 
-        self._segments = ProjectFolder("Segments")
+        self._segments = ProjectFolder("Segments", Icon.LINE_MODE.icon())
         for segment in dataset.segments:
             seg_ctrl = DataSegmentController(segment, parent=self)
             self._segments.appendRow(seg_ctrl)
@@ -114,12 +114,12 @@ class DataSetController(IDataSetController):
         self._menu_bindings = [  # pragma: no cover
             ('addAction', ('Set Name', self._set_name)),
             ('addAction', ('Set Active', lambda: self.get_parent().activate_child(self.uid))),
-            ('addAction', (QIcon(Icon.METER.value), 'Set Sensor',
+            ('addAction', (Icon.METER.icon(), 'Set Sensor',
                            self._set_sensor_dlg)),
             ('addSeparator', ()),
-            ('addAction', (QIcon(Icon.GRAVITY.value), 'Import Gravity',
+            ('addAction', (Icon.GRAVITY.icon(), 'Import Gravity',
                            lambda: self._project.load_file_dlg(DataType.GRAVITY, dataset=self))),
-            ('addAction', (QIcon(Icon.TRAJECTORY.value), 'Import Trajectory',
+            ('addAction', (Icon.TRAJECTORY.icon(), 'Import Trajectory',
                            lambda: self._project.load_file_dlg(DataType.TRAJECTORY, dataset=self))),
             ('addAction', ('Align Data', self.align)),
             ('addSeparator', ()),

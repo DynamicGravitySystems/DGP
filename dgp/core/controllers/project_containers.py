@@ -3,6 +3,8 @@ from typing import Generator
 
 from PyQt5.QtGui import QStandardItem, QStandardItemModel, QIcon
 
+from dgp.core import Icon
+
 
 class ProjectFolder(QStandardItem):
     """Displayable StandardItem used for grouping sub-elements.
@@ -17,14 +19,13 @@ class ProjectFolder(QStandardItem):
     -----
     Overriding object methods like __getitem__ __iter__ etc seems to break
     """
-    inherit_context = False
 
-    def __init__(self, label: str, icon: str=None, inherit=False, **kwargs):
+    def __init__(self, label: str, icon: QIcon = None, **kwargs):
         super().__init__(label)
-        if icon is not None:
-            self.setIcon(QIcon(icon))
+        if icon is None:
+            icon = Icon.OPEN_FOLDER.icon()
+        self.setIcon(icon)
         self._model = QStandardItemModel()
-        self.inherit_context = inherit
         self.setEditable(False)
         self._attributes = kwargs
 

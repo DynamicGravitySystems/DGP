@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtCore import Qt
 
+from dgp.core import Icon
 from dgp.core.oid import OID
 from dgp.core.controllers.controller_interfaces import IAirborneController, IMeterController
 from dgp.core.controllers.controller_helpers import get_input
@@ -13,6 +14,7 @@ class GravimeterController(IMeterController):
         super().__init__(meter.name)
         self.setEditable(False)
         self.setData(meter, role=Qt.UserRole)
+        self.setIcon(Icon.METER.icon())
 
         self._meter = meter  # type: Gravimeter
         self._parent = parent

@@ -54,14 +54,14 @@ class AirborneProjectController(IAirborneController):
         self._parent = None
         self._active = None
 
-        self.setIcon(QIcon(Icon.DGS.value))
+        self.setIcon(Icon.DGP_NOTEXT.icon())
         self.setToolTip(str(self._project.path.resolve()))
         self.setData(project, Qt.UserRole)
         self.setBackground(QColor(StateColor.INACTIVE.value))
 
-        self.flights = ProjectFolder("Flights", Icon.AIRBORNE.value)
+        self.flights = ProjectFolder("Flights")
         self.appendRow(self.flights)
-        self.meters = ProjectFolder("Gravimeters", Icon.METER.value)
+        self.meters = ProjectFolder("Gravimeters")
         self.appendRow(self.meters)
 
         self._child_map = {Flight: self.flights,

@@ -23,7 +23,7 @@ class DataFileController(IBaseController):
 
         self._bindings = [
             ('addAction', ('Properties', self._properties_dlg)),
-            ('addAction', (QIcon(Icon.OPEN_FOLDER.value), 'Show in Explorer',
+            ('addAction', (Icon.OPEN_FOLDER.icon(), 'Show in Explorer',
                            self._launch_explorer))
         ]
 
@@ -58,9 +58,9 @@ class DataFileController(IBaseController):
             self.setToolTip("Source path: {!s}".format(datafile.source_path))
             self.setData(datafile, role=Qt.UserRole)
             if self._datafile.group is DataType.GRAVITY:
-                self.setIcon(QIcon(Icon.GRAVITY.value))
+                self.setIcon(Icon.GRAVITY.icon())
             elif self._datafile.group is DataType.TRAJECTORY:
-                self.setIcon(QIcon(Icon.TRAJECTORY.value))
+                self.setIcon(Icon.TRAJECTORY.icon())
 
     def _properties_dlg(self):
         if self._datafile is None:
