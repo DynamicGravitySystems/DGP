@@ -2,13 +2,11 @@
 import logging
 
 import pandas as pd
-
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QStandardItem
-from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QDockWidget, QSizePolicy
-import PyQt5.QtWidgets as QtWidgets
+from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QDockWidget, QSizePolicy, QAction
 
-from dgp.core import StateAction
+from dgp.core import StateAction, Icon
 from dgp.gui.widgets.channel_select_widget import ChannelSelectWidget
 from dgp.core.controllers.flight_controller import FlightController
 from dgp.gui.plotting.plotters import LineUpdate, LineSelectPlot
@@ -43,51 +41,35 @@ class PlotTab(TaskTab):
                                            segment.uid, emit=False)
             segment.add_reference(group)
 
-        self._setup_ui()
-
-        # TODO:There should also be a check to ensure that the lines are within the bounds of the data
-        # Huge slowdowns occur when trying to plot a FlightLine and a channel when the points are weeks apart
-
-    def _setup_ui(self):
-        qhbl_main = QHBoxLayout()
+        # Create/configure the tab layout/widgets/controls
+        qhbl_main_layout = QHBoxLayout()
         qvbl_plot_layout = QVBoxLayout()
-        qhbl_top_buttons = QHBoxLayout()
-        self._qpb_channel_toggle = QtWidgets.QPushButton("Data Channels")
-        self._qpb_channel_toggle.setCheckable(True)
-        self._qpb_channel_toggle.setChecked(True)
-        qhbl_top_buttons.addWidget(self._qpb_channel_toggle,
-                                   alignment=Qt.AlignLeft)
+        qhbl_main_layout.addItem(qvbl_plot_layout)
+        self.toolbar = self._plot.get_toolbar(self)
+        # self.toolbar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        qvbl_plot_layout.addWidget(self.toolbar, alignment=Qt.AlignLeft)
+        qvbl_plot_layout.addWidget(self._plot)
 
-        self._ql_mode = QtWidgets.QLabel('')
-        # top_button_hlayout.addSpacing(20)
-        qhbl_top_buttons.addStretch(2)
-        qhbl_top_buttons.addWidget(self._ql_mode)
-        qhbl_top_buttons.addStretch(2)
-        # top_button_hlayout.addSpacing(20)
-        self._qpb_toggle_mode = QtWidgets.QPushButton("Toggle Line Selection Mode")
-        self._qpb_toggle_mode.setCheckable(True)
-        self._qpb_toggle_mode.toggled.connect(self._toggle_selection)
-        qhbl_top_buttons.addWidget(self._qpb_toggle_mode,
-                                   alignment=Qt.AlignRight)
-        qvbl_plot_layout.addLayout(qhbl_top_buttons)
+        # Toggle control to hide/show data channels dock
+        qa_channel_toggle = QAction(Icon.PLOT_LINE.icon(), "Data Channels", self)
+        qa_channel_toggle.setCheckable(True)
+        qa_channel_toggle.setChecked(True)
+        self.toolbar.addAction(qa_channel_toggle)
 
+        # Load data channel selection widget
         channel_widget = ChannelSelectWidget(self._dataset.series_model)
         channel_widget.channel_added.connect(self._channel_added)
         channel_widget.channel_removed.connect(self._channel_removed)
-        channel_widget.channels_cleared.connect(self._clear_plot)
+        channel_widget.channels_cleared.connect(self._plot.clear)
 
-        # self.plot.widget.setSizePolicy(QSizePolicy(QSizePolicy.Expanding,
-        #                                            QSizePolicy.Expanding))
-        # qvbl_plot_layout.addWidget(self.plot.widget)
-        qvbl_plot_layout.addWidget(self._plot)
         dock_widget = QDockWidget("Channels")
+        dock_widget.setFeatures(QDockWidget.NoDockWidgetFeatures)
         dock_widget.setSizePolicy(QSizePolicy(QSizePolicy.Maximum,
                                               QSizePolicy.Preferred))
         dock_widget.setWidget(channel_widget)
-        self._qpb_channel_toggle.toggled.connect(dock_widget.setVisible)
-        qhbl_main.addItem(qvbl_plot_layout)
-        qhbl_main.addWidget(dock_widget)
-        self.setLayout(qhbl_main)
+        qa_channel_toggle.toggled.connect(dock_widget.setVisible)
+        qhbl_main_layout.addWidget(dock_widget)
+        self.setLayout(qhbl_main_layout)
 
     def _channel_added(self, row: int, item: QStandardItem):
         series: pd.Series = item.data(Qt.UserRole)
@@ -96,25 +78,12 @@ class PlotTab(TaskTab):
         else:
             axis = Axis.LEFT
         self._plot.add_series(item.data(Qt.UserRole), row, axis=axis)
-        # plot = self._plot.get_plot(row=row)
-        # plot.autoRange(items=plot.curves)
 
     def _channel_removed(self, item: QStandardItem):
-        # TODO: Fix this for new API
         series: pd.Series = item.data(Qt.UserRole)
         indexes = self._plot.find_series(series.name)
         for index in indexes:
             self._plot.remove_series(*index)
-
-    def _clear_plot(self):
-        self._plot.clear()
-
-    def _toggle_selection(self, state: bool):
-        self._plot.selection_mode = state
-        if state:
-            self._ql_mode.setText("<h2><b>Line Selection Active</b></h2>")
-        else:
-            self._ql_mode.setText("")
 
     def _on_modified_line(self, update: LineUpdate):
         if update.action is StateAction.DELETE:

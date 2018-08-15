@@ -5,12 +5,13 @@ from typing import List, Union, Tuple, Generator, Dict
 from weakref import WeakValueDictionary
 
 import pandas as pd
-from PyQt5.QtWidgets import QMenu, QWidgetAction, QWidget, QAction
+from PyQt5.QtWidgets import QMenu, QWidgetAction, QWidget, QAction, QToolBar, QMessageBox
 from pyqtgraph.widgets.GraphicsView import GraphicsView
 from pyqtgraph.graphicsItems.GraphicsLayout import GraphicsLayout
 from pyqtgraph.graphicsItems.PlotItem import PlotItem
 from pyqtgraph import SignalProxy, PlotDataItem
 
+from dgp.core import Icon
 from dgp.gui.ui.plot_options_widget import Ui_PlotOptions
 from .helpers import PolyAxis
 
@@ -31,7 +32,6 @@ class Axis(Enum):
 
 LINE_COLORS = {'#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
                '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'}
-
 
 # type aliases
 MaybePlot = Union['DgpPlotItem', None]
@@ -253,7 +253,7 @@ class DgpPlotItem(PlotItem):
         if self.right is not None:
             alpha, auto_ = self.alphaState()
             for c in self.right.curves:
-                c.setAlpha(alpha**2, auto_)
+                c.setAlpha(alpha ** 2, auto_)
 
     def updateDownsampling(self):
         """Extends :meth:`pyqtgraph.PlotItem.updateDownsampling`
@@ -639,6 +639,11 @@ class GridPlotWidget(GraphicsView):
             if autorange:
                 plot.autoRange()
 
+    def toggle_grids(self, state: bool):
+        for plot in self.plots:
+            plot.customControl.xGridCheck.setChecked(state)
+            plot.customControl.yGridCheck.setChecked(state)
+
     def add_onclick_handler(self, slot, ratelimit: int = 60):  # pragma: no cover
         """Creates a SignalProxy to forward Mouse Clicked events on the
         GraphicsLayout scene to the provided slot.
@@ -655,6 +660,47 @@ class GridPlotWidget(GraphicsView):
                          slot=slot)
         self.__signal_proxies.append(sp)
         return sp
+
+    def get_toolbar(self, parent=None) -> QToolBar:
+        """Return a QToolBar with standard controls for the plot surface(s)
+
+        Returns
+        -------
+        QToolBar
+
+        """
+        toolbar = QToolBar(parent)
+        action_viewall = QAction(Icon.AUTOSIZE.icon(), "View All", self)
+        action_viewall.triggered.connect(self.autorange)
+        toolbar.addAction(action_viewall)
+
+        action_grid = QAction(Icon.GRID.icon(), "Toggle Grid", self)
+        action_grid.setCheckable(True)
+        action_grid.setChecked(True)
+        action_grid.toggled.connect(self.toggle_grids)
+        toolbar.addAction(action_grid)
+
+        action_clear = QAction(Icon.DELETE.icon(), "Clear Plots", self)
+        action_clear.triggered.connect(self.clear)
+        toolbar.addAction(action_clear)
+
+        action_help = QAction(Icon.SETTINGS.HELP.icon(), "Plot Help", self)
+        action_help.triggered.connect(lambda: self.help_dialog(parent))
+        toolbar.addAction(action_help)
+
+        action_settings = QAction(Icon.SETTINGS.icon(), "Plot Settings", self)
+        toolbar.addAction(action_settings)
+
+        toolbar.addSeparator()
+
+        return toolbar
+
+    @staticmethod
+    def help_dialog(parent=None):
+        QMessageBox.information(parent, "Plot Controls Help",
+                                "Click and drag on the plot to pan\n"
+                                "Right click and drag the plot to interactively zoom\n"
+                                "Right click on the plot to view options specific to each plot area")
 
     @staticmethod
     def make_index(name: str, row: int, col: int = 0, axis: Axis = Axis.LEFT) -> SeriesIndex:

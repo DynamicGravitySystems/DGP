@@ -4,9 +4,11 @@ from typing import Dict
 
 import pandas as pd
 from PyQt5.QtCore import pyqtSignal, Qt
+from PyQt5.QtWidgets import QAction
 from pyqtgraph import Point
 from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent
 
+from dgp.core import Icon
 from dgp.core import StateAction
 from dgp.core.oid import OID
 from .helpers import LinearSegmentGroup, LineUpdate
@@ -186,6 +188,17 @@ class LineSelectPlot(GridPlotWidget):
             start = xpos - (vb_span * 0.05)
             stop = xpos + (vb_span * 0.05)
             self.add_segment(start, stop)
+
+    def get_toolbar(self, parent=None):
+        toolbar = super().get_toolbar(parent)
+
+        action_mode = QAction(Icon.LINE_MODE.icon(), "Toggle Selection Mode", self)
+        action_mode.setCheckable(True)
+        action_mode.setChecked(self.selection_mode)
+        action_mode.toggled.connect(self.set_select_mode)
+        toolbar.addAction(action_mode)
+
+        return toolbar
 
     def _check_proximity(self, x, span, proximity=0.03) -> bool:
         """Check the proximity of a mouse click at location 'x' in relation to

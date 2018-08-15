@@ -93,8 +93,11 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         self.qpb_toggle_mode.clicked.connect(self._mode_toggled)
         self.qte_source_browser.setReadOnly(True)
         self.qte_source_browser.setLineWrapMode(QTextEdit.NoWrap)
-
-        self.hlayout.addWidget(self._plot, Qt.AlignLeft | Qt.AlignTop)
+        self.qvbl_plot_layout = QVBoxLayout()
+        self._toolbar = self._plot.get_toolbar(self)
+        self.qvbl_plot_layout.addWidget(self._toolbar, alignment=Qt.AlignRight)
+        self.qvbl_plot_layout.addWidget(self._plot)
+        self.hlayout.addLayout(self.qvbl_plot_layout)
 
     @property
     def xaxis_index(self) -> int:
