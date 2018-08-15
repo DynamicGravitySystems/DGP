@@ -2,11 +2,22 @@
 
 import enum
 import logging
+from enum import auto
 
+from PyQt5.QtGui import QIcon
+
+__all__ = ['StateAction', 'StateColor', 'Icon', 'ProjectTypes',
+           'MeterTypes', 'DataType']
 
 LOG_LEVEL_MAP = {'debug': logging.DEBUG, 'info': logging.INFO,
                  'warning': logging.WARNING, 'error': logging.ERROR,
                  'critical': logging.CRITICAL}
+
+
+class StateAction(enum.Enum):
+    CREATE = auto()
+    UPDATE = auto()
+    DELETE = auto()
 
 
 class StateColor(enum.Enum):
@@ -28,6 +39,15 @@ class Icon(enum.Enum):
     SAVE = ":/icons/save"
     ARROW_LEFT = ":/icons/chevron-right"
     ARROW_DOWN = ":/icons/chevron-down"
+    DELETE = ""
+    GRID = ""
+    HELP = ""
+    LINE_MODE = ""
+    PLOT_LINE = ""
+    SETTINGS = ""
+
+    def icon(self):
+        return QIcon(self.value)
 
 
 class LogColors(enum.Enum):

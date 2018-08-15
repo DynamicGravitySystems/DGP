@@ -55,12 +55,19 @@
           </widget>
          </item>
          <item row="0" column="1">
-          <widget class="QComboBox" name="qcb_transform_graphs"/>
+          <layout class="QHBoxLayout" name="horizontalLayout">
+           <item>
+            <widget class="QComboBox" name="qcb_transform_graphs"/>
+           </item>
+          </layout>
          </item>
         </layout>
        </item>
        <item>
         <widget class="QPushButton" name="qpb_execute_transform">
+         <property name="toolTip">
+          <string>Execute transform graph</string>
+         </property>
          <property name="text">
           <string>Transform</string>
          </property>
@@ -120,69 +127,13 @@
          <item row="0" column="1">
           <widget class="QComboBox" name="qcb_plot_index"/>
          </item>
-         <item row="1" column="0">
-          <widget class="QLabel" name="ql_segments">
-           <property name="text">
-            <string>Segment:</string>
-           </property>
-          </widget>
-         </item>
          <item row="1" column="1">
-          <layout class="QHBoxLayout" name="horizontalLayout_3">
-           <property name="spacing">
-            <number>3</number>
+          <widget class="QPushButton" name="qpb_toggle_mode">
+           <property name="toolTip">
+            <string>Toggle segment mode to plot by data-segments</string>
            </property>
-           <item>
-            <widget class="QComboBox" name="qcb_mask">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QToolButton" name="qtb_set_mask">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Maximum" vsizetype="MinimumExpanding">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="text">
-              <string>Set</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QToolButton" name="qtb_clear_mask">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Maximum" vsizetype="MinimumExpanding">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="text">
-              <string>Clear</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-         <item row="2" column="1">
-          <widget class="QPushButton" name="qpb_stack_lines">
            <property name="text">
-            <string>Stack Lines</string>
+            <string>Segment Mode</string>
            </property>
            <property name="checkable">
             <bool>true</bool>
@@ -195,9 +146,13 @@
      </widget>
      <widget class="QWidget" name="ChannelsTab">
       <attribute name="title">
-       <string>Details</string>
+       <string>Graph Source</string>
       </attribute>
-      <layout class="QVBoxLayout" name="verticalLayout"/>
+      <layout class="QVBoxLayout" name="verticalLayout">
+       <item>
+        <widget class="QTextEdit" name="qte_source_browser"/>
+       </item>
+      </layout>
      </widget>
     </widget>
    </item>

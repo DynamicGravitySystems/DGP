@@ -7,7 +7,7 @@ import pandas as pd
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QWidget, QMenu
-from pandas import DataFrame
+from pandas import DataFrame, Timedelta, Timestamp
 
 from dgp.core import DataType
 from dgp.core.oid import OID
@@ -229,7 +229,7 @@ def test_dataset_controller(tmpdir):
     grav_file = DataFile(DataType.GRAVITY, datetime.now(), Path(tmpdir).joinpath('gravity.dat'))
     traj_file = DataFile(DataType.TRAJECTORY, datetime.now(), Path(tmpdir).joinpath('trajectory.txt'))
     ds = DataSet(grav_file, traj_file)
-    seg0 = DataSegment(OID(), datetime.now().timestamp(), datetime.now().timestamp() + 5000, 0)
+    seg0 = DataSegment(OID(), Timestamp.now(), Timestamp.now() + Timedelta(minutes=30), 0)
     ds.segments.append(seg0)
 
     flt.datasets.append(ds)
@@ -262,12 +262,12 @@ def test_dataset_controller(tmpdir):
 
     # Test Data Segment Features
     _seg_oid = OID(tag="seg1")
-    _seg1_start = datetime.now().timestamp()
-    _seg1_stop = datetime.now().timestamp() + 1500
+    _seg1_start = Timestamp.now()
+    _seg1_stop = Timestamp.now() + Timedelta(hours=1)
     seg1_ctrl = dsc.add_segment(_seg_oid, _seg1_start, _seg1_stop, label="seg1")
     seg1: DataSegment = seg1_ctrl.datamodel
-    assert datetime.fromtimestamp(_seg1_start) == seg1.start
-    assert datetime.fromtimestamp(_seg1_stop) == seg1.stop
+    assert _seg1_start == seg1.start
+    assert _seg1_stop == seg1.stop
     assert "seg1" == seg1.label
 
     assert seg1_ctrl == dsc.get_segment(_seg_oid)
@@ -280,11 +280,11 @@ def test_dataset_controller(tmpdir):
     assert ds.segments[1] == seg1_ctrl.data(Qt.UserRole)
 
     # Segment updates
-    _new_start = datetime.now().timestamp() + 1500
-    _new_stop = datetime.now().timestamp() + 3600
+    _new_start = Timestamp.now() + Timedelta(hours=2)
+    _new_stop = Timestamp.now() + Timedelta(hours=3)
     dsc.update_segment(seg1.uid, _new_start, _new_stop)
-    assert datetime.fromtimestamp(_new_start) == seg1.start
-    assert datetime.fromtimestamp(_new_stop) == seg1.stop
+    assert _new_start == seg1.start
+    assert _new_stop == seg1.stop
     assert "seg1" == seg1.label
 
     dsc.update_segment(seg1.uid, label="seg1label")

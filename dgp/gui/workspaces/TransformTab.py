@@ -1,19 +1,34 @@
 # -*- coding: utf-8 -*-
 
 import logging
-from typing import Union, List
+import inspect
+from enum import Enum, auto
+from typing import List
 
 import pandas as pd
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
-from PyQt5.QtWidgets import QVBoxLayout, QWidget, QComboBox
+from PyQt5.QtWidgets import QVBoxLayout, QWidget, QInputDialog, QTextEdit
 
 from dgp.core.controllers.dataset_controller import DataSegmentController, DataSetController
 from dgp.core.controllers.flight_controller import FlightController
 from dgp.lib.transform.transform_graphs import SyncGravity, AirbornePost, TransformGraph
-from dgp.gui.plotting.plotters import TransformPlot
+from dgp.gui.plotting.plotters import TransformPlot, AxisFormatter
 from . import TaskTab
 from ..ui.transform_tab_widget import Ui_TransformInterface
+
+try:
+    from pygments import highlight
+    from pygments.lexers import PythonLexer
+    from pygments.formatters import HtmlFormatter
+    HAS_HIGHLIGHTER = True
+except ImportError:
+    HAS_HIGHLIGHTER = False
+
+
+class _Mode(Enum):
+    NORMAL = auto()
+    SEGMENTS = auto()
 
 
 class TransformWidget(QWidget, Ui_TransformInterface):
@@ -30,7 +45,9 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         self.log = logging.getLogger(__name__)
         self._flight = flight
         self._dataset: DataSetController = flight.active_child
-        self._plot = TransformPlot(rows=1)
+        self._plot = TransformPlot()
+        self._mode = _Mode.NORMAL
+        self._segment_indexes = {}
 
         self._result: pd.DataFrame = None
         self.result.connect(self._on_result)
@@ -42,15 +59,15 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         self.plot_index = QStandardItemModel()
         self.transform_graphs = QStandardItemModel()
         # Set ComboBox Models
-        self.qcb_mask.setModel(self._dataset.segment_model)
         self.qcb_plot_index.setModel(self.plot_index)
         self.qcb_transform_graphs.setModel(self.transform_graphs)
+        self.qcb_transform_graphs.currentIndexChanged.connect(self._graph_source)
 
         self.qcb_plot_index.currentIndexChanged[int].connect(self._index_changed)
 
         # Initialize model for transformed channels
         self._channel_model = QStandardItemModel()
-        self._channel_model.itemChanged.connect(self._update_channel_selection)
+        self._channel_model.itemChanged.connect(self._channel_state_changed)
         self.qlv_channels.setModel(self._channel_model)
 
         self._index_map = {
@@ -73,11 +90,18 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         self.qpb_execute_transform.clicked.connect(self.execute_transform)
         self.qpb_select_all.clicked.connect(lambda: self._set_all_channels(Qt.Checked))
         self.qpb_select_none.clicked.connect(lambda: self._set_all_channels(Qt.Unchecked))
-        self.qtb_set_mask.clicked.connect(self._set_mask)
-        self.qtb_clear_mask.clicked.connect(self._clear_mask)
-        self.qpb_stack_lines.clicked.connect(self._stack_lines)
+        self.qpb_toggle_mode.clicked.connect(self._mode_toggled)
+        self.qte_source_browser.setReadOnly(True)
+        self.qte_source_browser.setLineWrapMode(QTextEdit.NoWrap)
+        self.qvbl_plot_layout = QVBoxLayout()
+        self._toolbar = self._plot.get_toolbar(self)
+        self.qvbl_plot_layout.addWidget(self._toolbar, alignment=Qt.AlignRight)
+        self.qvbl_plot_layout.addWidget(self._plot)
+        self.hlayout.addLayout(self.qvbl_plot_layout)
 
-        self.hlayout.addWidget(self._plot.widget, Qt.AlignLeft | Qt.AlignTop)
+    @property
+    def xaxis_index(self) -> int:
+        return self.qcb_plot_index.currentData(Qt.UserRole)
 
     @property
     def raw_gravity(self) -> pd.DataFrame:
@@ -92,8 +116,8 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         return self._dataset.dataframe()
 
     @property
-    def plot(self) -> TransformPlot:
-        return self._plot
+    def transform(self) -> TransformGraph:
+        return self.qcb_transform_graphs.currentData(Qt.UserRole)
 
     @property
     def _channels(self) -> List[QStandardItem]:
@@ -105,100 +129,112 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         return [self._dataset.segment_model.item(i)
                 for i in range(self._dataset.segment_model.rowCount())]
 
-    def _auto_range(self):
-        """Call autoRange on all plot surfaces to scale the view to its
-        contents"""
-        for plot in self.plot.plots:
-            plot.autoRange()
+    def _graph_source(self, index):  # pragma: no cover
+        """Utility to display the transform graph source (__init__) method
+        containing the definition for the graph.
 
-    def _view_transform_graph(self):
-        """Print out the dictionary transform (or even the raw code) in GUI?"""
-        pass
+        If Pygments is available the source code will be highlighted
 
-    def _set_mask(self):
-        # TODO: Decide whether this is useful to allow viewing of a single line
-        # segment
-        pass
+        Notes
+        -----
+        The inspection of the source code is somewhat fragile and dependent on
+        the way the graph is defined in the source. The current method gets the
+        __init__ source code for the TransformGraph descendant then searches for
+        the string index of 'self.transform_graph', and takes from the first '{'
+        until the first '}'.
 
-    def _clear_mask(self):
-        pass
-
-    def _split_by_segment(self, segments: List[DataSegmentController], series):
-
-        pass
-
-    def _stack_lines(self):
-        """Experimental feature, currently works to plot only FAC vs Lon
-
-        TODO: Maybe make stacked lines a toggleable mode
-        TODO: Need to be more general and work on all transforms/channels
         """
-        if self._result is None:
-            self.log.warning(f'Transform result not yet computed')
-            return
+        graph = self.transform
+        src = inspect.getsource(graph.__init__)
+        start_str = 'self.transform_graph'
+        start_i = src.find('{', src.find(start_str)) + 1
+        src = src[start_i:src.find('}')]
+        trimmed = map(lambda x: x.lstrip(' '), src.split('\n'))
+        src = ''
+        for line in trimmed:
+            src += f'{line}\n'
 
-        channels = []
-        for channel in self._channels:
-            if channel.checkState() == Qt.Checked:
-                channels.append(channel)
-            # channel.setCheckState(Qt.Unchecked)
-        if not len(channels):
-            self.log.error("No channel selected.")
-            return
+        if HAS_HIGHLIGHTER:
+            css = HtmlFormatter().get_style_defs('.highlight')
+            style_block = f'<style>{css}</style>'
+            html = highlight(src, PythonLexer(stripall=True), HtmlFormatter())
+            self.qte_source_browser.setHtml(f'{style_block}{html}')
+        else:
+            self.qte_source_browser.setText(src)
 
-        # series = channels.pop()
-        # TODO: Make this a class property
-        xindex = self.qcb_plot_index.currentData(Qt.UserRole)
-
-        for segment in self._segments:
-            start = segment.get_attr('start')
-            stop = segment.get_attr('stop')
-            start_idx = self._result.index.searchsorted(start)
-            stop_idx = self._result.index.searchsorted(stop)
-            self.log.debug(f'Start idx {start_idx} stop idx {stop_idx}')
-
-            for channel in channels:
-                # Stack only a single channel for the moment
-                segment_series = channel.data(xindex).iloc[start_idx:stop_idx]
-                segment_series.name = f'{channel.text()} - {segment.get_attr("sequence")}'
-                self.plot.add_series(segment_series)
-
-        self._auto_range()
+    def _mode_toggled(self):
+        """Toggle the mode state between Normal or Segments"""
+        self._set_all_channels(state=Qt.Unchecked)
+        if self._mode is _Mode.NORMAL:
+            self._mode = _Mode.SEGMENTS
+        else:
+            self._mode = _Mode.NORMAL
+        self.log.debug(f'Changed mode to {self._mode}')
+        return
 
     def _set_all_channels(self, state=Qt.Checked):
         for i in range(self._channel_model.rowCount()):
             self._channel_model.item(i).setCheckState(state)
 
-    def _update_channel_selection(self, item: QStandardItem):
-        xindex = self.qcb_plot_index.currentData(Qt.UserRole)
-        data = item.data(xindex)
+    def _add_series(self, series: pd.Series, row=0):
+        if self._mode is _Mode.NORMAL:
+            self._plot.add_series(series, row)
+        elif self._mode is _Mode.SEGMENTS:
+            self._segment_indexes[series.name] = []
+            for i, segment in enumerate(self._segments):
+                start_i = self._result.index.searchsorted(segment.get_attr('start'))
+                stop_i = self._result.index.searchsorted(segment.get_attr('stop'))
+                seg_data = series.iloc[start_i:stop_i]
+
+                seg_data.name = f'{series.name}-{segment.get_attr("label") or i}'
+                self._segment_indexes[series.name].append(seg_data.name)
+                self._plot.add_series(seg_data, row=0)
+
+    def _remove_series(self, series: pd.Series):
+        if self._mode is _Mode.NORMAL:
+            self._plot.remove_series(series.name, row=0)
+        elif self._mode is _Mode.SEGMENTS:
+            for name in self._segment_indexes[series.name]:
+                self._plot.remove_series(name, row=0)
+            del self._segment_indexes[series.name]
+
+    def _channel_state_changed(self, item: QStandardItem):
+        data: pd.Series = item.data(self.xaxis_index)
         if item.checkState() == Qt.Checked:
-            self.plot.add_series(data)
+            self._add_series(data, row=0)
         else:
-            self.plot.remove_series(data)
-        self._auto_range()
+            self._remove_series(data)
 
     @pyqtSlot(int, name='_index_changed')
     def _index_changed(self, index: int):
         self.log.debug(f'X-Axis changed to {self.qcb_plot_index.currentText()}')
         if self._result is None:
             return
+        if self.xaxis_index in {self.LATITUDE, self.LONGITUDE}:
+            self._plot.set_axis_formatters(AxisFormatter.SCALAR)
+        else:
+            self._plot.set_axis_formatters(AxisFormatter.DATETIME)
 
-        self.plot.clear()
         for channel in self._channels:
             if channel.checkState() == Qt.Checked:
                 channel.setCheckState(Qt.Unchecked)
                 channel.setCheckState(Qt.Checked)
 
-        self._auto_range()
-
     @pyqtSlot(name='_on_result')
     def _on_result(self):
+        """_on_result called when Transformation DataFrame has been computed.
+
+        This method creates the channel objects for the interface.
+        """
         default_channels = ['fac']
 
         time_df = self._result
         lat_df = time_df.set_index('lat')
         lon_df = time_df.set_index('lon')
+
+        for i in range(self._channel_model.rowCount()):
+            item = self._channel_model.item(i)
+            del item
 
         self._channel_model.clear()
         for col in sorted(time_df.columns):
@@ -229,6 +265,7 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         graph = transform(trajectory, gravity, 0, 0)
         self.log.info("Executing graph")
         graph.execute()
+        del self._result
         self._result = graph.result_df()
         self.result.emit()
 

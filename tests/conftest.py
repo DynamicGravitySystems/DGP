@@ -37,6 +37,21 @@ raised within the Qt domain that would otherwise not be printed.
 """
 
 
+def qt_msg_handler(type_, context, message: str):
+    level = {
+        QtCore.QtDebugMsg: "QtDebug",
+        QtCore.QtWarningMsg: "QtWarning",
+        QtCore.QtCriticalMsg: "QtCritical",
+        QtCore.QtFatalMsg: "QtFatal",
+        QtCore.QtInfoMsg: "QtInfo"
+    }.get(type_, "QtDebug")
+    if type_ >= QtCore.QtCriticalMsg:
+        print(f'QtMessage: {level} {message}', file=sys.stderr)
+
+
+QtCore.qInstallMessageHandler(qt_msg_handler)
+
+
 def excepthook(type_, value, traceback_):
     """This allows IDE to properly display unhandled exceptions which are
     otherwise silently ignored as the application is terminated.
@@ -52,7 +67,7 @@ def excepthook(type_, value, traceback_):
     QtCore.qFatal('')
 
 
-sys.excepthook = excepthook
+# sys.excepthook = excepthook
 APP = QApplication([])
 
 
