@@ -1,5 +1,4 @@
-# coding: utf-8
+# -*- coding: utf-8 -*-
+from .settings import settings, SettingsKey, RecentProjectManager, UserSettings
 
-# from dgp.gui.splash import SplashScreen
-# from dgp.gui.main import MainWindow
-# from dgp.gui.dialogs import CreateProject, ImportData, AddFlight
+__all__ = ['settings', 'SettingsKey', 'RecentProjectManager', 'UserSettings']

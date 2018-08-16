@@ -30,6 +30,7 @@
     <file alias="chevron-right">chevron_right.png</file>
   </qresource>
   <qresource prefix="images">
+    <file alias="splash">dgp-splash.png</file>
     <file alias="geoid">geoid.png</file>
   </qresource>
 </RCC>

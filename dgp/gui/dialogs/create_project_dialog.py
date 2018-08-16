@@ -15,7 +15,7 @@ from .custom_validators import DirectoryValidator
 
 
 class CreateProjectDialog(QDialog, Ui_CreateProjectDialog, FormValidator):
-    sigProjectCreated = pyqtSignal(AirborneProject, bool)
+    sigProjectCreated = pyqtSignal(AirborneProject)
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
@@ -69,7 +69,8 @@ class CreateProjectDialog(QDialog, Ui_CreateProjectDialog, FormValidator):
                 path.mkdir(parents=True)
 
             self._project = AirborneProject(name=name, path=path, description=self.qpte_notes.toPlainText())
-            self.sigProjectCreated.emit(self._project, False)
+            self._project.to_json(to_file=True, indent=2)
+            self.sigProjectCreated.emit(self._project)
         else:  # pragma: no cover
             self.ql_validation_err.setText("Invalid Project Type - Not Implemented")
             return

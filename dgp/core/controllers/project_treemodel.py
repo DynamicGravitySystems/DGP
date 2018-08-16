@@ -58,15 +58,18 @@ class ProjectTreeModel(QStandardItemModel):
     """
     activeProjectChanged = pyqtSignal(str)
     projectMutated = pyqtSignal()
+    projectClosed = pyqtSignal(OID)
     tabOpenRequested = pyqtSignal(OID, object, str)
     tabCloseRequested = pyqtSignal(OID)
     progressNotificationRequested = pyqtSignal(ProgressEvent)
 
-    def __init__(self, project: IAirborneController, parent: Optional[QObject] = None):
+    def __init__(self, project: IAirborneController = None,
+                 parent: Optional[QObject] = None):
         super().__init__(parent)
         self.log = logging.getLogger(__name__)
-        self.appendRow(project)
-        project.set_active(True)
+        if project is not None:
+            self.appendRow(project)
+            project.set_active(True)
 
     @property
     def active_project(self) -> Union[IAirborneController, None]:
@@ -110,6 +113,7 @@ class ProjectTreeModel(QStandardItemModel):
             self.tabCloseRequested.emit(flt.uid)
         child.save()
         self.removeRow(child.row())
+        self.projectClosed.emit(child.uid)
 
     def close_flight(self, flight: IFlightController):
         self.tabCloseRequested.emit(flight.uid)

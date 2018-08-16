@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>Launcher</class>
- <widget class="QDialog" name="Launcher">
+ <class>RecentProjects</class>
+ <widget class="QDialog" name="RecentProjects">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -25,7 +25,7 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <widget class="QLabel" name="label_title">
+    <widget class="QLabel" name="ql_title">
      <property name="text">
       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:16pt; font-weight:600; color:#55557f;&quot;&gt;Dynamic Gravity Processor&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
      </property>
@@ -51,7 +51,7 @@
     </widget>
    </item>
    <item>
-    <widget class="QLabel" name="label_license">
+    <widget class="QLabel" name="ql_license">
      <property name="text">
       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;Version 0.1&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;Licensed under the Apache-2.0 License&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
      </property>
@@ -79,7 +79,7 @@
        <number>0</number>
       </property>
       <item>
-       <widget class="QLabel" name="label_recent">
+       <widget class="QLabel" name="ql_recents">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
           <horstretch>2</horstretch>
@@ -92,7 +92,7 @@
        </widget>
       </item>
       <item>
-       <widget class="QPushButton" name="btn_clear_recent">
+       <widget class="QPushButton" name="qpb_clear_recents">
         <property name="baseSize">
          <size>
           <width>100</width>
@@ -108,7 +108,7 @@
     </widget>
    </item>
    <item>
-    <widget class="QListWidget" name="list_projects">
+    <widget class="QListView" name="qlv_recents">
      <property name="sizePolicy">
       <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
        <horstretch>0</horstretch>
@@ -139,14 +139,14 @@
        <number>0</number>
       </property>
       <item>
-       <widget class="QPushButton" name="btn_newproject">
+       <widget class="QPushButton" name="qpb_new_project">
         <property name="text">
          <string>&amp;New Project</string>
         </property>
        </widget>
       </item>
       <item>
-       <widget class="QPushButton" name="btn_browse">
+       <widget class="QPushButton" name="qpb_browse">
         <property name="whatsThis">
          <string>Browse for a project</string>
         </property>
@@ -172,7 +172,7 @@
        </spacer>
       </item>
       <item>
-       <widget class="QLabel" name="label_error">
+       <widget class="QLabel" name="ql_error">
         <property name="minimumSize">
          <size>
           <width>40</width>
@@ -236,7 +236,7 @@
   <connection>
    <sender>dialog_buttons</sender>
    <signal>rejected()</signal>
-   <receiver>Launcher</receiver>
+   <receiver>RecentProjects</receiver>
    <slot>reject()</slot>
    <hints>
     <hint type="sourcelabel">
@@ -252,7 +252,7 @@
   <connection>
    <sender>dialog_buttons</sender>
    <signal>accepted()</signal>
-   <receiver>Launcher</receiver>
+   <receiver>RecentProjects</receiver>
    <slot>accept()</slot>
    <hints>
     <hint type="sourcelabel">

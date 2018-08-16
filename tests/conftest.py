@@ -8,8 +8,10 @@ from pathlib import Path
 import pandas as pd
 import pytest
 from PyQt5 import QtCore
+from PyQt5.QtCore import QSettings
 from PyQt5.QtWidgets import QApplication
 
+from dgp.gui.settings import set_settings
 from dgp.core import DataType
 from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.core.hdf5_manager import HDF5_NAME
@@ -35,6 +37,20 @@ The sys.excepthook is also replaced to enable catching of some critical errors
 raised within the Qt domain that would otherwise not be printed.
 
 """
+
+
+@pytest.fixture(scope='session', autouse=True)
+def shim_settings():
+    """Override DGP Application settings object so as not to pollute the regular
+    settings when testing.
+
+    This fixture will be automatically called, and will delete the settings ini
+    file at the conclusion of the test session.
+    """
+    settings = QSettings(QSettings.IniFormat, QSettings.UserScope, "DgS", "DGP")
+    set_settings(settings)
+    yield
+    os.unlink(settings.fileName())
 
 
 def qt_msg_handler(type_, context, message: str):
@@ -67,7 +83,7 @@ def excepthook(type_, value, traceback_):
     QtCore.qFatal('')
 
 
-# sys.excepthook = excepthook
+sys.excepthook = excepthook
 APP = QApplication([])
 
 
