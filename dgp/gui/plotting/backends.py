@@ -5,6 +5,7 @@ from typing import List, Union, Tuple, Generator, Dict
 from weakref import WeakValueDictionary
 
 import pandas as pd
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QMenu, QWidgetAction, QWidget, QAction, QToolBar, QMessageBox
 from pyqtgraph.widgets.GraphicsView import GraphicsView
 from pyqtgraph.graphicsItems.GraphicsLayout import GraphicsLayout
@@ -347,6 +348,8 @@ class GridPlotWidget(GraphicsView):
     :func:`pyqtgraph.mkColor` for color options in the plot (creates a QtGui.QColor)
 
     """
+    sigPlotCleared = pyqtSignal()
+
     def __init__(self, rows=1, cols=1, background='w', grid=True, sharex=False,
                  multiy=False, timeaxis=False, parent=None):
         super().__init__(background=background, parent=parent)
@@ -433,7 +436,8 @@ class GridPlotWidget(GraphicsView):
             return plot
 
     def add_series(self, series: pd.Series, row: int, col: int = 0,
-                   axis: Axis = Axis.LEFT, autorange: bool = True) -> PlotItem:
+                   axis: Axis = Axis.LEFT, pen=None,
+                   autorange: bool = True) -> PlotDataItem:
         """Add a pandas :class:`pandas.Series` to the plot at the specified
         row/column
 
@@ -451,8 +455,8 @@ class GridPlotWidget(GraphicsView):
 
         Returns
         -------
-        :class:`pyqtgraph.PlotItem`
-            The generated PlotItem or derivative created from the data
+        :class:`pyqtgraph.PlotDataItem`
+            The generated PlotDataItem or derivative created from the data
 
         Raises
         ------
@@ -469,7 +473,7 @@ class GridPlotWidget(GraphicsView):
         plot = self.get_plot(row, col, axis)
         xvals = pd.to_numeric(series.index, errors='coerce')
         yvals = pd.to_numeric(series.values, errors='coerce')
-        item = plot.plot(x=xvals, y=yvals, name=series.name, pen=self.pen)
+        item = plot.plot(x=xvals, y=yvals, name=series.name, pen=pen or self.pen)
         self._items[index] = item
         if autorange:
             plot.autoRange()
@@ -536,8 +540,9 @@ class GridPlotWidget(GraphicsView):
                     for curve in plot_r.curves[:]:
                         plot_r.legend.removeItem(curve.name())
                         plot_r.removeItem(curve)
+        self.sigPlotCleared.emit()
 
-    def remove_plotitem(self, item: PlotDataItem) -> None:
+    def remove_plotitem(self, item: PlotDataItem, autorange=True) -> None:
         """Alternative method of removing a line by its
         :class:`pyqtgraph.PlotDataItem` reference, as opposed to using
         remove_series to remove a named series from a specific plot at row/col
@@ -550,11 +555,13 @@ class GridPlotWidget(GraphicsView):
             resides
 
         """
-        for plot, index in self.gl.items.items():
-            if isinstance(plot, PlotItem):  # pragma: no branch
-                if item in plot.dataItems:
-                    plot.legend.removeItem(item.name())
-                    plot.removeItem(item)
+        for plot in self.plots:
+            plot.legend.removeItem(item.name())
+            plot.removeItem(item)
+            if plot.right is not None:
+                plot.right.removeItem(item)
+        if autorange:
+            self.autorange()
 
     def find_series(self, name: str) -> List[SeriesIndex]:
         """Find and return a list of all plot indexes where a series with

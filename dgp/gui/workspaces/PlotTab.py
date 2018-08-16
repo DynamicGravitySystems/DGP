@@ -7,8 +7,9 @@ from PyQt5.QtGui import QStandardItem
 from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QDockWidget, QSizePolicy, QAction
 
 from dgp.core import StateAction, Icon
-from dgp.gui.widgets.channel_select_widget import ChannelSelectWidget
+from dgp.core.controllers.dataset_controller import DataSetController
 from dgp.core.controllers.flight_controller import FlightController
+from dgp.gui.widgets.channel_control_widgets import ChannelController
 from dgp.gui.plotting.plotters import LineUpdate, LineSelectPlot
 from dgp.gui.plotting.backends import Axis
 from .TaskTab import TaskTab
@@ -32,7 +33,7 @@ class PlotTab(TaskTab):
         self._dataset = flight.active_child
 
         self._plot = LineSelectPlot(rows=2)
-        self._plot.sigSegmentChanged.connect(self._on_modified_line)
+        self._plot.sigSegmentChanged.connect(self._on_modified_segment)
 
         for segment in self._dataset.segments:
             group = self._plot.add_segment(segment.get_attr('start'),
@@ -57,35 +58,27 @@ class PlotTab(TaskTab):
         self.toolbar.addAction(qa_channel_toggle)
 
         # Load data channel selection widget
-        channel_widget = ChannelSelectWidget(self._dataset.series_model)
-        channel_widget.channel_added.connect(self._channel_added)
-        channel_widget.channel_removed.connect(self._channel_removed)
-        channel_widget.channels_cleared.connect(self._plot.clear)
+        df = self._dataset.dataframe()
+        data_cols = ('gravity', 'long_accel', 'cross_accel', 'beam', 'temp',
+                     'pressure', 'Etemp', 'gps_week', 'gps_sow', 'lat', 'long',
+                     'ell_ht')
+        cols = [df[col] for col in df if col in data_cols]
+        stat_cols = [df[col] for col in df if col not in data_cols]
+        controller = ChannelController(self._plot, *cols,
+                                       binary_series=stat_cols, parent=self)
 
         dock_widget = QDockWidget("Channels")
         dock_widget.setFeatures(QDockWidget.NoDockWidgetFeatures)
         dock_widget.setSizePolicy(QSizePolicy(QSizePolicy.Maximum,
                                               QSizePolicy.Preferred))
-        dock_widget.setWidget(channel_widget)
-        qa_channel_toggle.toggled.connect(dock_widget.setVisible)
-        qhbl_main_layout.addWidget(dock_widget)
+        dock_widget.setWidget(controller)
+        qa_channel_toggle.toggled.connect(controller.setVisible)
+        qhbl_main_layout.addWidget(controller)
         self.setLayout(qhbl_main_layout)
 
-    def _channel_added(self, row: int, item: QStandardItem):
-        series: pd.Series = item.data(Qt.UserRole)
-        if series.max(skipna=True) < 1000:
-            axis = Axis.RIGHT
-        else:
-            axis = Axis.LEFT
-        self._plot.add_series(item.data(Qt.UserRole), row, axis=axis)
 
-    def _channel_removed(self, item: QStandardItem):
-        series: pd.Series = item.data(Qt.UserRole)
-        indexes = self._plot.find_series(series.name)
-        for index in indexes:
-            self._plot.remove_series(*index)
 
-    def _on_modified_line(self, update: LineUpdate):
+    def _on_modified_segment(self, update: LineUpdate):
         if update.action is StateAction.DELETE:
             self._dataset.remove_segment(update.uid)
             return

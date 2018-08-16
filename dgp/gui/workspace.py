@@ -22,9 +22,7 @@ class WorkspaceTab(QWidget):
         self.log = logging.getLogger(__name__)
         self._root: IBaseController = flight
         self._layout = QVBoxLayout(self)
-        self._setup_tasktabs()
 
-    def _setup_tasktabs(self):
         # Define Sub-Tabs within Flight space e.g. Plot, Transform, Maps
         self._tasktabs = QTabWidget()
         self._tasktabs.setTabPosition(QTabWidget.West)

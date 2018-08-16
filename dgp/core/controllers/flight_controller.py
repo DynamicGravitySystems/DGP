@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
-from _weakrefset import WeakSet
+from weakref import WeakSet
 from typing import Union
 
 from PyQt5.QtCore import Qt
