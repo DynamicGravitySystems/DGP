@@ -1,21 +1,20 @@
 # -*- coding: utf-8 -*-
-
-import logging
 import inspect
+import logging
 from enum import Enum, auto
 from typing import List
 
 import pandas as pd
-from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import pyqtSignal, Qt, pyqtSlot
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
-from PyQt5.QtWidgets import QVBoxLayout, QWidget, QInputDialog, QTextEdit
+from PyQt5.QtWidgets import QWidget, QTextEdit
 
-from dgp.core.controllers.dataset_controller import DataSegmentController, DataSetController
-from dgp.core.controllers.flight_controller import FlightController
-from dgp.lib.transform.transform_graphs import SyncGravity, AirbornePost, TransformGraph
-from dgp.gui.plotting.plotters import TransformPlot, AxisFormatter
-from . import TaskTab
-from ..ui.transform_tab_widget import Ui_TransformInterface
+from core.controllers.dataset_controller import DataSetController, DataSegmentController
+from gui.plotting.backends import AxisFormatter
+from gui.plotting.plotters import TransformPlot
+from gui.ui.transform_tab_widget import Ui_TransformInterface
+from lib.transform.graph import TransformGraph
+from lib.transform.transform_graphs import AirbornePost
 
 try:
     from pygments import highlight
@@ -39,13 +38,12 @@ class TransformWidget(QWidget, Ui_TransformInterface):
     LATITUDE = 0x0102
     LONGITUDE = 0x103
 
-    def __init__(self, flight: FlightController):
+    def __init__(self, dataset: DataSetController, plotter: TransformPlot):
         super().__init__()
         self.setupUi(self)
         self.log = logging.getLogger(__name__)
-        self._flight = flight
-        self._dataset: DataSetController = flight.active_child
-        self._plot = TransformPlot()
+        self._dataset: DataSetController = dataset
+        self._plot = plotter
         self._mode = _Mode.NORMAL
         self._segment_indexes = {}
 
@@ -93,11 +91,6 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         self.qpb_toggle_mode.clicked.connect(self._mode_toggled)
         self.qte_source_browser.setReadOnly(True)
         self.qte_source_browser.setLineWrapMode(QTextEdit.NoWrap)
-        self.qvbl_plot_layout = QVBoxLayout()
-        self._toolbar = self._plot.get_toolbar(self)
-        self.qvbl_plot_layout.addWidget(self._toolbar, alignment=Qt.AlignRight)
-        self.qvbl_plot_layout.addWidget(self._plot)
-        self.hlayout.addLayout(self.qvbl_plot_layout)
 
     @property
     def xaxis_index(self) -> int:
@@ -268,25 +261,3 @@ class TransformWidget(QWidget, Ui_TransformInterface):
         del self._result
         self._result = graph.result_df()
         self.result.emit()
-
-
-class TransformTab(TaskTab):
-    """Sub-tab displayed within Flight tab interface. Displays interface for selecting
-    Transform chains and plots for displaying the resultant data sets.
-    """
-    _name = "Transform"
-
-    def __init__(self, label: str, flight):
-        super().__init__(label, flight)
-
-        self._layout = QVBoxLayout()
-        self._layout.addWidget(TransformWidget(flight))
-        self.setLayout(self._layout)
-
-    def data_modified(self, action: str, dsrc):
-        """Slot: Called when a DataSource has been added/removed from the
-        Flight this tab/workspace is associated with."""
-        if action.lower() == 'add':
-            return
-        elif action.lower() == 'remove':
-            return

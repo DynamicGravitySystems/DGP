@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 
 import logging
+import warnings
 from pathlib import Path
 
 import PyQt5.QtWidgets as QtWidgets
 from PyQt5.QtCore import Qt, pyqtSlot, pyqtSignal, QByteArray
-from PyQt5.QtGui import QColor, QCloseEvent
-from PyQt5.QtWidgets import QMainWindow, QProgressDialog, QFileDialog, QDialog, QMessageBox, QMenu, QApplication
+from PyQt5.QtGui import QColor, QCloseEvent, QDesktopServices
+from PyQt5.QtWidgets import QMainWindow, QProgressDialog, QFileDialog, QDialog, QMessageBox, QMenu
 
 from dgp.core.oid import OID
 from dgp.core.controllers.controller_interfaces import IBaseController
@@ -18,7 +19,8 @@ from dgp.gui.utils import (ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP,
                            LOG_COLOR_MAP, ProgressEvent, load_project_from_path)
 from dgp.gui.dialogs.create_project_dialog import CreateProjectDialog
 from dgp.gui.dialogs.recent_project_dialog import RecentProjectDialog
-from dgp.gui.workspace import WorkspaceTab, MainWorkspace
+from dgp.gui.widgets.workspace_widget import WorkspaceWidget, WorkspaceTab
+from dgp.gui.workspaces import tab_factory
 from dgp.gui.ui.main_window import Ui_MainWindow
 
 
@@ -32,7 +34,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.title = 'Dynamic Gravity Processor [*]'
 
         self.setWindowTitle(self.title)
-        self.workspace: MainWorkspace
+        self.workspace: WorkspaceWidget
         self.recents = RecentProjectManager()
         self.user_settings = UserSettings()
 
@@ -89,9 +91,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.prj_add_meter.clicked.connect(self.model.add_gravimeter)
         self.prj_import_gps.clicked.connect(self.model.import_gps)
         self.prj_import_grav.clicked.connect(self.model.import_gravity)
-
-        # Tab Browser Actions #
-        self.workspace.currentChanged.connect(self._tab_index_changed)
 
         # Console Window Actions #
         self.combo_console_verbosity.currentIndexChanged[str].connect(
@@ -265,10 +264,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if tab is not None:
             self.workspace.setCurrentWidget(tab)
         else:
-            self.log.info("Loading flight data")
-            ntab = WorkspaceTab(controller)
-            self.workspace.addTab(ntab, label)
-            self.workspace.setCurrentWidget(ntab)
+            constructor = tab_factory(controller)
+            if constructor is not None:
+                tab = constructor(controller)
+            else:
+                warnings.warn(f"Tab control not implemented for type {type(controller)}")
+                return
+            self.workspace.addTab(tab, label)
+            self.workspace.setCurrentWidget(tab)
 
     @pyqtSlot(name='_project_mutated')
     def _project_mutated(self):
@@ -278,18 +281,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         """
         self._mutated = True
         self.setWindowModified(True)
-
-    @pyqtSlot(int, name='_tab_index_changed')
-    def _tab_index_changed(self, index: int):
-        """pyqtSlot(int)
-        Notify the project model when the in-focus Workspace tab changes
-
-        """
-        current: WorkspaceTab = self.workspace.currentWidget()
-        if current is not None:
-            self.model.notify_tab_changed(current.root)
-        else:
-            self.log.debug("No flight tab open")
 
     @pyqtSlot(ProgressEvent, name='_progress_event_handler')
     def _progress_event_handler(self, event: ProgressEvent):

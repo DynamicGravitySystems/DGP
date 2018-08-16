@@ -41,7 +41,7 @@
      <number>0</number>
     </property>
     <item>
-     <widget class="MainWorkspace" name="workspace"/>
+     <widget class="WorkspaceWidget" name="workspace"/>
     </item>
    </layout>
   </widget>
@@ -650,9 +650,9 @@
    <header>dgp.gui.views.project_tree_view</header>
   </customwidget>
   <customwidget>
-   <class>MainWorkspace</class>
+   <class>WorkspaceWidget</class>
    <extends>QTabWidget</extends>
-   <header>dgp.gui.workspace</header>
+   <header>dgp.gui.widgets.workspace_widget</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

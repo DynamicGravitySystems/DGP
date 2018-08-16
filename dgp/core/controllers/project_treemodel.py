@@ -129,9 +129,10 @@ class ProjectTreeModel(QStandardItemModel):
         """Double-click handler for View events"""
 
         item = self.itemFromIndex(index)
-        if isinstance(item, IFlightController):
-            item.get_parent().activate_child(item.uid)
-            self.tabOpenRequested.emit(item.uid, item, item.get_attr('name'))
+        if isinstance(item, IDataSetController):
+            flt_name = item.get_parent().get_attr('name')
+            label = f'{item.get_attr("name")} [{flt_name}]'
+            self.tabOpenRequested.emit(item.uid, item, label)
         elif isinstance(item, IAirborneController):
             for project in self.projects:
                 if project is item:
@@ -139,8 +140,9 @@ class ProjectTreeModel(QStandardItemModel):
                 else:
                     project.set_active(False)
             self.activeProjectChanged.emit(item.get_attr('name'))
-        elif isinstance(item, IDataSetController):
-            item.get_parent().activate_child(item.uid)
+            self.tabOpenRequested.emit(item.uid, item, item.get_attr('name'))
+        elif isinstance(item, IFlightController):
+            self.tabOpenRequested.emit(item.uid, item, item.get_attr('name'))
 
     def project_mutated(self, project: IAirborneController):
         self.projectMutated.emit()

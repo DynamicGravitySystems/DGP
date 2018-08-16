@@ -1,50 +1,16 @@
 # -*- coding: utf-8 -*-
-
-import logging
-
+import PyQt5.QtWidgets as QtWidgets
 from PyQt5.QtGui import QContextMenuEvent, QKeySequence
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QAction
-import PyQt5.QtWidgets as QtWidgets
+from PyQt5.QtWidgets import QWidget, QAction
 
-from dgp.core.controllers.controller_interfaces import IBaseController
-from dgp.core.controllers.flight_controller import FlightController
 from dgp.core.oid import OID
-from .workspaces import PlotTab
-from .workspaces import TransformTab
 
 
 class WorkspaceTab(QWidget):
-    """Top Level Tab created for each Flight object open in the workspace"""
-
-    def __init__(self, flight: FlightController, parent=None, flags=0, **kwargs):
-        super().__init__(parent=parent, flags=Qt.Widget)
-        self.log = logging.getLogger(__name__)
-        self._root: IBaseController = flight
-        self._layout = QVBoxLayout(self)
-
-        # Define Sub-Tabs within Flight space e.g. Plot, Transform, Maps
-        self._tasktabs = QTabWidget()
-        self._tasktabs.setTabPosition(QTabWidget.West)
-        self._layout.addWidget(self._tasktabs)
-
-        self._plot_tab = PlotTab(label="Plot", flight=self._root)
-        self._tasktabs.addTab(self._plot_tab, "Plot")
-
-        self._transform_tab = TransformTab("Transforms", self._root)
-        self._tasktabs.addTab(self._transform_tab, "Transforms")
-
-        self._tasktabs.setCurrentIndex(0)
-        self._plot_tab.update()
-
     @property
     def uid(self) -> OID:
-        """Return the underlying Flight's UID"""
-        return self._root.uid
-
-    @property
-    def root(self) -> IBaseController:
-        return self._root
+        raise NotImplementedError
 
 
 class _WorkspaceTabBar(QtWidgets.QTabBar):
@@ -99,7 +65,7 @@ class _WorkspaceTabBar(QtWidgets.QTabBar):
         self.setCurrentIndex(index)
 
 
-class MainWorkspace(QtWidgets.QTabWidget):
+class WorkspaceWidget(QtWidgets.QTabWidget):
     """Custom QTabWidget promoted in main_window.ui supporting a custom
     TabBar which enables the attachment of custom event actions e.g. right
     click context-menus for the tab bar buttons."""
@@ -128,4 +94,3 @@ class MainWorkspace(QtWidgets.QTabWidget):
         index = self.get_tab_index(uid)
         if index is not None:
             self.removeTab(index)
-
