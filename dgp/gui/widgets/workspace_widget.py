@@ -68,7 +68,9 @@ class _WorkspaceTabBar(QtWidgets.QTabBar):
 class WorkspaceWidget(QtWidgets.QTabWidget):
     """Custom QTabWidget promoted in main_window.ui supporting a custom
     TabBar which enables the attachment of custom event actions e.g. right
-    click context-menus for the tab bar buttons."""
+    click context-menus for the tab bar buttons.
+
+    """
     def __init__(self, parent=None):
         super().__init__(parent=parent)
         self.setTabBar(_WorkspaceTabBar())

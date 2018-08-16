@@ -9,12 +9,12 @@ from PyQt5.QtCore import pyqtSignal, Qt, pyqtSlot
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QWidget, QTextEdit
 
-from core.controllers.dataset_controller import DataSetController, DataSegmentController
-from gui.plotting.backends import AxisFormatter
-from gui.plotting.plotters import TransformPlot
-from gui.ui.transform_tab_widget import Ui_TransformInterface
-from lib.transform.graph import TransformGraph
-from lib.transform.transform_graphs import AirbornePost
+from dgp.core.controllers.dataset_controller import DataSetController, DataSegmentController
+from dgp.gui.plotting.backends import AxisFormatter
+from dgp.gui.plotting.plotters import TransformPlot
+from dgp.gui.ui.transform_tab_widget import Ui_TransformInterface
+from dgp.lib.transform.graph import TransformGraph
+from dgp.lib.transform.transform_graphs import AirbornePost
 
 try:
     from pygments import highlight

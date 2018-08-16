@@ -1,5 +1,6 @@
 <RCC>
   <qresource prefix="icons">
+    <file alias="open_in_new">open_in_new.png</file>
     <file alias="select">select.png</file>
     <file alias="console">console.png</file>
     <file alias="chevron-left">chevron_left.png</file>

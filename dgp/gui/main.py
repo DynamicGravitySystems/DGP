@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 import logging
 import warnings
 from pathlib import Path
@@ -7,9 +6,11 @@ from pathlib import Path
 import PyQt5.QtWidgets as QtWidgets
 from PyQt5.QtCore import Qt, pyqtSlot, pyqtSignal, QByteArray
 from PyQt5.QtGui import QColor, QCloseEvent, QDesktopServices
-from PyQt5.QtWidgets import QMainWindow, QProgressDialog, QFileDialog, QDialog, QMessageBox, QMenu
+from PyQt5.QtWidgets import QProgressDialog, QFileDialog, QMessageBox, QMenu
 
+from dgp import __about__
 from dgp.core.oid import OID
+from dgp.core.types.enumerations import Links
 from dgp.core.controllers.controller_interfaces import IBaseController
 from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.core.controllers.project_treemodel import ProjectTreeModel
@@ -24,7 +25,7 @@ from dgp.gui.workspaces import tab_factory
 from dgp.gui.ui.main_window import Ui_MainWindow
 
 
-class MainWindow(QMainWindow, Ui_MainWindow):
+class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     """An instance of the Main Program Window"""
     sigStatusMessage = pyqtSignal(str)
 
@@ -85,6 +86,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.action_import_grav.triggered.connect(self.model.import_gravity)
         self.action_add_flight.triggered.connect(self.model.add_flight)
         self.action_add_meter.triggered.connect(self.model.add_gravimeter)
+
+        # Help Menu Actions #
+        self.action_docs.triggered.connect(self.show_documentation)
+        self.action_about.triggered.connect(self.show_about)
 
         # Project Control Buttons #
         self.prj_add_flight.clicked.connect(self.model.add_flight)
@@ -331,7 +336,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     # Project create/open dialog functions  ###################################
 
-    def new_project_dialog(self) -> QDialog:
+    def new_project_dialog(self) -> QtWidgets.QDialog:
         """pyqtSlot()
         Launch a :class:`CreateProjectDialog` to enable the user to create a new
         project instance.
@@ -356,8 +361,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         Opens an existing project within the current Project MainWindow,
         adding the opened project as a tree item to the Project Tree navigator.
 
-        ToDo: Add prompt or flag to launch project in new MainWindow
-
         Parameters
         ----------
         args
@@ -370,3 +373,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         dialog.setViewMode(QFileDialog.List)
         dialog.fileSelected.connect(lambda file: self.open_project(Path(file)))
         dialog.exec_()
+
+    def show_documentation(self):  # pragma: no cover
+        """Launch DGP's online documentation (RTD) in the default browser"""
+        QDesktopServices.openUrl(Links.DEV_DOCS.url())
+
+    def show_about(self):  # pragma: no cover
+        """Display 'About' information for the DGP project"""
+        QMessageBox.about(self, "About DGP", __about__)

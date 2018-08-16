@@ -2,6 +2,7 @@
 import logging
 from enum import Enum, auto
 
+from PyQt5.QtCore import QUrl
 from PyQt5.QtGui import QIcon
 
 __all__ = ['StateAction', 'StateColor', 'Icon', 'ProjectTypes',
@@ -100,3 +101,10 @@ class GPSFields(Enum):
     serial = ('datenum', 'lat', 'long', 'ell_ht')
 
 
+class Links(Enum):
+    DEV_DOCS = "https://dgp.readthedocs.io/en/develop/"
+    MASTER_DOCS = "https://dgp.readthedocs.io/en/latest/"
+    GITHUB = "https://github.com/DynamicGravitySystems/DGP"
+
+    def url(self):
+        return QUrl(self.value)
