@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>604</width>
-    <height>620</height>
+    <width>475</width>
+    <height>752</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -24,13 +24,6 @@
     <normaloff>:/images/geoid</normaloff>:/images/geoid</iconset>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
-   <item>
-    <widget class="QLabel" name="ql_title">
-     <property name="text">
-      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:16pt; font-weight:600; color:#55557f;&quot;&gt;Dynamic Gravity Processor&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-     </property>
-    </widget>
-   </item>
    <item alignment="Qt::AlignHCenter|Qt::AlignVCenter">
     <widget class="QLabel" name="label_globeico">
      <property name="frameShape">
@@ -40,10 +33,10 @@
       <string/>
      </property>
      <property name="pixmap">
-      <pixmap resource="resources/resources.qrc">:/images/geoid</pixmap>
+      <pixmap resource="resources/resources.qrc">:/icons/dgp</pixmap>
      </property>
      <property name="scaledContents">
-      <bool>true</bool>
+      <bool>false</bool>
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>

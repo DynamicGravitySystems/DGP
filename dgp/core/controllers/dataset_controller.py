@@ -4,10 +4,12 @@ import weakref
 from pathlib import Path
 from typing import List, Union, Generator, Set
 
+from PyQt5.QtWidgets import QInputDialog
 from pandas import DataFrame, Timestamp, concat
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QBrush, QStandardItemModel, QStandardItem
 
+from dgp.core.controllers.gravimeter_controller import GravimeterController
 from dgp.core.oid import OID
 from dgp.core.types.enumerations import Icon
 from dgp.core.hdf5_manager import HDF5Manager
@@ -18,7 +20,7 @@ from dgp.core.types.enumerations import DataType, StateColor
 from dgp.gui.plotting.helpers import LinearSegmentGroup
 from dgp.lib.etc import align_frames
 
-from .controller_interfaces import IFlightController, IDataSetController, IBaseController
+from .controller_interfaces import IFlightController, IDataSetController, IBaseController, IAirborneController
 from .project_containers import ProjectFolder
 from .datafile_controller import DataFileController
 
@@ -83,7 +85,6 @@ class DataSetController(IDataSetController):
         super().__init__()
         self._dataset = dataset
         self._flight: IFlightController = flight
-        self._project = self._flight.project
         self._active = False
         self.log = logging.getLogger(__name__)
 
@@ -105,6 +106,13 @@ class DataSetController(IDataSetController):
         self.appendRow(self._traj_file)
         self.appendRow(self._segments)
 
+        self._sensor = None
+        if dataset.sensor is not None:
+            ctrl = self.project.get_child(dataset.sensor.uid)
+            if ctrl is not None:
+                self._sensor = ctrl.clone()
+                self.appendRow(self._sensor)
+
         self._gravity: DataFrame = DataFrame()
         self._trajectory: DataFrame = DataFrame()
         self._dataframe: DataFrame = DataFrame()
@@ -115,12 +123,12 @@ class DataSetController(IDataSetController):
             ('addAction', ('Set Name', self._set_name)),
             ('addAction', ('Set Active', lambda: self.get_parent().activate_child(self.uid))),
             ('addAction', (Icon.METER.icon(), 'Set Sensor',
-                           self._set_sensor_dlg)),
+                           self._action_set_sensor_dlg)),
             ('addSeparator', ()),
             ('addAction', (Icon.GRAVITY.icon(), 'Import Gravity',
-                           lambda: self._project.load_file_dlg(DataType.GRAVITY, dataset=self))),
+                           lambda: self.project.load_file_dlg(DataType.GRAVITY, dataset=self))),
             ('addAction', (Icon.TRAJECTORY.icon(), 'Import Trajectory',
-                           lambda: self._project.load_file_dlg(DataType.TRAJECTORY, dataset=self))),
+                           lambda: self.project.load_file_dlg(DataType.TRAJECTORY, dataset=self))),
             ('addAction', ('Align Data', self.align)),
             ('addSeparator', ()),
             ('addAction', ('Delete', lambda: self.get_parent().remove_child(self.uid))),
@@ -133,6 +141,10 @@ class DataSetController(IDataSetController):
     @property
     def uid(self) -> OID:
         return self._dataset.uid
+
+    @property
+    def project(self) -> IAirborneController:
+        return self._flight.get_parent()
 
     @property
     def hdfpath(self) -> Path:
@@ -307,6 +319,22 @@ class DataSetController(IDataSetController):
         if name:
             self.set_attr('name', name)
 
-    def _set_sensor_dlg(self):
-        # TODO: Dialog to enable selection of sensor assoc with the dataset
-        pass
+    def _action_set_sensor_dlg(self):
+        sensors = {}
+        for i in range(self.project.meter_model.rowCount()):
+            sensor = self.project.meter_model.item(i)
+            sensors[sensor.text()] = sensor
+
+        item, ok = QInputDialog.getItem(self.parent_widget, "Select Gravimeter",
+                                        "Sensor", sensors.keys(), editable=False)
+        if ok:
+            if self._sensor is not None:
+                self.removeRow(self._sensor.row())
+
+            sensor: GravimeterController = sensors[item]
+            self.set_attr('sensor', sensor)
+            self._sensor: GravimeterController = sensor.clone()
+            self.appendRow(self._sensor)
+
+    def _action_delete(self, confirm: bool = True):
+        self.get_parent().remove_child(self.uid, confirm)

@@ -67,13 +67,15 @@ class AirborneProjectController(IAirborneController):
         self._child_map = {Flight: self.flights,
                            Gravimeter: self.meters}
 
-        for flight in self.project.flights:
-            controller = FlightController(flight, project=self)
-            self.flights.appendRow(controller)
-
+        # It is important that GravimeterControllers are defined before Flights
+        # Flights may create references to a Gravimeter object, but not vice versa
         for meter in self.project.gravimeters:
             controller = GravimeterController(meter, parent=self)
             self.meters.appendRow(controller)
+
+        for flight in self.project.flights:
+            controller = FlightController(flight, project=self)
+            self.flights.appendRow(controller)
 
         self._bindings = [
             ('addAction', ('Set Project Name', self.set_name)),
