@@ -5,9 +5,10 @@ from typing import List, Dict, Tuple
 from weakref import WeakValueDictionary
 
 from PyQt5.QtCore import Qt, pyqtSignal, QModelIndex, QAbstractItemModel, QSize, QPoint
-from PyQt5.QtGui import QStandardItem, QStandardItemModel, QMouseEvent, QColor, QPalette, QBrush
+from PyQt5.QtGui import QStandardItem, QStandardItemModel, QMouseEvent, QColor, QPalette
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QListView, QMenu, QAction,
-                             QSizePolicy, QStyledItemDelegate, QStyleOptionViewItem, QHBoxLayout, QLabel,
+                             QSizePolicy, QStyledItemDelegate,
+                             QStyleOptionViewItem, QHBoxLayout, QLabel,
                              QColorDialog, QToolButton, QFrame, QComboBox)
 from pandas import Series
 from pyqtgraph import PlotDataItem
@@ -291,7 +292,7 @@ class ChannelController(QWidget):
 
         self._series: Dict[OID, Series] = {}
         self._active: Dict[OID, PlotDataItem] = WeakValueDictionary()
-        self._indexes: Dict[OID, object] = {}
+        self._indexes: Dict[OID, Tuple[int, int, Axis]] = {}
 
         self._colors = itertools.cycle(LINE_COLORS)
 
@@ -331,6 +332,22 @@ class ChannelController(QWidget):
         self._layout.addWidget(self._status_label, alignment=Qt.AlignHCenter)
 
         self._layout.addWidget(self.binary_view, stretch=1)
+
+    def get_state(self):
+        active_state = {}
+        for uid, item in self._active.items():
+            row, col, axis = self._indexes[uid]
+            active_state[item.name()] = row, col, axis.value
+        return active_state
+
+    def restore_state(self, state: Dict[str, Tuple[int, int, str]]):
+        for i in range(self._model.rowCount()):
+            item: ChannelItem = self._model.item(i, 0)
+            if item.name in state:
+                key = state[item.name]
+                item.set_visible(True, emit=False)
+                item.set_row(key[0], emit=False)
+                item.set_axis(Axis(key[2]), emit=True)
 
     def channel_changed(self, item: ChannelItem):
         item.update(emit=False)
@@ -384,6 +401,7 @@ class ChannelController(QWidget):
     def binary_changed(self, item: QStandardItem):
         if item.checkState() == Qt.Checked:
             if item.uid in self._active:
+                # DEBUG
                 print(f'Binary channel already plotted')
                 return
             else:
@@ -391,6 +409,7 @@ class ChannelController(QWidget):
                 line = self.plotter.add_series(series, 1, 0, axis=Axis.RIGHT)
                 self._active[item.uid] = line
         else:
+            # DEBUG
             print(f"Un-plotting binary area for {item.text()}")
             line = self._active[item.uid]
             self.plotter.remove_plotitem(line)
@@ -398,6 +417,8 @@ class ChannelController(QWidget):
     def _context_menu(self, point: QPoint):
         index: QModelIndex = self.series_view.indexAt(point)
         if not index.isValid():
+            # DEBUG
             print("Providing general context menu (clear items)")
         else:
+            # DEBUG
             print(f'Providing menu for item {self._model.itemFromIndex(index).text()}')

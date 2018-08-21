@@ -9,10 +9,9 @@ from PyQt5 import QtCore
 from PyQt5.QtWidgets import QApplication, QSplashScreen
 
 from dgp.gui.main import MainWindow
-# sys.path.append(os.path.dirname(__file__))
 
 
-def excepthook(type_, value, traceback_):
+def excepthook(type_, value, traceback_):  # pragma: no cover
     """This allows IDE to properly display unhandled exceptions which are
     otherwise silently ignored as the application is terminated.
     Override default excepthook with
@@ -28,11 +27,11 @@ app = None
 _align = Qt.AlignBottom | Qt.AlignHCenter
 
 
-def main():
+def main():  # pragma: no cover
     global app
     sys.excepthook = excepthook
     app = QApplication(sys.argv)
-    splash = QSplashScreen(QPixmap(":/images/splash"))
+    splash = QSplashScreen(QPixmap(":/icons/dgp_large"))
     splash.showMessage("Loading Dynamic Gravity Processor", _align)
     splash.show()
     time.sleep(.5)

@@ -12,6 +12,10 @@ class WorkspaceTab(QWidget):
     def uid(self) -> OID:
         raise NotImplementedError
 
+    @property
+    def title(self) -> str:
+        raise NotImplementedError
+
 
 class _WorkspaceTabBar(QtWidgets.QTabBar):
     """Custom Tab Bar to allow us to implement a custom Context Menu to
@@ -74,7 +78,7 @@ class WorkspaceWidget(QtWidgets.QTabWidget):
     def __init__(self, parent=None):
         super().__init__(parent=parent)
         self.setTabBar(_WorkspaceTabBar())
-        self.tabCloseRequested.connect(self.removeTab)
+        self.tabCloseRequested.connect(self.close_tab_by_index)
 
     def widget(self, index: int) -> WorkspaceTab:
         return super().widget(index)
@@ -92,7 +96,15 @@ class WorkspaceWidget(QtWidgets.QTabWidget):
             if uid == self.widget(i).uid:
                 return i
 
+    def close_tab_by_index(self, index: int):
+        tab = self.widget(index)
+        tab.close()
+        self.removeTab(index)
+
     def close_tab(self, uid: OID):
+        tab = self.get_tab(uid)
+        if tab is not None:
+            tab.close()
         index = self.get_tab_index(uid)
         if index is not None:
             self.removeTab(index)

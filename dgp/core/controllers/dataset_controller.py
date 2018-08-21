@@ -108,7 +108,7 @@ class DataSetController(IDataSetController):
 
         self._sensor = None
         if dataset.sensor is not None:
-            ctrl = self.project.get_child(dataset.sensor.uid)
+            ctrl = self._project.get_child(dataset.sensor.uid)
             if ctrl is not None:
                 self._sensor = ctrl.clone()
                 self.appendRow(self._sensor)
