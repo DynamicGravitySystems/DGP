@@ -192,13 +192,24 @@ class LineSelectPlot(GridPlotWidget):
     def get_toolbar(self, parent=None):
         toolbar = super().get_toolbar(parent)
 
-        action_mode = QAction(Icon.LINE_MODE.icon(), "Toggle Selection Mode", self)
+        action_mode = QAction(Icon.SELECT.icon(), "Toggle Selection Mode", self)
         action_mode.setCheckable(True)
         action_mode.setChecked(self.selection_mode)
         action_mode.toggled.connect(self.set_select_mode)
         toolbar.addAction(action_mode)
 
+        action_seg_visibility = QAction(Icon.LINE_MODE.icon(),
+                                        "Toggle Segment Visibility", self)
+        action_seg_visibility.setCheckable(True)
+        action_seg_visibility.setChecked(True)
+        action_seg_visibility.toggled.connect(self.set_segment_visibility)
+        toolbar.addAction(action_seg_visibility)
+
         return toolbar
+
+    def set_segment_visibility(self, state: bool):
+        for segment in self._segments.values():
+            segment.set_visibility(state)
 
     def _check_proximity(self, x, span, proximity=0.03) -> bool:
         """Check the proximity of a mouse click at location 'x' in relation to

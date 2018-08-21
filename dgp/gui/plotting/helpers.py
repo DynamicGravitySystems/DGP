@@ -327,6 +327,11 @@ class LinearSegmentGroup(QObject):
         for segment in self._segments:
             segment.setMovable(movable)
 
+    def set_visibility(self, visible: bool):
+        for segment in self._segments:
+            segment.setVisible(visible)
+            segment._label.setVisible(visible)
+
     def delete(self):
         """Delete all child segments and emit a DELETE update"""
         for segment in self._segments:

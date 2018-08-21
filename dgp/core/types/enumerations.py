@@ -47,6 +47,7 @@ class Icon(Enum):
     LINE_MODE = "line_mode"
     PLOT_LINE = "plot_line"
     SETTINGS = "settings"
+    SELECT = "select"
     INFO = "info"
     HELP = "help_outline"
     GRID = "grid_on"
