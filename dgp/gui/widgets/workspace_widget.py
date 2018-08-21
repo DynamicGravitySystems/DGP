@@ -2,19 +2,10 @@
 import PyQt5.QtWidgets as QtWidgets
 from PyQt5.QtGui import QContextMenuEvent, QKeySequence
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QWidget, QAction
+from PyQt5.QtWidgets import QAction
 
 from dgp.core.oid import OID
-
-
-class WorkspaceTab(QWidget):
-    @property
-    def uid(self) -> OID:
-        raise NotImplementedError
-
-    @property
-    def title(self) -> str:
-        raise NotImplementedError
+from ..workspaces.base import WorkspaceTab
 
 
 class _WorkspaceTabBar(QtWidgets.QTabBar):
@@ -82,6 +73,12 @@ class WorkspaceWidget(QtWidgets.QTabWidget):
 
     def widget(self, index: int) -> WorkspaceTab:
         return super().widget(index)
+
+    def addTab(self, tab: WorkspaceTab, label: str = None):
+        if label is None:
+            label = tab.title
+        super().addTab(tab, label)
+        self.setCurrentWidget(tab)
 
     # Utility functions for referencing Tab widgets by OID
 

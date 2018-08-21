@@ -5,7 +5,7 @@ import pandas as pd
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QCloseEvent
-from PyQt5.QtWidgets import QWidget, QAction, QSizePolicy
+from PyQt5.QtWidgets import QAction, QSizePolicy
 
 from dgp.core import StateAction, Icon
 from dgp.core.controllers.dataset_controller import DataSetController
@@ -14,12 +14,11 @@ from dgp.gui.plotting.helpers import LineUpdate
 from dgp.gui.plotting.plotters import LineSelectPlot, TransformPlot
 from dgp.gui.widgets.channel_control_widgets import ChannelController
 from dgp.gui.widgets.data_transform_widget import TransformWidget
-from dgp.gui.widgets.workspace_widget import WorkspaceTab
+from .base import WorkspaceTab, SubTab
 
 
-class SegmentSelectTab(QWidget):
+class SegmentSelectTab(SubTab):
     """Sub-tab displayed within the DataSetTab Workspace"""
-
     def __init__(self, dataset: DataSetController, parent=None):
         super().__init__(parent=parent, flags=Qt.Widget)
         self.dataset: DataSetController = dataset
@@ -36,9 +35,9 @@ class SegmentSelectTab(QWidget):
             segment.add_reference(group)
 
         # Create/configure the tab layout/widgets/controls
-        qhbl_main_layout = QtWidgets.QHBoxLayout()
+        qhbl_main_layout = QtWidgets.QHBoxLayout(self)
         qvbl_plot_layout = QtWidgets.QVBoxLayout()
-        qhbl_main_layout.addItem(qvbl_plot_layout)
+        qhbl_main_layout.addLayout(qvbl_plot_layout)
         self.toolbar = self._plot.get_toolbar(self)
         qvbl_plot_layout.addWidget(self.toolbar, alignment=Qt.AlignLeft)
         qvbl_plot_layout.addWidget(self._plot)
@@ -102,7 +101,7 @@ class SegmentSelectTab(QWidget):
             seg.add_reference(self._plot.get_segment(seg.uid))
 
 
-class DataTransformTab(QWidget):
+class DataTransformTab(SubTab):
     def __init__(self, dataset: DataSetController, parent=None):
         super().__init__(parent=parent, flags=Qt.Widget)
         layout = QtWidgets.QHBoxLayout(self)
@@ -117,6 +116,11 @@ class DataTransformTab(QWidget):
         layout.addWidget(transform_control, stretch=0, alignment=Qt.AlignLeft)
         layout.addLayout(plot_layout, stretch=5)
 
+        self.sigLoaded.emit(self)
+
+    def get_state(self):
+        pass
+
     def restore_state(self, state):
         pass
 
@@ -128,27 +132,41 @@ class DataSetTab(WorkspaceTab):
         super().__init__(parent=parent, flags=Qt.Widget)
         self.dataset = dataset
 
-        ws_settings: dict = json.loads(settings().value(f'workspaces/{dataset.uid!s}', '{}'))
+        self.ws_settings: dict = json.loads(settings().value(f'workspaces/{dataset.uid!s}', '{}'))
 
         layout = QtWidgets.QVBoxLayout(self)
         self.workspace = QtWidgets.QTabWidget(self)
         self.workspace.setTabPosition(QtWidgets.QTabWidget.West)
+        layout.addWidget(self.workspace)
 
         self.segment_tab = SegmentSelectTab(dataset, parent=self)
-        self.segment_tab.restore_state(ws_settings.get('segment', {}))
+        self.segment_tab.sigLoaded.connect(self._tab_loaded)
         self.transform_tab = DataTransformTab(dataset, parent=self)
-        self.transform_tab.restore_state(ws_settings.get('transform', {}))
+        self.transform_tab.sigLoaded.connect(self._tab_loaded)
 
         self.workspace.addTab(self.segment_tab, "Data")
         self.workspace.addTab(self.transform_tab, "Transform")
         self.workspace.setCurrentIndex(0)
-        layout.addWidget(self.workspace)
+
+    @property
+    def title(self):
+        return f'{self.dataset.get_attr("name")} ' \
+               f'[{self.dataset.parent().get_attr("name")}]'
 
     @property
     def uid(self):
         return self.dataset.uid
 
-    def closeEvent(self, event: QCloseEvent):
-        state = json.dumps({'segment': self.segment_tab.get_state()})
+    def _tab_loaded(self, tab: SubTab):
+        state = self.ws_settings.get(tab.__class__.__name__, {})
+        tab.restore_state(state)
+
+    def save_state(self):
+        """Save current sub-tabs state then accept close event."""
+        raw_state = {}
+        for i in range(self.workspace.count()):
+            tab: SubTab = self.workspace.widget(i)
+            raw_state[tab.__class__.__name__] = tab.get_state()
+
+        state = json.dumps(raw_state)
         settings().setValue(f'workspaces/{self.dataset.uid!s}', state)
-        event.accept()

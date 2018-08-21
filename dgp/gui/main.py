@@ -252,31 +252,25 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         for ref in recents:
             self.recent_menu.addAction(ref.name, lambda: self.open_project(Path(ref.path)))
 
-    def _tab_open_requested(self, uid: OID, controller: IBaseController, label: str):
+    def _tab_open_requested(self, uid: OID, controller: IBaseController):
         """pyqtSlot(OID, IBaseController, str)
 
         Parameters
         ----------
         uid
         controller
-        label
-
-        Returns
-        -------
 
         """
-        tab = self.workspace.get_tab(uid)
-        if tab is not None:
-            self.workspace.setCurrentWidget(tab)
+        existing = self.workspace.get_tab(uid)
+        if existing is not None:
+            self.workspace.setCurrentWidget(existing)
         else:
             constructor = tab_factory(controller)
             if constructor is not None:
                 tab = constructor(controller)
+                self.workspace.addTab(tab)
             else:
                 warnings.warn(f"Tab control not implemented for type {type(controller)}")
-                return
-            self.workspace.addTab(tab, label)
-            self.workspace.setCurrentWidget(tab)
 
     @pyqtSlot(name='_project_mutated')
     def _project_mutated(self):

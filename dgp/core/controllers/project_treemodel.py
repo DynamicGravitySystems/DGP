@@ -44,22 +44,11 @@ class ProjectTreeModel(QStandardItemModel):
         Signal emitted to request a QProgressDialog from the main window.
         ProgressEvent is passed defining the parameters for the progress bar
 
-    Notes
-    -----
-    ProjectTreeModel loosely conforms to the IParent interface, and uses method
-    names reflecting the projects that it contains as children.
-    Part of the reason for this naming scheme is the conflict of the 'child'
-    property defined in IParent with the child() method of QObject (inherited
-    by QStandardItemModel).
-    So, although the ProjectTreeModel tries to conform with the overall parent
-    interface model, the relationship between Projects and the TreeModel is
-    special.
-
     """
     activeProjectChanged = pyqtSignal(str)
     projectMutated = pyqtSignal()
     projectClosed = pyqtSignal(OID)
-    tabOpenRequested = pyqtSignal(OID, object, str)
+    tabOpenRequested = pyqtSignal(OID, object)
     tabCloseRequested = pyqtSignal(OID)
     progressNotificationRequested = pyqtSignal(ProgressEvent)
 
@@ -127,22 +116,16 @@ class ProjectTreeModel(QStandardItemModel):
 
     def item_activated(self, index: QModelIndex):
         """Double-click handler for View events"""
-
         item = self.itemFromIndex(index)
-        if isinstance(item, IDataSetController):
-            flt_name = item.get_parent().get_attr('name')
-            label = f'{item.get_attr("name")} [{flt_name}]'
-            self.tabOpenRequested.emit(item.uid, item, label)
-        elif isinstance(item, IAirborneController):
+        if isinstance(item, IAirborneController):
             for project in self.projects:
                 if project is item:
                     project.set_active(True)
                 else:
                     project.set_active(False)
             self.activeProjectChanged.emit(item.get_attr('name'))
-            self.tabOpenRequested.emit(item.uid, item, item.get_attr('name'))
-        elif isinstance(item, IFlightController):
-            self.tabOpenRequested.emit(item.uid, item, item.get_attr('name'))
+
+        self.tabOpenRequested.emit(item.uid, item)
 
     def project_mutated(self, project: IAirborneController):
         self.projectMutated.emit()
