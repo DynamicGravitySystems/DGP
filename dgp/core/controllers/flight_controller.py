@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
-from weakref import WeakSet
-from typing import Union
+import weakref
+from typing import Union, Generator
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QStandardItemModel, QColor
@@ -58,7 +58,7 @@ class FlightController(IFlightController):
         self.setEditable(False)
         self.setBackground(QColor(StateColor.INACTIVE.value))
 
-        self._clones = WeakSet()
+        self._clones = weakref.WeakSet()
         self._dataset_model = QStandardItemModel()
 
         for dataset in self._flight.datasets:
@@ -131,32 +131,6 @@ class FlightController(IFlightController):
         self._clones.add(clone)
         return clone
 
-    @property
-    def is_active(self):
-        return self._active
-
-    def set_active(self, state: bool):
-        self._active = bool(state)
-        if self._active:
-            self.setBackground(QColor(StateColor.ACTIVE.value))
-        else:
-            self.setBackground(QColor(StateColor.INACTIVE.value))
-
-    @property
-    def active_child(self) -> DataSetController:
-        """active_child overrides method in IParent
-
-        If no child is active, try to activate the first child (row 0) and
-        return the newly active child.
-        If the flight has no children None will be returned
-
-        """
-        child = super().active_child
-        if child is None and self.rowCount():
-            self.activate_child(self.child(0).uid)
-            return self.active_child
-        return child
-
     def add_child(self, child: DataSet) -> DataSetController:
         """Adds a child to the underlying Flight, and to the model representation
         for the appropriate child type.
@@ -222,6 +196,7 @@ class FlightController(IFlightController):
                                           self.parent_widget):
                 return False
 
+        child.delete()
         self._flight.datasets.remove(child.datamodel)
         self._dataset_model.removeRow(child.row())
         self.removeRow(child.row())

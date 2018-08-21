@@ -182,19 +182,6 @@ class IParent(DGPObject):
         else:
             return child
 
-    @property
-    def active_child(self) -> MaybeChild:
-        """Get the active child of this parent.
-
-        Returns
-        -------
-        IChild, None
-            The first active child, or None if there are no children which are
-            active.
-
-        """
-        return next((child for child in self.children if child.is_active), None)
-
 
 class IBaseController(QStandardItem, AttributeProxy, DGPObject):
     @property

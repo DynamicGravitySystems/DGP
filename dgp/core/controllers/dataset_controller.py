@@ -42,7 +42,7 @@ class DataSegmentController(IBaseController):
         self.update()
 
         self._menu = [
-            ('addAction', ('Delete', lambda: self._delete()))
+            ('addAction', ('Delete', self.delete))
         ]
 
     @property
@@ -57,8 +57,8 @@ class DataSegmentController(IBaseController):
     def menu(self):
         return self._menu
 
-    def add_reference(self, group: LinearSegmentGroup):
-        self._refs.add(group)
+    def add_ref(self, ref):
+        self._refs.add(ref)
 
     def update(self):
         self.setText(str(self._segment))
@@ -67,7 +67,7 @@ class DataSegmentController(IBaseController):
     def clone(self) -> 'DataSegmentController':
         return DataSegmentController(self._segment, clone=True)
 
-    def _delete(self):
+    def delete(self):
         """Delete this data segment from any active plots (via weak ref), and
         from its parent DataSet/Controller
 
@@ -145,6 +145,10 @@ class DataSetController(IDataSetController):
     @property
     def project(self) -> IAirborneController:
         return self._flight.get_parent()
+
+    @property
+    def is_active(self):
+        return False
 
     @property
     def hdfpath(self) -> Path:
@@ -299,17 +303,6 @@ class DataSetController(IDataSetController):
     def update(self):
         self.setText(self._dataset.name)
         super().update()
-
-    def set_active(self, state: bool):
-        self._active = bool(state)
-        if self._active:
-            self.setBackground(QColor(StateColor.ACTIVE.value))
-        else:
-            self.setBackground(QColor(StateColor.INACTIVE.value))
-
-    @property
-    def is_active(self) -> bool:
-        return self._active
 
     # Context Menu Handlers
     def _set_name(self):

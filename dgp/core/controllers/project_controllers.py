@@ -2,6 +2,7 @@
 import functools
 import itertools
 import logging
+import weakref
 from pathlib import Path
 from typing import Union, List, Generator, cast
 
@@ -97,6 +98,7 @@ class AirborneProjectController(IAirborneController):
             'modify_date': (False, None)
         }
 
+
     def validator(self, key: str):  # pragma: no cover
         if key in self._fields:
             return self._fields[key][1]
@@ -171,15 +173,11 @@ class AirborneProjectController(IAirborneController):
         if confirm:  # pragma: no cover
             if not confirm_action("Confirm Deletion",
                                   "Are you sure you want to delete {!s}"
-                                          .format(child.get_attr('name')),
+                                  .format(child.get_attr('name')),
                                   parent=self.parent_widget):
                 return
-        if isinstance(child, IFlightController):
-            try:
-                self.get_parent().close_flight(child)
-            except AttributeError:
-                pass
 
+        child.delete()
         self.project.remove_child(child.uid)
         self._child_map[child.datamodel.__class__].removeRow(child.row())
         self.update()
@@ -187,22 +185,9 @@ class AirborneProjectController(IAirborneController):
     def get_parent(self) -> ProjectTreeModel:
         return self.model()
 
-    def get_child(self, uid: Union[str, OID]) -> IFlightController:
-        return cast(IFlightController, super().get_child(uid))
-
-    @property
-    def active_child(self) -> IFlightController:
-        return next((child for child in self.children if child.is_active), None)
-
-    def activate_child(self, uid: OID, exclusive: bool = True,
-                       emit: bool = False):
-        child: IFlightController = super().activate_child(uid, exclusive, False)
-        if emit:
-            try:
-                self.get_parent().item_activated(child.index())
-            except AttributeError:
-                self.log.warning(f"project {self.get_attr('name')} has no parent")
-        return child
+    def get_child(self, uid: Union[str, OID]) -> Union[FlightController,
+                                                       GravimeterController]:
+        return super().get_child(uid)
 
     def set_active(self, state: bool):
         self._active = bool(state)
