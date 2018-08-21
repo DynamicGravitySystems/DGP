@@ -31,7 +31,7 @@ class FlightController(IFlightController):
     The default display behavior is to provide the Flights Name.
     A :obj:`QIcon` or string path to a resource can be provided for decoration.
 
-    FlightController implements the AttributeProxy mixin (via IBaseController),
+    FlightController implements the AttributeProxy mixin (via AbstractController),
     which allows access to the underlying :class:`Flight` attributes via the
     get_attr and set_attr methods.
 
@@ -44,14 +44,12 @@ class FlightController(IFlightController):
 
     """
 
-    inherit_context = True
-
     def __init__(self, flight: Flight, project: IAirborneController):
         """Assemble the view/controller repr from the base flight object."""
         super().__init__()
         self.log = logging.getLogger(__name__)
         self._flight = flight
-        self._parent = project
+        self._parent = weakref.ref(project)
         self._active: bool = False
         self.setData(flight, Qt.UserRole)
         self.setIcon(Icon.AIRBORNE.icon())
@@ -73,8 +71,7 @@ class FlightController(IFlightController):
         # TODO: Consider adding MenuPrototype class which could provide the means to build QMenu
         self._bindings = [  # pragma: no cover
             ('addAction', ('Add Dataset', self._add_dataset)),
-            ('addAction', ('Set Active',
-                           lambda: self._activate_self())),
+            ('addAction', ('Open Flight Tab', lambda: self.model().item_activated(self.index()))),
             ('addAction', ('Import Gravity',
                            lambda: self._load_file_dialog(DataType.GRAVITY))),
             ('addAction', ('Import Trajectory',
@@ -93,7 +90,7 @@ class FlightController(IFlightController):
         return self._flight.uid
 
     @property
-    def children(self):
+    def children(self) -> Generator[DataSetController, None, None]:
         for i in range(self.rowCount()):
             yield self.child(i, 0)
 
@@ -109,15 +106,11 @@ class FlightController(IFlightController):
     def datasets(self) -> QStandardItemModel:
         return self._dataset_model
 
-    @property
-    def project(self) -> IAirborneController:
-        return self._parent
-
     def get_parent(self) -> IAirborneController:
-        return self._parent
+        return self._parent()
 
     def set_parent(self, parent: IAirborneController) -> None:
-        self._parent = parent
+        self._parent = weakref.ref(parent)
 
     def update(self):
         self.setText(self._flight.name)
@@ -130,6 +123,11 @@ class FlightController(IFlightController):
         clone = FlightController(self._flight, project=self.get_parent())
         self._clones.add(clone)
         return clone
+
+    def delete(self):
+        super().delete()
+        for child in self.children:
+            child.delete()
 
     def add_child(self, child: DataSet) -> DataSetController:
         """Adds a child to the underlying Flight, and to the model representation

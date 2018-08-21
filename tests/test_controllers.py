@@ -16,7 +16,7 @@ from dgp.core.models.dataset import DataSet, DataSegment
 from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.core.models.project import AirborneProject
 from dgp.core.controllers.controller_mixins import AttributeProxy
-from dgp.core.controllers.controller_interfaces import IChild, IMeterController, IParent
+from dgp.core.controllers.controller_interfaces import IMeterController, AbstractController
 from dgp.core.controllers.gravimeter_controller import GravimeterController
 from dgp.core.controllers.dataset_controller import (DataSetController,
                                                      DataSegmentController)
@@ -54,10 +54,9 @@ def test_gravimeter_controller(tmpdir):
     meter = Gravimeter('AT1A-Test')
     meter_ctrl = GravimeterController(meter)
 
-    assert isinstance(meter_ctrl, IChild)
+    assert isinstance(meter_ctrl, AbstractController)
     assert isinstance(meter_ctrl, IMeterController)
     assert isinstance(meter_ctrl, AttributeProxy)
-    assert not isinstance(meter_ctrl, IParent)
 
     assert meter == meter_ctrl.data(Qt.UserRole)
 
@@ -110,7 +109,7 @@ def test_flight_controller(project: AirborneProject):
     with pytest.raises(TypeError):
         fc.add_child({1: "invalid child"})
 
-    fc.set_parent(None)
+    # fc.set_parent(None)
 
     with pytest.raises(KeyError):
         fc.remove_child("Not a real child", confirm=False)

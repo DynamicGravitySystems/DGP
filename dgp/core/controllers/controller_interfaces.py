@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import weakref
 from pathlib import Path
 from typing import Union, Generator, List, Tuple, Any
 
@@ -21,94 +22,90 @@ level classes also subclass QStandardItem and/or AttributeProxy.
 """
 
 MenuBinding = Tuple[str, Tuple[Any, ...]]
-MaybeChild = Union['IChild', None]
+MaybeChild = Union['AbstractController', None]
 
 
-class DGPObject:
+class AbstractController(QStandardItem, AttributeProxy):
+    def __init__(self, *args, parent=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._parent: AbstractController = parent
+        self._referrers = weakref.WeakSet()
+        self._update_refs = weakref.WeakKeyDictionary()
+        self._delete_refs = weakref.WeakKeyDictionary()
+
     @property
     def uid(self) -> OID:
-        """Returns the unique Object IDentifier of the object
-
-        Returns
-        -------
-        :class:`~dgp.core.oid.OID`
-            Unique Object Identifier of the object.
-
-        """
         raise NotImplementedError
 
+    def get_parent(self) -> 'AbstractController':
+        return self._parent
 
-class IChild(DGPObject):
-    """A class sub-classing IChild can be a child object of a class which is an
-    :class:`IParent`.
+    def set_parent(self, parent: 'AbstractController'):
+        self._parent = parent
 
-    The IChild interface defines properties to determine if the child can be
-    activated, and if it is currently activated.
-    Methods are defined so that the child may retrieve or set a reference to its
-    parent object.
-    The set_active method is provided for the Parent object to notify the child
-    of an activation state change and to update its visual state.
+    def take_reference(self, owner, on_delete=None, on_update=None) -> weakref.ReferenceType:
+        """take_reference returns a weak reference to this controller
 
-    """
-    def get_parent(self) -> 'IParent':
-        """Return the parent object of this child"""
-        raise NotImplementedError
-
-    def set_parent(self, parent) -> None:
-        """Set the parent object of this child"""
-        raise NotImplementedError
-
-    @property
-    def can_activate(self) -> bool:
-        """Return whether this child can be activated"""
-        return False
-
-    @property
-    def is_active(self) -> bool:
-        if not self.can_activate:
-            return False
-        raise NotImplementedError
-
-    def set_active(self, state: bool) -> None:
-        """Called to visually set the child to the active state.
-
-        If a child needs to activate itself it should call activate_child on its
-        parent object, this ensures that siblings can be deactivated if the
-        child should be exclusively active.
+        on_delete and on_update parameters allow caller to be notified when the
+        object has been deleted or updated
 
         Parameters
         ----------
-        state : bool
-            Set the objects active state to the boolean state
+        owner : object
+        on_delete : method
+        on_update : method
+
+        Returns
+        -------
+        weakref.ReferenceType
 
         """
-        if not self.can_activate:
-            return
+        if on_delete is not None:
+            self._delete_refs[owner] = on_delete
+        if on_update is not None:
+            self._update_refs[owner] = on_update
+        self._referrers.add(owner)
+
+        return weakref.ref(self)
+
+    @property
+    def is_active(self) -> bool:
+        return len(self._referrers) > 0
+
+    def delete(self):
+        """Call this when deleting a controller to allow it to clean up any open
+        references (widgets)
+        """
+        for destruct in self._delete_refs.values():
+            destruct()
+
+    def update(self):
+        for ref in self._update_refs.values():
+            ref()
+
+    @property
+    def parent_widget(self) -> Union[QWidget, None]:
+        try:
+            return self.model().parent()
+        except AttributeError:
+            return None
+
+    @property
+    def menu(self) -> List[MenuBinding]:
         raise NotImplementedError
 
-
-# TODO: Rename to AbstractParent
-class IParent(DGPObject):
-    """A class sub-classing IParent provides the ability to add/get/remove
-    :class:`IChild` objects, as well as a method to iterate through children.
-
-    Child objects may be activated by the parent if child.can_activate is True.
-    Parent objects should call set_active on children to update their internal
-    active state, and to allow children to perform any necessary visual updates.
-
-    """
     @property
-    def children(self) -> Generator[IChild, None, None]:
+    def children(self) -> Generator['AbstractController', None, None]:
         """Return a generator of IChild objects specific to the parent.
 
         Returns
         -------
-        Generator[IChild, None, None]
+        Generator[AbstractController, None, None]
 
         """
         raise NotImplementedError
 
-    def add_child(self, child) -> 'IChild':
+    def add_child(self, child) -> 'AbstractController':
         """Add a child object to the controller, and its underlying
         data object.
 
@@ -119,7 +116,7 @@ class IParent(DGPObject):
 
         Returns
         -------
-        :class:`IBaseController`
+        :class:`AbstractController`
             A reference to the controller object wrapping the added child
 
         Raises
@@ -127,9 +124,13 @@ class IParent(DGPObject):
         :exc:`TypeError`
             If the child is not an allowed type for the controller.
         """
+        if self.children is None:
+            raise TypeError(f"{self.__class__} does not support children")
         raise NotImplementedError
 
     def remove_child(self, child, confirm: bool = True) -> bool:
+        if self.children is None:
+            return False
         raise NotImplementedError
 
     def get_child(self, uid: Union[str, OID]) -> MaybeChild:
@@ -151,52 +152,12 @@ class IParent(DGPObject):
             if uid == child.uid:
                 return child
 
-    def activate_child(self, uid: OID, exclusive: bool = True,
-                       emit: bool = False) -> MaybeChild:
-        """Activate a child referenced by the given OID, and return a reference
-        to the activated child.
-        Children may be exclusively activated (default behavior), in which case
-        all other children of the parent will be set to inactive.
-
-        Parameters
-        ----------
-        uid : :class:`~dgp.core.oid.OID`
-        exclusive : bool, Optional
-            If exclusive is True, all other children will be deactivated
-        emit : bool, Optional
-
-        Returns
-        -------
-        :class:`IChild`
-            The child object that was activated
-
-        """
-        child = self.get_child(uid)
-        try:
-            child.set_active(True)
-            if exclusive:
-                for other in [c for c in self.children if c.uid != uid]:
-                    other.set_active(False)
-        except AttributeError:
-            return None
-        else:
-            return child
-
-
-class IBaseController(QStandardItem, AttributeProxy, DGPObject):
     @property
-    def parent_widget(self) -> Union[QWidget, None]:
-        try:
-            return self.model().parent()
-        except AttributeError:
-            return None
-
-    @property
-    def menu(self) -> List[MenuBinding]:
+    def datamodel(self) -> object:
         raise NotImplementedError
 
 
-class IAirborneController(IBaseController, IParent, IChild):
+class IAirborneController(AbstractController):
     def add_flight_dlg(self):
         raise NotImplementedError
 
@@ -229,30 +190,20 @@ class IAirborneController(IBaseController, IParent, IChild):
         return True
 
 
-class IFlightController(IBaseController, IParent, IChild):
+class IFlightController(AbstractController):
     @property
     def can_activate(self):
         return True
-
-    @property
-    def project(self) -> IAirborneController:
-        raise NotImplementedError
 
     def get_parent(self) -> IAirborneController:
         raise NotImplementedError
 
 
-class IMeterController(IBaseController, IChild):
+class IMeterController(AbstractController):
     pass
 
 
-class IDataSetController(IBaseController, IChild):
-    def get_parent(self) -> IFlightController:
-        raise NotImplementedError
-
-    def set_parent(self, parent) -> None:
-        raise NotImplementedError
-
+class IDataSetController(AbstractController):
     @property
     def hdfpath(self) -> Path:
         raise NotImplementedError

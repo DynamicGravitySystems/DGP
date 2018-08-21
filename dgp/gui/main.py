@@ -10,8 +10,8 @@ from PyQt5.QtWidgets import QProgressDialog, QFileDialog, QMessageBox, QMenu, QA
 
 from dgp import __about__
 from dgp.core.oid import OID
+from dgp.core.controllers.controller_interfaces import AbstractController
 from dgp.core.types.enumerations import Links, Icon
-from dgp.core.controllers.controller_interfaces import IBaseController
 from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.core.controllers.project_treemodel import ProjectTreeModel
 from dgp.core.models.project import AirborneProject, GravityProject
@@ -260,7 +260,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         for ref in recents:
             self.recent_menu.addAction(ref.name, lambda: self.open_project(Path(ref.path)))
 
-    def _tab_open_requested(self, uid: OID, controller: IBaseController):
+    def _tab_open_requested(self, uid: OID, controller: AbstractController):
         """pyqtSlot(OID, IBaseController, str)
 
         Parameters

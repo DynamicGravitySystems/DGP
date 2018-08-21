@@ -26,7 +26,7 @@ Controllers typically should match 1:1 a model class, though there are cases
 for creating utility controllers such as the :class:`ProjectFolder` which is
 a utility class for grouping items visually in the project's tree view.
 
-Controllers should at minimum subclass :class:`IBaseController` which configures
+Controllers should at minimum subclass :class:`AbstractController` which configures
 inheritance for :class:`QStandardItem` and :class:`AttributeProxy`. For more
 complex and widely used controllers, a dedicated interface should be created
 following the same naming scheme - particularly where circular dependencies
@@ -85,7 +85,7 @@ type hinting within the development environment in such cases.
 
 .. py:module:: dgp.core.controllers.controller_interfaces
 
-.. autoclass:: IBaseController
+.. autoclass:: AbstractController
     :show-inheritance:
     :undoc-members:
 

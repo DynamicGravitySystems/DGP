@@ -7,12 +7,12 @@ from dgp.core import DataType
 from dgp.core.hdf5_manager import HDF5Manager
 from dgp.core.oid import OID
 from dgp.core.types.enumerations import Icon
-from dgp.core.controllers.controller_interfaces import IDataSetController, IBaseController
+from dgp.core.controllers.controller_interfaces import IDataSetController, AbstractController
 from dgp.core.controllers.controller_helpers import show_in_explorer
 from dgp.core.models.datafile import DataFile
 
 
-class DataFileController(IBaseController):
+class DataFileController(AbstractController):
     def __init__(self, datafile: DataFile, dataset=None):
         super().__init__()
         self._datafile = datafile

@@ -8,7 +8,7 @@ from PyQt5.QtGui import QStandardItemModel
 from dgp.core import OID, DataType
 from dgp.core.controllers.controller_interfaces import (IFlightController,
                                                         IAirborneController,
-                                                        IBaseController)
+                                                        IDataSetController, AbstractController)
 from dgp.core.controllers.controller_helpers import confirm_action
 from dgp.gui.utils import ProgressEvent
 
@@ -50,6 +50,7 @@ class ProjectTreeModel(QStandardItemModel):
     tabOpenRequested = pyqtSignal(object, object)
     tabCloseRequested = pyqtSignal(OID)
     progressNotificationRequested = pyqtSignal(ProgressEvent)
+    sigDataChanged = pyqtSignal(object)
 
     def __init__(self, project: IAirborneController = None,
                  parent: Optional[QObject] = None):
@@ -103,8 +104,8 @@ class ProjectTreeModel(QStandardItemModel):
         self.removeRow(child.row())
         self.projectClosed.emit(child.uid)
 
-    def close_flight(self, flight: IFlightController):
-        self.tabCloseRequested.emit(flight.uid)
+    def notify_tab_changed(self, flight: IFlightController):
+        flight.get_parent().activate_child(flight.uid)
 
     def item_selected(self, index: QModelIndex):
         """Single-click handler for View events"""
@@ -112,8 +113,9 @@ class ProjectTreeModel(QStandardItemModel):
 
     def item_activated(self, index: QModelIndex):
         """Double-click handler for View events"""
+
         item = self.itemFromIndex(index)
-        if not isinstance(item, IBaseController):
+        if not isinstance(item, AbstractController):
             return
 
         if isinstance(item, IAirborneController):

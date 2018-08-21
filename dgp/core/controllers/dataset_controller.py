@@ -14,18 +14,16 @@ from dgp.core.hdf5_manager import HDF5Manager
 from dgp.core.models.datafile import DataFile
 from dgp.core.models.dataset import DataSet, DataSegment
 from dgp.core.types.enumerations import DataType, StateColor
-from dgp.gui.plotting.helpers import LinearSegmentGroup
 from dgp.lib.etc import align_frames
 
 from . import controller_helpers
 from .gravimeter_controller import GravimeterController
-from .controller_interfaces import (IFlightController, IDataSetController,
-                                    IBaseController, IAirborneController)
+from .controller_interfaces import IFlightController, IDataSetController, AbstractController
 from .project_containers import ProjectFolder
 from .datafile_controller import DataFileController
 
 
-class DataSegmentController(IBaseController):
+class DataSegmentController(AbstractController):
     """Controller for :class:`DataSegment`
 
     Implements reference tracking feature allowing the mutation of segments
@@ -36,7 +34,6 @@ class DataSegmentController(IBaseController):
         super().__init__()
         self._segment = segment
         self._parent = parent
-        self._refs: Set[LinearSegmentGroup] = weakref.WeakSet()
         self._clone = clone
         self.setData(segment, Qt.UserRole)
         self.update()
@@ -57,10 +54,8 @@ class DataSegmentController(IBaseController):
     def menu(self):
         return self._menu
 
-    def add_ref(self, ref):
-        self._refs.add(ref)
-
     def update(self):
+        super().update()
         self.setText(str(self._segment))
         self.setToolTip(repr(self._segment))
 
@@ -72,8 +67,7 @@ class DataSegmentController(IBaseController):
         from its parent DataSet/Controller
 
         """
-        for ref in self._refs:
-            ref.delete()
+        super().delete()
         try:
             self._parent.remove_segment(self.uid)
         except KeyError:
@@ -84,8 +78,8 @@ class DataSetController(IDataSetController):
     def __init__(self, dataset: DataSet, flight: IFlightController):
         super().__init__()
         self._dataset = dataset
-        self._flight: IFlightController = flight
-        self._active = False
+        self._flight = weakref.ref(flight)
+        # self._project = self._flight().project
         self.log = logging.getLogger(__name__)
 
         self.setEditable(False)
@@ -120,8 +114,8 @@ class DataSetController(IDataSetController):
         self._channel_model = QStandardItemModel()
 
         self._menu_bindings = [  # pragma: no cover
-            ('addAction', ('Set Name', self._set_name)),
-            ('addAction', ('Set Active', lambda: self.get_parent().activate_child(self.uid))),
+            ('addAction', ('Open', lambda: self.model().item_activated(self.index()))),
+            ('addAction', ('Set Name', self._action_set_name)),
             ('addAction', (Icon.METER.icon(), 'Set Sensor',
                            self._action_set_sensor_dlg)),
             ('addSeparator', ()),
@@ -131,20 +125,26 @@ class DataSetController(IDataSetController):
                            lambda: self.project.load_file_dlg(DataType.TRAJECTORY, dataset=self))),
             ('addAction', ('Align Data', self.align)),
             ('addSeparator', ()),
-            ('addAction', ('Delete', lambda: self.get_parent().remove_child(self.uid))),
+            ('addAction', ('Delete', self._action_delete)),
             ('addAction', ('Properties', lambda: None))
         ]
 
+        self._clones: Set[DataSetController] = weakref.WeakSet()
+
+    @property
+    def children(self):
+        return None
+
     def clone(self):
-        return DataSetController(self._dataset, self._flight)
+        return DataSetController(self._dataset, self.get_parent())
+
+    @property
+    def project(self):
+        return self.get_parent().get_parent()
 
     @property
     def uid(self) -> OID:
         return self._dataset.uid
-
-    @property
-    def project(self) -> IAirborneController:
-        return self._flight.get_parent()
 
     @property
     def is_active(self):
@@ -152,7 +152,7 @@ class DataSetController(IDataSetController):
 
     @property
     def hdfpath(self) -> Path:
-        return self._flight.get_parent().hdfpath
+        return self.get_parent().get_parent().hdfpath
 
     @property
     def menu(self):  # pragma: no cover
@@ -235,12 +235,7 @@ class DataSetController(IDataSetController):
         self.log.info(f'DataFrame aligned.')
 
     def get_parent(self) -> IFlightController:
-        return self._flight
-
-    def set_parent(self, parent: IFlightController) -> None:
-        self._flight.remove_child(self.uid, confirm=False)
-        self._flight = parent
-        self._flight.add_child(self.datamodel)
+        return self._flight()
 
     def add_datafile(self, datafile: DataFile) -> None:
         if datafile.group is DataType.GRAVITY:
@@ -305,7 +300,7 @@ class DataSetController(IDataSetController):
         super().update()
 
     # Context Menu Handlers
-    def _set_name(self):
+    def _action_set_name(self):
         name = controller_helpers.get_input("Set DataSet Name", "Enter a new name:",
                                             self.get_attr('name'),
                                             parent=self.parent_widget)

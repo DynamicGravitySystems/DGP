@@ -34,16 +34,3 @@ def test_ProjectTreeModel_multiple_projects(project: AirborneProject,
     assert prj_ctrl in model.projects
     assert prj_ctrl2 in model.projects
 
-
-def test_ProjectTreeModel_item_activated(prj_ctrl: AirborneProjectController,
-                                         flt_ctrl: FlightController):
-    model = ProjectTreeModel(prj_ctrl)
-    assert prj_ctrl is model.active_project
-    tabOpen_spy = QSignalSpy(model.tabOpenRequested)
-
-    fc1_index = model.index(flt_ctrl.row(), 0,
-                            parent=model.index(prj_ctrl.flights.row(), 0,
-                                               parent=model.index(prj_ctrl.row(), 0)))
-    assert not flt_ctrl.is_active
-    model.item_activated(fc1_index)
-    assert 1 == len(tabOpen_spy)
