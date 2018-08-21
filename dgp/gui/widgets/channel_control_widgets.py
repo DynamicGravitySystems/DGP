@@ -283,7 +283,6 @@ class ChannelController(QWidget):
         self.plotter.sigPlotCleared.connect(self._channels_cleared)
         self.setSizePolicy(QSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred))
         self._layout = QVBoxLayout(self)
-        binary_series = binary_series or []
 
         self._model = QStandardItemModel()
         self._model.itemChanged.connect(self.channel_changed)
@@ -295,18 +294,6 @@ class ChannelController(QWidget):
         self._indexes: Dict[OID, Tuple[int, int, Axis]] = {}
 
         self._colors = itertools.cycle(LINE_COLORS)
-
-        for s in series:
-            item = ChannelItem(s.name, QColor(next(self._colors)))
-            self._series[item.uid] = s
-            self._model.appendRow(item)
-
-        for b in binary_series:
-            item = QStandardItem(b.name)
-            item.uid = OID()
-            item.setCheckable(True)
-            self._series[item.uid] = b
-            self._binary_model.appendRow(item)
 
         # Define/configure List Views
         series_delegate = ChannelDelegate(rows=self.plotter.rows, parent=self)
@@ -333,6 +320,30 @@ class ChannelController(QWidget):
 
         self._layout.addWidget(self.binary_view, stretch=1)
 
+        self.set_series(*series)
+        binary_series = binary_series or []
+        self.set_binary_series(*binary_series)
+
+    def set_series(self, *series, clear=True):
+        if clear:
+            self._model.clear()
+
+        for s in series:
+            item = ChannelItem(s.name, QColor(next(self._colors)))
+            self._series[item.uid] = s
+            self._model.appendRow(item)
+
+    def set_binary_series(self, *series, clear=True):
+        if clear:
+            self._binary_model.clear()
+
+        for b in series:
+            item = QStandardItem(b.name)
+            item.uid = OID()
+            item.setCheckable(True)
+            self._series[item.uid] = b
+            self._binary_model.appendRow(item)
+
     def get_state(self):
         active_state = {}
         for uid, item in self._active.items():
@@ -348,6 +359,11 @@ class ChannelController(QWidget):
                 item.set_visible(True, emit=False)
                 item.set_row(key[0], emit=False)
                 item.set_axis(Axis(key[2]), emit=True)
+
+        for i in range(self._binary_model.rowCount()):
+            item: QStandardItem = self._binary_model.item(i, 0)
+            if item.text() in state:
+                item.setCheckState(Qt.Checked)
 
     def channel_changed(self, item: ChannelItem):
         item.update(emit=False)
@@ -390,6 +406,7 @@ class ChannelController(QWidget):
     def _remove_series(self, item: ChannelItem):
         line = self._active[item.uid]
         self.plotter.remove_plotitem(line)
+        del self._indexes[item.uid]
 
     def _channels_cleared(self):
         """Respond to plot notification that all lines have been cleared"""
@@ -408,6 +425,7 @@ class ChannelController(QWidget):
                 series = self._series[item.uid]
                 line = self.plotter.add_series(series, 1, 0, axis=Axis.RIGHT)
                 self._active[item.uid] = line
+                self._indexes[item.uid] = 1, 0, Axis.RIGHT
         else:
             # DEBUG
             print(f"Un-plotting binary area for {item.text()}")

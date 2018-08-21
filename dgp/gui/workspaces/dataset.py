@@ -4,7 +4,6 @@ import json
 import pandas as pd
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtWidgets import QAction, QSizePolicy
 
 from dgp.core import StateAction, Icon
@@ -14,6 +13,7 @@ from dgp.gui.plotting.helpers import LineUpdate
 from dgp.gui.plotting.plotters import LineSelectPlot, TransformPlot
 from dgp.gui.widgets.channel_control_widgets import ChannelController
 from dgp.gui.widgets.data_transform_widget import TransformWidget
+from dgp.gui.utils import ThreadedFunction
 from .base import WorkspaceTab, SubTab
 
 
@@ -42,25 +42,30 @@ class SegmentSelectTab(SubTab):
         qvbl_plot_layout.addWidget(self.toolbar, alignment=Qt.AlignLeft)
         qvbl_plot_layout.addWidget(self._plot)
 
+        self.controller = ChannelController(self._plot, parent=self)
+        qhbl_main_layout.addWidget(self.controller)
+
         # Toggle control to hide/show data channels dock
         qa_channel_toggle = QAction(Icon.PLOT_LINE.icon(), "Data Channels", self)
         qa_channel_toggle.setCheckable(True)
         qa_channel_toggle.setChecked(True)
+        qa_channel_toggle.toggled.connect(self.controller.setVisible)
         self.toolbar.addAction(qa_channel_toggle)
 
         # Load data channel selection widget
-        df = self.dataset.dataframe()
+        th = ThreadedFunction(self.dataset.dataframe, parent=self)
+        th.result.connect(self._dataframe_loaded)
+        th.start()
+
+    def _dataframe_loaded(self, df):
         data_cols = ('gravity', 'long_accel', 'cross_accel', 'beam', 'temp',
                      'pressure', 'Etemp', 'gps_week', 'gps_sow', 'lat', 'long',
                      'ell_ht')
         cols = [df[col] for col in df if col in data_cols]
         stat_cols = [df[col] for col in df if col not in data_cols]
-        self.controller = ChannelController(self._plot, *cols,
-                                            binary_series=stat_cols, parent=self)
-
-        qa_channel_toggle.toggled.connect(self.controller.setVisible)
-        qhbl_main_layout.addWidget(self.controller)
-        self.setLayout(qhbl_main_layout)
+        self.controller.set_series(*cols)
+        self.controller.set_binary_series(*stat_cols)
+        self.sigLoaded.emit(self)
 
     def get_state(self):
         """Get the current state of the dataset workspace
@@ -81,7 +86,6 @@ class SegmentSelectTab(SubTab):
         return self.controller.get_state()
 
     def restore_state(self, state):
-        print(f"Restoring state from {state}")
         self.controller.restore_state(state)
 
     def _on_modified_segment(self, update: LineUpdate):
