@@ -1,13 +1,11 @@
 # coding: utf-8
 
-import os
 import sys
 import traceback
 
-sys.path.append(os.path.dirname(__file__))
-
+from PyQt5 import sip
 from PyQt5 import QtCore
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication, QStyleFactory
 from dgp.gui.splash import SplashScreen
 
 
@@ -28,6 +26,7 @@ app = None
 
 def main():
     global app
+    QApplication.setStyle(QStyleFactory.create("Fusion"))
     sys.excepthook = excepthook
     app = QApplication(sys.argv)
     form = SplashScreen()
