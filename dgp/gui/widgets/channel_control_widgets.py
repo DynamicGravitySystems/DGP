@@ -414,12 +414,13 @@ class ChannelController(QWidget):
             item: ChannelItem = self._model.item(i)
             item.set_visible(False, emit=False)
             item.update(emit=False)
+        for i in range(self._binary_model.rowCount()):
+            item: QStandardItem = self._binary_model.item(i)
+            item.setCheckState(Qt.Unchecked)
 
     def binary_changed(self, item: QStandardItem):
         if item.checkState() == Qt.Checked:
             if item.uid in self._active:
-                # DEBUG
-                print(f'Binary channel already plotted')
                 return
             else:
                 series = self._series[item.uid]
@@ -427,10 +428,12 @@ class ChannelController(QWidget):
                 self._active[item.uid] = line
                 self._indexes[item.uid] = 1, 0, Axis.RIGHT
         else:
-            # DEBUG
-            print(f"Un-plotting binary area for {item.text()}")
-            line = self._active[item.uid]
-            self.plotter.remove_plotitem(line)
+            try:
+                line = self._active[item.uid]
+                self.plotter.remove_plotitem(line)
+            except KeyError:
+                # Item may have already been deleted by the plot
+                pass
 
     def _context_menu(self, point: QPoint):
         index: QModelIndex = self.series_view.indexAt(point)
