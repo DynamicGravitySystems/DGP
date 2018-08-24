@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from setuptools import setup, find_packages
 
 
@@ -10,18 +11,22 @@ def get_requires(path='requirements.txt'):
 
 setup(
     name='DynamicGravityProcessor',
-    version='0.0.9',
-    packages=find_packages(where='dgp'),
+    version='0.1.0',
+    packages=find_packages(),
     url='https://github.com/DynamicGravitySystems/DGP',
     license='Apache v2.0',
     author='Zachery Brady, Chris Bertinato, Daniel Aliod',
     install_requires=get_requires(),
-    python_requires='>=3.5',
+    python_requires='>=3.6',
     include_package_data=True,
     zip_safe=False,
     entry_points={
-        'console_scripts': [
-            'dgp = dgp.__main__.main()'
+        'gui_scripts': [
+            'dgp=dgp.__main__:main'
         ]
+    },
+    project_urls={
+        "Documentation": "https://dgp.readthedocs.io/en/develop/",
+        "Source Code": "https://github.com/DynamicGravitySystems/DGP"
     }
 )

@@ -17,6 +17,7 @@ docs/build/
 .pytest_cache/
 build/
 dist/
+*.egg-info/
 
 # Specific Directives
 examples/local*
