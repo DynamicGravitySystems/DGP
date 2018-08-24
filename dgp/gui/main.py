@@ -20,7 +20,7 @@ from dgp.gui.utils import (ConsoleHandler, LOG_FORMAT, LOG_LEVEL_MAP,
                            LOG_COLOR_MAP, ProgressEvent, load_project_from_path)
 from dgp.gui.dialogs.create_project_dialog import CreateProjectDialog
 from dgp.gui.dialogs.recent_project_dialog import RecentProjectDialog
-from dgp.gui.widgets.workspace_widget import WorkspaceWidget, WorkspaceTab
+from dgp.gui.widgets.workspace_widget import WorkspaceWidget
 from dgp.gui.workspaces import tab_factory
 from dgp.gui.ui.main_window import Ui_MainWindow
 
@@ -33,11 +33,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         super().__init__(*args)
         self.setupUi(self)
         self.title = 'Dynamic Gravity Processor [*]'
-
         self.setWindowTitle(self.title)
-        self.workspace: WorkspaceWidget
-        self.recents = RecentProjectManager()
-        self.user_settings = UserSettings()
 
         # Attach to the root logger to capture all child events
         self.log = logging.getLogger()
@@ -50,6 +46,11 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.log.addHandler(sb_handler)
         self.log.setLevel(logging.DEBUG)
 
+        self.workspace: WorkspaceWidget
+        self.recents = RecentProjectManager()
+        self.user_settings = UserSettings()
+        self._progress_events = {}
+
         # Instantiate the Project Model and display in the ProjectTreeView
         self.model = ProjectTreeModel(parent=self)
         self.project_tree.setModel(self.model)
@@ -58,22 +59,17 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.recent_menu = QMenu("Recent Projects")
         self.menuFile.addMenu(self.recent_menu)
 
-        # Initialize Variables
         self.import_base_path = Path('~').expanduser().joinpath('Desktop')
         self._default_status_timeout = 5000  # Status Msg timeout in milli-sec
 
-        self._progress_events = {}
-        self._mutated = False
-        self._init_slots()
-
-    def _init_slots(self):  # pragma: no cover
-        """Initialize PyQt Signals/Slots for UI Buttons and Menus"""
+        # Initialize signal/slot connections:
 
         # Model Event Signals #
         self.model.tabOpenRequested.connect(self._tab_open_requested)
         self.model.tabCloseRequested.connect(self.workspace.close_tab)
         self.model.progressNotificationRequested.connect(self._progress_event_handler)
         self.model.projectMutated.connect(self._project_mutated)
+        self.model.projectClosed.connect(lambda x: self._update_recent_menu())
 
         # File Menu Actions #
         self.action_exit.triggered.connect(self.close)
@@ -103,7 +99,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Define recent projects menu action
         self.recents.sigRecentProjectsChanged.connect(self._update_recent_menu)
-        self.model.projectClosed.connect(lambda x: self._update_recent_menu())
         self._update_recent_menu()
 
     def load(self, project: GravityProject = None, restore: bool = True):
@@ -242,6 +237,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             self.statusBar().showMessage(text, self._default_status_timeout)
 
     def _update_recent_menu(self):
+        """Regenerate the recent projects' menu actions
+
+        Retrieves the recent projects references from the
+        :class:`RecentProjectManager` and adds them to the recent projects list
+        if they are not already active/open in the workspace.
+        """
         self.recent_menu.clear()
         recents = [ref for ref in self.recents.project_refs
                    if ref.uid not in [p.uid for p in self.model.projects]]
@@ -270,15 +271,15 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 tab = constructor(controller)
                 self.workspace.addTab(tab)
             else:
-                warnings.warn(f"Tab control not implemented for type {type(controller)}")
+                warnings.warn(f"Tab control not implemented for type "
+                              f"{type(controller)}")
 
     @pyqtSlot(name='_project_mutated')
     def _project_mutated(self):
         """pyqtSlot(None)
-        Update the MainWindow title bar to reflect unsaved changes in the project
 
+        Update the MainWindow title bar to reflect unsaved changes in the project
         """
-        self._mutated = True
         self.setWindowModified(True)
 
     @pyqtSlot(ProgressEvent, name='_progress_event_handler')
@@ -311,17 +312,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 dlg.setValue(1)
                 dlg.show()
             self._progress_events[event.uid] = dlg
-
-    def show_progress_status(self, start, stop, label=None) -> QtWidgets.QProgressBar:
-        """Show a progress bar in the windows Status Bar"""
-        label = label or 'Loading'
-        sb = self.statusBar()  # type: QtWidgets.QStatusBar
-        progress = QtWidgets.QProgressBar(self)
-        progress.setRange(start, stop)
-        progress.setAttribute(Qt.WA_DeleteOnClose)
-        progress.setToolTip(label)
-        sb.addWidget(progress)
-        return progress
 
     def save_projects(self) -> None:
         self.model.save_projects()

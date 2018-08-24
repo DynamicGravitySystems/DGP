@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Union, List, Generator, cast
 
 from PyQt5.QtCore import Qt, QRegExp
-from PyQt5.QtGui import QColor, QStandardItemModel, QIcon, QRegExpValidator
+from PyQt5.QtGui import QColor, QStandardItemModel, QRegExpValidator
 from pandas import DataFrame
 
 from .project_treemodel import ProjectTreeModel
@@ -293,7 +293,9 @@ class AirborneProjectController(IAirborneController):
             else:
                 self.log.error("Unrecognized data group: " + datafile.group)
                 return
-            progress_event = ProgressEvent(self.uid, f"Loading {datafile.group.value}", stop=0)
+            progress_event = ProgressEvent(self.uid, f"Loading "
+                                                     f"{datafile.group.value}",
+                                           stop=0)
             self.get_parent().progressNotificationRequested.emit(progress_event)
             loader = FileLoader(datafile.source_path, method,
                                 parent=self.parent_widget, **params)

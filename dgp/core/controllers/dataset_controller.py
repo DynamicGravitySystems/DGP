@@ -9,18 +9,18 @@ from pandas import DataFrame, Timestamp, concat
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QBrush, QStandardItemModel, QStandardItem
 
-from dgp.core.controllers.gravimeter_controller import GravimeterController
-from dgp.core.oid import OID
-from dgp.core.types.enumerations import Icon
+from dgp.core import OID, Icon
 from dgp.core.hdf5_manager import HDF5Manager
-from dgp.core.controllers import controller_helpers
 from dgp.core.models.datafile import DataFile
 from dgp.core.models.dataset import DataSet, DataSegment
 from dgp.core.types.enumerations import DataType, StateColor
 from dgp.gui.plotting.helpers import LinearSegmentGroup
 from dgp.lib.etc import align_frames
 
-from .controller_interfaces import IFlightController, IDataSetController, IBaseController, IAirborneController
+from . import controller_helpers
+from .gravimeter_controller import GravimeterController
+from .controller_interfaces import (IFlightController, IDataSetController,
+                                    IBaseController, IAirborneController)
 from .project_containers import ProjectFolder
 from .datafile_controller import DataFileController
 
@@ -108,7 +108,7 @@ class DataSetController(IDataSetController):
 
         self._sensor = None
         if dataset.sensor is not None:
-            ctrl = self._project.get_child(dataset.sensor.uid)
+            ctrl = self.project.get_child(dataset.sensor.uid)
             if ctrl is not None:
                 self._sensor = ctrl.clone()
                 self.appendRow(self._sensor)

@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
+import json
+
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtWidgets import QWidget
 
 from dgp.core import OID
+from dgp.gui import settings
 
 __all__ = ['WorkspaceTab', 'SubTab']
 
@@ -17,7 +20,15 @@ class WorkspaceTab(QWidget):
     def title(self) -> str:
         raise NotImplementedError
 
-    def save_state(self) -> None:
+    @property
+    def state_key(self) -> str:
+        return f'Workspace/{self.uid!s}'
+
+    def get_state(self) -> dict:
+        key = f'Workspace/{self.uid!s}'
+        return json.loads(settings().value(key, '{}'))
+
+    def save_state(self, state=None) -> None:
         """Save/dump the current state of the WorkspaceTab
 
         This method is called when the tab is closed, and should be used to
@@ -26,7 +37,8 @@ class WorkspaceTab(QWidget):
 
         Override this method to provide state handling for a WorkspaceTab
         """
-        pass
+        _jsons = json.dumps(state)
+        settings().setValue(self.state_key, _jsons)
 
     def closeEvent(self, event: QCloseEvent):
         self.save_state()

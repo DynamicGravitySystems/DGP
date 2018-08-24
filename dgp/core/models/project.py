@@ -346,7 +346,7 @@ class AirborneProject(GravityProject):
 
     This class is a sub-class of :class:`GravityProject` and simply extends the
     functionality of the base GravityProject, allowing the addition/removal
-    of :class:`Flight` objects, in addition to :class:`Gravimeter`s
+    of :class:`Flight` objects, in addition to :class:`Gravimeter` s
 
     Parameters
     ----------

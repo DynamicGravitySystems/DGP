@@ -2,14 +2,13 @@
 import logging
 from typing import Optional, Generator, Union
 
-from PyQt5.QtCore import QObject, QModelIndex, pyqtSignal, QSortFilterProxyModel, Qt
+from PyQt5.QtCore import QObject, QModelIndex, pyqtSignal
 from PyQt5.QtGui import QStandardItemModel
 
-from dgp.core.types.enumerations import DataType
-from dgp.core.oid import OID
+from dgp.core import OID, DataType
 from dgp.core.controllers.controller_interfaces import (IFlightController,
                                                         IAirborneController,
-                                                        IDataSetController)
+                                                        IBaseController)
 from dgp.core.controllers.controller_helpers import confirm_action
 from dgp.gui.utils import ProgressEvent
 
@@ -107,9 +106,6 @@ class ProjectTreeModel(QStandardItemModel):
     def close_flight(self, flight: IFlightController):
         self.tabCloseRequested.emit(flight.uid)
 
-    def notify_tab_changed(self, flight: IFlightController):
-        flight.get_parent().activate_child(flight.uid)
-
     def item_selected(self, index: QModelIndex):
         """Single-click handler for View events"""
         pass
@@ -117,6 +113,9 @@ class ProjectTreeModel(QStandardItemModel):
     def item_activated(self, index: QModelIndex):
         """Double-click handler for View events"""
         item = self.itemFromIndex(index)
+        if not isinstance(item, IBaseController):
+            return
+
         if isinstance(item, IAirborneController):
             for project in self.projects:
                 if project is item:
@@ -157,33 +156,3 @@ class ProjectTreeModel(QStandardItemModel):
 
     def _warn_no_active_project(self):
         self.log.warning("No active projects.")
-
-
-# Experiment
-class ProjectTreeProxyModel(QSortFilterProxyModel):  # pragma: no cover
-    """Experiment to filter tree model to a subset - not working currently, may require
-    more detailed custom implementation of QAbstractProxyModel
-    """
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._filter_type = None
-        self.setRecursiveFilteringEnabled(True)
-
-    def setFilterType(self, obj: type):
-        self._filter_type = obj
-
-    def sourceModel(self) -> QStandardItemModel:
-        return super().sourceModel()
-
-    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex):
-        index: QModelIndex = self.sourceModel().index(source_row, 0, source_parent)
-        item = self.sourceModel().itemFromIndex(index)
-        print(item)
-        data = self.sourceModel().data(index, self.filterRole())
-        disp = self.sourceModel().data(index, Qt.DisplayRole)
-
-        res = isinstance(data, self._filter_type)
-        print("Result is: %s for row %d" % (str(res), source_row))
-        print("Row display value: " + str(disp))
-
-        return res

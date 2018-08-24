@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-import json
-
 import pandas as pd
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt
@@ -8,7 +6,6 @@ from PyQt5.QtWidgets import QAction, QSizePolicy
 
 from dgp.core import StateAction, Icon
 from dgp.core.controllers.dataset_controller import DataSetController
-from dgp.gui.settings import settings
 from dgp.gui.plotting.helpers import LineUpdate
 from dgp.gui.plotting.plotters import LineSelectPlot, TransformPlot
 from dgp.gui.widgets.channel_control_widgets import ChannelController
@@ -136,7 +133,7 @@ class DataSetTab(WorkspaceTab):
         super().__init__(parent=parent, flags=Qt.Widget)
         self.dataset = dataset
 
-        self.ws_settings: dict = json.loads(settings().value(f'workspaces/{dataset.uid!s}', '{}'))
+        self.ws_settings: dict = self.get_state()
 
         layout = QtWidgets.QVBoxLayout(self)
         self.workspace = QtWidgets.QTabWidget(self)
@@ -162,15 +159,16 @@ class DataSetTab(WorkspaceTab):
         return self.dataset.uid
 
     def _tab_loaded(self, tab: SubTab):
+        """Restore tab state after initial loading is complete"""
         state = self.ws_settings.get(tab.__class__.__name__, {})
         tab.restore_state(state)
 
-    def save_state(self):
+    def save_state(self, state=None):
         """Save current sub-tabs state then accept close event."""
-        raw_state = {}
+        state = {}
         for i in range(self.workspace.count()):
             tab: SubTab = self.workspace.widget(i)
-            raw_state[tab.__class__.__name__] = tab.get_state()
+            state[tab.__class__.__name__] = tab.get_state()
 
-        state = json.dumps(raw_state)
-        settings().setValue(f'workspaces/{self.dataset.uid!s}', state)
+        super().save_state(state=state)
+

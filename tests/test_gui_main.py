@@ -54,7 +54,6 @@ def test_MainWindow_tab_open_requested(project, window):
     window.model.item_activated(flt_ctrl.index())
     assert 1 == len(tab_open_spy)
     assert 1 == window.workspace.count()
-    # assert isinstance(window.workspace.currentWidget(), DatasetWorkspaceTab)
 
     window.model.item_activated(flt_ctrl.index())
     assert 2 == len(tab_open_spy)

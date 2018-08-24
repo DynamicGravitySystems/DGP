@@ -35,8 +35,8 @@ def settings() -> QSettings:
 
 
 class SettingsKey(Enum):
-    WindowState = "MainWindow/state"
-    WindowGeom = "MainWindow/geom"
+    WindowState = "Window/state"
+    WindowGeom = "Window/geom"
     LastProjectPath = "Project/latest/path"
     LastProjectName = "Project/latest/name"
     LastProjectUid = "Project/latest/uid"

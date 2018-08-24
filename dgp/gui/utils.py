@@ -2,7 +2,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Union, Callable
+from typing import Callable
 
 from PyQt5.QtCore import QThread, pyqtSignal, pyqtBoundSignal
 
@@ -10,7 +10,8 @@ from dgp.core.models.project import GravityProject, AirborneProject
 from dgp.core.oid import OID
 
 __all__ = ['LOG_FORMAT', 'LOG_COLOR_MAP', 'LOG_LEVEL_MAP', 'ConsoleHandler',
-           'ProgressEvent', 'ThreadedFunction', 'clear_signal']
+           'ProgressEvent', 'ThreadedFunction', 'clear_signal',
+           'load_project_from_path']
 
 LOG_FORMAT = logging.Formatter(fmt="%(asctime)s:%(levelname)s - %(module)s:"
                                    "%(funcName)s :: %(message)s",
@@ -99,7 +100,7 @@ class ThreadedFunction(QThread):
             res = self._functor(*self._args)
             self.result.emit(res)
         except Exception as e:
-            _log.exception(f"Exception executing {self.__name__}")
+            _log.exception(f"Exception executing {self._functor!r}")
 
 
 def load_project_from_path(path: Path) -> GravityProject:
