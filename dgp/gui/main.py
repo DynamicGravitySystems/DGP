@@ -262,6 +262,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         controller
 
         """
+        if uid is None:
+            return
         existing = self.workspace.get_tab(uid)
         if existing is not None:
             self.workspace.setCurrentWidget(existing)

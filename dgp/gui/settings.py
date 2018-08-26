@@ -102,8 +102,11 @@ class RecentProjectManager(QObject):
             yield self.model.item(i).data(RefRole)
 
     def last_project_path(self) -> MaybePath:
-        path = Path(self._settings.value(SettingsKey.LastProjectPath(), None))
-        return path
+        raw_path = self._settings.value(SettingsKey.LastProjectPath(), None)
+        if raw_path is not None:
+            return Path(raw_path)
+        else:
+            return None
 
     def last_project_name(self) -> Union[str, None]:
         return self._settings.value(SettingsKey.LastProjectName(), None)

@@ -47,7 +47,7 @@ class ProjectTreeModel(QStandardItemModel):
     activeProjectChanged = pyqtSignal(str)
     projectMutated = pyqtSignal()
     projectClosed = pyqtSignal(OID)
-    tabOpenRequested = pyqtSignal(OID, object)
+    tabOpenRequested = pyqtSignal(object, object)
     tabCloseRequested = pyqtSignal(OID)
     progressNotificationRequested = pyqtSignal(ProgressEvent)
 

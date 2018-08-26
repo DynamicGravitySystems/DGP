@@ -29,7 +29,10 @@ class DataFileController(IBaseController):
 
     @property
     def uid(self) -> OID:
-        return self._datafile.uid
+        try:
+            return self._datafile.uid
+        except AttributeError:
+            return None
 
     @property
     def dataset(self) -> IDataSetController:
