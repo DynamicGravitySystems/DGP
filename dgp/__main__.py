@@ -36,9 +36,9 @@ def main():  # pragma: no cover
     splash.show()
     time.sleep(.5)
     window = MainWindow()
+    splash.finish(window)
     window.sigStatusMessage.connect(lambda msg: splash.showMessage(msg, _align))
     window.load()
-    splash.finish(window)
     sys.exit(app.exec_())
 
 

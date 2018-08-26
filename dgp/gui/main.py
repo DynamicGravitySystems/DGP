@@ -128,6 +128,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             self.restoreState(settings().value(SettingsKey.WindowState(), QByteArray()))
             self.restoreGeometry(settings().value(SettingsKey.WindowGeom(), QByteArray()))
 
+        self.show()
         if project is not None:
             self.sigStatusMessage.emit(f'Loading project {project.name}')
             self.add_project(project)
@@ -143,7 +144,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             recent_dlg.exec_()
 
         self.project_tree.expandAll()
-        self.show()
 
     def add_project(self, project: GravityProject):
         """Add a project model to the window, first wrapping it in an
