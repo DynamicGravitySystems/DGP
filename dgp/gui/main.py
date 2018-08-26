@@ -6,11 +6,11 @@ from pathlib import Path
 import PyQt5.QtWidgets as QtWidgets
 from PyQt5.QtCore import Qt, pyqtSlot, pyqtSignal, QByteArray
 from PyQt5.QtGui import QColor, QCloseEvent, QDesktopServices
-from PyQt5.QtWidgets import QProgressDialog, QFileDialog, QMessageBox, QMenu
+from PyQt5.QtWidgets import QProgressDialog, QFileDialog, QMessageBox, QMenu, QAction
 
 from dgp import __about__
 from dgp.core.oid import OID
-from dgp.core.types.enumerations import Links
+from dgp.core.types.enumerations import Links, Icon
 from dgp.core.controllers.controller_interfaces import IBaseController
 from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.core.controllers.project_treemodel import ProjectTreeModel
@@ -63,6 +63,13 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self._default_status_timeout = 5000  # Status Msg timeout in milli-sec
 
         # Initialize signal/slot connections:
+
+        # Use dock's toggleViewAction to generate QAction, resolves issue where
+        # dock visibility would be hidden after minimizing the main window
+        self.action_project_dock: QAction = self.project_dock.toggleViewAction()
+        self.action_project_dock.setIcon(Icon.TREE.icon())
+        self.toolbar.addAction(self.action_project_dock)
+        self.menuView.addAction(self.action_project_dock)
 
         # Model Event Signals #
         self.model.tabOpenRequested.connect(self._tab_open_requested)

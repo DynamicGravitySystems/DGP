@@ -52,6 +52,7 @@ class Icon(Enum):
     HELP = "help_outline"
     GRID = "grid_on"
     NO_GRID = "grid_off"
+    TREE = "tree"
 
     def icon(self, prefix="icons"):
         return QIcon(f':/{prefix}/{self.value}')

@@ -75,7 +75,6 @@
     <property name="title">
      <string>Panels</string>
     </property>
-    <addaction name="action_project_dock"/>
     <addaction name="action_tool_dock"/>
     <addaction name="action_info_dock"/>
    </widget>
@@ -252,7 +251,6 @@
    <addaction name="action_import_gps"/>
    <addaction name="action_import_grav"/>
    <addaction name="separator"/>
-   <addaction name="action_project_dock_2"/>
    <addaction name="action_debug_Console"/>
   </widget>
   <widget class="QDockWidget" name="info_dock">
@@ -523,20 +521,6 @@
     <string>Ctrl+Q</string>
    </property>
   </action>
-  <action name="action_project_dock">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="checked">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>Project</string>
-   </property>
-   <property name="shortcut">
-    <string>Alt+1</string>
-   </property>
-  </action>
   <action name="action_tool_dock">
    <property name="checkable">
     <bool>true</bool>
@@ -655,21 +639,6 @@
     <string>Import Gravity</string>
    </property>
   </action>
-  <action name="action_project_dock_2">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="icon">
-    <iconset resource="resources/resources.qrc">
-     <normaloff>:/icons/tree</normaloff>:/icons/tree</iconset>
-   </property>
-   <property name="text">
-    <string>Project Dock</string>
-   </property>
-   <property name="toolTip">
-    <string>Toggle the Project Sidebar</string>
-   </property>
-  </action>
   <action name="action_debug_Console">
    <property name="checkable">
     <bool>true</bool>
@@ -711,38 +680,6 @@
   <include location="resources/resources.qrc"/>
  </resources>
  <connections>
-  <connection>
-   <sender>action_project_dock</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>project_dock</receiver>
-   <slot>setVisible(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>-1</x>
-     <y>-1</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>149</x>
-     <y>419</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>project_dock</sender>
-   <signal>visibilityChanged(bool)</signal>
-   <receiver>action_project_dock</receiver>
-   <slot>setChecked(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>149</x>
-     <y>419</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>-1</x>
-     <y>-1</y>
-    </hint>
-   </hints>
-  </connection>
   <connection>
    <sender>action_info_dock</sender>
    <signal>toggled(bool)</signal>
@@ -788,38 +725,6 @@
     <hint type="destinationlabel">
      <x>750</x>
      <y>987</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>action_project_dock_2</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>project_dock</receiver>
-   <slot>setVisible(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>-1</x>
-     <y>-1</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>135</x>
-     <y>459</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>project_dock</sender>
-   <signal>visibilityChanged(bool)</signal>
-   <receiver>action_project_dock_2</receiver>
-   <slot>setChecked(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>135</x>
-     <y>459</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>-1</x>
-     <y>-1</y>
     </hint>
    </hints>
   </connection>
