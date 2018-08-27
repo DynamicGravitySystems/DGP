@@ -41,7 +41,7 @@
      <number>0</number>
     </property>
     <item>
-     <widget class="MainWorkspace" name="workspace"/>
+     <widget class="WorkspaceWidget" name="workspace"/>
     </item>
    </layout>
   </widget>
@@ -68,13 +68,13 @@
     <property name="title">
      <string>Help</string>
     </property>
-    <addaction name="actionDocumentation"/>
+    <addaction name="action_docs"/>
+    <addaction name="action_about"/>
    </widget>
    <widget class="QMenu" name="menuView">
     <property name="title">
      <string>Panels</string>
     </property>
-    <addaction name="action_project_dock"/>
     <addaction name="action_tool_dock"/>
     <addaction name="action_info_dock"/>
    </widget>
@@ -213,7 +213,7 @@
          </property>
          <property name="icon">
           <iconset resource="resources/resources.qrc">
-           <normaloff>:/icons/meter_config</normaloff>:/icons/meter_config</iconset>
+           <normaloff>:/icons/sensor</normaloff>:/icons/sensor</iconset>
          </property>
         </widget>
        </item>
@@ -251,7 +251,7 @@
    <addaction name="action_import_gps"/>
    <addaction name="action_import_grav"/>
    <addaction name="separator"/>
-   <addaction name="action_project_dock_2"/>
+   <addaction name="action_debug_Console"/>
   </widget>
   <widget class="QDockWidget" name="info_dock">
    <property name="sizePolicy">
@@ -262,7 +262,7 @@
    </property>
    <property name="minimumSize">
     <size>
-     <width>242</width>
+     <width>248</width>
      <height>246</height>
     </size>
    </property>
@@ -422,8 +422,14 @@
         </item>
         <item>
          <layout class="QGridLayout" name="console_btns_layout">
-          <item row="0" column="2">
+          <item row="0" column="3">
            <widget class="QComboBox" name="combo_console_verbosity">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <item>
              <property name="text">
               <string>Debug</string>
@@ -464,12 +470,25 @@
             </property>
            </widget>
           </item>
-          <item row="0" column="1">
+          <item row="0" column="2">
            <widget class="QLabel" name="label_logging_level">
             <property name="text">
              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;right&quot;&gt;Logging Level:&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
             </property>
            </widget>
+          </item>
+          <item row="0" column="1">
+           <spacer name="horizontalSpacer">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
           </item>
          </layout>
         </item>
@@ -479,9 +498,16 @@
     </layout>
    </widget>
   </widget>
-  <action name="actionDocumentation">
+  <action name="action_docs">
+   <property name="icon">
+    <iconset resource="resources/resources.qrc">
+     <normaloff>:/icons/open_in_new</normaloff>:/icons/open_in_new</iconset>
+   </property>
    <property name="text">
     <string>Documentation</string>
+   </property>
+   <property name="toolTip">
+    <string>View Online Documentation</string>
    </property>
    <property name="shortcut">
     <string>F1</string>
@@ -493,20 +519,6 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+Q</string>
-   </property>
-  </action>
-  <action name="action_project_dock">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="checked">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>Project</string>
-   </property>
-   <property name="shortcut">
-    <string>Alt+1</string>
    </property>
   </action>
   <action name="action_tool_dock">
@@ -574,7 +586,7 @@
   <action name="action_add_meter">
    <property name="icon">
     <iconset resource="resources/resources.qrc">
-     <normaloff>:/icons/meter_config</normaloff>:/icons/meter_config</iconset>
+     <normaloff>:/icons/sensor</normaloff>:/icons/sensor</iconset>
    </property>
    <property name="text">
     <string>Add Meter</string>
@@ -586,7 +598,7 @@
   <action name="action_project_info">
    <property name="icon">
     <iconset resource="resources/resources.qrc">
-     <normaloff>:/icons/dgs</normaloff>:/icons/dgs</iconset>
+     <normaloff>:/icons/info</normaloff>:/icons/info</iconset>
    </property>
    <property name="text">
     <string>Project Info...</string>
@@ -627,19 +639,24 @@
     <string>Import Gravity</string>
    </property>
   </action>
-  <action name="action_project_dock_2">
+  <action name="action_debug_Console">
    <property name="checkable">
     <bool>true</bool>
    </property>
    <property name="icon">
     <iconset resource="resources/resources.qrc">
-     <normaloff>:/icons/dgs</normaloff>:/icons/dgs</iconset>
+     <normaloff>:/icons/console</normaloff>:/icons/console</iconset>
    </property>
    <property name="text">
-    <string>Project Dock</string>
+    <string>Debug Console</string>
    </property>
    <property name="toolTip">
-    <string>Toggle the Project Sidebar</string>
+    <string>Toggle Debug Console</string>
+   </property>
+  </action>
+  <action name="action_about">
+   <property name="text">
+    <string>About</string>
    </property>
   </action>
  </widget>
@@ -650,9 +667,9 @@
    <header>dgp.gui.views.project_tree_view</header>
   </customwidget>
   <customwidget>
-   <class>MainWorkspace</class>
+   <class>WorkspaceWidget</class>
    <extends>QTabWidget</extends>
-   <header>dgp.gui.workspace</header>
+   <header>dgp.gui.widgets.workspace_widget</header>
    <container>1</container>
   </customwidget>
  </customwidgets>
@@ -663,38 +680,6 @@
   <include location="resources/resources.qrc"/>
  </resources>
  <connections>
-  <connection>
-   <sender>action_project_dock</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>project_dock</receiver>
-   <slot>setVisible(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>-1</x>
-     <y>-1</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>149</x>
-     <y>419</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>project_dock</sender>
-   <signal>visibilityChanged(bool)</signal>
-   <receiver>action_project_dock</receiver>
-   <slot>setChecked(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>149</x>
-     <y>419</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>-1</x>
-     <y>-1</y>
-    </hint>
-   </hints>
-  </connection>
   <connection>
    <sender>action_info_dock</sender>
    <signal>toggled(bool)</signal>
@@ -744,9 +729,25 @@
    </hints>
   </connection>
   <connection>
-   <sender>action_project_dock_2</sender>
+   <sender>info_dock</sender>
+   <signal>visibilityChanged(bool)</signal>
+   <receiver>action_debug_Console</receiver>
+   <slot>setChecked(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>744</x>
+     <y>991</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>action_debug_Console</sender>
    <signal>toggled(bool)</signal>
-   <receiver>project_dock</receiver>
+   <receiver>info_dock</receiver>
    <slot>setVisible(bool)</slot>
    <hints>
     <hint type="sourcelabel">
@@ -754,24 +755,8 @@
      <y>-1</y>
     </hint>
     <hint type="destinationlabel">
-     <x>135</x>
-     <y>459</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>project_dock</sender>
-   <signal>visibilityChanged(bool)</signal>
-   <receiver>action_project_dock_2</receiver>
-   <slot>setChecked(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>135</x>
-     <y>459</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>-1</x>
-     <y>-1</y>
+     <x>744</x>
+     <y>991</y>
     </hint>
    </hints>
   </connection>

@@ -2,13 +2,12 @@
 
 # Test gui/main.py
 import logging
-import time
 from pathlib import Path
 
 import pytest
 from PyQt5.QtCore import Qt
 from PyQt5.QtTest import QSignalSpy, QTest
-from PyQt5.QtWidgets import QMainWindow, QFileDialog, QProgressDialog, QPushButton
+from PyQt5.QtWidgets import QMainWindow, QProgressDialog, QPushButton
 
 from dgp.core.oid import OID
 from dgp.core.models.project import AirborneProject
@@ -16,26 +15,23 @@ from dgp.core.controllers.project_treemodel import ProjectTreeModel
 from dgp.core.controllers.flight_controller import FlightController
 from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.gui.main import MainWindow
-from dgp.gui.workspace import WorkspaceTab
 from dgp.gui.dialogs.create_project_dialog import CreateProjectDialog
 from dgp.gui.utils import ProgressEvent
 
 
 @pytest.fixture
-def flt_ctrl(prj_ctrl: AirborneProjectController):
-    return prj_ctrl.get_child(prj_ctrl.datamodel.flights[0].uid)
+def window(project) -> MainWindow:
+    window = MainWindow()
+    window.add_project(project)
+    yield window
+    window.close()
 
 
-@pytest.fixture
-def window(prj_ctrl):
-    return MainWindow(prj_ctrl)
-
-
-def test_MainWindow_load(window):
+def test_MainWindow_load(window, project):
     assert isinstance(window, QMainWindow)
     assert not window.isVisible()
 
-    window.load()
+    window.load(project)
     assert window.isVisible()
     assert not window.isWindowModified()
 
@@ -43,13 +39,14 @@ def test_MainWindow_load(window):
     assert not window.isVisible()
 
 
-def test_MainWindow_tab_open_requested(flt_ctrl: FlightController,
-                                       window: MainWindow):
+def test_MainWindow_tab_open_requested(project, window):
     assert isinstance(window.model, ProjectTreeModel)
 
     tab_open_spy = QSignalSpy(window.model.tabOpenRequested)
     assert 0 == len(tab_open_spy)
     assert 0 == window.workspace.count()
+
+    flt_ctrl = window.model.active_project.get_child(project.flights[0].uid)
 
     assert isinstance(flt_ctrl, FlightController)
     assert window.workspace.get_tab(flt_ctrl.uid) is None
@@ -57,18 +54,18 @@ def test_MainWindow_tab_open_requested(flt_ctrl: FlightController,
     window.model.item_activated(flt_ctrl.index())
     assert 1 == len(tab_open_spy)
     assert 1 == window.workspace.count()
-    assert isinstance(window.workspace.currentWidget(), WorkspaceTab)
 
     window.model.item_activated(flt_ctrl.index())
     assert 2 == len(tab_open_spy)
     assert 1 == window.workspace.count()
 
 
-def test_MainWindow_tab_close_requested(flt_ctrl: AirborneProjectController,
-                                        window: MainWindow):
+def test_MainWindow_tab_close_requested(project, window):
     tab_close_spy = QSignalSpy(window.model.tabCloseRequested)
     assert 0 == len(tab_close_spy)
     assert 0 == window.workspace.count()
+
+    flt_ctrl = window.model.active_project.get_child(project.flights[0].uid)
 
     window.model.item_activated(flt_ctrl.index())
     assert 1 == window.workspace.count()
@@ -140,21 +137,23 @@ def test_MainWindow_open_project_dialog(window: MainWindow, project_factory, tmp
     assert window.model.active_project.path != prj2_ctrl.path
     assert 1 == window.model.rowCount()
 
-    window.open_project_dialog(path=prj2.path)
+    window.open_project(path=prj2.path, prompt=False)
     assert 2 == window.model.rowCount()
 
     # Try to open an already open project
-    window.open_project_dialog(path=prj2.path)
+    window.open_project(path=prj2.path, prompt=False)
     assert 2 == window.model.rowCount()
 
-    window.open_project_dialog(path=tmpdir)
+    with pytest.raises(FileNotFoundError):
+        window.open_project(path=Path(tmpdir), prompt=False)
     assert 2 == window.model.rowCount()
 
 
-def test_MainWindow_progress_event_handler(window: MainWindow,
-                                           flt_ctrl: FlightController):
+def test_MainWindow_progress_event_handler(project, window):
     model: ProjectTreeModel = window.model
     progressEventRequested_spy = QSignalSpy(model.progressNotificationRequested)
+
+    flt_ctrl = window.model.active_project.get_child(project.flights[0].uid)
 
     prog_event = ProgressEvent(flt_ctrl.uid, label="Loading Data Set")
     assert flt_ctrl.uid == prog_event.uid

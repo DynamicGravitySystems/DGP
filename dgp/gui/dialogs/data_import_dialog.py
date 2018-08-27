@@ -56,9 +56,9 @@ class DataImportDialog(QDialog, Ui_DataImportDialog, FormValidator):
             }
         }
 
-        self._gravity = QListWidgetItem(QIcon(Icon.GRAVITY.value), "Gravity")
+        self._gravity = QListWidgetItem(Icon.GRAVITY.icon(), "Gravity")
         self._gravity.setData(Qt.UserRole, DataType.GRAVITY)
-        self._trajectory = QListWidgetItem(QIcon(Icon.TRAJECTORY.value), "Trajectory")
+        self._trajectory = QListWidgetItem(Icon.TRAJECTORY.icon(), "Trajectory")
         self._trajectory.setData(Qt.UserRole, DataType.TRAJECTORY)
 
         self.qlw_datatype.addItem(self._gravity)

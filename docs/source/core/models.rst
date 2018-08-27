@@ -17,8 +17,8 @@ The following generally describes the class hierarchy of a typical Airborne proj
 |    :obj:`~.project.AirborneProject`
 |    ├── :obj:`~.flight.Flight`
 |    │   ├── :obj:`~.dataset.DataSet`
-|    │   │   ├── :obj:`~.data.DataFile` -- Gravity
-|    │   │   ├── :obj:`~.data.DataFile` -- Trajectory
+|    │   │   ├── :obj:`~.datafile.DataFile` -- Gravity
+|    │   │   ├── :obj:`~.datafile.DataFile` -- Trajectory
 |    │   │   └── :obj:`~.dataset.DataSegment` -- Container (Multiple)
 |    │   └── :obj:`~.meter.Gravimeter` -- Link
 |    └── :obj:`~.meter.Gravimeter`
@@ -26,7 +26,7 @@ The following generally describes the class hierarchy of a typical Airborne proj
 -----------------------------------------
 
 The project can have multiple :obj:`~.flight.Flight`, and each Flight can have
-0 or more :obj:`~.flight.FlightLine`, :obj:`~.data.DataFile`, and linked
+0 or more :obj:`~.flight.FlightLine`, :obj:`~.datafile.DataFile`, and linked
 :obj:`~.meter.Gravimeter`.
 The project can also define multiple Gravimeters, of varying type with specific
 configuration files assigned to each.
@@ -100,10 +100,10 @@ dgp.core.models.flight module
 .. automodule:: dgp.core.models.flight
     :undoc-members:
 
-dgp.core.models.data module
----------------------------
+dgp.core.models.datafile module
+-------------------------------
 
-.. automodule:: dgp.core.models.data
+.. automodule:: dgp.core.models.datafile
     :members:
     :undoc-members:
 

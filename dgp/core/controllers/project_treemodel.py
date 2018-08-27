@@ -2,14 +2,13 @@
 import logging
 from typing import Optional, Generator, Union
 
-from PyQt5.QtCore import QObject, QModelIndex, pyqtSignal, QSortFilterProxyModel, Qt
+from PyQt5.QtCore import QObject, QModelIndex, pyqtSignal
 from PyQt5.QtGui import QStandardItemModel
 
-from dgp.core.types.enumerations import DataType
-from dgp.core.oid import OID
+from dgp.core import OID, DataType
 from dgp.core.controllers.controller_interfaces import (IFlightController,
                                                         IAirborneController,
-                                                        IDataSetController)
+                                                        IBaseController)
 from dgp.core.controllers.controller_helpers import confirm_action
 from dgp.gui.utils import ProgressEvent
 
@@ -44,29 +43,21 @@ class ProjectTreeModel(QStandardItemModel):
         Signal emitted to request a QProgressDialog from the main window.
         ProgressEvent is passed defining the parameters for the progress bar
 
-    Notes
-    -----
-    ProjectTreeModel loosely conforms to the IParent interface, and uses method
-    names reflecting the projects that it contains as children.
-    Part of the reason for this naming scheme is the conflict of the 'child'
-    property defined in IParent with the child() method of QObject (inherited
-    by QStandardItemModel).
-    So, although the ProjectTreeModel tries to conform with the overall parent
-    interface model, the relationship between Projects and the TreeModel is
-    special.
-
     """
     activeProjectChanged = pyqtSignal(str)
     projectMutated = pyqtSignal()
-    tabOpenRequested = pyqtSignal(OID, object, str)
+    projectClosed = pyqtSignal(OID)
+    tabOpenRequested = pyqtSignal(object, object)
     tabCloseRequested = pyqtSignal(OID)
     progressNotificationRequested = pyqtSignal(ProgressEvent)
 
-    def __init__(self, project: IAirborneController, parent: Optional[QObject] = None):
+    def __init__(self, project: IAirborneController = None,
+                 parent: Optional[QObject] = None):
         super().__init__(parent)
         self.log = logging.getLogger(__name__)
-        self.appendRow(project)
-        project.set_active(True)
+        if project is not None:
+            self.appendRow(project)
+            project.set_active(True)
 
     @property
     def active_project(self) -> Union[IAirborneController, None]:
@@ -110,12 +101,10 @@ class ProjectTreeModel(QStandardItemModel):
             self.tabCloseRequested.emit(flt.uid)
         child.save()
         self.removeRow(child.row())
+        self.projectClosed.emit(child.uid)
 
     def close_flight(self, flight: IFlightController):
         self.tabCloseRequested.emit(flight.uid)
-
-    def notify_tab_changed(self, flight: IFlightController):
-        flight.get_parent().activate_child(flight.uid)
 
     def item_selected(self, index: QModelIndex):
         """Single-click handler for View events"""
@@ -123,20 +112,19 @@ class ProjectTreeModel(QStandardItemModel):
 
     def item_activated(self, index: QModelIndex):
         """Double-click handler for View events"""
-
         item = self.itemFromIndex(index)
-        if isinstance(item, IFlightController):
-            item.get_parent().activate_child(item.uid)
-            self.tabOpenRequested.emit(item.uid, item, item.get_attr('name'))
-        elif isinstance(item, IAirborneController):
+        if not isinstance(item, IBaseController):
+            return
+
+        if isinstance(item, IAirborneController):
             for project in self.projects:
                 if project is item:
                     project.set_active(True)
                 else:
                     project.set_active(False)
             self.activeProjectChanged.emit(item.get_attr('name'))
-        elif isinstance(item, IDataSetController):
-            item.get_parent().activate_child(item.uid)
+
+        self.tabOpenRequested.emit(item.uid, item)
 
     def project_mutated(self, project: IAirborneController):
         self.projectMutated.emit()
@@ -168,33 +156,3 @@ class ProjectTreeModel(QStandardItemModel):
 
     def _warn_no_active_project(self):
         self.log.warning("No active projects.")
-
-
-# Experiment
-class ProjectTreeProxyModel(QSortFilterProxyModel):  # pragma: no cover
-    """Experiment to filter tree model to a subset - not working currently, may require
-    more detailed custom implementation of QAbstractProxyModel
-    """
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._filter_type = None
-        self.setRecursiveFilteringEnabled(True)
-
-    def setFilterType(self, obj: type):
-        self._filter_type = obj
-
-    def sourceModel(self) -> QStandardItemModel:
-        return super().sourceModel()
-
-    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex):
-        index: QModelIndex = self.sourceModel().index(source_row, 0, source_parent)
-        item = self.sourceModel().itemFromIndex(index)
-        print(item)
-        data = self.sourceModel().data(index, self.filterRole())
-        disp = self.sourceModel().data(index, Qt.DisplayRole)
-
-        res = isinstance(data, self._filter_type)
-        print("Result is: %s for row %d" % (str(res), source_row))
-        print("Row display value: " + str(disp))
-
-        return res

@@ -21,9 +21,6 @@ class AddFlightDialog(QDialog, Ui_NewFlight, FormValidator):
         self._project = project
         self._flight = flight
 
-        self.cb_gravimeters.setModel(project.meter_model)
-        self.qpb_add_sensor.clicked.connect(self._project.add_gravimeter_dlg)
-
         # Configure Form Validation
         self._name_validator = QRegExpValidator(QRegExp("[A-Za-z]+.{2,20}"))
         self.qle_flight_name.setValidator(self._name_validator)
@@ -53,11 +50,6 @@ class AddFlightDialog(QDialog, Ui_NewFlight, FormValidator):
         sequence = self.qsb_sequence.value()
         duration = self.qsb_duration.value()
 
-        meter = self.cb_gravimeters.currentData(role=Qt.UserRole)  # type: Gravimeter
-
-        # TODO: Add meter association to flight
-        # how to make a reference that can be retrieved after loading from JSON?
-
         if self._flight is not None:
             # Existing flight - update
             self._flight.set_attr('name', name)
@@ -65,7 +57,6 @@ class AddFlightDialog(QDialog, Ui_NewFlight, FormValidator):
             self._flight.set_attr('notes', notes)
             self._flight.set_attr('sequence', sequence)
             self._flight.set_attr('duration', duration)
-            # self._flight.add_child(meter)
         else:
             # Create new flight and add it to project
             flt = Flight(self.qle_flight_name.text(), date=date,

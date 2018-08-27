@@ -17,7 +17,7 @@ class Flight:
     The :class:`Flight` contains meta-data common to the overall flight
     date flown, duration, notes, etc.
 
-    The Flight is also the parent container for 1 or more :class:`DataSet`s
+    The Flight is also the parent container for 1 or more :class:`DataSet` s
     which group the Trajectory and Gravity data collected during a flight, and
     can define segments of data (flight lines), based on the flight path.
 

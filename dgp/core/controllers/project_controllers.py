@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Union, List, Generator, cast
 
 from PyQt5.QtCore import Qt, QRegExp
-from PyQt5.QtGui import QColor, QStandardItemModel, QIcon, QRegExpValidator
+from PyQt5.QtGui import QColor, QStandardItemModel, QRegExpValidator
 from pandas import DataFrame
 
 from .project_treemodel import ProjectTreeModel
@@ -54,26 +54,28 @@ class AirborneProjectController(IAirborneController):
         self._parent = None
         self._active = None
 
-        self.setIcon(QIcon(Icon.DGS.value))
+        self.setIcon(Icon.DGP_NOTEXT.icon())
         self.setToolTip(str(self._project.path.resolve()))
         self.setData(project, Qt.UserRole)
         self.setBackground(QColor(StateColor.INACTIVE.value))
 
-        self.flights = ProjectFolder("Flights", Icon.AIRBORNE.value)
+        self.flights = ProjectFolder("Flights")
         self.appendRow(self.flights)
-        self.meters = ProjectFolder("Gravimeters", Icon.METER.value)
+        self.meters = ProjectFolder("Gravimeters")
         self.appendRow(self.meters)
 
         self._child_map = {Flight: self.flights,
                            Gravimeter: self.meters}
 
-        for flight in self.project.flights:
-            controller = FlightController(flight, project=self)
-            self.flights.appendRow(controller)
-
+        # It is important that GravimeterControllers are defined before Flights
+        # Flights may create references to a Gravimeter object, but not vice versa
         for meter in self.project.gravimeters:
             controller = GravimeterController(meter, parent=self)
             self.meters.appendRow(controller)
+
+        for flight in self.project.flights:
+            controller = FlightController(flight, project=self)
+            self.flights.appendRow(controller)
 
         self._bindings = [
             ('addAction', ('Set Project Name', self.set_name)),
@@ -291,7 +293,9 @@ class AirborneProjectController(IAirborneController):
             else:
                 self.log.error("Unrecognized data group: " + datafile.group)
                 return
-            progress_event = ProgressEvent(self.uid, f"Loading {datafile.group.value}", stop=0)
+            progress_event = ProgressEvent(self.uid, f"Loading "
+                                                     f"{datafile.group.value}",
+                                           stop=0)
             self.get_parent().progressNotificationRequested.emit(progress_event)
             loader = FileLoader(datafile.source_path, method,
                                 parent=self.parent_widget, **params)

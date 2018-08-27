@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
-from _weakrefset import WeakSet
+from weakref import WeakSet
 from typing import Union
 
 from PyQt5.QtCore import Qt
@@ -12,7 +12,7 @@ from dgp.core.controllers.dataset_controller import DataSetController
 from dgp.core.controllers.controller_interfaces import IAirborneController, IFlightController
 from dgp.core.models.dataset import DataSet
 from dgp.core.models.flight import Flight
-from dgp.core.types.enumerations import DataType, StateColor
+from dgp.core.types.enumerations import DataType, StateColor, Icon
 from dgp.gui.dialogs.add_flight_dialog import AddFlightDialog
 
 
@@ -54,6 +54,7 @@ class FlightController(IFlightController):
         self._parent = project
         self._active: bool = False
         self.setData(flight, Qt.UserRole)
+        self.setIcon(Icon.AIRBORNE.icon())
         self.setEditable(False)
         self.setBackground(QColor(StateColor.INACTIVE.value))
 

@@ -1,15 +1,17 @@
 # -*- coding: utf-8 -*-
-
+import json
 import logging
 from pathlib import Path
-from typing import Union, Callable
+from typing import Callable
 
 from PyQt5.QtCore import QThread, pyqtSignal, pyqtBoundSignal
 
+from dgp.core.models.project import GravityProject, AirborneProject
 from dgp.core.oid import OID
 
 __all__ = ['LOG_FORMAT', 'LOG_COLOR_MAP', 'LOG_LEVEL_MAP', 'ConsoleHandler',
-           'ProgressEvent', 'ThreadedFunction', 'clear_signal']
+           'ProgressEvent', 'ThreadedFunction', 'clear_signal',
+           'load_project_from_path']
 
 LOG_FORMAT = logging.Formatter(fmt="%(asctime)s:%(levelname)s - %(module)s:"
                                    "%(funcName)s :: %(message)s",
@@ -19,6 +21,9 @@ LOG_COLOR_MAP = {'debug': 'blue', 'info': 'yellow', 'warning': 'brown',
 LOG_LEVEL_MAP = {'debug': logging.DEBUG, 'info': logging.INFO,
                  'warning': logging.WARNING, 'error': logging.ERROR,
                  'critical': logging.CRITICAL}
+_loaders = {GravityProject.__name__: GravityProject,
+            AirborneProject.__name__: AirborneProject}
+
 _log = logging.getLogger(__name__)
 
 
@@ -95,27 +100,54 @@ class ThreadedFunction(QThread):
             res = self._functor(*self._args)
             self.result.emit(res)
         except Exception as e:
-            _log.exception(f"Exception executing {self.__name__}")
+            _log.exception(f"Exception executing {self._functor!r}")
 
 
-def get_project_file(path: Path) -> Union[Path, None]:
-    """
-    Attempt to retrieve a project file (*.d2p) from the given dir path,
-    otherwise signal failure by returning False.
+def load_project_from_path(path: Path) -> GravityProject:
+    """Search a directory path for a valid DGP json file, then load the project
+    using the appropriate class loader.
+
+    Any discovered .json files are loaded and parsed using a naive JSON loader,
+    the top level object is then inspected for an `_type` attribute, which
+    determines the project loader to use.
+
+    The project's path attribute is updated to the path where it was loaded from
+    upon successful decoding. This is to ensure any relative paths encoded in
+    the project do not break if the project's directory has been moved/renamed.
 
     Parameters
     ----------
-    path : Path
-        Directory path to search for DGP project files
+    path: :class:`pathlib.Path`
+        Directory path which contains a valid DGP project .json file.
+        If the path specified is not a directory, the parent is automatically
+        used
 
-    Returns
-    -------
-    Path : absolute path to DGP JSON file if found, else None
+    Raises
+    ------
+    :exc:`FileNotFoundError`
+        If supplied `path` does not exist, or
+        If no valid project JSON file could be loaded from the path
+
+
+    ToDo: Use QLockFile to try and lock the project json file for exclusive use
 
     """
-    # TODO: Read JSON and check for presence of a magic attribute that marks a project file
-    for child in sorted(path.glob('*.json')):
-        return child.resolve()
+    if not path.exists():
+        raise FileNotFoundError(f'Non-existent path supplied {path!s}')
+    if not path.is_dir():
+        path = path.parent
+
+    for child in path.glob('*.json'):
+        with child.open('r') as fd:
+            raw_str = fd.read()
+            raw_json: dict = json.loads(raw_str)
+
+        loader = _loaders.get(raw_json.get('_type', None), None)
+        if loader is not None:
+            project = loader.from_json(raw_str)
+            project.path = path
+            return project
+    raise FileNotFoundError(f'No valid DGP JSON file could be loaded from {path!s}')
 
 
 def clear_signal(signal: pyqtBoundSignal):

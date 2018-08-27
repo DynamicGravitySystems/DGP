@@ -46,10 +46,4 @@ def test_ProjectTreeModel_item_activated(prj_ctrl: AirborneProjectController,
                                                parent=model.index(prj_ctrl.row(), 0)))
     assert not flt_ctrl.is_active
     model.item_activated(fc1_index)
-    assert flt_ctrl.is_active
     assert 1 == len(tabOpen_spy)
-    assert flt_ctrl is prj_ctrl.active_child
-
-    _no_exist_uid = OID()
-    assert prj_ctrl.activate_child(_no_exist_uid) is None
-
