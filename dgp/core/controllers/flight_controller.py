@@ -120,8 +120,8 @@ class FlightController(IFlightController):
         super().update()
 
     def clone(self):
-        clone = FlightController(self._flight, project=self.get_parent())
-        self._clones.add(clone)
+        clone = FlightController(self.entity, project=self.get_parent())
+        self.register_clone(clone)
         return clone
 
     def delete(self):

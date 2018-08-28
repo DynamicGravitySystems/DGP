@@ -42,6 +42,10 @@ class GravimeterController(IMeterController):
 
     def set_parent(self, parent: IAirborneController) -> None:
         self._parent = parent
+    def clone(self):
+        clone = GravimeterController(self.entity, self.get_parent())
+        self.register_clone(clone)
+        return clone
 
     def update(self):
         self.setData(self._meter.name, Qt.DisplayRole)

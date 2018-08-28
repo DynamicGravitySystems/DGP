@@ -2,6 +2,7 @@
 import weakref
 from pathlib import Path
 from typing import Union, Generator, List, Tuple, Any
+from weakref import WeakKeyDictionary, WeakSet, WeakMethod, ref
 
 from PyQt5.QtGui import QStandardItem, QStandardItemModel
 from PyQt5.QtWidgets import QWidget
@@ -29,9 +30,10 @@ class AbstractController(QStandardItem, AttributeProxy):
     def __init__(self, *args, parent=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._parent: AbstractController = parent
-        self._referrers = weakref.WeakSet()
-        self._update_refs = weakref.WeakKeyDictionary()
-        self._delete_refs = weakref.WeakKeyDictionary()
+        self._clones: Set[AbstractController] = WeakSet()
+        self.__cloned = False
+        self._observers: Dict[StateAction, Dict] = {state: WeakKeyDictionary()
+                                                    for state in StateAction}
 
     @property
     def uid(self) -> OID:
@@ -43,45 +45,39 @@ class AbstractController(QStandardItem, AttributeProxy):
     def set_parent(self, parent: 'AbstractController'):
         self._parent = parent
 
-    def take_reference(self, owner, on_delete=None, on_update=None) -> weakref.ReferenceType:
-        """take_reference returns a weak reference to this controller
+    @property
+    def clones(self):
+        """Yields any active (referenced) clones of this controller"""
+        for clone in self._clones:
+            yield clone
 
-        on_delete and on_update parameters allow caller to be notified when the
-        object has been deleted or updated
+    def clone(self):
+        """Return a clone of this controller for use in other UI models
 
-        Parameters
-        ----------
-        owner : object
-        on_delete : method
-        on_update : method
-
-        Returns
-        -------
-        weakref.ReferenceType
-
+        Must be overridden by subclasses, subclasses should call register_clone
+        on the cloned instance to ensure update events are propagated to the
+        clone.
         """
-        if on_delete is not None:
-            self._delete_refs[owner] = on_delete
-        if on_update is not None:
-            self._update_refs[owner] = on_update
-        self._referrers.add(owner)
+        raise NotImplementedError
 
-        return weakref.ref(self)
+    @property
+    def is_clone(self) -> bool:
+        return self.__cloned
+
+    @is_clone.setter
+    def is_clone(self, value: bool):
+        self.__cloned = value
+
+    def register_clone(self, clone: 'AbstractController'):
+        clone.is_clone = True
+        self._clones.add(clone)
 
     @property
     def is_active(self) -> bool:
-        return len(self._referrers) > 0
+        """Return True if there are any active observers of this controller"""
+        return len(self._observers[StateAction.DELETE]) > 0
 
-    def delete(self):
-        """Call this when deleting a controller to allow it to clean up any open
-        references (widgets)
-        """
-        for destruct in self._delete_refs.values():
-            destruct()
 
-    def update(self):
-        for ref in self._update_refs.values():
-            ref()
 
     @property
     def parent_widget(self) -> Union[QWidget, None]:
@@ -93,6 +89,49 @@ class AbstractController(QStandardItem, AttributeProxy):
     @property
     def menu(self) -> List[MenuBinding]:
         raise NotImplementedError
+    def register_observer(self, observer, callback, state: StateAction) -> None:
+        """Register an observer with this controller
+
+        Observers will be notified when the controller undergoes the applicable
+        StateAction (UPDATE/DELETE), via the supplied callback method.
+
+        Parameters
+        ----------
+        observer : object
+            The observer object, note must be weak reference'able, when the
+            observer is deleted or gc'd any callbacks will be dropped.
+        callback : bound method
+            Bound method to call when the state action occurs.
+            Note this must be a *bound* method of an object, builtin functions
+            or PyQt signals will raise an error.
+        state : StateAction
+            Action to observe in the controller, currently only meaningful for
+            UPDATE or DELETE
+
+        """
+        self._observers[state][observer] = WeakMethod(callback)
+
+    def delete(self) -> None:
+        """Notify any observers and clones that this controller is being deleted
+
+        Also calls delete() on any children of this controller to cleanup after
+        the parent has been deleted.
+        """
+        for child in self.children:
+            child.delete()
+        for cb in self._observers[StateAction.DELETE].values():
+            cb()()
+        for clone in self.clones:
+            clone.delete()
+
+    def update(self) -> None:
+        """Notify any observers and clones that the controller state has updated
+
+        """
+        for cb in self._observers[StateAction.UPDATE].values():
+            cb()()
+        for clone in self.clones:
+            clone.update()
 
     @property
     def children(self) -> Generator['AbstractController', None, None]:
@@ -185,16 +224,8 @@ class IAirborneController(AbstractController):
     def meter_model(self) -> QStandardItemModel:
         raise NotImplementedError
 
-    @property
-    def can_activate(self):
-        return True
-
 
 class IFlightController(AbstractController):
-    @property
-    def can_activate(self):
-        return True
-
     def get_parent(self) -> IAirborneController:
         raise NotImplementedError
 
@@ -207,10 +238,6 @@ class IDataSetController(AbstractController):
     @property
     def hdfpath(self) -> Path:
         raise NotImplementedError
-
-    @property
-    def can_activate(self):
-        return True
 
     def add_datafile(self, datafile) -> None:
         """

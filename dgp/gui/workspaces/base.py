@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+import weakref
 
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtGui import QCloseEvent
@@ -12,9 +13,19 @@ __all__ = ['WorkspaceTab', 'SubTab']
 
 
 class WorkspaceTab(QWidget):
+    def __init__(self, controller: AbstractController, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        controller.register_observer(self, self.close, StateAction.DELETE)
+        controller.register_observer(self, self._slot_update, StateAction.UPDATE)
+        self._controller = weakref.ref(controller)
+
     @property
     def uid(self) -> OID:
         raise NotImplementedError
+    @property
+    def controller(self) -> AbstractController:
+        return self._controller()
 
     @property
     def title(self) -> str:

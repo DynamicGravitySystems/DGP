@@ -109,6 +109,9 @@ class AirborneProjectController(IAirborneController):
             return self._fields[key][0]
         return True
 
+    def clone(self):
+        raise NotImplementedError
+
     @property
     def children(self) -> Generator[IFlightController, None, None]:
         for child in itertools.chain(self.flights.items(), self.meters.items()):
@@ -226,6 +229,7 @@ class AirborneProjectController(IAirborneController):
             self.get_parent().project_mutated(self)
         except AttributeError:
             self.log.warning(f"project {self.get_attr('name')} has no parent")
+        super().update()
 
     def _post_load(self, datafile: DataFile, dataset: IDataSetController,
                    data: DataFrame) -> None:  # pragma: no cover

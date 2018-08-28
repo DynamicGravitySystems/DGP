@@ -130,9 +130,7 @@ class DataSetTab(WorkspaceTab):
     """Root workspace tab for DataSet controller manipulation"""
 
     def __init__(self, dataset: DataSetController, parent=None):
-        super().__init__(parent=parent, flags=Qt.Widget)
-        self.dataset = dataset
-
+        super().__init__(controller=dataset, parent=parent, flags=Qt.Widget)
         self.ws_settings: dict = self.get_state()
 
         layout = QtWidgets.QVBoxLayout(self)
@@ -151,12 +149,8 @@ class DataSetTab(WorkspaceTab):
 
     @property
     def title(self):
-        return f'{self.dataset.get_attr("name")} ' \
-               f'[{self.dataset.parent().get_attr("name")}]'
-
-    @property
-    def uid(self):
-        return self.dataset.uid
+        return f'{self.controller.get_attr("name")} ' \
+               f'[{self.controller.parent().get_attr("name")}]'
 
     def _tab_loaded(self, tab: SubTab):
         """Restore tab state after initial loading is complete"""
@@ -171,4 +165,3 @@ class DataSetTab(WorkspaceTab):
             state[tab.__class__.__name__] = tab.get_state()
 
         super().save_state(state=state)
-

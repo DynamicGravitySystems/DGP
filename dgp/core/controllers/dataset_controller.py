@@ -39,7 +39,7 @@ class DataSegmentController(AbstractController):
         self.update()
 
         self._menu = [
-            ('addAction', ('Delete', self.delete))
+            ('addAction', ('Delete', self._action_delete)),
         ]
 
     @property
@@ -60,18 +60,13 @@ class DataSegmentController(AbstractController):
         self.setToolTip(repr(self._segment))
 
     def clone(self) -> 'DataSegmentController':
-        return DataSegmentController(self._segment, clone=True)
+        clone = DataSegmentController(self.entity)
+        self.register_clone(clone)
+        return clone
 
-    def delete(self):
-        """Delete this data segment from any active plots (via weak ref), and
-        from its parent DataSet/Controller
+    def _action_delete(self):
+        self.get_parent().remove_child(self.uid, confirm=True)
 
-        """
-        super().delete()
-        try:
-            self._parent.remove_segment(self.uid)
-        except KeyError:
-            pass
 
 
 class DataSetController(IDataSetController):
@@ -136,7 +131,9 @@ class DataSetController(IDataSetController):
         return None
 
     def clone(self):
-        return DataSetController(self._dataset, self.get_parent())
+        clone = DataSetController(self.entity, self.get_parent(), self.project)
+        self.register_clone(clone)
+        return clone
 
     @property
     def project(self):
