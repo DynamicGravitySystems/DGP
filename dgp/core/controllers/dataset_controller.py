@@ -114,10 +114,6 @@ class DataSetController(IDataSetController):
 
         self._clones: Set[DataSetController] = weakref.WeakSet()
 
-    @property
-    def children(self):
-        return None
-
     def clone(self):
         clone = DataSetController(self.entity, self.get_parent(), self.project)
         self.register_clone(clone)
@@ -144,11 +140,6 @@ class DataSetController(IDataSetController):
     @property
     def segment_model(self) -> QStandardItemModel:
         return self._segments.internal_model
-
-    @property
-    def segments(self) -> Generator[DataSegmentController, None, None]:
-        for i in range(self._segments.rowCount()):
-            yield self._segments.child(i)
 
     @property
     def columns(self) -> List[str]:
@@ -205,10 +196,7 @@ class DataSetController(IDataSetController):
                                       interp_only=fields)
         self._gravity = n_grav
         self._trajectory = n_traj
-        self.log.info(f'DataFrame aligned.')
-
-    def get_parent(self) -> IFlightController:
-        return self._flight()
+        _log.info(f'DataFrame aligned.')
 
     def add_datafile(self, datafile: DataFile) -> None:
         if datafile.group is DataType.GRAVITY:
@@ -228,45 +216,32 @@ class DataSetController(IDataSetController):
     def get_datafile(self, group) -> DataFileController:
         return self._child_map[group]
 
-    def add_segment(self, uid: OID, start: Timestamp, stop: Timestamp,
-                    label: str = "") -> DataSegmentController:
-        segment = DataSegment(uid, start, stop,
-                              self._segments.rowCount(), label)
-        self._dataset.segments.append(segment)
-        seg_ctrl = DataSegmentController(segment, parent=self)
-        self._segments.appendRow(seg_ctrl)
-        return seg_ctrl
+    @property
+    def children(self):
+        for i in range(self._segments.rowCount()):
+            yield self._segments.child(i)
 
-    def get_segment(self, uid: OID) -> DataSegmentController:
-        for segment in self._segments.items():  # type: DataSegmentController
-            if segment.uid == uid:
-                return segment
+    def add_child(self, child: LineUpdate) -> DataSegmentController:
+        """Add a DataSegment as a child to this DataSet"""
 
-    def update_segment(self, uid: OID, start: Timestamp = None,
-                       stop: Timestamp = None, label: str = None):
-        segment = self.get_segment(uid)
-        # TODO: Find a better way to deal with model item clones
-        if segment is None:
-            raise KeyError(f'Invalid UID, no segment exists with UID: {uid!s}')
+        segment = DataSegment(child.uid, child.start, child.stop,
+                              self._segments.rowCount(), label=child.label)
+        self.entity.segments.append(segment)
+        segment_c = DataSegmentController(segment, parent=self)
+        self._segments.appendRow(segment_c)
+        return segment_c
 
-        segment_clone = self.segment_model.item(segment.row())
-        if start:
-            segment.set_attr('start', start)
-            segment_clone.set_attr('start', start)
-        if stop:
-            segment.set_attr('stop', stop)
-            segment_clone.set_attr('stop', stop)
-        if label:
-            segment.set_attr('label', label)
-            segment_clone.set_attr('label', label)
+    def remove_child(self, uid: OID, confirm: bool = True):
+        # if confirm:
+        #     pass
+        seg_c: DataSegmentController = self.get_child(uid)
+        if seg_c is None:
+            raise KeyError("Invalid uid supplied, child does not exist.")
 
-    def remove_segment(self, uid: OID):
-        segment = self.get_segment(uid)
-        if segment is None:
-            raise KeyError(f'Invalid UID, no segment exists with UID: {uid!s}')
-
-        self._segments.removeRow(segment.row())
-        self._dataset.segments.remove(segment.datamodel)
+        _log.debug(f'Deleting segment {seg_c} {uid}')
+        seg_c.delete()
+        self._segments.removeRow(seg_c.row())
+        self.entity.segments.remove(seg_c.entity)
 
     def update(self):
         self.setText(self.entity.name)

@@ -153,14 +153,17 @@ class AbstractController(QStandardItem, AttributeProxy):
 
     @property
     def children(self) -> Generator['AbstractController', None, None]:
-        """Return a generator of IChild objects specific to the parent.
+        """Yields children of this controller
 
-        Returns
-        -------
-        Generator[AbstractController, None, None]
+        Override this property to provide generic access to controller children
+
+        Yields
+        ------
+        AbstractController
+            Children of this controller
 
         """
-        raise NotImplementedError
+        yield from ()
 
     def add_child(self, child) -> 'AbstractController':
         """Add a child object to the controller, and its underlying
@@ -181,16 +184,29 @@ class AbstractController(QStandardItem, AttributeProxy):
         :exc:`TypeError`
             If the child is not an allowed type for the controller.
         """
-        if self.children is None:
-            raise TypeError(f"{self.__class__} does not support children")
-        raise NotImplementedError
+        pass
 
-    def remove_child(self, child, confirm: bool = True) -> bool:
-        if self.children is None:
-            return False
-        raise NotImplementedError
+    def remove_child(self, uid: OID, confirm: bool = True) -> bool:
+        """Remove a child from this controller, and notify the child of its deletion
 
-    def get_child(self, uid: Union[str, OID]) -> MaybeChild:
+        Parameters
+        ----------
+        uid : OID
+            OID of the child to remove
+        confirm : bool, optional
+            Optionally request that the controller confirms the action before
+            removing the child, default is True
+
+        Returns
+        -------
+        bool
+            True on successful removal of child
+            False on failure (i.e. invalid uid supplied)
+
+        """
+        pass
+
+    def get_child(self, uid: OID) -> MaybeChild:
         """Get a child of this object by matching OID
 
         Parameters
@@ -200,8 +216,8 @@ class AbstractController(QStandardItem, AttributeProxy):
 
         Returns
         -------
-        IChild or None
-            Returns the child object referred to by uid if it exists
+        MaybeChild
+            Returns the child controller object referred to by uid if it exists
             else None
 
         """
@@ -209,11 +225,14 @@ class AbstractController(QStandardItem, AttributeProxy):
             if uid == child.uid:
                 return child
 
-    @property
-    def datamodel(self) -> object:
-        raise NotImplementedError
+    def __str__(self):
+        return str(self.entity)
+
+    def __hash__(self):
+        return hash(self.uid)
 
 
+# noinspection PyAbstractClass
 class IAirborneController(AbstractController):
     def add_flight_dlg(self):
         raise NotImplementedError
@@ -243,15 +262,17 @@ class IAirborneController(AbstractController):
         raise NotImplementedError
 
 
+# noinspection PyAbstractClass
 class IFlightController(AbstractController):
-    def get_parent(self) -> IAirborneController:
-        raise NotImplementedError
+    pass
 
 
+# noinspection PyAbstractClass
 class IMeterController(AbstractController):
     pass
 
 
+# noinspection PyAbstractClass
 class IDataSetController(AbstractController):
     @property
     def hdfpath(self) -> Path:
@@ -269,25 +290,5 @@ class IDataSetController(AbstractController):
         """
         raise NotImplementedError
 
-    def add_segment(self, uid: OID, start: float, stop: float,
-                    label: str = ""):
-        raise NotImplementedError
-
-    def get_segment(self, uid: OID):
-        raise NotImplementedError
-
-    def remove_segment(self, uid: OID) -> None:
-        """
-        Removes the specified data-segment from the DataSet.
-
-        Parameters
-        ----------
-        uid : :obj:`OID`
-            uid (OID or str) of the segment to be removed
-
-        Raises
-        ------
-        :exc:`KeyError` if supplied uid is not contained within the DataSet
-
-        """
+    def get_datafile(self, group):
         raise NotImplementedError
