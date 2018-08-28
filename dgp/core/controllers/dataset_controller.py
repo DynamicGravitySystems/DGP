@@ -38,6 +38,7 @@ class DataSegmentController(AbstractController):
 
         self._menu = [
             ('addAction', ('Delete', self._action_delete)),
+            ('addAction', ('Properties', self._action_properties))
         ]
 
     @property
@@ -61,6 +62,8 @@ class DataSegmentController(AbstractController):
         self.setText(str(self.entity))
         self.setToolTip(repr(self.entity))
 
+    def _action_properties(self):
+        pass
 
 
 class DataSetController(IDataSetController):
@@ -109,7 +112,7 @@ class DataSetController(IDataSetController):
             ('addAction', ('Align Data', self.align)),
             ('addSeparator', ()),
             ('addAction', ('Delete', self._action_delete)),
-            ('addAction', ('Properties', lambda: None))
+            ('addAction', ('Properties', self._action_properties))
         ]
 
         self._clones: Set[DataSetController] = weakref.WeakSet()
@@ -274,3 +277,6 @@ class DataSetController(IDataSetController):
 
     def _action_delete(self, confirm: bool = True):
         self.get_parent().remove_child(self.uid, confirm)
+
+    def _action_properties(self):
+        pass

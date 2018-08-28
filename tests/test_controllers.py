@@ -71,7 +71,7 @@ def test_gravimeter_controller(tmpdir):
     assert hash(meter_ctrl)
 
     meter_ctrl_clone = meter_ctrl.clone()
-    assert meter == meter_ctrl_clone.datamodel
+    assert meter == meter_ctrl_clone.entity
 
     assert "AT1A-Test" == meter_ctrl.data(Qt.DisplayRole)
     meter_ctrl.set_attr('name', "AT1A-New")
@@ -119,7 +119,7 @@ def test_flight_controller(project: AirborneProject):
     assert fc.get_child(dataset2.uid) is None
 
     fc.remove_child(dsc.uid, confirm=False)
-    assert 0 == len(fc.datamodel.datasets)
+    assert 0 == len(fc.entity.datasets)
 
 
 def test_FlightController_bindings(project: AirborneProject):
@@ -148,7 +148,7 @@ def test_airborne_project_controller(project):
     assert 2 == len(project.gravimeters)
 
     project_ctrl = AirborneProjectController(project)
-    assert project == project_ctrl.datamodel
+    assert project == project_ctrl.entity
     assert project_ctrl.path == project.path
     # Need a model to have a parent
     assert project_ctrl.parent_widget is None
@@ -179,7 +179,7 @@ def test_airborne_project_controller(project):
 
     fc2 = project_ctrl.get_child(flight2.uid)
     assert isinstance(fc2, FlightController)
-    assert flight2 == fc2.datamodel
+    assert flight2 == fc2.entity
 
     assert 5 == project_ctrl.flights.rowCount()
     project_ctrl.remove_child(flight2.uid, confirm=False)
@@ -196,34 +196,3 @@ def test_airborne_project_controller(project):
     jsons = project_ctrl.save(to_file=False)
     assert isinstance(jsons, str)
 
-
-def test_parent_child_activations(project: AirborneProject):
-    """Test child/parent interaction of DataSet Controller with
-    FlightController
-    """
-    prj_ctrl = AirborneProjectController(project)
-    flt_ctrl = prj_ctrl.get_child(project.flights[0].uid)
-    flt2 = Flight("Flt-2")
-    flt2_ctrl = prj_ctrl.add_child(flt2)
-
-    _ds_name = "DataSet-Test"
-    dataset = DataSet(name=_ds_name)
-    ds_ctrl = flt_ctrl.add_child(dataset)
-
-    assert prj_ctrl is flt_ctrl.get_parent()
-    assert flt_ctrl is ds_ctrl.get_parent()
-
-    assert prj_ctrl.can_activate
-    assert flt_ctrl.can_activate
-    assert ds_ctrl.can_activate
-
-    assert not prj_ctrl.is_active
-    assert not flt_ctrl.is_active
-
-    from dgp.core.types.enumerations import StateColor
-    assert StateColor.INACTIVE.value == prj_ctrl.background().color().name()
-    assert StateColor.INACTIVE.value == flt_ctrl.background().color().name()
-    assert StateColor.INACTIVE.value == ds_ctrl.background().color().name()
-
-    prj_ctrl.set_active(True)
-    assert StateColor.ACTIVE.value == prj_ctrl.background().color().name()

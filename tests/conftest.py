@@ -142,7 +142,7 @@ def prj_ctrl(project):
 
 @pytest.fixture
 def flt_ctrl(prj_ctrl: AirborneProjectController):
-    return prj_ctrl.get_child(prj_ctrl.datamodel.flights[0].uid)
+    return prj_ctrl.get_child(prj_ctrl.entity.flights[0].uid)
 
 
 @pytest.fixture(scope='module')

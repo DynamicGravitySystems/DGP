@@ -68,11 +68,9 @@ class FlightController(IFlightController):
             ('addAction', ('Import Trajectory',
                            lambda: self._load_file_dialog(DataType.TRAJECTORY))),
             ('addSeparator', ()),
-            ('addAction', (f'Delete {self.entity.name}',
-                           lambda: self._delete_self(confirm=True))),
-            ('addAction', ('Rename Flight', lambda: self._set_name())),
-            ('addAction', ('Properties',
-                           lambda: self._show_properties_dlg()))
+            ('addAction', (f'Delete {self.entity.name}', self._action_delete_self)),
+            ('addAction', ('Rename Flight', self._set_name)),
+            ('addAction', ('Properties', self._show_properties_dlg))
         ]
         self.update()
 
@@ -185,7 +183,7 @@ class FlightController(IFlightController):
     def _add_dataset(self):
         self.add_child(DataSet(name=f'DataSet-{self.datasets.rowCount()}'))
 
-    def _delete_self(self, confirm: bool = True):
+    def _action_delete_self(self, confirm: bool = True):
         self.get_parent().remove_child(self.uid, confirm)
 
     def _set_name(self):  # pragma: no cover

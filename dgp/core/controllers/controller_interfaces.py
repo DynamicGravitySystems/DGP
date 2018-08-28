@@ -26,6 +26,51 @@ MaybeChild = Union['AbstractController', None]
 
 
 class AbstractController(QStandardItem, AttributeProxy):
+    """AbstractController provides a base interface for creating Controllers
+
+    This class provides some concrete implementations for various features
+    common to all controllers:
+        - Encapsulation of a model (dgp.core.models) object
+        - Exposure of the underlying model entities' UID
+        - Observer registration (notify observers on StateAction's)
+        - Clone registration (notify clones of updates to the base object)
+        - Child lookup function (get_child) to find child by its UID
+
+    The following methods must be explicitly implemented by subclasses:
+        - clone()
+        - menu @property
+
+    The following methods may be optionally implemented by subclasses:
+        - children @property
+        - add_child()
+        - remove_child()
+
+    Parameters
+    ----------
+    model
+        The underlying model (from dgp.core.models) entity of this controller
+    project : IAirborneController, optional
+        A weak-reference is stored to the project controller for direct access
+        by the controller via the :prop:`project` @property
+    parent : AbstractController, optional
+        A strong-reference is maintained to the parent controller object,
+        accessible via the :meth:`get_parent` method
+    *args
+        Positional arguments are supplied to the QStandardItem constructor
+    *kwargs
+        Keyword arguments are supplied to the QStandardItem constructor
+
+    Notes
+    -----
+    When removing/deleting a controller, the delete() method should be called on
+    the child, in order for it to notify any subscribers of its impending doom.
+
+    The update method should be extended by subclasses in order to perform
+    visual updates (e.g. Item text, tooltips) when an entity attribute has been
+    updated (via AttributeProxy::set_attr), call the super() method to propagate
+    updates to any observers automatically.
+
+    """
     def __init__(self, model, *args, project=None, parent=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._model = model
@@ -96,6 +141,7 @@ class AbstractController(QStandardItem, AttributeProxy):
 
     @property
     def parent_widget(self) -> Union[QWidget, None]:
+        """Returns the parent QWidget of this items' QAbstractModel"""
         try:
             return self.model().parent()
         except AttributeError:
