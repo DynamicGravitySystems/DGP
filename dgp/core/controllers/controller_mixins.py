@@ -13,7 +13,7 @@ class AttributeProxy:
     """
 
     @property
-    def datamodel(self) -> object:
+    def entity(self) -> object:
         """Return the underlying model of the proxy class."""
         raise NotImplementedError
 
@@ -24,14 +24,14 @@ class AttributeProxy:
         pass
 
     def get_attr(self, key: str) -> Any:
-        if hasattr(self.datamodel, key):
-            return getattr(self.datamodel, key)
+        if hasattr(self.entity, key):
+            return getattr(self.entity, key)
         else:
-            raise AttributeError("Object {!r} has no attribute {}".format(self.datamodel, key))
+            raise AttributeError("Object {!r} has no attribute {}".format(self.entity, key))
 
     def set_attr(self, key: str, value: Any):
-        if not hasattr(self.datamodel, key):
-            raise AttributeError("Object {!r} has no attribute {}".format(self.datamodel, key))
+        if not hasattr(self.entity, key):
+            raise AttributeError("Object {!r} has no attribute {}".format(self.entity, key))
         if not self.writeable(key):
             raise AttributeError("Attribute [{}] is not writeable".format(key))
 
@@ -41,7 +41,7 @@ class AttributeProxy:
             if not valid == QValidator.Acceptable:
                 raise ValueError("Value does not pass validation")
 
-        setattr(self.datamodel, key, value)
+        setattr(self.entity, key, value)
         self.update()
 
     def writeable(self, key: str) -> bool:

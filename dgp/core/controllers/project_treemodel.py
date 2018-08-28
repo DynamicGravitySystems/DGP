@@ -8,7 +8,8 @@ from PyQt5.QtGui import QStandardItemModel
 from dgp.core import OID, DataType
 from dgp.core.controllers.controller_interfaces import (IFlightController,
                                                         IAirborneController,
-                                                        IDataSetController, AbstractController)
+                                                        IDataSetController,
+                                                        AbstractController)
 from dgp.core.controllers.controller_helpers import confirm_action
 from dgp.gui.utils import ProgressEvent
 

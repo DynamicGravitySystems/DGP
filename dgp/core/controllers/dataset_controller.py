@@ -2,25 +2,28 @@
 import logging
 import weakref
 from pathlib import Path
-from typing import List, Union, Generator, Set
+from typing import List, Union, Set, cast
 
 from PyQt5.QtWidgets import QInputDialog
 from pandas import DataFrame, Timestamp, concat
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QColor, QBrush, QStandardItemModel, QStandardItem
+from PyQt5.QtGui import QStandardItemModel, QStandardItem
 
 from dgp.core import OID, Icon
 from dgp.core.hdf5_manager import HDF5Manager
 from dgp.core.models.datafile import DataFile
 from dgp.core.models.dataset import DataSet, DataSegment
-from dgp.core.types.enumerations import DataType, StateColor
+from dgp.core.types.enumerations import DataType, StateAction
 from dgp.lib.etc import align_frames
+from dgp.gui.plotting.helpers import LineUpdate
 
 from . import controller_helpers
 from .gravimeter_controller import GravimeterController
 from .controller_interfaces import IFlightController, IDataSetController, AbstractController
 from .project_containers import ProjectFolder
 from .datafile_controller import DataFileController
+
+_log = logging.getLogger(__name__)
 
 
 class DataSegmentController(AbstractController):
@@ -29,13 +32,8 @@ class DataSegmentController(AbstractController):
     Implements reference tracking feature allowing the mutation of segments
     representations displayed on a plot surface.
     """
-    def __init__(self, segment: DataSegment, parent: IDataSetController = None,
-                 clone=False):
-        super().__init__()
-        self._segment = segment
-        self._parent = parent
-        self._clone = clone
-        self.setData(segment, Qt.UserRole)
+    def __init__(self, segment: DataSegment, parent: IDataSetController = None):
+        super().__init__(model=segment, parent=parent)
         self.update()
 
         self._menu = [
@@ -43,21 +41,12 @@ class DataSegmentController(AbstractController):
         ]
 
     @property
-    def uid(self) -> OID:
-        return self._segment.uid
-
-    @property
-    def datamodel(self) -> DataSegment:
-        return self._segment
+    def entity(self) -> DataSegment:
+        return cast(DataSegment, super().entity)
 
     @property
     def menu(self):
         return self._menu
-
-    def update(self):
-        super().update()
-        self.setText(str(self._segment))
-        self.setToolTip(repr(self._segment))
 
     def clone(self) -> 'DataSegmentController':
         clone = DataSegmentController(self.entity)
@@ -67,22 +56,21 @@ class DataSegmentController(AbstractController):
     def _action_delete(self):
         self.get_parent().remove_child(self.uid, confirm=True)
 
+    def update(self):
+        super().update()
+        self.setText(str(self.entity))
+        self.setToolTip(repr(self.entity))
+
 
 
 class DataSetController(IDataSetController):
-    def __init__(self, dataset: DataSet, flight: IFlightController):
-        super().__init__()
-        self._dataset = dataset
-        self._flight = weakref.ref(flight)
-        # self._project = self._flight().project
-        self.log = logging.getLogger(__name__)
+    def __init__(self, dataset: DataSet, flight: IFlightController,
+                 project=None):
+        super().__init__(model=dataset, project=project, parent=flight)
 
-        self.setEditable(False)
-        self.setText(self._dataset.name)
         self.setIcon(Icon.PLOT_LINE.icon())
-        self.setBackground(QBrush(QColor(StateColor.INACTIVE.value)))
-        self._grav_file = DataFileController(self._dataset.gravity, self)
-        self._traj_file = DataFileController(self._dataset.trajectory, self)
+        self._grav_file = DataFileController(self.entity.gravity, self)
+        self._traj_file = DataFileController(self.entity.trajectory, self)
         self._child_map = {DataType.GRAVITY: self._grav_file,
                            DataType.TRAJECTORY: self._traj_file}
 
@@ -136,28 +124,16 @@ class DataSetController(IDataSetController):
         return clone
 
     @property
-    def project(self):
-        return self.get_parent().get_parent()
-
-    @property
-    def uid(self) -> OID:
-        return self._dataset.uid
-
-    @property
-    def is_active(self):
-        return False
-
-    @property
-    def hdfpath(self) -> Path:
-        return self.get_parent().get_parent().hdfpath
+    def entity(self) -> DataSet:
+        return cast(DataSet, super().entity)
 
     @property
     def menu(self):  # pragma: no cover
         return self._menu_bindings
 
     @property
-    def datamodel(self) -> DataSet:
-        return self._dataset
+    def hdfpath(self) -> Path:
+        return self.project.hdfpath
 
     @property
     def series_model(self) -> QStandardItemModel:
@@ -190,12 +166,12 @@ class DataSetController(IDataSetController):
     def gravity(self) -> Union[DataFrame]:
         if not self._gravity.empty:
             return self._gravity
-        if self._dataset.gravity is None:
+        if self.entity.gravity is None:
             return self._gravity
         try:
-            self._gravity = HDF5Manager.load_data(self._dataset.gravity, self.hdfpath)
+            self._gravity = HDF5Manager.load_data(self.entity.gravity, self.hdfpath)
         except Exception:
-            self.log.exception(f'Exception loading gravity from HDF')
+            _log.exception(f'Exception loading gravity from HDF')
         finally:
             return self._gravity
 
@@ -203,12 +179,12 @@ class DataSetController(IDataSetController):
     def trajectory(self) -> Union[DataFrame, None]:
         if not self._trajectory.empty:
             return self._trajectory
-        if self._dataset.trajectory is None:
+        if self.entity.trajectory is None:
             return self._trajectory
         try:
-            self._trajectory = HDF5Manager.load_data(self._dataset.trajectory, self.hdfpath)
+            self._trajectory = HDF5Manager.load_data(self.entity.trajectory, self.hdfpath)
         except Exception:
-            self.log.exception(f'Exception loading trajectory data from HDF')
+            _log.exception(f'Exception loading trajectory data from HDF')
         finally:
             return self._trajectory
 
@@ -219,7 +195,7 @@ class DataSetController(IDataSetController):
 
     def align(self):
         if self.gravity.empty or self.trajectory.empty:
-            self.log.info(f'Gravity or Trajectory is empty, cannot align.')
+            _log.info(f'Gravity or Trajectory is empty, cannot align.')
             return
         from dgp.lib.gravity_ingestor import DGS_AT1A_INTERP_FIELDS
         from dgp.lib.trajectory_ingestor import TRAJECTORY_INTERP_FIELDS
@@ -293,7 +269,7 @@ class DataSetController(IDataSetController):
         self._dataset.segments.remove(segment.datamodel)
 
     def update(self):
-        self.setText(self._dataset.name)
+        self.setText(self.entity.name)
         super().update()
 
     # Context Menu Handlers

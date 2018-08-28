@@ -1,16 +1,15 @@
 # -*- coding: utf-8 -*-
-import weakref
 from pathlib import Path
-from typing import Union, Generator, List, Tuple, Any
+from typing import Union, Generator, List, Tuple, Any, Set, Dict
 from weakref import WeakKeyDictionary, WeakSet, WeakMethod, ref
 
+from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QStandardItem, QStandardItemModel
 from PyQt5.QtWidgets import QWidget
 
-from dgp.core.controllers.controller_mixins import AttributeProxy
 from dgp.core.oid import OID
-from dgp.core.types.enumerations import DataType
-
+from dgp.core.controllers.controller_mixins import AttributeProxy
+from dgp.core.types.enumerations import DataType, StateAction
 
 """
 Interface module, while not exactly Pythonic, helps greatly by providing
@@ -27,23 +26,33 @@ MaybeChild = Union['AbstractController', None]
 
 
 class AbstractController(QStandardItem, AttributeProxy):
-    def __init__(self, *args, parent=None, **kwargs):
+    def __init__(self, model, *args, project=None, parent=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._model = model
+        self._project = ref(project) if project is not None else None
         self._parent: AbstractController = parent
         self._clones: Set[AbstractController] = WeakSet()
         self.__cloned = False
         self._observers: Dict[StateAction, Dict] = {state: WeakKeyDictionary()
                                                     for state in StateAction}
 
+        self.setEditable(False)
+        self.setText(model.name if hasattr(model, "name") else str(model))
+        self.setData(model, Qt.UserRole)
+
     @property
     def uid(self) -> OID:
-        raise NotImplementedError
+        """Return the unique Object IDentifier for the controllers' model"""
+        return self._model.uid
 
-    def get_parent(self) -> 'AbstractController':
-        return self._parent
+    @property
+    def entity(self):
+        """Returns the underlying core/model object of this controller"""
+        return self._model
 
-    def set_parent(self, parent: 'AbstractController'):
-        self._parent = parent
+    @property
+    def project(self) -> 'IAirborneController':
+        return self._project() if self._project is not None else None
 
     @property
     def clones(self):
@@ -77,7 +86,13 @@ class AbstractController(QStandardItem, AttributeProxy):
         """Return True if there are any active observers of this controller"""
         return len(self._observers[StateAction.DELETE]) > 0
 
+    @property
+    def menu(self) -> List[MenuBinding]:
+        """Return a list of MenuBinding's to construct a context menu
 
+        Must be overridden by subclasses
+        """
+        raise NotImplementedError
 
     @property
     def parent_widget(self) -> Union[QWidget, None]:
@@ -86,9 +101,12 @@ class AbstractController(QStandardItem, AttributeProxy):
         except AttributeError:
             return None
 
-    @property
-    def menu(self) -> List[MenuBinding]:
-        raise NotImplementedError
+    def get_parent(self) -> 'AbstractController':
+        return self._parent
+
+    def set_parent(self, parent: 'AbstractController'):
+        self._parent = parent
+
     def register_observer(self, observer, callback, state: StateAction) -> None:
         """Register an observer with this controller
 
