@@ -174,7 +174,7 @@ class LinearSegment(LinearRegionItem):
         self.sigRegionChanged.connect(self._update_label_pos)
 
         self._menu = QMenu()
-        self._menu.addAction('Remove', lambda: self.sigDeleteRequested.emit())
+        self._menu.addAction('Remove', self.sigDeleteRequested.emit)
         self._menu.addAction('Set Label', self._get_label_dlg)
 
         plot.addItem(self)
@@ -332,11 +332,15 @@ class LinearSegmentGroup(QObject):
             segment.setVisible(visible)
             segment._label.setVisible(visible)
 
-    def delete(self):
+    def remove(self):
+        self.delete(emit=False)
+
+    def delete(self, emit=True):
         """Delete all child segments and emit a DELETE update"""
         for segment in self._segments:
             segment.remove()
-        self.emit_update(StateAction.DELETE)
+        if emit:
+            self.emit_update(StateAction.DELETE)
 
     def emit_update(self, action: StateAction = StateAction.UPDATE):
         """Emit a LineUpdate object with the current segment attributes
@@ -377,4 +381,3 @@ class LinearSegmentGroup(QObject):
         """Emit an update object when the rate-limit timer has expired"""
         self._timer.stop()
         self.emit_update(StateAction.UPDATE)
-

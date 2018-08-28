@@ -212,11 +212,11 @@ class DataSetController(IDataSetController):
 
     def add_datafile(self, datafile: DataFile) -> None:
         if datafile.group is DataType.GRAVITY:
-            self.datamodel.gravity = datafile
+            self.entity.gravity = datafile
             self._grav_file.set_datafile(datafile)
             self._gravity = DataFrame()
         elif datafile.group is DataType.TRAJECTORY:
-            self.datamodel.trajectory = datafile
+            self.entity.trajectory = datafile
             self._traj_file.set_datafile(datafile)
             self._trajectory = DataFrame()
         else:

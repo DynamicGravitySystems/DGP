@@ -78,6 +78,7 @@ class WorkspaceWidget(QtWidgets.QTabWidget):
         if label is None:
             label = tab.title
         super().addTab(tab, label)
+        tab.sigControllerUpdated.connect(lambda: self._update_name(tab))
         self.setCurrentWidget(tab)
 
     # Utility functions for referencing Tab widgets by OID
@@ -92,11 +93,15 @@ class WorkspaceWidget(QtWidgets.QTabWidget):
         for i in range(self.count()):
             if uid == self.widget(i).uid:
                 return i
+        return -1
 
     def close_tab_by_index(self, index: int):
+        print(f"closing tab at index {index}")
+        if index == -1:
+            return
         tab = self.widget(index)
-        tab.close()
         self.removeTab(index)
+        tab.close()
 
     def close_tab(self, uid: OID):
         tab = self.get_tab(uid)
@@ -105,3 +110,7 @@ class WorkspaceWidget(QtWidgets.QTabWidget):
         index = self.get_tab_index(uid)
         if index is not None:
             self.removeTab(index)
+
+    def _update_name(self, tab: WorkspaceTab):
+        index = self.indexOf(tab)
+        self.setTabText(index, tab.title)

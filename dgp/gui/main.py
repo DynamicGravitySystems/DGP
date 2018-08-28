@@ -73,7 +73,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Model Event Signals #
         self.model.tabOpenRequested.connect(self._tab_open_requested)
-        self.model.tabCloseRequested.connect(self.workspace.close_tab)
+        # self.model.tabCloseRequested.connect(self.workspace.close_tab)
         self.model.progressNotificationRequested.connect(self._progress_event_handler)
         self.model.projectMutated.connect(self._project_mutated)
         self.model.projectClosed.connect(lambda x: self._update_recent_menu())

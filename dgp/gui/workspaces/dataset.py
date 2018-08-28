@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-import pandas as pd
+import logging
+
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QAction, QSizePolicy
@@ -13,23 +14,23 @@ from dgp.gui.widgets.data_transform_widget import TransformWidget
 from dgp.gui.utils import ThreadedFunction
 from .base import WorkspaceTab, SubTab
 
+_log = logging.getLogger(__name__)
+
 
 class SegmentSelectTab(SubTab):
     """Sub-tab displayed within the DataSetTab Workspace"""
     def __init__(self, dataset: DataSetController, parent=None):
-        super().__init__(parent=parent, flags=Qt.Widget)
-        self.dataset: DataSetController = dataset
-        self._state = {}
+        super().__init__(dataset, parent=parent, flags=Qt.Widget)
 
         self._plot = LineSelectPlot(rows=2)
-        self._plot.sigSegmentChanged.connect(self._on_modified_segment)
+        self._plot.sigSegmentChanged.connect(self._slot_segment_changed)
 
-        for segment in self.dataset.segments:
+        for segment in self.control.children:
             group = self._plot.add_segment(segment.get_attr('start'),
                                            segment.get_attr('stop'),
                                            segment.get_attr('label'),
                                            segment.uid, emit=False)
-            segment.add_reference(group)
+            segment.register_observer(group, group.remove, StateAction.DELETE)
 
         # Create/configure the tab layout/widgets/controls
         qhbl_main_layout = QtWidgets.QHBoxLayout(self)
@@ -50,9 +51,13 @@ class SegmentSelectTab(SubTab):
         self.toolbar.addAction(qa_channel_toggle)
 
         # Load data channel selection widget
-        th = ThreadedFunction(self.dataset.dataframe, parent=self)
+        th = ThreadedFunction(self.control.dataframe, parent=self)
         th.result.connect(self._dataframe_loaded)
         th.start()
+
+    @property
+    def control(self) -> DataSetController:
+        return super().control
 
     def _dataframe_loaded(self, df):
         data_cols = ('gravity', 'long_accel', 'cross_accel', 'beam', 'temp',
@@ -62,6 +67,7 @@ class SegmentSelectTab(SubTab):
         stat_cols = [df[col] for col in df if col not in data_cols]
         self.controller.set_series(*cols)
         self.controller.set_binary_series(*stat_cols)
+        _log.debug("Dataframe loaded for SegmentSelectTab")
         self.sigLoaded.emit(self)
 
     def get_state(self):
@@ -85,26 +91,26 @@ class SegmentSelectTab(SubTab):
     def restore_state(self, state):
         self.controller.restore_state(state)
 
-    def _on_modified_segment(self, update: LineUpdate):
+    def _slot_segment_changed(self, update: LineUpdate):
         if update.action is StateAction.DELETE:
-            self.dataset.remove_segment(update.uid)
-            return
-
-        start: pd.Timestamp = update.start
-        stop: pd.Timestamp = update.stop
-        assert isinstance(start, pd.Timestamp)
-        assert isinstance(stop, pd.Timestamp)
-
-        if update.action is StateAction.UPDATE:
-            self.dataset.update_segment(update.uid, start, stop, update.label)
-        else:
-            seg = self.dataset.add_segment(update.uid, start, stop, update.label)
-            seg.add_reference(self._plot.get_segment(seg.uid))
+            self.control.remove_child(update.uid, confirm=False)
+        elif update.action is StateAction.UPDATE:
+            seg_c = self.control.get_child(update.uid)
+            if update.start:
+                seg_c.set_attr('start', update.start)
+            if update.stop:
+                seg_c.set_attr('stop', update.stop)
+            if update.label:
+                seg_c.set_attr('label', update.label)
+        elif update.action is StateAction.CREATE:
+            seg_c = self.control.add_child(update)
+            seg_grp = self._plot.get_segment(update.uid)
+            seg_c.register_observer(seg_grp, seg_grp.remove, StateAction.DELETE)
 
 
 class DataTransformTab(SubTab):
     def __init__(self, dataset: DataSetController, parent=None):
-        super().__init__(parent=parent, flags=Qt.Widget)
+        super().__init__(dataset, parent=parent, flags=Qt.Widget)
         layout = QtWidgets.QHBoxLayout(self)
         plotter = TransformPlot(rows=1)
         plotter.setSizePolicy(QSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding))
@@ -112,12 +118,16 @@ class DataTransformTab(SubTab):
         plot_layout.addWidget(plotter.get_toolbar(self), alignment=Qt.AlignRight)
         plot_layout.addWidget(plotter)
 
-        transform_control = TransformWidget(dataset, plotter)
+        transform_control = TransformWidget(self.control, plotter)
 
         layout.addWidget(transform_control, stretch=0, alignment=Qt.AlignLeft)
         layout.addLayout(plot_layout, stretch=5)
 
         self.sigLoaded.emit(self)
+
+    @property
+    def control(self) -> DataSetController:
+        return super().control
 
     def get_state(self):
         pass

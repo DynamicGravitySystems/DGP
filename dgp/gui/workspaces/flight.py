@@ -1,16 +1,18 @@
 # -*- coding: utf-8 -*-
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QWidget
 
 from dgp.core.controllers.flight_controller import FlightController
-from .base import WorkspaceTab
+from .base import WorkspaceTab, SubTab
 
 
-class FlightMapTab(QWidget):
-    def __init__(self, flight, parent=None):
-        super().__init__(parent=parent, flags=Qt.Widget)
-        self.flight = flight
+class FlightMapTab(SubTab):
+    def __init__(self, flight: FlightController, parent=None):
+        super().__init__(flight, parent=parent, flags=Qt.Widget)
+
+    @property
+    def control(self) -> FlightController:
+        return super().control
 
 
 class FlightTab(WorkspaceTab):

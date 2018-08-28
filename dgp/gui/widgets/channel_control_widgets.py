@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 import itertools
 from functools import partial
 from typing import List, Dict, Tuple
@@ -17,6 +18,7 @@ from dgp.core import Icon, OID
 from dgp.gui.plotting.backends import GridPlotWidget, Axis, LINE_COLORS
 
 __all__ = ['ChannelController', 'ChannelItem']
+_log = logging.getLogger(__name__)
 
 
 class ColorPicker(QLabel):
@@ -406,10 +408,14 @@ class ChannelController(QWidget):
     def _remove_series(self, item: ChannelItem):
         line = self._active[item.uid]
         self.plotter.remove_plotitem(line)
-        del self._indexes[item.uid]
+        try:
+            del self._indexes[item.uid]
+        except KeyError:
+            pass
 
     def _channels_cleared(self):
         """Respond to plot notification that all lines have been cleared"""
+        _log.debug("Plot channels cleared")
         for i in range(self._model.rowCount()):
             item: ChannelItem = self._model.item(i)
             item.set_visible(False, emit=False)

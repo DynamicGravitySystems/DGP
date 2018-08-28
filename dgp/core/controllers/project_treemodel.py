@@ -36,10 +36,6 @@ class ProjectTreeModel(QStandardItemModel):
         Signal emitted to notify application that project data has changed.
     tabOpenRequested : pyqtSignal[IFlightController]
         Signal emitted to request a tab be opened for the supplied Flight
-    tabCloseRequested : pyqtSignal(IFlightController)
-        Signal notifying application that tab for given flight should be closed
-        This is called for example when a Flight is deleted to ensure any open
-        tabs referencing it are also deleted.
     progressNotificationRequested : pyqtSignal[ProgressEvent]
         Signal emitted to request a QProgressDialog from the main window.
         ProgressEvent is passed defining the parameters for the progress bar
@@ -49,7 +45,6 @@ class ProjectTreeModel(QStandardItemModel):
     projectMutated = pyqtSignal()
     projectClosed = pyqtSignal(OID)
     tabOpenRequested = pyqtSignal(object, object)
-    tabCloseRequested = pyqtSignal(OID)
     progressNotificationRequested = pyqtSignal(ProgressEvent)
     sigDataChanged = pyqtSignal(object)
 
@@ -98,15 +93,10 @@ class ProjectTreeModel(QStandardItemModel):
                                           f"{child.get_attr('name')}?",
                                           self.parent()):
             return
-        for i in range(child.flight_model.rowCount()):
-            flt: IFlightController = child.flight_model.item(i, 0)
-            self.tabCloseRequested.emit(flt.uid)
         child.save()
+        child.delete()
         self.removeRow(child.row())
         self.projectClosed.emit(child.uid)
-
-    def notify_tab_changed(self, flight: IFlightController):
-        flight.get_parent().activate_child(flight.uid)
 
     def item_selected(self, index: QModelIndex):
         """Single-click handler for View events"""
