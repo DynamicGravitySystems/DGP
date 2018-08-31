@@ -46,6 +46,7 @@ class SettingsKey(Enum):
     LoadLastProject = "User/LoadLast"
     RestoreWorkspace = "User/RestoreWorkspace"
     OpenInNewWindow = "User/OpenInNewWindow"
+    LastExportPath = "User/LastExportPath"
 
     def __call__(self):
         """Allow retrieval of the enum value using call syntax `()` """
