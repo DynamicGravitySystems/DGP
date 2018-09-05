@@ -1,63 +1,67 @@
 # -*- coding: utf-8 -*-
-from enum import Enum
 from pathlib import Path
-from typing import List
 
+from pandas import DataFrame, concat
 
-class TimeFormat(Enum):
-    ISO8601 = '%Y-%m-%dT%H:%M:%S.%f%z'
+from .export_profile import ExportProfile
 
-
-class ExportProfile:
-    __profiles = set()
-
-    @classmethod
-    def register(cls, profile):
-        cls.__profiles.add(profile)
-
-    @classmethod
-    def profiles(cls):
-        for profile in cls.__profiles:
-            yield profile
-
-    def __init__(self, name: str, columns: List[str] = None, ext: str = 'dat',
-                 precision: int = 10, datum: str = "WGS84",
-                 dateformat: TimeFormat = TimeFormat.ISO8601,
-                 _userprofile: bool = True, register: bool = True):
-        self.name = name
-        self.columns = columns or []
-        self.ext = ext
-        self.precision = precision
-        self.datum = datum
-        self.dateformat = dateformat
-        self._userprofile = _userprofile
-
-        if register:
-            ExportProfile.register(self)
+__all__ = ['Exporter']
 
 
 class Exporter:
-    __exporters = set()
+    __exporters = {}
     name = "Base Exporter"
-    ext = 'dat'
+    help = ""
+
+    """Exporter Base Class
+    
+    This class cannot be instantiated directly.
+    Sub-classes must implement the `export` method, and the `parameters` property
+    
+    Parameters
+    ----------
+    basename : str
+        Base name for the file to be exported. Extension may be determined by
+        the export profile.
+    profile : :class:`ExportProfile`
+    *data
+    
+    Attributes
+    ----------
+    name 
+    help
+    
+    """
 
     @classmethod
     def register(cls):
         """Explicitly register this class in the set of available exporters"""
-        Exporter.__exporters.add(cls)
+        Exporter.__exporters[cls.name] = cls
 
     @classmethod
     def exporters(cls):
-        for exporter in Exporter.__exporters:
-            yield exporter
+        yield from Exporter.__exporters.values()
 
-    def __init__(self, name: str, *data, profile=None):
-        self._name = name
+    def __init__(self, basename: str, profile: ExportProfile, *data):
+        self._name = basename
         self._profile = profile
+        self._data: DataFrame = concat(data, axis=1, sort=True)
+        self._cols = [col for col in self._data]
+
+    @property
+    def columns(self):
+        return [col for col in self.profile.columns if col in self._cols]
+
+    @property
+    def dataframe(self) -> DataFrame:
+        if self.profile.precision:
+            return self._data.round(decimals=self.profile.precision)
+        else:
+            return self._data
 
     @property
     def filename(self) -> str:
-        return f'{self._name}.{self.ext}'
+        return f'{self._name}.{self._profile.ext}'
 
     @property
     def profile(self) -> ExportProfile:

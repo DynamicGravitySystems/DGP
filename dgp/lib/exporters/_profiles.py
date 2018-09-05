@@ -14,4 +14,3 @@ standard = ExportProfile(name="Standard",
 
 extended = ExportProfile(name="Extended", columns=[], precision=10,
                          _userprofile=False)
-
