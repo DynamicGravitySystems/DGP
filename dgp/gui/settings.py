@@ -47,6 +47,7 @@ class SettingsKey(Enum):
     RestoreWorkspace = "User/RestoreWorkspace"
     OpenInNewWindow = "User/OpenInNewWindow"
     LastExportPath = "User/LastExportPath"
+    UserExportProfiles = "User/ExportProfiles"
 
     def __call__(self):
         """Allow retrieval of the enum value using call syntax `()` """
