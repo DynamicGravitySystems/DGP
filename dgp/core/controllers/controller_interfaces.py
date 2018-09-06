@@ -271,6 +271,13 @@ class AbstractController(QStandardItem, AttributeProxy):
             if uid == child.uid:
                 return child
 
+    def export(self):
+        """Get data from this object to export
+
+        Must be implemented by sub-classes
+        """
+        raise NotImplementedError
+
     def __str__(self):
         return str(self.entity)
 

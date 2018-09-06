@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 from enum import Enum
-from typing import List
 
 
-class Group(Enum):
+class Category(Enum):
     Gravity = 'gravity'
     Trajectory = 'trajectory'
     AirborneTransform = 'airborne_transform'
@@ -30,8 +29,8 @@ class ColumnProfile:
     identifier : str
         Column identifier name, this corresponds to the columns name in its 
         source DataFrame/Series
-    group : :class:`Group`
-        Group/category that this column belongs to e.g. Gravity or Trajectory
+    group : :class:`Category`
+        Category/category that this column belongs to e.g. Gravity or Trajectory
     name : str, optional
         Optional friendly name for this column for display purposes
     unit : :class:`Unit`, optional
@@ -43,7 +42,7 @@ class ColumnProfile:
     
     
     """
-    def __init__(self, identifier, group: Group, name=None,
+    def __init__(self, identifier, group: Category, name=None,
                  unit: Unit = Unit.Scalar, description=None, register=True):
         self.identifier = identifier
         self.name = name or self.identifier
@@ -59,8 +58,8 @@ class ColumnProfile:
         return self.unit.name
 
     @classmethod
-    def columns(cls) -> List['ColumnProfile']:
-        return cls.__columns[:]
+    def columns(cls):
+        yield from cls.__columns[:]
 
     @classmethod
     def register(cls, instance):

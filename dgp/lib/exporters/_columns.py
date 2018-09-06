@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
-from .column_profile import ColumnProfile, Group, Unit
+from .column_profile import ColumnProfile, Category, Unit
 
 # Standard Column Definitions #
-ColumnProfile("gravity", Group.Gravity, "Gravity", unit=Unit.mGal)
-ColumnProfile("long_accel", Group.Gravity, unit=Unit.Gal)
-ColumnProfile("cross_accel", Group.Gravity, "cross_accel",
+ColumnProfile("gravity", Category.Gravity, "Gravity", unit=Unit.mGal)
+ColumnProfile("long_accel", Category.Gravity, unit=Unit.Gal)
+ColumnProfile("cross_accel", Category.Gravity, "cross_accel",
               unit=Unit.Gal)
-ColumnProfile("beam", Group.Gravity, unit=Unit.Gal)
-ColumnProfile("temp", Group.Gravity, "Sensor Temp", unit=Unit.DegC)
-ColumnProfile("pressure", Group.Gravity, "Sensor Pressure", unit=Unit.inchHg)
-ColumnProfile("Etemp", Group.Gravity, "Electronics Temp", unit=Unit.DegC)
-ColumnProfile("latitude", Group.Trajectory, unit=Unit.Degrees)
-ColumnProfile("longitude", Group.Trajectory, unit=Unit.Degrees)
-ColumnProfile("gps_week", Group.Trajectory)
-ColumnProfile("gps_sow", Group.Trajectory)
+ColumnProfile("beam", Category.Gravity, unit=Unit.Gal)
+ColumnProfile("temp", Category.Gravity, "Sensor Temp", unit=Unit.DegC)
+ColumnProfile("pressure", Category.Gravity, "Sensor Pressure", unit=Unit.inchHg)
+ColumnProfile("Etemp", Category.Gravity, "Electronics Temp", unit=Unit.DegC)
+ColumnProfile("latitude", Category.Trajectory, unit=Unit.Degrees)
+ColumnProfile("longitude", Category.Trajectory, unit=Unit.Degrees)
+ColumnProfile("gps_week", Category.Trajectory)
+ColumnProfile("gps_sow", Category.Trajectory)
