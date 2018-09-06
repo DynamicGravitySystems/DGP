@@ -28,7 +28,7 @@ class ExportProfile:
     def copy(self) -> 'ExportProfile':
         return ExportProfile(**self.__dict__)
 
-    def __init__(self, name: str, columns: List[str] = None, ext: str = 'dat',
+    def __init__(self, name: str, columns: List[str] = None, ext=None,
                  precision: int = 10, dateformat: TimeFormat = TimeFormat.ISO8601,
                  _userprofile: bool = True, register: bool = True):
         self.name = name

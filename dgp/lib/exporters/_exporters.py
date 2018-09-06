@@ -10,6 +10,7 @@ __all__ = ['CSVExporter', 'JSONExporter', 'HDFExporter']
 class CSVExporter(Exporter):
     name = "CSV Exporter"
     help = "Export data to a CSV (comma-separated value) formatted file"
+    ext = 'csv'
 
     @property
     def parameters(self):
@@ -29,6 +30,7 @@ class CSVExporter(Exporter):
 class JSONExporter(Exporter):
     name = "JSON Exporter"
     help = "Export data to a Java Standard Object Notation (JSON) formatted file"
+    ext = 'json'
 
     @property
     def parameters(self):
@@ -42,6 +44,7 @@ class JSONExporter(Exporter):
 
 class HDFExporter(Exporter):
     name = "HDF5 Exporter"
+    ext = 'hdf5'
 
     @property
     def parameters(self):

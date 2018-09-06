@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
-from enum import Enum
+from enum import Enum, auto
 
 
 class Category(Enum):
-    Gravity = 'gravity'
-    Trajectory = 'trajectory'
-    AirborneTransform = 'airborne_transform'
+    Any = auto()
+    Gravity = auto()
+    Trajectory = auto()
+    Transform = auto()
+    Status = auto()
+    User = auto()
 
 
 class Unit(Enum):
@@ -20,8 +23,6 @@ class Unit(Enum):
 
 
 class ColumnProfile:
-    __columns = []
-
     """ColumnProfile defines characteristics of columns available for export
     
     Parameters
@@ -29,23 +30,30 @@ class ColumnProfile:
     identifier : str
         Column identifier name, this corresponds to the columns name in its 
         source DataFrame/Series
-    group : :class:`Category`
-        Category/category that this column belongs to e.g. Gravity or Trajectory
+    category: :class:`Category`
+        Category that this column belongs to e.g. Gravity or Trajectory.
+        See the :class:`Category` enumeration.
     name : str, optional
         Optional friendly name for this column for display purposes
     unit : :class:`Unit`, optional
         Optional Unit type for representing values of this column
     description : str, optional
         Optional description for this column profile
+    group : str, optional
+        Optional sub-category classifier to group this profile within the
+        specified category
     register : bool, optional
         If True (default) automatically register this column profile upon creation
     
-    
     """
-    def __init__(self, identifier, group: Category, name=None,
-                 unit: Unit = Unit.Scalar, description=None, register=True):
+    __columns = []
+
+    def __init__(self, identifier, category: Category, name=None,
+                 unit: Unit = Unit.Scalar, description=None, group=None,
+                 register=True):
         self.identifier = identifier
         self.name = name or self.identifier
+        self.category = category
         self.group = group
         self.unit = unit
         self.description = description or ""

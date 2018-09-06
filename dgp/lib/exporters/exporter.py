@@ -12,6 +12,7 @@ class Exporter:
     __exporters = {}
     name = "Base Exporter"
     help = ""
+    ext = 'dat'
 
     """Exporter Base Class
     
@@ -61,7 +62,10 @@ class Exporter:
 
     @property
     def filename(self) -> str:
-        return f'{self._name}.{self._profile.ext}'
+        if self.profile.ext:
+            return f'{self._name}.{self.profile.ext}'
+        else:
+            return f'{self._name}.{self.ext}'
 
     @property
     def profile(self) -> ExportProfile:

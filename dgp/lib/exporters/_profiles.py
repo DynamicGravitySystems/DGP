@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from .exporter import ExportProfile
+from .export_profile import ExportProfile
 
 """Predefined export profiles"""
 
