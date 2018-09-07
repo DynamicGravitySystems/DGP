@@ -13,7 +13,7 @@ from dgp.core import OID, Icon
 from dgp.core.hdf5_manager import HDF5Manager
 from dgp.core.models.datafile import DataFile
 from dgp.core.models.dataset import DataSet, DataSegment
-from dgp.core.types.enumerations import DataType, StateAction
+from dgp.core.types.enumerations import DataType
 from dgp.lib.etc import align_frames
 from dgp.gui.plotting.helpers import LineUpdate
 
@@ -32,8 +32,9 @@ class DataSegmentController(AbstractController):
     Implements reference tracking feature allowing the mutation of segments
     representations displayed on a plot surface.
     """
-    def __init__(self, segment: DataSegment, parent: IDataSetController = None):
-        super().__init__(model=segment, parent=parent)
+    def __init__(self, segment: DataSegment, project,
+                 parent: IDataSetController = None):
+        super().__init__(segment, project, parent=parent)
         self.update()
 
         self._menu = [
@@ -50,7 +51,7 @@ class DataSegmentController(AbstractController):
         return self._menu
 
     def clone(self) -> 'DataSegmentController':
-        clone = DataSegmentController(self.entity)
+        clone = DataSegmentController(self.entity, self.project, self.get_parent())
         self.register_clone(clone)
         return clone
 
@@ -67,19 +68,18 @@ class DataSegmentController(AbstractController):
 
 
 class DataSetController(IDataSetController):
-    def __init__(self, dataset: DataSet, flight: IFlightController,
-                 project=None):
+    def __init__(self, dataset: DataSet, project, flight: IFlightController):
         super().__init__(model=dataset, project=project, parent=flight)
 
         self.setIcon(Icon.PLOT_LINE.icon())
-        self._grav_file = DataFileController(self.entity.gravity, self)
-        self._traj_file = DataFileController(self.entity.trajectory, self)
+        self._grav_file = DataFileController(self.entity.gravity, self.project, self)
+        self._traj_file = DataFileController(self.entity.trajectory, self.project, self)
         self._child_map = {DataType.GRAVITY: self._grav_file,
                            DataType.TRAJECTORY: self._traj_file}
 
         self._segments = ProjectFolder("Segments", Icon.LINE_MODE.icon())
         for segment in dataset.segments:
-            seg_ctrl = DataSegmentController(segment, parent=self)
+            seg_ctrl = DataSegmentController(segment, project, parent=self)
             self._segments.appendRow(seg_ctrl)
 
         self.appendRow(self._grav_file)
@@ -230,7 +230,7 @@ class DataSetController(IDataSetController):
         segment = DataSegment(child.uid, child.start, child.stop,
                               self._segments.rowCount(), label=child.label)
         self.entity.segments.append(segment)
-        segment_c = DataSegmentController(segment, parent=self)
+        segment_c = DataSegmentController(segment, self.project, parent=self)
         self._segments.appendRow(segment_c)
         return segment_c
 

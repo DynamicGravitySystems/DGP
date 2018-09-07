@@ -15,9 +15,9 @@ from dgp.core.models.datafile import DataFile
 
 
 class DataFileController(AbstractController):
-
-    def __init__(self, datafile: DataFile, parent: IDataSetController = None):
-        super().__init__(model=datafile, parent=parent)
+    def __init__(self, datafile: DataFile, project: AbstractController,
+                 parent: IDataSetController = None):
+        super().__init__(datafile, project, parent=parent)
         self.log = logging.getLogger(__name__)
 
         self.set_datafile(datafile)

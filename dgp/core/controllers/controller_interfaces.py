@@ -54,7 +54,7 @@ class AbstractController(QStandardItem, AttributeProxy):
     ----------
     model
         The underlying model (from dgp.core.models) entity of this controller
-    project : :class:`IAirborneController`, optional
+    project : :class:`IAirborneController`
         A weak-reference is stored to the project controller for direct access
         by the controller via the :meth:`project` @property
     parent : :class:`AbstractController`, optional
@@ -77,7 +77,7 @@ class AbstractController(QStandardItem, AttributeProxy):
 
     """
 
-    def __init__(self, model, *args, project=None, parent=None, **kwargs):
+    def __init__(self, model, project, *args, parent=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._model = model
         self._project = ref(project) if project is not None else None

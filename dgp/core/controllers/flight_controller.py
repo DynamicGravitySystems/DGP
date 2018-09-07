@@ -51,7 +51,7 @@ class FlightController(IFlightController):
         self._dataset_model = QStandardItemModel()
 
         for dataset in self.entity.datasets:
-            control = DataSetController(dataset, self, project)
+            control = DataSetController(dataset, project, self)
             self.appendRow(control)
             self._dataset_model.appendRow(control.clone())
 
@@ -97,7 +97,7 @@ class FlightController(IFlightController):
         super().update()
 
     def clone(self):
-        clone = FlightController(self.entity, project=self.get_parent())
+        clone = FlightController(self.entity, self.project)
         self.register_clone(clone)
         return clone
 
@@ -126,7 +126,7 @@ class FlightController(IFlightController):
                             f'FlightController, must be {type(DataSet)}')
 
         self.entity.datasets.append(child)
-        control = DataSetController(child, self, project=self.project)
+        control = DataSetController(child, self.project, self)
         self.appendRow(control)
         self._dataset_model.appendRow(control.clone())
         self.update()

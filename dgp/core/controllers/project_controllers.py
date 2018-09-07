@@ -45,7 +45,7 @@ class AirborneProjectController(IAirborneController):
 
     """
     def __init__(self, project: AirborneProject, path: Path = None):
-        super().__init__(model=project)
+        super().__init__(project, self)
         self.log = logging.getLogger(__name__)
         if path:
             self.entity.path = path
@@ -66,7 +66,7 @@ class AirborneProjectController(IAirborneController):
         # It is important that GravimeterControllers are defined before Flights
         # Flights may create references to a Gravimeter object, but not vice versa
         for meter in self.entity.gravimeters:
-            controller = GravimeterController(meter, parent=self)
+            controller = GravimeterController(meter, self, parent=self)
             self.meters.appendRow(controller)
 
         for flight in self.entity.flights:
@@ -142,10 +142,10 @@ class AirborneProjectController(IAirborneController):
 
     def add_child(self, child: Union[Flight, Gravimeter]) -> Union[FlightController, GravimeterController]:
         if isinstance(child, Flight):
-            controller = FlightController(child, project=self)
+            controller = FlightController(child, self)
             self.flights.appendRow(controller)
         elif isinstance(child, Gravimeter):
-            controller = GravimeterController(child, parent=self)
+            controller = GravimeterController(child, self, parent=self)
             self.meters.appendRow(controller)
         else:
             raise ValueError("{0!r} is not a valid child type for {1.__name__}".format(child, self.__class__))

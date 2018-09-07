@@ -9,8 +9,8 @@ from dgp.core.models.meter import Gravimeter
 
 class GravimeterController(IMeterController):
 
-    def __init__(self, meter: Gravimeter, parent: IAirborneController = None):
-        super().__init__(model=meter, parent=parent)
+    def __init__(self, meter: Gravimeter, project, parent: IAirborneController = None):
+        super().__init__(meter, project, parent=parent)
         self.setIcon(Icon.METER.icon())
 
         self._bindings = [
@@ -28,7 +28,7 @@ class GravimeterController(IMeterController):
         return self._bindings
 
     def clone(self):
-        clone = GravimeterController(self.entity, self.get_parent())
+        clone = GravimeterController(self.entity, self.project)
         self.register_clone(clone)
         return clone
 
