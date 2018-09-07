@@ -1,11 +1,23 @@
 # -*- coding: utf-8 -*-
-from pathlib import Path
-
-from pandas import DataFrame, concat
+from pandas import DataFrame
 
 from .export_profile import ExportProfile
 
-__all__ = ['Exporter']
+__all__ = ['Exportable', 'Exporter']
+
+
+class Exportable:
+    def export(self, recursive=True) -> DataFrame:
+        """Return a multi-indexed DataFrame representing context and child data
+
+        Parameters
+        ----------
+        recursive : bool, optional
+            Optional, specify False to export only the root context's data,
+            ignoring any nested child data.
+
+        """
+        raise NotImplementedError
 
 
 class Exporter:
@@ -43,37 +55,25 @@ class Exporter:
     def exporters(cls):
         yield from Exporter.__exporters.values()
 
-    def __init__(self, basename: str, profile: ExportProfile, *data):
-        self._name = basename
+    def __init__(self, profile: ExportProfile, context: Exportable):
         self._profile = profile
-        self._data: DataFrame = concat(data, axis=1, sort=True)
-        self._cols = [col for col in self._data]
+        self._context = context
 
     @property
-    def columns(self):
-        return [col for col in self.profile.columns if col in self._cols]
+    def context(self) -> Exportable:
+        return self._context
 
     @property
-    def dataframe(self) -> DataFrame:
-        if self.profile.precision:
-            return self._data.round(decimals=self.profile.precision)
-        else:
-            return self._data
-
-    @property
-    def filename(self) -> str:
-        if self.profile.ext:
-            return f'{self._name}.{self.profile.ext}'
-        else:
-            return f'{self._name}.{self.ext}'
-
-    @property
-    def profile(self) -> ExportProfile:
-        return self._profile
+    def data(self) -> DataFrame:
+        return self._context.export()
 
     @property
     def parameters(self):
         raise NotImplementedError
 
-    def export(self, directory: Path):
+    @property
+    def profile(self) -> ExportProfile:
+        return self._profile
+
+    def export(self, descriptor):
         raise NotImplementedError

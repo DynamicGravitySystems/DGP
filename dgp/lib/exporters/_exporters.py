@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 from pathlib import Path
+from typing import Dict
+
+from pandas import MultiIndex, DataFrame
 
 from .exporter import Exporter
-
 
 __all__ = ['CSVExporter', 'JSONExporter', 'HDFExporter']
 
@@ -19,12 +21,12 @@ class CSVExporter(Exporter):
             'index_label': str
         }
 
-    def export(self, directory: Path):
-        file = directory.joinpath(self.filename)
-        with file.open('w') as fd:
-            self.dataframe.to_csv(fd, columns=self.columns, header=True,
-                                  index_label='datetime',
-                                  date_format=self.profile.dateformat.value)
+    def export(self, descriptor):
+        data = self.data
+        cols = [col for col in data if col in self.profile.columns]
+
+        data.to_csv(descriptor, columns=cols, header=True, index=True,
+                    date_format=self.profile.dateformat.value)
 
 
 class JSONExporter(Exporter):
@@ -36,10 +38,8 @@ class JSONExporter(Exporter):
     def parameters(self):
         return {}
 
-    def export(self, directory: Path):
-        file = directory.joinpath(self.filename)
-        with file.open('w') as fd:
-            self.dataframe.to_json(fd, orient='columns', date_format='iso')
+    def export(self, descriptor):
+        self.data.to_json(descriptor, orient='columns', date_format='iso')
 
 
 class HDFExporter(Exporter):

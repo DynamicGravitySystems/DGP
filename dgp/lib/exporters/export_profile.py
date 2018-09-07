@@ -2,6 +2,7 @@
 import json
 from enum import Enum
 from typing import List
+from uuid import uuid4
 
 __all__ = ['ExportProfile', 'TimeFormat']
 
@@ -26,15 +27,19 @@ class ExportProfile:
         yield from cls.__profiles.keys()
 
     def copy(self) -> 'ExportProfile':
-        return ExportProfile(**self.__dict__)
+        params = {k: v for k, v in self.__dict__.items()
+                  if k not in ['_userprofile', 'uid']}
+        return ExportProfile(**params)
 
     def __init__(self, name: str, columns: List[str] = None, ext=None,
                  precision: int = 10, dateformat: TimeFormat = TimeFormat.ISO8601,
-                 _userprofile: bool = True, register: bool = True):
+                 _userprofile: bool = True, uid: str = None,
+                 register: bool = True):
         self.name = name
         self.columns = columns or []
         self.ext = ext
         self.precision = precision
+        self.uid = uid or str(uuid4())
 
         if isinstance(dateformat, str):
             self.dateformat = TimeFormat(dateformat)
@@ -59,5 +64,5 @@ class ExportProfile:
     @classmethod
     def from_json(cls, value: str) -> 'ExportProfile':
         def _decode(obj):
-            return cls(**obj)
+            return cls(**obj, register=False)
         return json.loads(value, object_hook=_decode)

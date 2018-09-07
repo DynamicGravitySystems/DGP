@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import QWidget
 from dgp.core.oid import OID
 from dgp.core.controllers.controller_mixins import AttributeProxy
 from dgp.core.types.enumerations import DataType, StateAction
+from dgp.lib.exporters import Exportable
 
 """
 Interface module, while not exactly Pythonic, helps greatly by providing
@@ -25,7 +26,7 @@ MenuBinding = Tuple[str, Tuple[Any, ...]]
 MaybeChild = Union['AbstractController', None]
 
 
-class AbstractController(QStandardItem, AttributeProxy):
+class AbstractController(QStandardItem, AttributeProxy, Exportable):
     """AbstractController provides a base interface for creating Controllers
 
     This class provides some concrete implementations for various features
@@ -271,11 +272,7 @@ class AbstractController(QStandardItem, AttributeProxy):
             if uid == child.uid:
                 return child
 
-    def export(self):
-        """Get data from this object to export
-
-        Must be implemented by sub-classes
-        """
+    def export(self, recursive=True) -> Dict[str, object]:
         raise NotImplementedError
 
     def __str__(self):
