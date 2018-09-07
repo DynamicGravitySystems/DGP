@@ -52,7 +52,7 @@ def test_attribute_proxy(tmpdir):
 def test_gravimeter_controller(tmpdir):
     prj = AirborneProjectController(AirborneProject(name="TestPrj", path=Path(tmpdir)))
     meter = Gravimeter('AT1A-Test')
-    meter_ctrl = GravimeterController(meter)
+    meter_ctrl = GravimeterController(meter, prj)
 
     assert isinstance(meter_ctrl, AbstractController)
     assert isinstance(meter_ctrl, IMeterController)

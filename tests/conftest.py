@@ -50,7 +50,10 @@ def shim_settings():
     settings = QSettings(QSettings.IniFormat, QSettings.UserScope, "DgS", "DGP")
     set_settings(settings)
     yield
-    os.unlink(settings.fileName())
+    try:
+        os.unlink(settings.fileName())
+    except FileNotFoundError:
+        pass
 
 
 def qt_msg_handler(type_, context, message: str):

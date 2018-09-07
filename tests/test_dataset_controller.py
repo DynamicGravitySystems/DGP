@@ -124,33 +124,6 @@ def test_dataset_datafiles(project: AirborneProject):
     assert gps_file.group == gps_file_ctrl.group
 
 
-# def test_dataset_reparenting(project: AirborneProject):
-#     # Test reassignment of DataSet to another Flight
-#     # Note: FlightController automatically adds empty DataSet if Flight has None
-#     prj_ctrl = AirborneProjectController(project)
-#     flt1ctrl = prj_ctrl.get_child(project.flights[0].uid)
-#     flt2ctrl = prj_ctrl.get_child(project.flights[1].uid)
-#     dsctrl = flt1ctrl.get_child(flt1ctrl.datamodel.datasets[0].uid)
-#     assert isinstance(dsctrl, DataSetController)
-#
-#     assert 1 == len(flt1ctrl.datamodel.datasets)
-#     assert 1 == flt1ctrl.rowCount()
-#
-#     assert 1 == len(flt2ctrl.datamodel.datasets)
-#     assert 1 == flt2ctrl.rowCount()
-#
-#     assert flt1ctrl == dsctrl.get_parent()
-#
-#     dsctrl.set_parent(flt2ctrl)
-#     assert 2 == flt2ctrl.rowCount()
-#     assert 0 == flt1ctrl.rowCount()
-#     assert flt2ctrl == dsctrl.get_parent()
-#
-#     # DataSetController is recreated when added to new flight.
-#     assert not dsctrl == flt2ctrl.get_child(dsctrl.uid)
-#     assert flt1ctrl.get_child(dsctrl.uid) is None
-
-
 def test_dataset_data_api(project: AirborneProject, hdf5file, gravdata, gpsdata):
     prj_ctrl = AirborneProjectController(project)
     flt_ctrl = prj_ctrl.get_child(project.flights[0].uid)
@@ -165,7 +138,7 @@ def test_dataset_data_api(project: AirborneProject, hdf5file, gravdata, gpsdata)
     HDF5Manager.save_data(gravdata, gravfile, hdf5file)
     HDF5Manager.save_data(gpsdata, gpsfile, hdf5file)
 
-    dataset_ctrl = DataSetController(dataset, flt_ctrl, project=prj_ctrl)
+    dataset_ctrl = DataSetController(dataset, prj_ctrl, flt_ctrl)
 
     gravity_frame = HDF5Manager.load_data(gravfile, hdf5file)
     assert gravity_frame.equals(dataset_ctrl.gravity)
