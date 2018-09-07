@@ -28,8 +28,11 @@ MaybeChild = Union['AbstractController', None]
 class AbstractController(QStandardItem, AttributeProxy):
     """AbstractController provides a base interface for creating Controllers
 
+    .. versionadded:: 0.1.0
+
     This class provides some concrete implementations for various features
     common to all controllers:
+
         - Encapsulation of a model (dgp.core.models) object
         - Exposure of the underlying model entities' UID
         - Observer registration (notify observers on StateAction's)
@@ -37,10 +40,12 @@ class AbstractController(QStandardItem, AttributeProxy):
         - Child lookup function (get_child) to find child by its UID
 
     The following methods must be explicitly implemented by subclasses:
+
         - clone()
         - menu @property
 
     The following methods may be optionally implemented by subclasses:
+
         - children @property
         - add_child()
         - remove_child()
@@ -49,10 +54,10 @@ class AbstractController(QStandardItem, AttributeProxy):
     ----------
     model
         The underlying model (from dgp.core.models) entity of this controller
-    project : IAirborneController, optional
+    project : :class:`IAirborneController`, optional
         A weak-reference is stored to the project controller for direct access
-        by the controller via the :prop:`project` @property
-    parent : AbstractController, optional
+        by the controller via the :meth:`project` @property
+    parent : :class:`AbstractController`, optional
         A strong-reference is maintained to the parent controller object,
         accessible via the :meth:`get_parent` method
     *args
@@ -71,6 +76,7 @@ class AbstractController(QStandardItem, AttributeProxy):
     updates to any observers automatically.
 
     """
+
     def __init__(self, model, *args, project=None, parent=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._model = model
@@ -87,7 +93,14 @@ class AbstractController(QStandardItem, AttributeProxy):
 
     @property
     def uid(self) -> OID:
-        """Return the unique Object IDentifier for the controllers' model"""
+        """Return the unique Object IDentifier for the controllers' model
+
+        Returns
+        -------
+        oid : :class:`~dgp.core.OID`
+            Unique Identifier of this Controller/Entity
+
+        """
         return self._model.uid
 
     @property
@@ -97,11 +110,24 @@ class AbstractController(QStandardItem, AttributeProxy):
 
     @property
     def project(self) -> 'IAirborneController':
+        """Return a reference to the top-level project owner of this controller
+
+        Returns
+        -------
+        :class:`IAirborneController` or :const:`None`
+
+        """
         return self._project() if self._project is not None else None
 
     @property
     def clones(self):
-        """Yields any active (referenced) clones of this controller"""
+        """Yields any active (referenced) clones of this controller
+
+        Yields
+        ------
+        :class:`AbstractController`
+
+        """
         for clone in self._clones:
             yield clone
 
@@ -111,18 +137,40 @@ class AbstractController(QStandardItem, AttributeProxy):
         Must be overridden by subclasses, subclasses should call register_clone
         on the cloned instance to ensure update events are propagated to the
         clone.
+
+        Returns
+        -------
+        :class:`AbstractController`
+            Clone of this controller with a shared reference to the entity
+
         """
         raise NotImplementedError
 
     @property
     def is_clone(self) -> bool:
+        """Determine if this controller is a clone
+
+        Returns
+        -------
+        bool
+            True if this controller is a clone, else False
+
+        """
         return self.__cloned
 
     @is_clone.setter
     def is_clone(self, value: bool):
         self.__cloned = value
 
-    def register_clone(self, clone: 'AbstractController'):
+    def register_clone(self, clone: 'AbstractController') -> None:
+        """Registers a cloned copy of this controller for updates
+
+        Parameters
+        ----------
+        clone : :class:`AbstractController`
+            The cloned copy of the root controller to register
+
+        """
         clone.is_clone = True
         self._clones.add(clone)
 
@@ -141,20 +189,39 @@ class AbstractController(QStandardItem, AttributeProxy):
 
     @property
     def parent_widget(self) -> Union[QWidget, None]:
-        """Returns the parent QWidget of this items' QAbstractModel"""
+        """Get the parent QWidget of this items' QAbstractModel
+
+        Returns
+        -------
+        :class:`pyqt.QWidget` or :const:`None`
+            QWidget parent if it exists, else None
+        """
         try:
             return self.model().parent()
         except AttributeError:
             return None
 
     def get_parent(self) -> 'AbstractController':
+        """Get the parent controller of this controller
+
+        Notes
+        -----
+        :meth:`get_parent` and  :meth:`set_parent` are defined as methods to
+        avoid naming conflicts with :class:`pyqt.QStandardItem` parent method.
+
+        Returns
+        -------
+        :class:`AbstractController` or None
+            Parent controller (if it exists) of this controller
+
+        """
         return self._parent
 
     def set_parent(self, parent: 'AbstractController'):
         self._parent = parent
 
     def register_observer(self, observer, callback, state: StateAction) -> None:
-        """Register an observer with this controller
+        """Register an observer callback with this controller for the given state
 
         Observers will be notified when the controller undergoes the applicable
         StateAction (UPDATE/DELETE), via the supplied callback method.
@@ -189,9 +256,7 @@ class AbstractController(QStandardItem, AttributeProxy):
             clone.delete()
 
     def update(self) -> None:
-        """Notify any observers and clones that the controller state has updated
-
-        """
+        """Notify observers and clones that the controller has updated"""
         for cb in self._observers[StateAction.UPDATE].values():
             cb()()
         for clone in self.clones:
@@ -205,8 +270,8 @@ class AbstractController(QStandardItem, AttributeProxy):
 
         Yields
         ------
-        AbstractController
-            Children of this controller
+        :class:`AbstractController`
+            Child controllers
 
         """
         yield from ()
@@ -228,7 +293,7 @@ class AbstractController(QStandardItem, AttributeProxy):
         Raises
         ------
         :exc:`TypeError`
-            If the child is not an allowed type for the controller.
+            If the child is not a permissible type for the controller.
         """
         pass
 
@@ -262,7 +327,7 @@ class AbstractController(QStandardItem, AttributeProxy):
 
         Returns
         -------
-        MaybeChild
+        :const:`MaybeChild`
             Returns the child controller object referred to by uid if it exists
             else None
 

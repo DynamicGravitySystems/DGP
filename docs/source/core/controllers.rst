@@ -22,15 +22,18 @@ TODO: Add Controller Hierarchy like in models.rst
 Controller Development Principles
 ---------------------------------
 
-Controllers typically should match 1:1 a model class, though there are cases
-for creating utility controllers such as the :class:`ProjectFolder` which is
-a utility class for grouping items visually in the project's tree view.
+.. py:currentmodule:: dgp.core.controllers
 
-Controllers should at minimum subclass :class:`AbstractController` which configures
-inheritance for :class:`QStandardItem` and :class:`AttributeProxy`. For more
-complex and widely used controllers, a dedicated interface should be created
-following the same naming scheme - particularly where circular dependencies
-may be introduced.
+Controllers typically should match 1:1 a model class, though there are cases
+for creating controllers such as the :class:`~.project_containers.ProjectFolder`
+which is a utility class for grouping items visually in the project's tree view.
+
+Controllers should at minimum subclass
+:class:`~.controller_interfaces.AbstractController` which configures inheritance
+for :class:`QStandardItem` and :class:`~.controller_mixins.AttributeProxy`.
+For more complex and widely used controllers, a dedicated interface should be
+created following the same naming scheme - particularly where circular
+dependencies may be introduced.
 
 
 Context Menu Declarations
@@ -74,7 +77,6 @@ In most cases the concrete subclasses of these interfaces cannot be
 directly imported into other controllers as this would cause circular
 import loops
 
-.. py:module:: dgp.core.controllers
 
 e.g. the :class:`~.flight_controller.FlightController`
 is a child of an :class:`~.project_controllers.AirborneProjectController`,
@@ -101,15 +103,15 @@ type hinting within the development environment in such cases.
     :show-inheritance:
     :undoc-members:
 
-.. autoclass:: IParent
-    :undoc-members:
-
-.. autoclass:: IChild
+.. autoclass:: IDataSetController
+    :show-inheritance:
     :undoc-members:
 
 
 Controllers
 -----------
+
+**Concrete controller implementations**
 
 .. py:module:: dgp.core.controllers.project_controllers
 .. autoclass:: AirborneProjectController
@@ -135,6 +137,15 @@ Controllers
 .. autoclass:: DataFileController
     :undoc-members:
     :show-inheritance:
+
+Containers
+----------
+
+.. py:module:: dgp.core.controllers.project_containers
+.. autoclass:: ProjectFolder
+    :undoc-members:
+    :show-inheritance:
+
 
 Utility/Helper Modules
 ----------------------
