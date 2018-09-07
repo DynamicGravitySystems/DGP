@@ -6,7 +6,7 @@ from PyQt5.QtCore import QUrl
 from PyQt5.QtGui import QIcon
 
 __all__ = ['StateAction', 'StateColor', 'Icon', 'ProjectTypes',
-           'MeterTypes', 'DataType']
+           'MeterTypes', 'DataType', 'Direction', 'Cardinal']
 
 LOG_LEVEL_MAP = {'debug': logging.DEBUG, 'info': logging.INFO,
                  'warning': logging.WARNING, 'error': logging.ERROR,
@@ -110,3 +110,17 @@ class Links(Enum):
 
     def url(self):
         return QUrl(self.value)
+
+
+class Direction(Enum):
+    Up = auto()
+    Down = auto()
+    Left = auto()
+    Right = auto()
+
+
+class Cardinal(Enum):
+    NORTH = auto()
+    SOUTH = auto()
+    EAST = auto()
+    WEST = auto()

@@ -63,9 +63,11 @@ class DirectoryValidator(DGPValidator):
 
     def validate(self, value: str, pos: int) -> ValidationState:
         """TODO: Think about the logic here, allow nonexistent path if parent exists? e.g. creating new dir"""
+        if not value:
+            return QValidator.Intermediate, value, pos
         try:
             path = Path(value)
-        except TypeError:
+        except (TypeError, OSError):
             return QValidator.Invalid, value, pos
 
         if path.is_reserved():
@@ -74,7 +76,7 @@ class DirectoryValidator(DGPValidator):
             return QValidator.Invalid, value, pos
 
         if path.is_dir() and self._exist_ok:
-            return QValidator.Acceptable, str(path.absolute()), pos
+            return QValidator.Acceptable, value, pos
 
         if path.is_dir() and not self._exist_ok:
             return QValidator.Intermediate, value, pos
@@ -102,6 +104,10 @@ class ValueExistsValidator(DGPValidator):
             check = value.lower()
         else:
             check = value
+
+        if not value:
+            self._reason = "Value cannot be empty"
+            return QValidator.Intermediate, value, pos
 
         if check in self._values:
             self._reason = "Name already exists"
