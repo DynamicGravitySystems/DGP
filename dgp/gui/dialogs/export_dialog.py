@@ -67,11 +67,14 @@ class ProfileEditDialog(QDialog):
 
         self._layout = QGridLayout(self)
 
-        name_label = QLabel("Profile Name:")
+        name_layout = QHBoxLayout()
+        name_label = QLabel("Profile:")
         self.name_edit = QLineEdit(profile.name)
         names = [name for name in ExportProfile.names() if name != profile.name]
         self.name_edit.setValidator(ValueExistsValidator(*names))
         self.name_edit.setEnabled(self.enabled)
+        name_layout.addWidget(name_label)
+        name_layout.addWidget(self.name_edit)
 
         source_group = QGroupBox("Source Columns")
         source_layout = QVBoxLayout(source_group)
@@ -158,8 +161,7 @@ class ProfileEditDialog(QDialog):
         dlg_btns.rejected.connect(self.reject)
 
         # Populate root layout
-        self._layout.addWidget(name_label, 0, 0, alignment=Qt.AlignRight)
-        self._layout.addWidget(self.name_edit, 0, 1)
+        self._layout.addLayout(name_layout, 0, 0, alignment=Qt.AlignLeft)
         self._layout.addWidget(source_group, 1, 0)
         self._layout.addWidget(export_group, 1, 1)
         self._layout.addLayout(param_layout, 2, 0)
@@ -172,7 +174,7 @@ class ProfileEditDialog(QDialog):
             item.setData(column.identifier, ColumnIdRole)
             item.setData(column.category.name, CategoryRole)
             item.setEditable(False)
-            item.setToolTip(f'{column.name} ({column.display_unit})')
+            item.setToolTip(f'{column.name} ({column.display_unit}) :: <{column.group}>')
             if column.identifier in self._profile.columns:
                 self.export_model.appendRow(item)
             else:
@@ -278,7 +280,7 @@ class ProfileEditDialog(QDialog):
         self.export_model.clear()
 
     def _category_changed(self, text: str):
-        if text == Category.Any.name:
+        if text == Category.All.name:
             self.source_proxy.setFilterFixedString("")
         else:
             self.source_proxy.setFilterFixedString(text)
@@ -316,6 +318,7 @@ class ExportDialog(QDialog):
         self.file_path = QLineEdit()
         self.file_path.setValidator(DirectoryValidator())
         self.file_path.setPlaceholderText("Browse for directory")
+        self.file_path.setToolTip("Export Directory")
         self.file_path.setText(self.last_dir)
         # self._file_path.textChanged.connect(lambda x: self._validate_input(self._file_path))
         self._browse = QPushButton('Browse...')
@@ -332,7 +335,7 @@ class ExportDialog(QDialog):
         context_layout = QVBoxLayout(context_group)
         self.context_view = QTreeView()
         self.context_view.setSizePolicy(sp)
-        self.context_view.setToolTip("Select an object to drill-down export scope")
+        self.context_view.setToolTip("Select an object to narrow export scope")
         self.context_view.setHeaderHidden(True)
         self.context_view.setUniformRowHeights(True)
         self.context_view.setModel(self.context_model)
@@ -471,6 +474,7 @@ class ExportDialog(QDialog):
     def _mk_profile_item(self, profile: ExportProfile, append=True) -> QStandardItem:
         item = QStandardItem(profile.name)
         item.setData(profile, ProfileRole)
+        item.setToolTip(profile.description)
         if append:
             self.profile_model.appendRow(item)
         return item

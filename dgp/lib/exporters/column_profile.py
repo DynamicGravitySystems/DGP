@@ -3,12 +3,13 @@ from enum import Enum, auto
 
 
 class Category(Enum):
-    Any = auto()
+    All = auto()
     Gravity = auto()
     Trajectory = auto()
     Transform = auto()
     Status = auto()
     User = auto()
+    Other = auto()
 
 
 class Unit(Enum):
@@ -20,6 +21,7 @@ class Unit(Enum):
     Degrees = "°"
     inchHg = "inHg"
     Meters = "m"
+    Bool = "boolean"
 
 
 class ColumnProfile:
@@ -48,18 +50,22 @@ class ColumnProfile:
     """
     __columns = []
 
-    def __init__(self, identifier, category: Category, name=None,
+    def __init__(self, identifier: str, category: Category, name=None,
                  unit: Unit = Unit.Scalar, description=None, group=None,
                  register=True):
         self.identifier = identifier
         self.name = name or self.identifier
         self.category = category
-        self.group = group
+        self.group = group.upper() if group else ""
         self.unit = unit
         self.description = description or ""
 
         if register:
             self.register(self)
+
+    @property
+    def key(self):
+        return f'{self.identifier}{self.category.name}{self.group}'
 
     @property
     def display_unit(self) -> str:
@@ -71,9 +77,9 @@ class ColumnProfile:
 
     @classmethod
     def register(cls, instance):
-        if instance.name in [x.name for x in cls.__columns]:
+        if instance.key in [col.key for col in cls.__columns]:
             raise ValueError(f"Error registering ColumnProfile, column already "
-                             f"exists with name <{instance.name}>")
+                             f"exists with key <{instance.key}>")
         cls.__columns.append(instance)
 
     @classmethod

@@ -4,7 +4,7 @@ from enum import Enum
 from typing import List
 from uuid import uuid4
 
-__all__ = ['ExportProfile', 'TimeFormat']
+__all__ = ['ExportProfile', 'BuiltinExportProfile', 'TimeFormat']
 
 
 class TimeFormat(Enum):
@@ -32,27 +32,27 @@ class ExportProfile:
         return ExportProfile(**params)
 
     def __init__(self, name: str, columns: List[str] = None, ext=None,
-                 precision: int = 10, dateformat: TimeFormat = TimeFormat.ISO8601,
-                 _userprofile: bool = True, uid: str = None,
-                 register: bool = True):
+                 precision: int = 10, description: str = None,
+                 dateformat: TimeFormat = TimeFormat.ISO8601,
+                 uid: str = None, register: bool = True, **kwargs):
         self.name = name
         self.columns = columns or []
         self.ext = ext
         self.precision = precision
+        self.description = description or f"Profile: {self.name}"
         self.uid = uid or str(uuid4())
 
         if isinstance(dateformat, str):
             self.dateformat = TimeFormat(dateformat)
         else:
             self.dateformat = dateformat
-        self._userprofile = _userprofile
 
         if register:
             ExportProfile.register(self)
 
     @property
     def readonly(self) -> bool:
-        return not self._userprofile
+        return False
 
     def to_json(self, indent=None) -> str:
         def _encode(val):
@@ -66,3 +66,9 @@ class ExportProfile:
         def _decode(obj):
             return cls(**obj, register=False)
         return json.loads(value, object_hook=_decode)
+
+
+class BuiltinExportProfile(ExportProfile):
+    @property
+    def readonly(self):
+        return True
