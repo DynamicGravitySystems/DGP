@@ -4,6 +4,7 @@ from typing import Generator
 from PyQt5.QtGui import QStandardItem, QStandardItemModel, QIcon
 
 from dgp.core import Icon
+from dgp.core.controllers.controller_interfaces import AbstractController
 
 
 class ProjectFolder(QStandardItem):
@@ -47,5 +48,5 @@ class ProjectFolder(QStandardItem):
         super().removeRow(row)
         self._model.removeRow(row)
 
-    def items(self) -> Generator[QStandardItem, None, None]:
+    def items(self) -> Generator[AbstractController, None, None]:
         return (self.child(i, 0) for i in range(self.rowCount()))

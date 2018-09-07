@@ -3,6 +3,7 @@ import logging
 from typing import Union, Generator, cast
 
 from PyQt5.QtGui import QStandardItemModel
+from pandas import concat
 
 from . import controller_helpers as helpers
 from dgp.core.oid import OID
@@ -12,6 +13,7 @@ from dgp.core.models.dataset import DataSet
 from dgp.core.models.flight import Flight
 from dgp.core.types.enumerations import DataType, Icon
 from dgp.gui.dialogs.add_flight_dialog import AddFlightDialog
+from dgp.gui.dialogs.export_dialog import ExportDialog
 
 
 class FlightController(IFlightController):
@@ -70,7 +72,8 @@ class FlightController(IFlightController):
             ('addSeparator', ()),
             ('addAction', (f'Delete {self.entity.name}', self._action_delete_self)),
             ('addAction', ('Rename Flight', self._set_name)),
-            ('addAction', ('Properties', self._show_properties_dlg))
+            ('addAction', ('Properties', self._show_properties_dlg)),
+            ('addAction', ('Export', ExportDialog.export_context(self, self.parent_widget)))
         ]
         self.update()
 
@@ -100,6 +103,14 @@ class FlightController(IFlightController):
         clone = FlightController(self.entity, project=self.get_parent())
         self.register_clone(clone)
         return clone
+
+    def export(self, recursive=True):
+        child_frames = {}
+        for child in self.children:
+            child_frames[child.get_attr('name')] = child.export()
+
+        return concat(child_frames.values(), axis=0, keys=child_frames.keys(),
+                      names=['Object', 'Datetime'])
 
     def add_child(self, child: DataSet) -> DataSetController:
         """Adds a child to the underlying Flight, and to the model representation
@@ -199,3 +210,6 @@ class FlightController(IFlightController):
     def _show_properties_dlg(self):  # pragma: no cover
         AddFlightDialog.from_existing(self, self.get_parent(),
                                       parent=self.parent_widget).exec_()
+
+    def action_export_dlg(self):
+        return ExportDialog(self, parent=self.parent_widget).exec_()

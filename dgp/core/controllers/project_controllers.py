@@ -7,15 +7,14 @@ from typing import Union, List, Generator, cast
 
 from PyQt5.QtCore import Qt, QRegExp
 from PyQt5.QtGui import QColor, QStandardItemModel, QRegExpValidator
-from pandas import DataFrame
+from pandas import DataFrame, concat
 
 from .project_treemodel import ProjectTreeModel
 from .flight_controller import FlightController
 from .gravimeter_controller import GravimeterController
 from .project_containers import ProjectFolder
 from .controller_helpers import confirm_action, get_input, show_in_explorer
-from .controller_interfaces import (IAirborneController, IFlightController,
-                                    IDataSetController)
+from .controller_interfaces import IAirborneController, IDataSetController
 from dgp.core.oid import OID
 from dgp.core.file_loader import FileLoader
 from dgp.core.hdf5_manager import HDF5Manager
@@ -29,6 +28,7 @@ from dgp.gui.dialogs.add_flight_dialog import AddFlightDialog
 from dgp.gui.dialogs.add_gravimeter_dialog import AddGravimeterDialog
 from dgp.gui.dialogs.data_import_dialog import DataImportDialog
 from dgp.gui.dialogs.project_properties_dialog import ProjectPropertiesDialog
+from dgp.gui.dialogs.export_dialog import ExportDialog
 from dgp.lib.gravity_ingestor import read_at1a
 from dgp.lib.trajectory_ingestor import import_trajectory
 
@@ -77,6 +77,7 @@ class AirborneProjectController(IAirborneController):
             ('addAction', ('Set Project Name', self.set_name)),
             ('addAction', ('Show in Explorer',
                            lambda: show_in_explorer(self.path))),
+            ('addAction', ('Export', ExportDialog.export_context(self, self.parent_widget))),
             ('addAction', ('Project Properties', self.properties_dlg)),
             ('addAction', ('Close Project', self._close_project))
         ]
@@ -112,10 +113,19 @@ class AirborneProjectController(IAirborneController):
         return self._bindings
 
     def clone(self):
-        raise NotImplementedError
+        clone = AirborneProjectController(self.entity)
+        self.register_clone(clone)
+        return clone
+
+    def export(self, recursive=True):
+        child_frames = {}
+        for child in self.flights.items():
+            child_frames[child.get_attr('name')] = child.export()
+
+        return concat(child_frames.values(), keys=child_frames.keys(), sort=True)
 
     @property
-    def children(self) -> Generator[IFlightController, None, None]:
+    def children(self) -> Generator[FlightController, None, None]:
         for child in itertools.chain(self.flights.items(), self.meters.items()):
             yield child
 
@@ -240,7 +250,7 @@ class AirborneProjectController(IAirborneController):
             self.log.warning(f"project {self.get_attr('name')} has no parent")
 
     def load_file_dlg(self, datatype: DataType = DataType.GRAVITY,
-                      flight: IFlightController = None,
+                      flight: FlightController = None,
                       dataset: IDataSetController = None) -> None:  # pragma: no cover
         """
         Project level dialog for importing/loading Gravity or Trajectory data

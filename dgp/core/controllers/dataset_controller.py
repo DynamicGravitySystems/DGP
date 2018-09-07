@@ -16,6 +16,7 @@ from dgp.core.models.dataset import DataSet, DataSegment
 from dgp.core.types.enumerations import DataType, StateAction
 from dgp.lib.etc import align_frames
 from dgp.gui.plotting.helpers import LineUpdate
+from dgp.gui.dialogs.export_dialog import ExportDialog
 
 from . import controller_helpers
 from .gravimeter_controller import GravimeterController
@@ -112,7 +113,8 @@ class DataSetController(IDataSetController):
             ('addAction', ('Align Data', self.align)),
             ('addSeparator', ()),
             ('addAction', ('Delete', self._action_delete)),
-            ('addAction', ('Properties', self._action_properties))
+            ('addAction', ('Properties', self._action_properties)),
+            ('addAction', ('Export', ExportDialog.export_context(self, self.parent_widget)))
         ]
 
         self._clones: Set[DataSetController] = weakref.WeakSet()
@@ -249,6 +251,9 @@ class DataSetController(IDataSetController):
     def update(self):
         self.setText(self.entity.name)
         super().update()
+
+    def export(self, recursive=True):
+        return self.dataframe()
 
     # Context Menu Handlers
     def _action_set_name(self):
