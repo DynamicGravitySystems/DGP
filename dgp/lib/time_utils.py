@@ -85,9 +85,13 @@ def convert_gps_time(gpsweek, gpsweekseconds, format='unix'):
 
     if format == 'unix':
         return timestamp
-    elif format == 'datetime':
-        return datetime(1970, 1, 1) + pd.to_timedelta(timestamp, unit='s')
 
+    elif format == 'datetime':
+        result = datetime(1970, 1, 1) + pd.to_timedelta(timestamp, unit='s')
+
+        if not isinstance(result, datetime):
+            return result.dt.ceil('1000N')
+        return result
 
 def leap_seconds(**kwargs):
     """
@@ -160,12 +164,11 @@ def _get_leap_seconds(dt):
 
 
 def datenum_to_datetime(timestamp):
-    raise NotImplementedError()
-
-    if isinstance(timestamp, pd.Series):
-        return (timestamp.astype(int).map(datetime.fromordinal) +
-                pd.to_timedelta(timestamp % 1, unit='D') -
-                pd.to_timedelta('366 days'))
-    else:
-        return (datetime.fromordinal(int(timestamp) - 366) +
-                timedelta(days=timestamp % 1))
+    raise NotImplementedError
+    # if isinstance(timestamp, pd.Series):
+    #     return (timestamp.astype(int).map(datetime.fromordinal) +
+    #             pd.to_timedelta(timestamp % 1, unit='D') -
+    #             pd.to_timedelta('366 days'))
+    # else:
+    #     return (datetime.fromordinal(int(timestamp) - 366) +
+    #             timedelta(days=timestamp % 1))
