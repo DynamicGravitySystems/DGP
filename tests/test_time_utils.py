@@ -51,7 +51,7 @@ def test_convert_gps_time():
         (312030.8, datetime(2017, 3, 22, 14, 40, 30, 800000)),
         (312030.08, datetime(2017, 3, 22, 14, 40, 30, 80000)),
         (312030.008, datetime(2017, 3, 22, 14, 40, 30, 8000)),
-        (312030.0008, datetime(2017, 3, 22, 14, 40, 30, 800)),
+        (312030.0008, datetime(2017, 3, 22, 14, 40, 30, 800))
     ]
 )
 def test_convert_gps_time_datetime(given_sow, expected_dt):

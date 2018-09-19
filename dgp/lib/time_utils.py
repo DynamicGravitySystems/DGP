@@ -87,11 +87,7 @@ def convert_gps_time(gpsweek, gpsweekseconds, format='unix'):
         return timestamp
 
     elif format == 'datetime':
-        result = datetime(1970, 1, 1) + pd.to_timedelta(timestamp, unit='s')
-
-        if not isinstance(result, datetime):
-            return result.dt.ceil('1000N')
-        return result
+        return datetime(1970, 1, 1) + pd.to_timedelta(timestamp * 1e9)
 
 def leap_seconds(**kwargs):
     """
