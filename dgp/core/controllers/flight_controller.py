@@ -29,7 +29,7 @@ class FlightController(IFlightController):
     The default display behavior is to provide the Flights Name.
     A :obj:`QIcon` or string path to a resource can be provided for decoration.
 
-    FlightController implements the AttributeProxy mixin (via AbstractController),
+    FlightController implements the AttributeProxy mixin (via VirtualBaseController),
     which allows access to the underlying :class:`Flight` attributes via the
     get_attr and set_attr methods.
 

@@ -22,11 +22,11 @@ level classes also subclass QStandardItem and/or AttributeProxy.
 """
 
 MenuBinding = Tuple[str, Tuple[Any, ...]]
-MaybeChild = Union['AbstractController', None]
+MaybeChild = Union['VirtualBaseController', None]
 
 
-class AbstractController(QStandardItem, AttributeProxy):
-    """AbstractController provides a base interface for creating Controllers
+class VirtualBaseController(QStandardItem, AttributeProxy):
+    """VirtualBaseController provides a base interface for creating Controllers
 
     .. versionadded:: 0.1.0
 
@@ -57,7 +57,7 @@ class AbstractController(QStandardItem, AttributeProxy):
     project : :class:`IAirborneController`
         A weak-reference is stored to the project controller for direct access
         by the controller via the :meth:`project` @property
-    parent : :class:`AbstractController`, optional
+    parent : :class:`VirtualBaseController`, optional
         A strong-reference is maintained to the parent controller object,
         accessible via the :meth:`get_parent` method
     *args
@@ -81,8 +81,8 @@ class AbstractController(QStandardItem, AttributeProxy):
         super().__init__(*args, **kwargs)
         self._model = model
         self._project = ref(project) if project is not None else None
-        self._parent: AbstractController = parent
-        self._clones: Set[AbstractController] = WeakSet()
+        self._parent: VirtualBaseController = parent
+        self._clones: Set[VirtualBaseController] = WeakSet()
         self.__cloned = False
         self._observers: Dict[StateAction, Dict] = {state: WeakKeyDictionary()
                                                     for state in StateAction}
@@ -125,7 +125,7 @@ class AbstractController(QStandardItem, AttributeProxy):
 
         Yields
         ------
-        :class:`AbstractController`
+        :class:`VirtualBaseController`
 
         """
         for clone in self._clones:
@@ -140,7 +140,7 @@ class AbstractController(QStandardItem, AttributeProxy):
 
         Returns
         -------
-        :class:`AbstractController`
+        :class:`VirtualBaseController`
             Clone of this controller with a shared reference to the entity
 
         """
@@ -162,12 +162,12 @@ class AbstractController(QStandardItem, AttributeProxy):
     def is_clone(self, value: bool):
         self.__cloned = value
 
-    def register_clone(self, clone: 'AbstractController') -> None:
+    def register_clone(self, clone: 'VirtualBaseController') -> None:
         """Registers a cloned copy of this controller for updates
 
         Parameters
         ----------
-        clone : :class:`AbstractController`
+        clone : :class:`VirtualBaseController`
             The cloned copy of the root controller to register
 
         """
@@ -201,7 +201,7 @@ class AbstractController(QStandardItem, AttributeProxy):
         except AttributeError:
             return None
 
-    def get_parent(self) -> 'AbstractController':
+    def get_parent(self) -> 'VirtualBaseController':
         """Get the parent controller of this controller
 
         Notes
@@ -211,13 +211,13 @@ class AbstractController(QStandardItem, AttributeProxy):
 
         Returns
         -------
-        :class:`AbstractController` or None
+        :class:`VirtualBaseController` or None
             Parent controller (if it exists) of this controller
 
         """
         return self._parent
 
-    def set_parent(self, parent: 'AbstractController'):
+    def set_parent(self, parent: 'VirtualBaseController'):
         self._parent = parent
 
     def register_observer(self, observer, callback, state: StateAction) -> None:
@@ -263,20 +263,20 @@ class AbstractController(QStandardItem, AttributeProxy):
             clone.update()
 
     @property
-    def children(self) -> Generator['AbstractController', None, None]:
+    def children(self) -> Generator['VirtualBaseController', None, None]:
         """Yields children of this controller
 
         Override this property to provide generic access to controller children
 
         Yields
         ------
-        :class:`AbstractController`
+        :class:`VirtualBaseController`
             Child controllers
 
         """
         yield from ()
 
-    def add_child(self, child) -> 'AbstractController':
+    def add_child(self, child) -> 'VirtualBaseController':
         """Add a child object to the controller, and its underlying
         data object.
 
@@ -287,7 +287,7 @@ class AbstractController(QStandardItem, AttributeProxy):
 
         Returns
         -------
-        :class:`AbstractController`
+        :class:`VirtualBaseController`
             A reference to the controller object wrapping the added child
 
         Raises
@@ -344,7 +344,7 @@ class AbstractController(QStandardItem, AttributeProxy):
 
 
 # noinspection PyAbstractClass
-class IAirborneController(AbstractController):
+class IAirborneController(VirtualBaseController):
     def add_flight_dlg(self):
         raise NotImplementedError
 
@@ -374,17 +374,17 @@ class IAirborneController(AbstractController):
 
 
 # noinspection PyAbstractClass
-class IFlightController(AbstractController):
+class IFlightController(VirtualBaseController):
     pass
 
 
 # noinspection PyAbstractClass
-class IMeterController(AbstractController):
+class IMeterController(VirtualBaseController):
     pass
 
 
 # noinspection PyAbstractClass
-class IDataSetController(AbstractController):
+class IDataSetController(VirtualBaseController):
     @property
     def hdfpath(self) -> Path:
         raise NotImplementedError

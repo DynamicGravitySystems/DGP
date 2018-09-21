@@ -5,7 +5,7 @@ import pytest
 
 from dgp.core import StateAction
 from dgp.core.models.flight import Flight
-from dgp.core.controllers.controller_interfaces import AbstractController
+from dgp.core.controllers.controller_interfaces import VirtualBaseController
 
 
 @pytest.fixture
@@ -14,7 +14,7 @@ def mock_model():
 
 
 class Observer:
-    def __init__(self, control: AbstractController):
+    def __init__(self, control: VirtualBaseController):
         control.register_observer(self, self.on_update, StateAction.UPDATE)
         control.register_observer(self, self.on_delete, StateAction.DELETE)
         self.control = weakref.ref(control)
@@ -29,7 +29,7 @@ class Observer:
 
 
 # noinspection PyAbstractClass
-class ClonedControl(AbstractController):
+class ClonedControl(VirtualBaseController):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.updated = False
@@ -39,7 +39,7 @@ class ClonedControl(AbstractController):
 
 
 def test_observer_notify(mock_model):
-    abc = AbstractController(mock_model, project=None)
+    abc = VirtualBaseController(mock_model, project=None)
 
     assert not abc.is_active
     observer = Observer(abc)
@@ -55,10 +55,10 @@ def test_observer_notify(mock_model):
 
 
 def test_controller_clone(mock_model):
-    abc = AbstractController(mock_model, project=None)
+    abc = VirtualBaseController(mock_model, project=None)
     assert not abc.is_clone
 
-    # AbstractController doesn't implement clone, so create our own adhoc clone
+    # VirtualBaseController doesn't implement clone, so create our own adhoc clone
     clone = ClonedControl(mock_model, None)
     abc.register_clone(clone)
 

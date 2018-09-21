@@ -9,13 +9,13 @@ from dgp.core import DataType
 from dgp.core.hdf5_manager import HDF5Manager
 from dgp.core.oid import OID
 from dgp.core.types.enumerations import Icon
-from dgp.core.controllers.controller_interfaces import IDataSetController, AbstractController
+from dgp.core.controllers.controller_interfaces import IDataSetController, VirtualBaseController
 from dgp.core.controllers.controller_helpers import show_in_explorer
 from dgp.core.models.datafile import DataFile
 
 
-class DataFileController(AbstractController):
-    def __init__(self, datafile: DataFile, project: AbstractController,
+class DataFileController(VirtualBaseController):
+    def __init__(self, datafile: DataFile, project: VirtualBaseController,
                  parent: IDataSetController = None):
         super().__init__(datafile, project, parent=parent)
         self.log = logging.getLogger(__name__)

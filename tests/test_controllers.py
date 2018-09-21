@@ -16,7 +16,7 @@ from dgp.core.models.dataset import DataSet, DataSegment
 from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.core.models.project import AirborneProject
 from dgp.core.controllers.controller_mixins import AttributeProxy
-from dgp.core.controllers.controller_interfaces import IMeterController, AbstractController
+from dgp.core.controllers.controller_interfaces import IMeterController, VirtualBaseController
 from dgp.core.controllers.gravimeter_controller import GravimeterController
 from dgp.core.controllers.dataset_controller import (DataSetController,
                                                      DataSegmentController)
@@ -54,7 +54,7 @@ def test_gravimeter_controller(tmpdir):
     meter = Gravimeter('AT1A-Test')
     meter_ctrl = GravimeterController(meter, prj)
 
-    assert isinstance(meter_ctrl, AbstractController)
+    assert isinstance(meter_ctrl, VirtualBaseController)
     assert isinstance(meter_ctrl, IMeterController)
     assert isinstance(meter_ctrl, AttributeProxy)
 

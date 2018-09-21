@@ -29,7 +29,7 @@ for creating controllers such as the :class:`~.project_containers.ProjectFolder`
 which is a utility class for grouping items visually in the project's tree view.
 
 Controllers should at minimum subclass
-:class:`~.controller_interfaces.AbstractController` which configures inheritance
+:class:`~.controller_interfaces.VirtualBaseController` which configures inheritance
 for :class:`QStandardItem` and :class:`~.controller_mixins.AttributeProxy`.
 For more complex and widely used controllers, a dedicated interface should be
 created following the same naming scheme - particularly where circular
@@ -87,7 +87,7 @@ type hinting within the development environment in such cases.
 
 .. py:module:: dgp.core.controllers.controller_interfaces
 
-.. autoclass:: AbstractController
+.. autoclass:: VirtualBaseController
     :show-inheritance:
     :undoc-members:
 

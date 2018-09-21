@@ -20,14 +20,14 @@ from dgp.gui.plotting.helpers import LineUpdate
 
 from . import controller_helpers
 from .gravimeter_controller import GravimeterController
-from .controller_interfaces import IFlightController, IDataSetController, AbstractController
+from .controller_interfaces import IFlightController, IDataSetController, VirtualBaseController
 from .project_containers import ProjectFolder
 from .datafile_controller import DataFileController
 
 _log = logging.getLogger(__name__)
 
 
-class DataSegmentController(AbstractController):
+class DataSegmentController(VirtualBaseController):
     """Controller for :class:`DataSegment`
 
     Implements reference tracking feature allowing the mutation of segments

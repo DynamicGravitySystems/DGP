@@ -8,7 +8,7 @@ from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtWidgets import QWidget
 
 from dgp.core import OID, StateAction
-from dgp.core.controllers.controller_interfaces import AbstractController
+from dgp.core.controllers.controller_interfaces import VirtualBaseController
 from dgp.gui import settings
 
 __all__ = ['WorkspaceTab', 'SubTab']
@@ -18,7 +18,7 @@ _log = logging.getLogger(__name__)
 class WorkspaceTab(QWidget):
     sigControllerUpdated = pyqtSignal()
 
-    def __init__(self, controller: AbstractController, *args, **kwargs):
+    def __init__(self, controller: VirtualBaseController, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setAttribute(Qt.WA_DeleteOnClose, True)
         controller.register_observer(self, self.close, StateAction.DELETE)
@@ -30,7 +30,7 @@ class WorkspaceTab(QWidget):
         return self.controller.uid
 
     @property
-    def controller(self) -> AbstractController:
+    def controller(self) -> VirtualBaseController:
         return self._controller()
 
     @property
@@ -77,7 +77,7 @@ class WorkspaceTab(QWidget):
 class SubTab(QWidget):
     sigLoaded = pyqtSignal(object)
 
-    def __init__(self, control: AbstractController, *args, **kwargs):
+    def __init__(self, control: VirtualBaseController, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setAttribute(Qt.WA_DeleteOnClose, True)
         control.register_observer(self, self.close, StateAction.DELETE)

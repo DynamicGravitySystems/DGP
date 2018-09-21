@@ -7,7 +7,7 @@ from PyQt5.QtGui import QContextMenuEvent
 from PyQt5.QtWidgets import QTreeView, QMenu
 
 from dgp.core.controllers.controller_interfaces import (IAirborneController,
-                                                        AbstractController,
+                                                        VirtualBaseController,
                                                         MenuBinding)
 from dgp.core.controllers.project_treemodel import ProjectTreeModel
 
@@ -67,7 +67,7 @@ class ProjectTreeView(QTreeView):
     def _on_double_click(self, index: QModelIndex):
         """Selectively expand/collapse an item depending on its active state"""
         item = self.model().itemFromIndex(index)
-        if isinstance(item, AbstractController):
+        if isinstance(item, VirtualBaseController):
             if item.is_active:
                 self.setExpanded(index, not self.isExpanded(index))
             else:
@@ -85,12 +85,12 @@ class ProjectTreeView(QTreeView):
 
     def contextMenuEvent(self, event: QContextMenuEvent, *args, **kwargs):
         index = self.indexAt(event.pos())
-        item: AbstractController = self.model().itemFromIndex(index)
+        item: VirtualBaseController = self.model().itemFromIndex(index)
         expanded = self.isExpanded(index)
 
         menu = QMenu(self)
         # bindings = getattr(item, 'menu_bindings', [])[:]  # type: List
-        if isinstance(item, AbstractController):
+        if isinstance(item, VirtualBaseController):
             bindings = item.menu[:]
         else:
             bindings = []

@@ -13,7 +13,7 @@ application so that the user may easily navigate between multiple open
 workspaces.
 
 Each workspace defines its own custom widget(s) for interacting & manipulating
-data associated with its underlying controller (:class:`AbstractController`).
+data associated with its underlying controller (:class:`VirtualBaseController`).
 
 Workspaces may also contain sub-tabs, for example the :class:`DataSetTab`
 defines sub-tabs for viewing raw-data and selecting segments, and a tab for
