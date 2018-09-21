@@ -17,6 +17,13 @@ __all__ = ['ProjectTreeModel']
 
 
 class ProjectTreeModel(QStandardItemModel):
+    activeProjectChanged = pyqtSignal(str)
+    projectMutated = pyqtSignal()
+    projectClosed = pyqtSignal(OID)
+    tabOpenRequested = pyqtSignal(object, object)
+    progressNotificationRequested = pyqtSignal(ProgressEvent)
+    sigDataChanged = pyqtSignal(object)
+
     """Extension of QStandardItemModel which handles Project/Model specific
     events and defines signals for domain specific actions.
 
@@ -41,13 +48,6 @@ class ProjectTreeModel(QStandardItemModel):
         ProgressEvent is passed defining the parameters for the progress bar
 
     """
-    activeProjectChanged = pyqtSignal(str)
-    projectMutated = pyqtSignal()
-    projectClosed = pyqtSignal(OID)
-    tabOpenRequested = pyqtSignal(object, object)
-    progressNotificationRequested = pyqtSignal(ProgressEvent)
-    sigDataChanged = pyqtSignal(object)
-
     def __init__(self, project: IAirborneController = None,
                  parent: Optional[QObject] = None):
         super().__init__(parent)
@@ -87,7 +87,8 @@ class ProjectTreeModel(QStandardItemModel):
     def add_project(self, child: IAirborneController):
         self.appendRow(child)
 
-    def remove_project(self, child: IAirborneController, confirm: bool = True) -> None:
+    def remove_project(self, child: IAirborneController,
+                       confirm: bool = True) -> None:  # pragma: no cover
         if confirm and not confirm_action("Confirm Project Close",
                                           f"Close Project "
                                           f"{child.get_attr('name')}?",
@@ -147,5 +148,5 @@ class ProjectTreeModel(QStandardItemModel):
             return self._warn_no_active_project()
         self.active_project.add_flight_dlg()
 
-    def _warn_no_active_project(self):
+    def _warn_no_active_project(self):  # pragma: no cover
         self.log.warning("No active projects.")

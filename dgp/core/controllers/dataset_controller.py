@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+import warnings
 import weakref
 from pathlib import Path
 from typing import List, Union, Set, cast
@@ -64,7 +65,7 @@ class DataSegmentController(AbstractController):
         self.setToolTip(repr(self.entity))
 
     def _action_properties(self):
-        pass
+        warnings.warn("Properties feature not yet implemented")
 
 
 class DataSetController(IDataSetController):
@@ -141,7 +142,7 @@ class DataSetController(IDataSetController):
         return self._channel_model
 
     @property
-    def segment_model(self) -> QStandardItemModel:
+    def segment_model(self) -> QStandardItemModel:  # pragma: no cover
         return self._segments.internal_model
 
     @property
@@ -187,7 +188,10 @@ class DataSetController(IDataSetController):
             self._dataframe: DataFrame = concat([self.gravity, self.trajectory], axis=1, sort=True)
         return self._dataframe
 
-    def align(self):
+    def align(self):  # pragma: no cover
+        """
+        TODO: Utility of this is questionable, is it built into transform graphs?
+        """
         if self.gravity.empty or self.trajectory.empty:
             _log.info(f'Gravity or Trajectory is empty, cannot align.')
             return
@@ -251,14 +255,14 @@ class DataSetController(IDataSetController):
         super().update()
 
     # Context Menu Handlers
-    def _action_set_name(self):
+    def _action_set_name(self):  # pragma: no cover
         name = controller_helpers.get_input("Set DataSet Name", "Enter a new name:",
                                             self.get_attr('name'),
                                             parent=self.parent_widget)
         if name:
             self.set_attr('name', name)
 
-    def _action_set_sensor_dlg(self):
+    def _action_set_sensor_dlg(self):  # pragma: no cover
         sensors = {}
         for i in range(self.project.meter_model.rowCount()):
             sensor = self.project.meter_model.item(i)
@@ -275,8 +279,8 @@ class DataSetController(IDataSetController):
             self._sensor: GravimeterController = sensor.clone()
             self.appendRow(self._sensor)
 
-    def _action_delete(self, confirm: bool = True):
+    def _action_delete(self, confirm: bool = True):  # pragma: no cover
         self.get_parent().remove_child(self.uid, confirm)
 
-    def _action_properties(self):
-        pass
+    def _action_properties(self):  # pragma: no cover
+        warnings.warn("Properties action not yet implemented")

@@ -33,6 +33,9 @@ class DataFileController(AbstractController):
     def uid(self) -> OID:
         try:
             return super().uid
+        # This can occur when no underlying datafile is set
+        # TODO: This behavior should change in future, a better way to handle
+        # empty/unset data files is needed
         except AttributeError:
             return None
 
@@ -71,13 +74,13 @@ class DataFileController(AbstractController):
             elif self.entity.group is DataType.TRAJECTORY:
                 self.setIcon(Icon.TRAJECTORY.icon())
 
-    def _properties_dlg(self):
+    def _properties_dlg(self):  # pragma: no cover
         if self.entity is None:
             return
         # TODO: Launch dialog to show datafile properties (name, path, data etc)
         data = HDF5Manager.load_data(self.entity, self.get_parent().hdfpath)
         self.log.info(f'\n{data.describe()}')
 
-    def _launch_explorer(self):
+    def _launch_explorer(self):  # pragma: no cover
         if self.entity is not None:
             show_in_explorer(self.entity.source_path.parent)
