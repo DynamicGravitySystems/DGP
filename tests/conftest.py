@@ -50,10 +50,8 @@ def shim_settings():
     settings = QSettings(QSettings.IniFormat, QSettings.UserScope, "DgS", "DGP")
     set_settings(settings)
     yield
-    try:
+    if os.path.exists(settings.fileName()):
         os.unlink(settings.fileName())
-    except FileNotFoundError:
-        pass
 
 
 def qt_msg_handler(type_, context, message: str):
@@ -145,7 +143,7 @@ def prj_ctrl(project):
 
 @pytest.fixture
 def flt_ctrl(prj_ctrl: AirborneProjectController):
-    return prj_ctrl.get_child(prj_ctrl.entity.flights[0].uid)
+    return prj_ctrl.get_child(prj_ctrl.datamodel.flights[0].uid)
 
 
 @pytest.fixture(scope='module')
