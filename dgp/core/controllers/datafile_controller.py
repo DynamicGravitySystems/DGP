@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
+from typing import cast, Generator
+
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 
@@ -7,16 +9,15 @@ from dgp.core import DataType
 from dgp.core.hdf5_manager import HDF5Manager
 from dgp.core.oid import OID
 from dgp.core.types.enumerations import Icon
-from dgp.core.controllers.controller_interfaces import IDataSetController, IBaseController
+from dgp.core.controllers.controller_interfaces import IDataSetController, VirtualBaseController
 from dgp.core.controllers.controller_helpers import show_in_explorer
 from dgp.core.models.datafile import DataFile
 
 
-class DataFileController(IBaseController):
-    def __init__(self, datafile: DataFile, dataset=None):
-        super().__init__()
-        self._datafile = datafile
-        self._dataset: IDataSetController = dataset
+class DataFileController(VirtualBaseController):
+    def __init__(self, datafile: DataFile, project: VirtualBaseController,
+                 parent: IDataSetController = None):
+        super().__init__(datafile, project, parent=parent)
         self.log = logging.getLogger(__name__)
 
         self.set_datafile(datafile)
@@ -26,17 +27,21 @@ class DataFileController(IBaseController):
             ('addAction', (Icon.OPEN_FOLDER.icon(), 'Show in Explorer',
                            self._launch_explorer))
         ]
+        self.update()
 
     @property
     def uid(self) -> OID:
         try:
-            return self._datafile.uid
+            return super().uid
+        # This can occur when no underlying datafile is set
+        # TODO: This behavior should change in future, a better way to handle
+        # empty/unset data files is needed
         except AttributeError:
             return None
 
     @property
-    def dataset(self) -> IDataSetController:
-        return self._dataset
+    def entity(self) -> DataFile:
+        return cast(DataFile, super().entity)
 
     @property
     def menu(self):  # pragma: no cover
@@ -44,14 +49,18 @@ class DataFileController(IBaseController):
 
     @property
     def group(self):
-        return self._datafile.group
+        return self.entity.group
 
-    @property
-    def datamodel(self) -> object:
-        return self._datafile
+    def clone(self):
+        raise NotImplementedError
+
+    def update(self):
+        super().update()
+        if self.entity is not None:
+            self.setText(self.entity.name)
 
     def set_datafile(self, datafile: DataFile):
-        self._datafile = datafile
+        self._model = datafile
         if datafile is None:
             self.setText("No Data")
             self.setToolTip("No Data")
@@ -60,18 +69,18 @@ class DataFileController(IBaseController):
             self.setText(datafile.label)
             self.setToolTip("Source path: {!s}".format(datafile.source_path))
             self.setData(datafile, role=Qt.UserRole)
-            if self._datafile.group is DataType.GRAVITY:
+            if self.entity.group is DataType.GRAVITY:
                 self.setIcon(Icon.GRAVITY.icon())
-            elif self._datafile.group is DataType.TRAJECTORY:
+            elif self.entity.group is DataType.TRAJECTORY:
                 self.setIcon(Icon.TRAJECTORY.icon())
 
-    def _properties_dlg(self):
-        if self._datafile is None:
+    def _properties_dlg(self):  # pragma: no cover
+        if self.entity is None:
             return
         # TODO: Launch dialog to show datafile properties (name, path, data etc)
-        data = HDF5Manager.load_data(self._datafile, self.dataset.hdfpath)
+        data = HDF5Manager.load_data(self.entity, self.get_parent().hdfpath)
         self.log.info(f'\n{data.describe()}')
 
-    def _launch_explorer(self):
-        if self._datafile is not None:
-            show_in_explorer(self._datafile.source_path.parent)
+    def _launch_explorer(self):  # pragma: no cover
+        if self.entity is not None:
+            show_in_explorer(self.entity.source_path.parent)

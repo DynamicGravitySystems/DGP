@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from dgp.core.controllers.controller_interfaces import IBaseController
+from dgp.core.controllers.controller_interfaces import VirtualBaseController
 from .project import ProjectTab, AirborneProjectController
 from .flight import FlightTab, FlightController
 from .dataset import DataSetTab, DataSetController
@@ -15,6 +15,6 @@ _tabmap = {
 }
 
 
-def tab_factory(controller: IBaseController):
+def tab_factory(controller: VirtualBaseController):
     """Return the workspace tab constructor for the given controller type"""
     return _tabmap.get(controller.__class__, None)

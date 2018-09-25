@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 from pathlib import Path
-from typing import Union, Generator, List, Tuple, Any
+from typing import Union, Generator, List, Tuple, Any, Set, Dict
+from weakref import WeakKeyDictionary, WeakSet, WeakMethod, ref
 
+from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QStandardItem, QStandardItemModel
 from PyQt5.QtWidgets import QWidget
 
-from dgp.core.controllers.controller_mixins import AttributeProxy
 from dgp.core.oid import OID
-from dgp.core.types.enumerations import DataType
-
+from dgp.core.controllers.controller_mixins import AttributeProxy
+from dgp.core.types.enumerations import DataType, StateAction
 
 """
 Interface module, while not exactly Pythonic, helps greatly by providing
@@ -21,94 +22,261 @@ level classes also subclass QStandardItem and/or AttributeProxy.
 """
 
 MenuBinding = Tuple[str, Tuple[Any, ...]]
-MaybeChild = Union['IChild', None]
+MaybeChild = Union['VirtualBaseController', None]
 
 
-class DGPObject:
+class VirtualBaseController(QStandardItem, AttributeProxy):
+    """VirtualBaseController provides a base interface for creating Controllers
+
+    .. versionadded:: 0.1.0
+
+    This class provides some concrete implementations for various features
+    common to all controllers:
+
+        - Encapsulation of a model (dgp.core.models) object
+        - Exposure of the underlying model entities' UID
+        - Observer registration (notify observers on StateAction's)
+        - Clone registration (notify clones of updates to the base object)
+        - Child lookup function (get_child) to find child by its UID
+
+    The following methods must be explicitly implemented by subclasses:
+
+        - clone()
+        - menu @property
+
+    The following methods may be optionally implemented by subclasses:
+
+        - children @property
+        - add_child()
+        - remove_child()
+
+    Parameters
+    ----------
+    model
+        The underlying model (from dgp.core.models) entity of this controller
+    project : :class:`IAirborneController`
+        A weak-reference is stored to the project controller for direct access
+        by the controller via the :meth:`project` @property
+    parent : :class:`VirtualBaseController`, optional
+        A strong-reference is maintained to the parent controller object,
+        accessible via the :meth:`get_parent` method
+    *args
+        Positional arguments are supplied to the QStandardItem constructor
+    *kwargs
+        Keyword arguments are supplied to the QStandardItem constructor
+
+    Notes
+    -----
+    When removing/deleting a controller, the delete() method should be called on
+    the child, in order for it to notify any subscribers of its impending doom.
+
+    The update method should be extended by subclasses in order to perform
+    visual updates (e.g. Item text, tooltips) when an entity attribute has been
+    updated (via AttributeProxy::set_attr), call the super() method to propagate
+    updates to any observers automatically.
+
+    """
+
+    def __init__(self, model, project, *args, parent=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._model = model
+        self._project = ref(project) if project is not None else None
+        self._parent: VirtualBaseController = parent
+        self._clones: Set[VirtualBaseController] = WeakSet()
+        self.__cloned = False
+        self._observers: Dict[StateAction, Dict] = {state: WeakKeyDictionary()
+                                                    for state in StateAction}
+
+        self.setEditable(False)
+        self.setText(model.name if hasattr(model, "name") else str(model))
+        self.setData(model, Qt.UserRole)
+
     @property
     def uid(self) -> OID:
-        """Returns the unique Object IDentifier of the object
+        """Return the unique Object IDentifier for the controllers' model
 
         Returns
         -------
-        :class:`~dgp.core.oid.OID`
-            Unique Object Identifier of the object.
+        oid : :class:`~dgp.core.OID`
+            Unique Identifier of this Controller/Entity
+
+        """
+        return self._model.uid
+
+    @property
+    def entity(self):
+        """Returns the underlying core/model object of this controller"""
+        return self._model
+
+    @property
+    def project(self) -> 'IAirborneController':
+        """Return a reference to the top-level project owner of this controller
+
+        Returns
+        -------
+        :class:`IAirborneController` or :const:`None`
+
+        """
+        return self._project() if self._project is not None else None
+
+    @property
+    def clones(self):
+        """Yields any active (referenced) clones of this controller
+
+        Yields
+        ------
+        :class:`VirtualBaseController`
+
+        """
+        for clone in self._clones:
+            yield clone
+
+    def clone(self):
+        """Return a clone of this controller for use in other UI models
+
+        Must be overridden by subclasses, subclasses should call register_clone
+        on the cloned instance to ensure update events are propagated to the
+        clone.
+
+        Returns
+        -------
+        :class:`VirtualBaseController`
+            Clone of this controller with a shared reference to the entity
 
         """
         raise NotImplementedError
 
-
-class IChild(DGPObject):
-    """A class sub-classing IChild can be a child object of a class which is an
-    :class:`IParent`.
-
-    The IChild interface defines properties to determine if the child can be
-    activated, and if it is currently activated.
-    Methods are defined so that the child may retrieve or set a reference to its
-    parent object.
-    The set_active method is provided for the Parent object to notify the child
-    of an activation state change and to update its visual state.
-
-    """
-    def get_parent(self) -> 'IParent':
-        """Return the parent object of this child"""
-        raise NotImplementedError
-
-    def set_parent(self, parent) -> None:
-        """Set the parent object of this child"""
-        raise NotImplementedError
-
     @property
-    def can_activate(self) -> bool:
-        """Return whether this child can be activated"""
-        return False
+    def is_clone(self) -> bool:
+        """Determine if this controller is a clone
 
-    @property
-    def is_active(self) -> bool:
-        if not self.can_activate:
-            return False
-        raise NotImplementedError
+        Returns
+        -------
+        bool
+            True if this controller is a clone, else False
 
-    def set_active(self, state: bool) -> None:
-        """Called to visually set the child to the active state.
+        """
+        return self.__cloned
 
-        If a child needs to activate itself it should call activate_child on its
-        parent object, this ensures that siblings can be deactivated if the
-        child should be exclusively active.
+    @is_clone.setter
+    def is_clone(self, value: bool):
+        self.__cloned = value
+
+    def register_clone(self, clone: 'VirtualBaseController') -> None:
+        """Registers a cloned copy of this controller for updates
 
         Parameters
         ----------
-        state : bool
-            Set the objects active state to the boolean state
+        clone : :class:`VirtualBaseController`
+            The cloned copy of the root controller to register
 
         """
-        if not self.can_activate:
-            return
+        clone.is_clone = True
+        self._clones.add(clone)
+
+    @property
+    def is_active(self) -> bool:
+        """Return True if there are any active observers of this controller"""
+        return len(self._observers[StateAction.DELETE]) > 0
+
+    @property
+    def menu(self) -> List[MenuBinding]:
+        """Return a list of MenuBinding's to construct a context menu
+
+        Must be overridden by subclasses
+        """
         raise NotImplementedError
 
-
-# TODO: Rename to AbstractParent
-class IParent(DGPObject):
-    """A class sub-classing IParent provides the ability to add/get/remove
-    :class:`IChild` objects, as well as a method to iterate through children.
-
-    Child objects may be activated by the parent if child.can_activate is True.
-    Parent objects should call set_active on children to update their internal
-    active state, and to allow children to perform any necessary visual updates.
-
-    """
     @property
-    def children(self) -> Generator[IChild, None, None]:
-        """Return a generator of IChild objects specific to the parent.
+    def parent_widget(self) -> Union[QWidget, None]:
+        """Get the parent QWidget of this items' QAbstractModel
 
         Returns
         -------
-        Generator[IChild, None, None]
+        :class:`pyqt.QWidget` or :const:`None`
+            QWidget parent if it exists, else None
+        """
+        try:
+            return self.model().parent()
+        except AttributeError:
+            return None
+
+    def get_parent(self) -> 'VirtualBaseController':
+        """Get the parent controller of this controller
+
+        Notes
+        -----
+        :meth:`get_parent` and  :meth:`set_parent` are defined as methods to
+        avoid naming conflicts with :class:`pyqt.QStandardItem` parent method.
+
+        Returns
+        -------
+        :class:`VirtualBaseController` or None
+            Parent controller (if it exists) of this controller
 
         """
-        raise NotImplementedError
+        return self._parent
 
-    def add_child(self, child) -> 'IChild':
+    def set_parent(self, parent: 'VirtualBaseController'):
+        self._parent = parent
+
+    def register_observer(self, observer, callback, state: StateAction) -> None:
+        """Register an observer callback with this controller for the given state
+
+        Observers will be notified when the controller undergoes the applicable
+        StateAction (UPDATE/DELETE), via the supplied callback method.
+
+        Parameters
+        ----------
+        observer : object
+            The observer object, note must be weak reference'able, when the
+            observer is deleted or gc'd any callbacks will be dropped.
+        callback : bound method
+            Bound method to call when the state action occurs.
+            Note this must be a *bound* method of an object, builtin functions
+            or PyQt signals will raise an error.
+        state : StateAction
+            Action to observe in the controller, currently only meaningful for
+            UPDATE or DELETE
+
+        """
+        self._observers[state][observer] = WeakMethod(callback)
+
+    def delete(self) -> None:
+        """Notify any observers and clones that this controller is being deleted
+
+        Also calls delete() on any children of this controller to cleanup after
+        the parent has been deleted.
+        """
+        for child in self.children:
+            child.delete()
+        for cb in self._observers[StateAction.DELETE].values():
+            cb()()
+        for clone in self.clones:
+            clone.delete()
+
+    def update(self) -> None:
+        """Notify observers and clones that the controller has updated"""
+        for cb in self._observers[StateAction.UPDATE].values():
+            cb()()
+        for clone in self.clones:
+            clone.update()
+
+    @property
+    def children(self) -> Generator['VirtualBaseController', None, None]:
+        """Yields children of this controller
+
+        Override this property to provide generic access to controller children
+
+        Yields
+        ------
+        :class:`VirtualBaseController`
+            Child controllers
+
+        """
+        yield from ()
+
+    def add_child(self, child) -> 'VirtualBaseController':
         """Add a child object to the controller, and its underlying
         data object.
 
@@ -119,20 +287,37 @@ class IParent(DGPObject):
 
         Returns
         -------
-        :class:`IBaseController`
+        :class:`VirtualBaseController`
             A reference to the controller object wrapping the added child
 
         Raises
         ------
         :exc:`TypeError`
-            If the child is not an allowed type for the controller.
+            If the child is not a permissible type for the controller.
         """
-        raise NotImplementedError
+        pass
 
-    def remove_child(self, child, confirm: bool = True) -> bool:
-        raise NotImplementedError
+    def remove_child(self, uid: OID, confirm: bool = True) -> bool:
+        """Remove a child from this controller, and notify the child of its deletion
 
-    def get_child(self, uid: Union[str, OID]) -> MaybeChild:
+        Parameters
+        ----------
+        uid : OID
+            OID of the child to remove
+        confirm : bool, optional
+            Optionally request that the controller confirms the action before
+            removing the child, default is True
+
+        Returns
+        -------
+        bool
+            True on successful removal of child
+            False on failure (i.e. invalid uid supplied)
+
+        """
+        pass
+
+    def get_child(self, uid: OID) -> MaybeChild:
         """Get a child of this object by matching OID
 
         Parameters
@@ -142,8 +327,8 @@ class IParent(DGPObject):
 
         Returns
         -------
-        IChild or None
-            Returns the child object referred to by uid if it exists
+        :const:`MaybeChild`
+            Returns the child controller object referred to by uid if it exists
             else None
 
         """
@@ -151,65 +336,15 @@ class IParent(DGPObject):
             if uid == child.uid:
                 return child
 
-    def activate_child(self, uid: OID, exclusive: bool = True,
-                       emit: bool = False) -> MaybeChild:
-        """Activate a child referenced by the given OID, and return a reference
-        to the activated child.
-        Children may be exclusively activated (default behavior), in which case
-        all other children of the parent will be set to inactive.
+    def __str__(self):
+        return str(self.entity)
 
-        Parameters
-        ----------
-        uid : :class:`~dgp.core.oid.OID`
-        exclusive : bool, Optional
-            If exclusive is True, all other children will be deactivated
-        emit : bool, Optional
-
-        Returns
-        -------
-        :class:`IChild`
-            The child object that was activated
-
-        """
-        child = self.get_child(uid)
-        try:
-            child.set_active(True)
-            if exclusive:
-                for other in [c for c in self.children if c.uid != uid]:
-                    other.set_active(False)
-        except AttributeError:
-            return None
-        else:
-            return child
-
-    @property
-    def active_child(self) -> MaybeChild:
-        """Get the active child of this parent.
-
-        Returns
-        -------
-        IChild, None
-            The first active child, or None if there are no children which are
-            active.
-
-        """
-        return next((child for child in self.children if child.is_active), None)
+    def __hash__(self):
+        return hash(self.uid)
 
 
-class IBaseController(QStandardItem, AttributeProxy, DGPObject):
-    @property
-    def parent_widget(self) -> Union[QWidget, None]:
-        try:
-            return self.model().parent()
-        except AttributeError:
-            return None
-
-    @property
-    def menu(self) -> List[MenuBinding]:
-        raise NotImplementedError
-
-
-class IAirborneController(IBaseController, IParent, IChild):
+# noinspection PyAbstractClass
+class IAirborneController(VirtualBaseController):
     def add_flight_dlg(self):
         raise NotImplementedError
 
@@ -237,42 +372,22 @@ class IAirborneController(IBaseController, IParent, IChild):
     def meter_model(self) -> QStandardItemModel:
         raise NotImplementedError
 
-    @property
-    def can_activate(self):
-        return True
 
-
-class IFlightController(IBaseController, IParent, IChild):
-    @property
-    def can_activate(self):
-        return True
-
-    @property
-    def project(self) -> IAirborneController:
-        raise NotImplementedError
-
-    def get_parent(self) -> IAirborneController:
-        raise NotImplementedError
-
-
-class IMeterController(IBaseController, IChild):
+# noinspection PyAbstractClass
+class IFlightController(VirtualBaseController):
     pass
 
 
-class IDataSetController(IBaseController, IChild):
-    def get_parent(self) -> IFlightController:
-        raise NotImplementedError
+# noinspection PyAbstractClass
+class IMeterController(VirtualBaseController):
+    pass
 
-    def set_parent(self, parent) -> None:
-        raise NotImplementedError
 
+# noinspection PyAbstractClass
+class IDataSetController(VirtualBaseController):
     @property
     def hdfpath(self) -> Path:
         raise NotImplementedError
-
-    @property
-    def can_activate(self):
-        return True
 
     def add_datafile(self, datafile) -> None:
         """
@@ -286,25 +401,5 @@ class IDataSetController(IBaseController, IChild):
         """
         raise NotImplementedError
 
-    def add_segment(self, uid: OID, start: float, stop: float,
-                    label: str = ""):
-        raise NotImplementedError
-
-    def get_segment(self, uid: OID):
-        raise NotImplementedError
-
-    def remove_segment(self, uid: OID) -> None:
-        """
-        Removes the specified data-segment from the DataSet.
-
-        Parameters
-        ----------
-        uid : :obj:`OID`
-            uid (OID or str) of the segment to be removed
-
-        Raises
-        ------
-        :exc:`KeyError` if supplied uid is not contained within the DataSet
-
-        """
+    def get_datafile(self, group):
         raise NotImplementedError

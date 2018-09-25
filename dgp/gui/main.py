@@ -10,8 +10,8 @@ from PyQt5.QtWidgets import QProgressDialog, QFileDialog, QMessageBox, QMenu, QA
 
 from dgp import __about__
 from dgp.core.oid import OID
+from dgp.core.controllers.controller_interfaces import VirtualBaseController
 from dgp.core.types.enumerations import Links, Icon
-from dgp.core.controllers.controller_interfaces import IBaseController
 from dgp.core.controllers.project_controllers import AirborneProjectController
 from dgp.core.controllers.project_treemodel import ProjectTreeModel
 from dgp.core.models.project import AirborneProject, GravityProject
@@ -73,7 +73,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Model Event Signals #
         self.model.tabOpenRequested.connect(self._tab_open_requested)
-        self.model.tabCloseRequested.connect(self.workspace.close_tab)
+        # self.model.tabCloseRequested.connect(self.workspace.close_tab)
         self.model.progressNotificationRequested.connect(self._progress_event_handler)
         self.model.projectMutated.connect(self._project_mutated)
         self.model.projectClosed.connect(lambda x: self._update_recent_menu())
@@ -260,7 +260,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         for ref in recents:
             self.recent_menu.addAction(ref.name, lambda: self.open_project(Path(ref.path)))
 
-    def _tab_open_requested(self, uid: OID, controller: IBaseController):
+    def _tab_open_requested(self, uid: OID, controller: VirtualBaseController):
         """pyqtSlot(OID, IBaseController, str)
 
         Parameters

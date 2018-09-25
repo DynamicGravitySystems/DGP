@@ -60,33 +60,6 @@ def test_MainWindow_tab_open_requested(project, window):
     assert 1 == window.workspace.count()
 
 
-def test_MainWindow_tab_close_requested(project, window):
-    tab_close_spy = QSignalSpy(window.model.tabCloseRequested)
-    assert 0 == len(tab_close_spy)
-    assert 0 == window.workspace.count()
-
-    flt_ctrl = window.model.active_project.get_child(project.flights[0].uid)
-
-    window.model.item_activated(flt_ctrl.index())
-    assert 1 == window.workspace.count()
-
-    window.model.close_flight(flt_ctrl)
-    assert 1 == len(tab_close_spy)
-    assert flt_ctrl.uid == tab_close_spy[0][0]
-    assert window.workspace.get_tab(flt_ctrl.uid) is None
-
-    window.model.item_activated(flt_ctrl.index())
-    assert 1 == window.workspace.count()
-    assert window.workspace.get_tab(flt_ctrl.uid) is not None
-
-    window.workspace.tabCloseRequested.emit(0)
-    assert 0 == window.workspace.count()
-
-    assert 1 == len(tab_close_spy)
-    window.model.close_flight(flt_ctrl)
-    assert 2 == len(tab_close_spy)
-
-
 def test_MainWindow_project_mutated(window: MainWindow):
     assert not window.isWindowModified()
     window.model.projectMutated.emit()

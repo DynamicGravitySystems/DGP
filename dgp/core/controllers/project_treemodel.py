@@ -8,7 +8,8 @@ from PyQt5.QtGui import QStandardItemModel
 from dgp.core import OID, DataType
 from dgp.core.controllers.controller_interfaces import (IFlightController,
                                                         IAirborneController,
-                                                        IBaseController)
+                                                        IDataSetController,
+                                                        VirtualBaseController)
 from dgp.core.controllers.controller_helpers import confirm_action
 from dgp.gui.utils import ProgressEvent
 
@@ -16,6 +17,13 @@ __all__ = ['ProjectTreeModel']
 
 
 class ProjectTreeModel(QStandardItemModel):
+    activeProjectChanged = pyqtSignal(str)
+    projectMutated = pyqtSignal()
+    projectClosed = pyqtSignal(OID)
+    tabOpenRequested = pyqtSignal(object, object)
+    progressNotificationRequested = pyqtSignal(ProgressEvent)
+    sigDataChanged = pyqtSignal(object)
+
     """Extension of QStandardItemModel which handles Project/Model specific
     events and defines signals for domain specific actions.
 
@@ -35,22 +43,11 @@ class ProjectTreeModel(QStandardItemModel):
         Signal emitted to notify application that project data has changed.
     tabOpenRequested : pyqtSignal[IFlightController]
         Signal emitted to request a tab be opened for the supplied Flight
-    tabCloseRequested : pyqtSignal(IFlightController)
-        Signal notifying application that tab for given flight should be closed
-        This is called for example when a Flight is deleted to ensure any open
-        tabs referencing it are also deleted.
     progressNotificationRequested : pyqtSignal[ProgressEvent]
         Signal emitted to request a QProgressDialog from the main window.
         ProgressEvent is passed defining the parameters for the progress bar
 
     """
-    activeProjectChanged = pyqtSignal(str)
-    projectMutated = pyqtSignal()
-    projectClosed = pyqtSignal(OID)
-    tabOpenRequested = pyqtSignal(object, object)
-    tabCloseRequested = pyqtSignal(OID)
-    progressNotificationRequested = pyqtSignal(ProgressEvent)
-
     def __init__(self, project: IAirborneController = None,
                  parent: Optional[QObject] = None):
         super().__init__(parent)
@@ -90,21 +87,17 @@ class ProjectTreeModel(QStandardItemModel):
     def add_project(self, child: IAirborneController):
         self.appendRow(child)
 
-    def remove_project(self, child: IAirborneController, confirm: bool = True) -> None:
+    def remove_project(self, child: IAirborneController,
+                       confirm: bool = True) -> None:  # pragma: no cover
         if confirm and not confirm_action("Confirm Project Close",
                                           f"Close Project "
                                           f"{child.get_attr('name')}?",
                                           self.parent()):
             return
-        for i in range(child.flight_model.rowCount()):
-            flt: IFlightController = child.flight_model.item(i, 0)
-            self.tabCloseRequested.emit(flt.uid)
         child.save()
+        child.delete()
         self.removeRow(child.row())
         self.projectClosed.emit(child.uid)
-
-    def close_flight(self, flight: IFlightController):
-        self.tabCloseRequested.emit(flight.uid)
 
     def item_selected(self, index: QModelIndex):
         """Single-click handler for View events"""
@@ -112,8 +105,9 @@ class ProjectTreeModel(QStandardItemModel):
 
     def item_activated(self, index: QModelIndex):
         """Double-click handler for View events"""
+
         item = self.itemFromIndex(index)
-        if not isinstance(item, IBaseController):
+        if not isinstance(item, VirtualBaseController):
             return
 
         if isinstance(item, IAirborneController):
@@ -154,5 +148,5 @@ class ProjectTreeModel(QStandardItemModel):
             return self._warn_no_active_project()
         self.active_project.add_flight_dlg()
 
-    def _warn_no_active_project(self):
+    def _warn_no_active_project(self):  # pragma: no cover
         self.log.warning("No active projects.")

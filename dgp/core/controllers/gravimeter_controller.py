@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-from PyQt5.QtCore import Qt
+from typing import cast
 
 from dgp.core import Icon
-from dgp.core.oid import OID
 from dgp.core.controllers.controller_interfaces import IAirborneController, IMeterController
 from dgp.core.controllers.controller_helpers import get_input
 from dgp.core.models.meter import Gravimeter
@@ -10,50 +9,36 @@ from dgp.core.models.meter import Gravimeter
 
 class GravimeterController(IMeterController):
 
-    def __init__(self, meter: Gravimeter, parent: IAirborneController = None):
-        super().__init__(meter.name)
-        self.setEditable(False)
-        self.setData(meter, role=Qt.UserRole)
+    def __init__(self, meter: Gravimeter, project, parent: IAirborneController = None):
+        super().__init__(meter, project, parent=parent)
         self.setIcon(Icon.METER.icon())
 
-        self._meter = meter  # type: Gravimeter
-        self._parent = parent
-
         self._bindings = [
-            ('addAction', ('Delete <%s>' % self._meter.name,
+            ('addAction', ('Delete <%s>' % self.entity.name,
                            (lambda: self.get_parent().remove_child(self.uid, True)))),
             ('addAction', ('Rename', self.set_name_dlg))
         ]
 
     @property
-    def uid(self) -> OID:
-        return self._meter.uid
-
-    @property
-    def datamodel(self) -> object:
-        return self._meter
+    def entity(self) -> Gravimeter:
+        return cast(Gravimeter, super().entity)
 
     @property
     def menu(self):
         return self._bindings
 
-    def get_parent(self) -> IAirborneController:
-        return self._parent
-
-    def set_parent(self, parent: IAirborneController) -> None:
-        self._parent = parent
+    def clone(self):
+        clone = GravimeterController(self.entity, self.project)
+        self.register_clone(clone)
+        return clone
 
     def update(self):
-        self.setData(self._meter.name, Qt.DisplayRole)
+        self.setText(self.entity.name)
+        super().update()
 
     def set_name_dlg(self):  # pragma: no cover
-        name = get_input("Set Name", "Enter a new name:", self._meter.name,
+        name = get_input("Set Name", "Enter a new name:", self.entity.name,
                          self.parent_widget)
         if name:
             self.set_attr('name', name)
 
-    def clone(self):
-        return GravimeterController(self._meter, self.get_parent())
-
-    def __hash__(self):
-        return hash(self._meter.uid)

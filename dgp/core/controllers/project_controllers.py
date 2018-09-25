@@ -45,19 +45,15 @@ class AirborneProjectController(IAirborneController):
 
     """
     def __init__(self, project: AirborneProject, path: Path = None):
-        super().__init__(project.name)
+        super().__init__(project, self)
         self.log = logging.getLogger(__name__)
-        self._project = project
         if path:
-            self._project.path = path
+            self.entity.path = path
 
-        self._parent = None
         self._active = None
 
         self.setIcon(Icon.DGP_NOTEXT.icon())
-        self.setToolTip(str(self._project.path.resolve()))
-        self.setData(project, Qt.UserRole)
-        self.setBackground(QColor(StateColor.INACTIVE.value))
+        self.setToolTip(str(self.entity.path.resolve()))
 
         self.flights = ProjectFolder("Flights")
         self.appendRow(self.flights)
@@ -69,11 +65,11 @@ class AirborneProjectController(IAirborneController):
 
         # It is important that GravimeterControllers are defined before Flights
         # Flights may create references to a Gravimeter object, but not vice versa
-        for meter in self.project.gravimeters:
-            controller = GravimeterController(meter, parent=self)
+        for meter in self.entity.gravimeters:
+            controller = GravimeterController(meter, self, parent=self)
             self.meters.appendRow(controller)
 
-        for flight in self.project.flights:
+        for flight in self.entity.flights:
             controller = FlightController(flight, project=self)
             self.flights.appendRow(controller)
 
@@ -108,6 +104,17 @@ class AirborneProjectController(IAirborneController):
         return True
 
     @property
+    def entity(self) -> AirborneProject:
+        return cast(AirborneProject, super().entity)
+
+    @property
+    def menu(self):  # pragma: no cover
+        return self._bindings
+
+    def clone(self):
+        raise NotImplementedError
+
+    @property
     def children(self) -> Generator[IFlightController, None, None]:
         for child in itertools.chain(self.flights.items(), self.meters.items()):
             yield child
@@ -118,28 +125,12 @@ class AirborneProjectController(IAirborneController):
         return list(self._fields.keys())
 
     @property
-    def uid(self) -> OID:
-        return self._project.uid
-
-    @property
-    def datamodel(self) -> object:
-        return self._project
-
-    @property
-    def project(self) -> Union[GravityProject, AirborneProject]:
-        return self._project
-
-    @property
     def path(self) -> Path:
-        return self._project.path
-
-    @property
-    def menu(self):  # pragma: no cover
-        return self._bindings
+        return self.entity.path
 
     @property
     def hdfpath(self) -> Path:
-        return self._project.path.joinpath("dgpdata.hdf5")
+        return self.entity.path.joinpath("dgpdata.hdf5")
 
     @property
     def meter_model(self) -> QStandardItemModel:
@@ -151,18 +142,18 @@ class AirborneProjectController(IAirborneController):
 
     def add_child(self, child: Union[Flight, Gravimeter]) -> Union[FlightController, GravimeterController]:
         if isinstance(child, Flight):
-            controller = FlightController(child, project=self)
+            controller = FlightController(child, self)
             self.flights.appendRow(controller)
         elif isinstance(child, Gravimeter):
-            controller = GravimeterController(child, parent=self)
+            controller = GravimeterController(child, self, parent=self)
             self.meters.appendRow(controller)
         else:
             raise ValueError("{0!r} is not a valid child type for {1.__name__}".format(child, self.__class__))
-        self.project.add_child(child)
+        self.entity.add_child(child)
         self.update()
         return controller
 
-    def remove_child(self, uid: Union[OID, str], confirm: bool = True):
+    def remove_child(self, uid: OID, confirm: bool = True):
         child = self.get_child(uid)
         if child is None:
             self.log.warning(f'UID {uid!s} has no corresponding object in this '
@@ -171,38 +162,21 @@ class AirborneProjectController(IAirborneController):
         if confirm:  # pragma: no cover
             if not confirm_action("Confirm Deletion",
                                   "Are you sure you want to delete {!s}"
-                                          .format(child.get_attr('name')),
+                                  .format(child.get_attr('name')),
                                   parent=self.parent_widget):
                 return
-        if isinstance(child, IFlightController):
-            try:
-                self.get_parent().close_flight(child)
-            except AttributeError:
-                pass
 
-        self.project.remove_child(child.uid)
-        self._child_map[child.datamodel.__class__].removeRow(child.row())
+        child.delete()
+        self.entity.remove_child(child.uid)
+        self._child_map[child.entity.__class__].removeRow(child.row())
         self.update()
 
     def get_parent(self) -> ProjectTreeModel:
         return self.model()
 
-    def get_child(self, uid: Union[str, OID]) -> IFlightController:
-        return cast(IFlightController, super().get_child(uid))
-
-    @property
-    def active_child(self) -> IFlightController:
-        return next((child for child in self.children if child.is_active), None)
-
-    def activate_child(self, uid: OID, exclusive: bool = True,
-                       emit: bool = False):
-        child: IFlightController = super().activate_child(uid, exclusive, False)
-        if emit:
-            try:
-                self.get_parent().item_activated(child.index())
-            except AttributeError:
-                self.log.warning(f"project {self.get_attr('name')} has no parent")
-        return child
+    def get_child(self, uid: Union[str, OID]) -> Union[FlightController,
+                                                       GravimeterController]:
+        return super().get_child(uid)
 
     def set_active(self, state: bool):
         self._active = bool(state)
@@ -216,11 +190,11 @@ class AirborneProjectController(IAirborneController):
         return self._active
 
     def save(self, to_file=True):
-        return self.project.to_json(indent=2, to_file=to_file)
+        return self.entity.to_json(indent=2, to_file=to_file)
 
     def set_name(self):  # pragma: no cover
         new_name = get_input("Set Project Name", "Enter a Project Name",
-                             self.project.name, parent=self.parent_widget)
+                             self.entity.name, parent=self.parent_widget)
         if new_name:
             self.set_attr('name', new_name)
 
@@ -236,11 +210,12 @@ class AirborneProjectController(IAirborneController):
     def update(self):  # pragma: no cover
         """Emit an update event from the parent Model, signalling that
         data has been added/removed/modified in the project."""
-        self.setText(self._project.name)
+        self.setText(self.entity.name)
         try:
             self.get_parent().project_mutated(self)
         except AttributeError:
             self.log.warning(f"project {self.get_attr('name')} has no parent")
+        super().update()
 
     def _post_load(self, datafile: DataFile, dataset: IDataSetController,
                    data: DataFrame) -> None:  # pragma: no cover

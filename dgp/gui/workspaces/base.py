@@ -1,20 +1,37 @@
 # -*- coding: utf-8 -*-
 import json
+import logging
+import weakref
 
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtCore import pyqtSignal, Qt
 from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtWidgets import QWidget
 
-from dgp.core import OID
+from dgp.core import OID, StateAction
+from dgp.core.controllers.controller_interfaces import VirtualBaseController
 from dgp.gui import settings
 
 __all__ = ['WorkspaceTab', 'SubTab']
+_log = logging.getLogger(__name__)
 
 
 class WorkspaceTab(QWidget):
+    sigControllerUpdated = pyqtSignal()
+
+    def __init__(self, controller: VirtualBaseController, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        controller.register_observer(self, self.close, StateAction.DELETE)
+        controller.register_observer(self, self._slot_update, StateAction.UPDATE)
+        self._controller = weakref.ref(controller)
+
     @property
     def uid(self) -> OID:
-        raise NotImplementedError
+        return self.controller.uid
+
+    @property
+    def controller(self) -> VirtualBaseController:
+        return self._controller()
 
     @property
     def title(self) -> str:
@@ -37,16 +54,38 @@ class WorkspaceTab(QWidget):
 
         Override this method to provide state handling for a WorkspaceTab
         """
+        _log.debug(f"Saving tab {self.__class__.__name__} ({self.uid}) state")
         _jsons = json.dumps(state)
         settings().setValue(self.state_key, _jsons)
 
+    def close(self):
+        # Note: this must be defined in order to provide a bound method for
+        super().close()
+
     def closeEvent(self, event: QCloseEvent):
         self.save_state()
+        self.setParent(None)
         event.accept()
+
+    def _slot_update(self):
+        self.sigControllerUpdated.emit()
+
+    def __del__(self):
+        _log.debug(f"Deleting {self.__class__.__name__}")
 
 
 class SubTab(QWidget):
     sigLoaded = pyqtSignal(object)
+
+    def __init__(self, control: VirtualBaseController, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        control.register_observer(self, self.close, StateAction.DELETE)
+        self._control = weakref.ref(control)
+
+    @property
+    def control(self):
+        return self._control()
 
     def get_state(self):
         """Get a representation of the current state of the SubTab
@@ -79,3 +118,9 @@ class SubTab(QWidget):
 
         """
         pass
+
+    def close(self):
+        super().close()
+
+    def __del__(self):
+        _log.debug(f"Deleting {self.__class__.__name__}")

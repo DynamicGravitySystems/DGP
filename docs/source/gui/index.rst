@@ -15,15 +15,16 @@ files, which are then compiled into a Python source files which define
 individual UI components.
 The .ui source files are contained within the ui directory.
 
-.. seealso::
-
-    `Qt 5 Documentation <http://doc.qt.io>`__
-
-    `PyQt5 Documentation <http://pyqt.sourceforge.net/Docs/PyQt5/>`__
-
-
 .. toctree::
     :caption: Sub Packages
     :maxdepth: 1
 
     plotting.rst
+    workspaces.rst
+
+
+.. seealso::
+
+    `Qt 5 Documentation <http://doc.qt.io>`__
+
+    `PyQt5 Documentation <http://pyqt.sourceforge.net/Docs/PyQt5/>`__

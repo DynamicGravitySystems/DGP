@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 import logging
-from weakref import WeakSet
-from typing import Union
+from typing import Union, Generator, cast
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QStandardItemModel, QColor
+from PyQt5.QtGui import QStandardItemModel
 
 from . import controller_helpers as helpers
 from dgp.core.oid import OID
@@ -12,7 +10,7 @@ from dgp.core.controllers.dataset_controller import DataSetController
 from dgp.core.controllers.controller_interfaces import IAirborneController, IFlightController
 from dgp.core.models.dataset import DataSet
 from dgp.core.models.flight import Flight
-from dgp.core.types.enumerations import DataType, StateColor, Icon
+from dgp.core.types.enumerations import DataType, Icon
 from dgp.gui.dialogs.add_flight_dialog import AddFlightDialog
 
 
@@ -31,7 +29,7 @@ class FlightController(IFlightController):
     The default display behavior is to provide the Flights Name.
     A :obj:`QIcon` or string path to a resource can be provided for decoration.
 
-    FlightController implements the AttributeProxy mixin (via IBaseController),
+    FlightController implements the AttributeProxy mixin (via VirtualBaseController),
     which allows access to the underlying :class:`Flight` attributes via the
     get_attr and set_attr methods.
 
@@ -44,56 +42,44 @@ class FlightController(IFlightController):
 
     """
 
-    inherit_context = True
-
     def __init__(self, flight: Flight, project: IAirborneController):
         """Assemble the view/controller repr from the base flight object."""
-        super().__init__()
+        super().__init__(model=flight, project=project, parent=project)
         self.log = logging.getLogger(__name__)
-        self._flight = flight
-        self._parent = project
-        self._active: bool = False
-        self.setData(flight, Qt.UserRole)
         self.setIcon(Icon.AIRBORNE.icon())
-        self.setEditable(False)
-        self.setBackground(QColor(StateColor.INACTIVE.value))
 
-        self._clones = WeakSet()
         self._dataset_model = QStandardItemModel()
 
-        for dataset in self._flight.datasets:
-            control = DataSetController(dataset, self)
+        for dataset in self.entity.datasets:
+            control = DataSetController(dataset, project, self)
             self.appendRow(control)
             self._dataset_model.appendRow(control.clone())
 
-        # Add default DataSet if none defined
-        if not len(self._flight.datasets):
+        # Add a default DataSet if none defined
+        if not len(self.entity.datasets):
             self.add_child(DataSet(name='DataSet-0'))
 
         # TODO: Consider adding MenuPrototype class which could provide the means to build QMenu
         self._bindings = [  # pragma: no cover
             ('addAction', ('Add Dataset', self._add_dataset)),
-            ('addAction', ('Set Active',
-                           lambda: self._activate_self())),
+            ('addAction', ('Open Flight Tab', lambda: self.model().item_activated(self.index()))),
             ('addAction', ('Import Gravity',
                            lambda: self._load_file_dialog(DataType.GRAVITY))),
             ('addAction', ('Import Trajectory',
                            lambda: self._load_file_dialog(DataType.TRAJECTORY))),
             ('addSeparator', ()),
-            ('addAction', (f'Delete {self._flight.name}',
-                           lambda: self._delete_self(confirm=True))),
-            ('addAction', ('Rename Flight', lambda: self._set_name())),
-            ('addAction', ('Properties',
-                           lambda: self._show_properties_dlg()))
+            ('addAction', (f'Delete {self.entity.name}', self._action_delete_self)),
+            ('addAction', ('Rename Flight', self._set_name)),
+            ('addAction', ('Properties', self._show_properties_dlg))
         ]
         self.update()
 
     @property
-    def uid(self) -> OID:
-        return self._flight.uid
+    def entity(self) -> Flight:
+        return cast(Flight, super().entity)
 
     @property
-    def children(self):
+    def children(self) -> Generator[DataSetController, None, None]:
         for i in range(self.rowCount()):
             yield self.child(i, 0)
 
@@ -102,60 +88,18 @@ class FlightController(IFlightController):
         return self._bindings
 
     @property
-    def datamodel(self) -> Flight:
-        return self._flight
-
-    @property
     def datasets(self) -> QStandardItemModel:
         return self._dataset_model
 
-    @property
-    def project(self) -> IAirborneController:
-        return self._parent
-
-    def get_parent(self) -> IAirborneController:
-        return self._parent
-
-    def set_parent(self, parent: IAirborneController) -> None:
-        self._parent = parent
-
     def update(self):
-        self.setText(self._flight.name)
-        self.setToolTip(str(self._flight.uid))
-        for clone in self._clones:
-            clone.update()
+        self.setText(self.entity.name)
+        self.setToolTip(str(self.entity.uid))
         super().update()
 
     def clone(self):
-        clone = FlightController(self._flight, project=self.get_parent())
-        self._clones.add(clone)
+        clone = FlightController(self.entity, self.project)
+        self.register_clone(clone)
         return clone
-
-    @property
-    def is_active(self):
-        return self._active
-
-    def set_active(self, state: bool):
-        self._active = bool(state)
-        if self._active:
-            self.setBackground(QColor(StateColor.ACTIVE.value))
-        else:
-            self.setBackground(QColor(StateColor.INACTIVE.value))
-
-    @property
-    def active_child(self) -> DataSetController:
-        """active_child overrides method in IParent
-
-        If no child is active, try to activate the first child (row 0) and
-        return the newly active child.
-        If the flight has no children None will be returned
-
-        """
-        child = super().active_child
-        if child is None and self.rowCount():
-            self.activate_child(self.child(0).uid)
-            return self.active_child
-        return child
 
     def add_child(self, child: DataSet) -> DataSetController:
         """Adds a child to the underlying Flight, and to the model representation
@@ -181,14 +125,14 @@ class FlightController(IFlightController):
             raise TypeError(f'Invalid child of type {type(child)} supplied to'
                             f'FlightController, must be {type(DataSet)}')
 
-        self._flight.datasets.append(child)
-        control = DataSetController(child, self)
+        self.entity.datasets.append(child)
+        control = DataSetController(child, self.project, self)
         self.appendRow(control)
         self._dataset_model.appendRow(control.clone())
         self.update()
         return control
 
-    def remove_child(self, uid: Union[OID, str], confirm: bool = True) -> bool:
+    def remove_child(self, uid: OID, confirm: bool = True) -> bool:
         """
         Remove the specified child primitive from the underlying
         :obj:`~dgp.core.models.flight.Flight` and from the respective model
@@ -222,7 +166,8 @@ class FlightController(IFlightController):
                                           self.parent_widget):
                 return False
 
-        self._flight.datasets.remove(child.datamodel)
+        child.delete()
+        self.entity.datasets.remove(child.entity)
         self._dataset_model.removeRow(child.row())
         self.removeRow(child.row())
         self.update()
@@ -238,7 +183,7 @@ class FlightController(IFlightController):
     def _add_dataset(self):
         self.add_child(DataSet(name=f'DataSet-{self.datasets.rowCount()}'))
 
-    def _delete_self(self, confirm: bool = True):
+    def _action_delete_self(self, confirm: bool = True):
         self.get_parent().remove_child(self.uid, confirm)
 
     def _set_name(self):  # pragma: no cover
@@ -254,9 +199,3 @@ class FlightController(IFlightController):
     def _show_properties_dlg(self):  # pragma: no cover
         AddFlightDialog.from_existing(self, self.get_parent(),
                                       parent=self.parent_widget).exec_()
-
-    def __hash__(self):
-        return hash(self._flight.uid)
-
-    def __str__(self):
-        return str(self._flight)

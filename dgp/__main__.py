@@ -10,8 +10,10 @@ from PyQt5.QtWidgets import QApplication, QSplashScreen
 
 from dgp.gui.main import MainWindow
 
+app = None
 
-def excepthook(type_, value, traceback_):  # pragma: no cover
+
+def excepthook(type_, value, traceback_):
     """This allows IDE to properly display unhandled exceptions which are
     otherwise silently ignored as the application is terminated.
     Override default excepthook with
@@ -23,11 +25,8 @@ def excepthook(type_, value, traceback_):  # pragma: no cover
     QtCore.qFatal('')
 
 
-app = None
-_align = Qt.AlignBottom | Qt.AlignHCenter
-
-
-def main():  # pragma: no cover
+def main():
+    _align = Qt.AlignBottom | Qt.AlignHCenter
     global app
     sys.excepthook = excepthook
     app = QApplication(sys.argv)
