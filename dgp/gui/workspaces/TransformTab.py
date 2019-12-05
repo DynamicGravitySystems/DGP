@@ -145,22 +145,25 @@ class TransformWidget(QWidget, Ui_TransformInterface):
 
         """
         graph = self.transform
-        src = inspect.getsource(graph.__init__)
-        start_str = 'self.transform_graph'
-        start_i = src.find('{', src.find(start_str)) + 1
-        src = src[start_i:src.find('}')]
-        trimmed = map(lambda x: x.lstrip(' '), src.split('\n'))
-        src = ''
-        for line in trimmed:
-            src += f'{line}\n'
+        try:
+            src = inspect.getsource(graph.__init__)  # This fails when run in pyInstaller packaged context
+            start_str = 'self.transform_graph'
+            start_i = src.find('{', src.find(start_str)) + 1
+            src = src[start_i:src.find('}')]
+            trimmed = map(lambda x: x.lstrip(' '), src.split('\n'))
+            src = ''
+            for line in trimmed:
+                src += f'{line}\n'
 
-        if HAS_HIGHLIGHTER:
-            css = HtmlFormatter().get_style_defs('.highlight')
-            style_block = f'<style>{css}</style>'
-            html = highlight(src, PythonLexer(stripall=True), HtmlFormatter())
-            self.qte_source_browser.setHtml(f'{style_block}{html}')
-        else:
-            self.qte_source_browser.setText(src)
+            if HAS_HIGHLIGHTER:
+                css = HtmlFormatter().get_style_defs('.highlight')
+                style_block = f'<style>{css}</style>'
+                html = highlight(src, PythonLexer(stripall=True), HtmlFormatter())
+                self.qte_source_browser.setHtml(f'{style_block}{html}')
+            else:
+                self.qte_source_browser.setText(src)
+        except OSError:
+            print("Unable to inspect graph source code")
 
     def _mode_toggled(self):
         """Toggle the mode state between Normal or Segments"""
