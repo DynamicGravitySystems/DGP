@@ -6,3 +6,4 @@ PyQt5==5.11.2
 pyqtgraph==0.10.0
 tables==3.4.4
 scipy==1.1.0
+pyyaml==5.1.2

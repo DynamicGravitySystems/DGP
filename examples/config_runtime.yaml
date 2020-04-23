@@ -1,0 +1,22 @@
+---
+  campaign:     'OIB_GV-2019'
+  flight:       'F1014'
+  begin_line:   '2019-11-09 22:00'
+  end_line:     '2019-11-10 06:00'
+
+  gravity_dir:  '/Volumes/BASEQI/data_baseqi/OIB_GV_2019/F1014/Gravity/DgS/'
+  gravity_file: 'OIB-GV_F1014_20191109.dat'
+
+  trajectory_src:   'Waypoint'
+  trajectory_dir:   '/Volumes/BASEQI/data_baseqi/OIB_GV_2019/F1014/Gravity/DgS/'
+  trajectory_file:  'OIB-GV_F1014_20191109_iMAR-INS_FINAL_DGS.txt'
+
+  config_dir:   '/Volumes/BASEQI/data_baseqi/OIB_GV_2019/F1014/Gravity/DgS/'
+  out_dir:      '/Volumes/BASEQI/data_baseqi/OIB_GV_2019/F1014/Gravity/DgS/'
+
+  QC1:
+    start:  '2019-11-10 00:10'
+    end:    '2019-11-10 00:25'
+
+  # Change These Only As Needed
+  gps_fields: ['mdy', 'hms', 'lat', 'long', 'ortho_ht', 'ell_ht', 'num_stats', 'pdop']

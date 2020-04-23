@@ -6,7 +6,7 @@ import numpy as np
 from .graph import TransformGraph
 from .gravity import (eotvos_correction, latitude_correction,
                       free_air_correction, kinematic_accel)
-from .filters import lp_filter
+from .filters import lp_filter, bw_filter, sg_filter
 from ..timesync import find_time_delay, shift_frame
 from ..etc import align_frames
 from .derivatives import taylor_fir, central_difference
@@ -57,7 +57,7 @@ class AirbornePost(TransformGraph):
                                 'total_corr': (self.total_corr, ['aligned_kin_accel', 'aligned_eotvos', 'lat_corr', 'fac']),
                                 'abs_grav': (partial(demux, col='gravity'), 'gravity'),
                                 'corrected_grav': (self.corrected_grav, ['total_corr', 'abs_grav']),
-                                'filtered_grav': (partial(lp_filter, fs=10), 'corrected_grav')
+                                'filtered_grav': (partial(lp_filter, filter_len=100, fs=10), 'corrected_grav')
                                 }
         super().__init__()
 

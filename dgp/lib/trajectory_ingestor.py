@@ -17,7 +17,7 @@ TRAJECTORY_INTERP_FIELDS = {'lat', 'long', 'ell_ht'}
 
 def import_trajectory(filepath, delim_whitespace=False, interval=0,
                       interp=False, is_utc=False, columns=None, skiprows=None,
-                      timeformat='sow'):
+                      timeformat='sow', engine='c', sep=','):
     """
     Read and parse ASCII trajectory data in a comma-delimited format.
 
@@ -53,6 +53,15 @@ def import_trajectory(filepath, delim_whitespace=False, interval=0,
         date in the format 'MM/DD/YYYY', and a field named 'hms' with the time
         in the format 'HH:MM:SS.SSS'. The 'serial' format (not yet implemented)
         requires a field named 'datenum' with the serial date number.
+    engine : str
+        'c' | 'python'  Default: 'c'
+        Interpreter for Pandas read_csv. Waypoint, the default trajectory,
+        uses standard Pandas default of 'c'.
+    sep : str
+        ',' | '\t'  Default: ','
+        Delimiter for Pandas read_csv. Waypoint, the default trajectory,
+        uses standard Pandas default of ',', but others, such as TerraPOS is
+        tab delimited, requiring '\t'.
 
     Returns
     -------
@@ -60,9 +69,8 @@ def import_trajectory(filepath, delim_whitespace=False, interval=0,
         Pandas DataFrame of ingested Trajectory data.
 
     """
-
     df = pd.read_csv(filepath, delim_whitespace=delim_whitespace, header=None,
-                     engine='c', na_filter=False, skiprows=skiprows)
+                     engine=engine, na_filter=False, skiprows=skiprows, sep=sep)
 
     # assumed position of these required fields
     if columns is None:
@@ -109,7 +117,7 @@ def import_trajectory(filepath, delim_whitespace=False, interval=0,
 
     # remove leap second
     if is_utc:
-        # TO DO: Check dates at beginning and end to determine whether a leap second was added in the middle of the survey.
+        # TODO: Check dates at beginning and end to determine whether a leap second was added in the middle of the survey.
         shift = leap_seconds(datetime=df.index[0])
         df.index = df.index.shift(-shift, freq='S')
 

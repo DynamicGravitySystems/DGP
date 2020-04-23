@@ -21,6 +21,22 @@ def lp_filter(data_in, filter_len=100, fs=1):
     return pd.Series(filtered_data, index=data_in.index, name=name)
 
 
+def bw_filter(data_in, filter_len=70, n=2):
+    wn = 1 / (filter_len / np.nanmean(np.diff(data_in.index).astype(float) / 1e9))
+    B, A = signal.butter(n, wn, output='ba')
+    data_in.interpolate(method='cubic', axis=0, inplace=True)
+    filtered_data = signal.filtfilt(B, A, data_in, method='gust')
+    name = 'filt_butterworth_' + str(filter_len)
+    return pd.Series(filtered_data, index=data_in.index, name=name)
+
+
+def sg_filter(data_in, filter_len=100):
+    wn = 3 * filter_len / np.nanmean(np.diff(data_in.index).astype(float) / 1e9) + 1
+    filtered_data = signal.savgol_filter(data_in, wn, 5, mode='nearest')
+    name = 'filt_savgol_' + str(filter_len)
+    return pd.Series(filtered_data, index=data_in.index, name=name)
+
+
 def detrend(data_in, begin, end):
     # TODO: Do ndarrays with both dimensions greater than 1 work?
 

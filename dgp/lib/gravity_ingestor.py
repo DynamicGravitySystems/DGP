@@ -98,12 +98,16 @@ def read_at1a(path, columns=None, fill_with_nans=True, interp=False,
     pandas.DataFrame
         Gravity data indexed by datetime.
     """
-    columns = columns or ['gravity', 'long_accel', 'cross_accel', 'beam',
+    columns = ['gravity', 'long_accel', 'cross_accel', 'beam',
                           'temp', 'status', 'pressure', 'Etemp', 'gps_week',
                           'gps_sow']
 
     df = pd.read_csv(path, header=None, engine='c', na_filter=False,
                      skiprows=skiprows)
+
+    if len(df.columns) != len(columns):
+        columns += ['unknown']
+
     df.columns = columns
 
     # expand status field
