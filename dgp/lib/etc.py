@@ -117,7 +117,7 @@ def align_frames(frame1, frame2, align_to='left', interp_method='time',
     left = fill_nans(left)
     right = fill_nans(right)
 
-    left = left.reindex(new_index) # TODO Why does dropna matter here for some flights?
+    left = left.reindex(new_index).dropna() # TODO Why does dropna matter here for some flights?
     right = right.reindex(new_index).dropna()
 
     # crop frames

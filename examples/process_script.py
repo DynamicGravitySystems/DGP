@@ -60,13 +60,23 @@ trajectory = import_trajectory(os.path.join(trajectory_directory, trajectory_fil
                                columns=gps_fields, skiprows=1,
                                timeformat='hms', engine=trajectory_engine, sep=trajectory_delim)
 if import_auxiliary:
+    plot_imar = True
     imar_file = trajectory_file.replace('DGS', 'iMAR_1Hz')
     # imar_file = f'{os.path.splitext(imar_file)[0]}_1Hz{os.path.splitext(imar_file)[1]}'
     imar = import_imar_zbias(os.path.join(trajectory_directory, imar_file))
-    gravity = gravity.reset_index() \
-        .merge(imar[['z_acc_bias', 'gps_sow']], on='gps_sow', how='left') \
-        .set_index('index')
-    gravity['z_acc_bias'].interpolate(method='linear', limit_area='inside', inplace=True)
+
+    # imar_10Hz = imar.resample('100L').first().bfill(limit=1)[['lat','z_acc_bias']].interpolate(method='linear', limit_area='inside')
+
+    # gravity2 = gravity.reset_index() \
+    #     .merge(imar[['z_acc_bias', 'gps_sow']]) \ #, on='gps_sow', how='left') \
+    #     .set_index('index')
+
+    import pandas as pd
+    # pd.merge(gravity, imar_10Hz).head()
+    gravity = pd.concat([gravity, imar[['z_acc_bias']]], axis=1)
+
+    gravity[['z_acc_bias']].interpolate(method='linear', limit_area='inside', inplace=True)
+
 
 # Read MeterProcessing file in Data Directory
 config_file = os.path.join(configdir, 'DGS_config_files', 'MeterProcessing.ini')
