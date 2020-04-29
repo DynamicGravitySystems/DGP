@@ -70,7 +70,7 @@ DGS_AT1A_INTERP_FIELDS = {'gravity', 'long_accel', 'cross_accel', 'beam',
                           'temp', 'pressure', 'Etemp'}
 
 
-def read_at1a(path, columns=None, fill_with_nans=True, interp=False,
+def read_at1a(path, columns=None, fill_with_nans=False, interp=False,
               skiprows=None):
     """
     Read and parse gravity data file from DGS AT1A (Airborne) meter.
@@ -140,7 +140,6 @@ def read_at1a(path, columns=None, fill_with_nans=True, interp=False,
         index = pd.date_range(df.index[0], df.index[-1], freq=interval)
         df = df.reindex(index)
 
-    # TODO: Replace interp_nans with pandas interpolate
     if interp:
         numeric = df.select_dtypes(include=[np.number])
         numeric = numeric.interpolate(method='time')

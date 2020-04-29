@@ -7,6 +7,7 @@ Library for trajectory data import functions
 """
 import numpy as np
 import pandas as pd
+from datetime import datetime
 from pandas.tseries.offsets import Milli
 
 from .time_utils import leap_seconds, convert_gps_time, datenum_to_datetime
@@ -58,10 +59,10 @@ def import_trajectory(filepath, delim_whitespace=False, interval=0,
         Interpreter for Pandas read_csv. Waypoint, the default trajectory,
         uses standard Pandas default of 'c'.
     sep : str
-        ',' | '\t'  Default: ','
+        ',' | '\s+'  Default: ','
         Delimiter for Pandas read_csv. Waypoint, the default trajectory,
         uses standard Pandas default of ',', but others, such as TerraPOS is
-        tab delimited, requiring '\t'.
+        space delimited, requiring '\s+'.
 
     Returns
     -------
@@ -139,5 +140,23 @@ def import_trajectory(filepath, delim_whitespace=False, interval=0,
         # replace columns
         for col in numeric.columns:
             df[col] = numeric[col]
+
+    return df
+
+
+def import_imar_zbias(path, starttime=None, endtime=None):
+    if starttime is not None and not isinstance(starttime, datetime):
+        raise TypeError('starttime: expected datetime object, got {typ}'.format(typ=type(starttime)))
+
+    df = pd.read_csv(path, header=None, delim_whitespace=False, skiprows=18, engine='python', sep='\s+')
+    df.columns = ['date_utc', 'gps_sow', 'hms_utc', 'unix_utc', 'lat', 'lon', 'h', 'pitch', 'roll',
+                  'heading', 'ns', 'pdop', 'x_acc_bias', 'y_acc_bias', 'z_acc_bias']
+    df.index = pd.to_datetime(df["unix_utc"], unit='s')
+
+    if starttime is not None:
+        df = df[df['unix_utc'] >= starttime]
+    if endtime is not None:
+        df = df[df['unix_utc'] <= endtime]
+        df.reset_index(drop=True, inplace=True)
 
     return df

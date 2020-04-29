@@ -3,7 +3,7 @@ from datetime import datetime
 import yaml
 
 from dgp.lib.gravity_ingestor import read_at1a
-from dgp.lib.trajectory_ingestor import import_trajectory
+from dgp.lib.trajectory_ingestor import import_trajectory, import_imar_zbias
 from dgp.lib.etc import align_frames
 from dgp.lib.transform.transform_graphs import AirbornePost
 from dgp.lib.transform.filters import detrend
@@ -14,6 +14,7 @@ write_out = True
 make_plots = True
 add_map_plots = False
 diagnostic = True
+import_auxiliary = True
 
 # Read YAML config file
 proj_path = os.path.abspath(os.path.dirname(__file__))
@@ -52,18 +53,29 @@ else:
 # Load Data Files
 print('\nImporting gravity')
 gravity = read_at1a(os.path.join(gravity_directory, gravity_file), interp=True)
-print("Gravity START: {}".format(gravity.index[0]))
-print("Gravity END:   {}".format(gravity.index[-1]))
+print(f"Gravity Data Starts: {gravity.index[0]}")
+print(f"Gravity Data Ends: {gravity.index[-1]}")
 print('\nImporting trajectory')
 trajectory = import_trajectory(os.path.join(trajectory_directory, trajectory_file),
                                columns=gps_fields, skiprows=1,
                                timeformat='hms', engine=trajectory_engine, sep=trajectory_delim)
+if import_auxiliary:
+    imar_file = trajectory_file.replace('DGS', 'iMAR_1Hz')
+    # imar_file = f'{os.path.splitext(imar_file)[0]}_1Hz{os.path.splitext(imar_file)[1]}'
+    imar = import_imar_zbias(os.path.join(trajectory_directory, imar_file))
+    gravity = gravity.reset_index() \
+        .merge(imar[['z_acc_bias', 'gps_sow']], on='gps_sow', how='left') \
+        .set_index('index')
+    gravity['z_acc_bias'].interpolate(method='linear', limit_area='inside', inplace=True)
 
 # Read MeterProcessing file in Data Directory
 config_file = os.path.join(configdir, 'DGS_config_files', 'MeterProcessing.ini')
-k_factor = read_meterconfig(config_file, 'kfactor')
+if diagnostic:
+    k_factor = 1
+else:
+    k_factor = read_meterconfig(config_file, 'kfactor')
 tie_gravity = read_meterconfig(config_file, 'TieGravity')
-print('K-factor:    {}\nGravity-tie: {}\n'.format(k_factor, tie_gravity))
+print(f"K-factor:    {k_factor}\nGravity-tie: {tie_gravity}\n")
 
 # Still Readings
 #  TODO: Semi-automate or create GUI to get statics
@@ -72,10 +84,11 @@ second_static = read_meterconfig(config_file, 'PostStill')
 
 # pre-processing prep
 if not begin_line < end_line:
-    print('Check your times.  Using start and end of gravity file instead.')
+    print("Check your times.  Using start and end of gravity file instead.")
     begin_line = gravity.index[0]
     end_line = gravity.index[-1]
-trajectory_full = trajectory[['long', 'lat']]
+if add_map_plots:
+    trajectory_full = trajectory[['long', 'lat']]
 gravity = gravity[(begin_line <= gravity.index) & (gravity.index <= end_line)]
 trajectory = trajectory[(begin_line <= trajectory.index) & (trajectory.index <= end_line)]
 
@@ -100,25 +113,29 @@ print('\nProcessing')
 g = AirbornePost(trajectory, gravity, begin_static=first_static, end_static=second_static)
 results = g.execute()
 
-if write_out:   # TODO: split this file up into a Diagnostic and Standard output
+if write_out:  # TODO: split this file up into a Diagnostic and Standard output
     import numpy as np
     import pandas as pd
+
     print('\nWriting Output to File')
     time = pd.Series(trajectory.index.astype(np.int64) / 10 ** 9,
                      index=trajectory.index, name='unix_time')
     columns = ['unixtime', 'lat', 'long', 'ell_ht',
-               'eotvos_corr', 'kin_accel_corr', 'meter_grav',
+               'eotvos_corr', 'kin_accel_corr',
+               'meter_grav', 'AccBiasZ',
                'lat_corr', 'fa_corr', 'total_corr',
                'abs_grav', 'FAA', 'FAA_LP']
     values = np.array([time.values, trajectory['lat'].values, trajectory['long'].values, trajectory['ell_ht'].values,
-                       results['eotvos'].values, results['kin_accel'].values, gravity['meter_gravity'].values,
+                       results['eotvos'].values, results['kin_accel'].values,
+                       gravity['meter_gravity'].values, gravity['z_acc_bias'].values,
                        results['lat_corr'].values, results['fac'].values, results['total_corr'].values,
                        results['abs_grav'].values, results['corrected_grav'].values, results['filtered_grav'].values])
     #
-    df = pd.DataFrame(data=values.T, columns=columns, index=time)   #pd.DatetimeIndex(gravity.index)
+    df = pd.DataFrame(data=values.T, columns=columns, index=time)  # pd.DatetimeIndex(gravity.index)
     df = df.apply(pd.to_numeric, errors='ignore')
     df.index = pd.to_datetime(trajectory.index)
-    outfile = os.path.join(outdir, '{}_{}_{}_DGP.csv'.format(campaign, flight, str(begin_line.strftime('%Y%m%d_%H%Mz'))))
+    outfile = os.path.join(outdir,
+                           '{}_{}_{}_DGP.csv'.format(campaign, flight, str(begin_line.strftime('%Y%m%d_%H%Mz'))))
     df.to_csv(outfile)  # , na_rep=" ")
 
 ###########
@@ -156,7 +173,15 @@ if make_plots:
                                   plot_title, plot_file)
 
     if QC_plot:
-        # QC Segment Plot
+        # QC Segment Plot - AccBiasZ
+        variables = ['z_acc_bias', 'long_accel', 'cross_accel']
+        variable_units = ['mGal', 'mGal', 'mGal', 'mGal']
+        plot_title = '{} {}: Accel (segment)'.format(campaign, flight)
+        plot_file = os.path.join(outdir, '{}_{}_DGP_QCplot_accel_segment.png'.format(campaign, flight))
+        timeseries_gravity_diagnostic(gravity, variables, variable_units,
+                                      QC_segment['start'], QC_segment['end'],
+                                      plot_title, plot_file)
+        # QC Segment Plot - Gravity Output
         variables = ['filtered_grav', 'corrected_grav', 'abs_grav']
         variable_units = ['mGal', 'mGal', 'mGal', 'mGal']
         plot_title = '{} {}: Gravity (segment)'.format(campaign, flight)
