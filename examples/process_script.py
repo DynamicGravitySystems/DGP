@@ -174,13 +174,16 @@ if make_plots:
 
     if QC_plot:
         # QC Segment Plot - AccBiasZ
-        variables = ['z_acc_bias', 'long_accel', 'cross_accel']
-        variable_units = ['mGal', 'mGal', 'mGal', 'mGal']
-        plot_title = '{} {}: Accel (segment)'.format(campaign, flight)
-        plot_file = os.path.join(outdir, '{}_{}_DGP_QCplot_accel_segment.png'.format(campaign, flight))
-        timeseries_gravity_diagnostic(gravity, variables, variable_units,
-                                      QC_segment['start'], QC_segment['end'],
-                                      plot_title, plot_file)
+        try:
+            variables = ['z_acc_bias', 'long_accel', 'cross_accel']
+            variable_units = ['mGal', 'mGal', 'mGal', 'mGal']
+            plot_title = '{} {}: Accel (segment)'.format(campaign, flight)
+            plot_file = os.path.join(outdir, '{}_{}_DGP_QCplot_accel_segment.png'.format(campaign, flight))
+            timeseries_gravity_diagnostic(gravity, variables, variable_units,
+                                          QC_segment['start'], QC_segment['end'],
+                                          plot_title, plot_file)
+        except ValueError:
+            print("Couldn't make AccBiasZ plot...")
         # QC Segment Plot - Gravity Output
         variables = ['filtered_grav', 'corrected_grav', 'abs_grav']
         variable_units = ['mGal', 'mGal', 'mGal', 'mGal']
