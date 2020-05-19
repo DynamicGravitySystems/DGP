@@ -26,8 +26,6 @@ except IndexError:
 with open(config_file, 'r') as file:
     config = yaml.safe_load(file)
     print('Reading project directory config_runtime.yaml configuration file for {}'.format(config['flight']))
-# except Exception as e:
-#     print('Error reading the config file')
 
 campaign = config['campaign']
 flight = config['flight']
