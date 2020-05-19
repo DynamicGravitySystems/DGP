@@ -1,22 +1,23 @@
 ---
-  campaign:     'OIB_GV-2019'
-  flight:       'F1014'
-  begin_line:   '2019-11-09 22:00'
-  end_line:     '2019-11-10 06:00'
+  campaign:     'OIB-GV'
+  flight:       'F1003'
+  begin_line:   '2019-10-26 23:00'
+  end_line:     '2019-10-27 08:00'
 
-  gravity_dir:  '/Volumes/BASEQI/data_baseqi/OIB_GV_2019/F1014/Gravity/DgS/'
-  gravity_file: 'OIB-GV_F1014_20191109.dat'
+  config_dir:    '/Volumes/BASEQI/data_baseqi/Antarctica/OIB/gravity/dgs/raw/F1003'
+
+  gravity_dir:  '/Volumes/BASEQI/data_baseqi/Antarctica/OIB/gravity/dgs/raw/F1003'
+  gravity_file: 'OIB-GV_F1003_20191026.dat'
 
   trajectory_src:   'Waypoint'
-  trajectory_dir:   '/Volumes/BASEQI/data_baseqi/OIB_GV_2019/F1014/Gravity/DgS/'
-  trajectory_file:  'OIB-GV_F1014_20191109_iMAR-INS_FINAL_DGS.txt'
-
-  config_dir:   '/Volumes/BASEQI/data_baseqi/OIB_GV_2019/F1014/Gravity/DgS/'
-  out_dir:      '/Volumes/BASEQI/data_baseqi/OIB_GV_2019/F1014/Gravity/DgS/'
+  trajectory_dir:   '/Volumes/BASEQI/data_baseqi/Antarctica/OIB/trajectory'
+  trajectory_file:  'OIB-GV_F1003_20191026_iMAR-INS_FINAL_DGS.txt'
+  
+  out_dir:   '/Volumes/BASEQI/data_baseqi/Antarctica/OIB/gravity/dgs'
 
   QC1:
-    start:  '2019-11-10 00:10'
-    end:    '2019-11-10 00:25'
+    start:  '2019-10-27 02:15'
+    end:    '2019-10-27 02:30'
 
   # Change These Only As Needed
   gps_fields: ['mdy', 'hms', 'lat', 'long', 'ortho_ht', 'ell_ht', 'num_stats', 'pdop']

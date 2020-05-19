@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
 import yaml
+import sys
 
 from dgp.lib.gravity_ingestor import read_at1a
 from dgp.lib.trajectory_ingestor import import_trajectory, import_imar_zbias
@@ -17,14 +18,17 @@ diagnostic = True
 import_auxiliary = True
 
 # Read YAML config file
-proj_path = os.path.abspath(os.path.dirname(__file__))
 try:
-    with open(os.path.join(proj_path, 'config_runtime.yaml'), 'r') as file:
-        config = yaml.safe_load(file)
-        print('Read YAML configuration file for {}'.format(config['flight']))
-except Exception as e:
-    print('Error reading the config file')
-    # TODO What to do if exception is reached? Exit, or read in test data?
+    config_file = sys.argv[1]
+except IndexError:
+    proj_path = os.path.abspath(os.path.dirname(__file__))
+    config_file = os.path.join(proj_path, 'config_runtime.yaml')
+with open(config_file, 'r') as file:
+    config = yaml.safe_load(file)
+    print('Reading project directory config_runtime.yaml configuration file for {}'.format(config['flight']))
+# except Exception as e:
+#     print('Error reading the config file')
+
 campaign = config['campaign']
 flight = config['flight']
 begin_line = datetime.strptime(config['begin_line'], '%Y-%m-%d %H:%M')
@@ -35,7 +39,7 @@ trajectory_source = config['trajectory_src']
 trajectory_directory = config['trajectory_dir']
 trajectory_file = config['trajectory_file']
 gps_fields = config['gps_fields']
-configdir = config['config_dir']
+meterconfig_dir = config['config_dir']
 outdir = config['out_dir']
 try:
     QC_segment = config['QC1']  #
@@ -79,18 +83,18 @@ if import_auxiliary:
 
 
 # Read MeterProcessing file in Data Directory
-config_file = os.path.join(configdir, 'DGS_config_files', 'MeterProcessing.ini')
+meterconfig_file = os.path.join(meterconfig_dir, 'DGS_config_files', 'MeterProcessing.ini')
 if diagnostic:
     k_factor = 1
 else:
-    k_factor = read_meterconfig(config_file, 'kfactor')
-tie_gravity = read_meterconfig(config_file, 'TieGravity')
+    k_factor = read_meterconfig(meterconfig_file, 'kfactor')
+tie_gravity = read_meterconfig(meterconfig_file, 'TieGravity')
 print(f"K-factor:    {k_factor}\nGravity-tie: {tie_gravity}\n")
 
 # Still Readings
 #  TODO: Semi-automate or create GUI to get statics
-first_static = read_meterconfig(config_file, 'PreStill')
-second_static = read_meterconfig(config_file, 'PostStill')
+first_static = read_meterconfig(meterconfig_file, 'PreStill')
+second_static = read_meterconfig(meterconfig_file, 'PostStill')
 
 # pre-processing prep
 if not begin_line < end_line:
@@ -123,7 +127,8 @@ print('\nProcessing')
 g = AirbornePost(trajectory, gravity, begin_static=first_static, end_static=second_static)
 results = g.execute()
 
-if write_out:  # TODO: split this file up into a Diagnostic and Standard output
+# TODO: split this file up into a QC and Official output
+if write_out:
     import numpy as np
     import pandas as pd
 
@@ -132,16 +137,27 @@ if write_out:  # TODO: split this file up into a Diagnostic and Standard output
                      index=trajectory.index, name='unix_time')
     columns = ['unixtime', 'lat', 'long', 'ell_ht',
                'eotvos_corr', 'kin_accel_corr',
-               'meter_grav', 'AccBiasZ',
+               'meter_grav', 'beam',
                'lat_corr', 'fa_corr', 'total_corr',
                'abs_grav', 'FAA', 'FAA_LP']
-    values = np.array([time.values, trajectory['lat'].values, trajectory['long'].values, trajectory['ell_ht'].values,
-                       results['eotvos'].values, results['kin_accel'].values,
-                       gravity['meter_gravity'].values, gravity['z_acc_bias'].values,
-                       results['lat_corr'].values, results['fac'].values, results['total_corr'].values,
-                       results['abs_grav'].values, results['corrected_grav'].values, results['filtered_grav'].values])
-    #
-    df = pd.DataFrame(data=values.T, columns=columns, index=time)  # pd.DatetimeIndex(gravity.index)
+    values = np.array([time.values,
+                       trajectory['lat'].values.round(decimals=5),
+                       trajectory['long'].values.round(decimals=5),
+                       trajectory['ell_ht'].values.round(decimals=3),
+                       results['eotvos'].values.round(decimals=2),
+                       results['kin_accel'].values.round(decimals=2),
+                       gravity['meter_gravity'].values.round(decimals=2),
+                       gravity['beam'].values.round(decimals=5),
+                       results['lat_corr'].values.round(decimals=2),
+                       results['fac'].values.round(decimals=2),
+                       results['total_corr'].values.round(decimals=2),
+                       results['abs_grav'].values.round(decimals=2),
+                       results['corrected_grav'].values.round(decimals=2),
+                       results['filtered_grav'].values.round(decimals=2)])
+    if import_auxiliary:
+        columns += ['AccBiasZ']
+        values = np.vstack([values, gravity['z_acc_bias'].values.round(decimals=7)])
+    df = pd.DataFrame(data=values.T, columns=columns, index=time)
     df = df.apply(pd.to_numeric, errors='ignore')
     df.index = pd.to_datetime(trajectory.index)
     outfile = os.path.join(outdir,
@@ -192,7 +208,7 @@ if make_plots:
             timeseries_gravity_diagnostic(gravity, variables, variable_units,
                                           QC_segment['start'], QC_segment['end'],
                                           plot_title, plot_file)
-        except ValueError:
+        except KeyError:
             print("Couldn't make AccBiasZ plot...")
         # QC Segment Plot - Gravity Output
         variables = ['filtered_grav', 'corrected_grav', 'abs_grav']
