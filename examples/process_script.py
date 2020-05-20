@@ -17,20 +17,26 @@ add_map_plots = False
 diagnostic = True
 import_auxiliary = True
 
+# Confirm a few things with the human
+if diagnostic:
+    print("Diagnostic set to True. The means:\n"
+          "1) entire gravity record used,\n"
+          "2) still readings NOT considered (no detrend)\n")
+
 # Read YAML config file
 try:
     config_file = sys.argv[1]
+    print(f"Getting processing parameters from {config_file}")
 except IndexError:
     proj_path = os.path.abspath(os.path.dirname(__file__))
     config_file = os.path.join(proj_path, 'config_runtime.yaml')
+    print(f"Reading default configuration file from {proj_path}")
+
 with open(config_file, 'r') as file:
     config = yaml.safe_load(file)
-    print('Reading project directory config_runtime.yaml configuration file for {}'.format(config['flight']))
-
+print(f"\n~~~~~~~~~~~ Flight {config['flight']} ~~~~~~~~~~~")
 campaign = config['campaign']
 flight = config['flight']
-begin_line = datetime.strptime(config['begin_line'], '%Y-%m-%d %H:%M')
-end_line = datetime.strptime(config['end_line'], '%Y-%m-%d %H:%M')
 gravity_directory = config['gravity_dir']
 gravity_file = config['gravity_file']
 trajectory_source = config['trajectory_src']
@@ -61,23 +67,18 @@ print('\nImporting trajectory')
 trajectory = import_trajectory(os.path.join(trajectory_directory, trajectory_file),
                                columns=gps_fields, skiprows=1,
                                timeformat='hms', engine=trajectory_engine, sep=trajectory_delim)
+# Append iMAR AccBiasZ
 if import_auxiliary:
     plot_imar = True
     imar_file = trajectory_file.replace('DGS', 'iMAR_1Hz')
     # imar_file = f'{os.path.splitext(imar_file)[0]}_1Hz{os.path.splitext(imar_file)[1]}'
     imar = import_imar_zbias(os.path.join(trajectory_directory, imar_file))
-
     # imar_10Hz = imar.resample('100L').first().bfill(limit=1)[['lat','z_acc_bias']].interpolate(method='linear', limit_area='inside')
-
-    # gravity2 = gravity.reset_index() \
-    #     .merge(imar[['z_acc_bias', 'gps_sow']]) \ #, on='gps_sow', how='left') \
-    #     .set_index('index')
 
     import pandas as pd
     # pd.merge(gravity, imar_10Hz).head()
     gravity = pd.concat([gravity, imar[['z_acc_bias']]], axis=1)
-
-    gravity[['z_acc_bias']].interpolate(method='linear', limit_area='inside', inplace=True)
+    gravity['z_acc_bias'] = gravity[['z_acc_bias']].interpolate(method='linear', limit_area='inside')
 
 
 # Read MeterProcessing file in Data Directory
@@ -95,10 +96,18 @@ first_static = read_meterconfig(meterconfig_file, 'PreStill')
 second_static = read_meterconfig(meterconfig_file, 'PostStill')
 
 # pre-processing prep
-if not begin_line < end_line:
-    print("Check your times.  Using start and end of gravity file instead.")
+if diagnostic:
     begin_line = gravity.index[0]
     end_line = gravity.index[-1]
+else:
+    begin_line = datetime.strptime(config['begin_line'], '%Y-%m-%d %H:%M')
+    end_line = datetime.strptime(config['end_line'], '%Y-%m-%d %H:%M')
+    if not begin_line < end_line:
+        print("Check your times.  Using start and end of gravity file instead.")
+        begin_line = gravity.index[0]
+        end_line = gravity.index[-1]
+
+
 if add_map_plots:
     trajectory_full = trajectory[['long', 'lat']]
 gravity = gravity[(begin_line <= gravity.index) & (gravity.index <= end_line)]
@@ -109,6 +118,13 @@ gravity['meter_gravity'] = gravity['gravity']
 
 # align gravity and trajectory frames
 gravity, trajectory = align_frames(gravity, trajectory)
+
+if abs(gravity.shape[0] - trajectory.shape[0]) > 0:
+    print("For some reason align_frames resulted in two different sized dataframes...trimming last row.")
+    trajectory = trajectory.iloc[0:gravity.shape[0]]
+    # TODO or check for duplicates
+    # trajectory = trajectory.drop_duplicates(keep='first')
+    # trajectory[trajectory.duplicated()]
 
 # adjust for crossing the prime meridian
 trajectory['long'] = trajectory['long'].where(trajectory['long'] > 0, trajectory['long'] + 360)
@@ -138,9 +154,9 @@ if write_out:
                'meter_grav', 'beam',
                'lat_corr', 'fa_corr', 'total_corr',
                'abs_grav', 'FAA', 'FAA_LP']
-    values = np.array([time.values,
-                       trajectory['lat'].values.round(decimals=5),
-                       trajectory['long'].values.round(decimals=5),
+    out_array = np.array([time.values,
+                       trajectory['lat'].values.round(decimals=6),
+                       trajectory['long'].values.round(decimals=6),
                        trajectory['ell_ht'].values.round(decimals=3),
                        results['eotvos'].values.round(decimals=2),
                        results['kin_accel'].values.round(decimals=2),
@@ -150,16 +166,16 @@ if write_out:
                        results['fac'].values.round(decimals=2),
                        results['total_corr'].values.round(decimals=2),
                        results['abs_grav'].values.round(decimals=2),
-                       results['corrected_grav'].values.round(decimals=2),
-                       results['filtered_grav'].values.round(decimals=2)])
+                       results['corrected_grav'].iloc[0:gravity.shape[0]].values.round(decimals=2),
+                       results['filtered_grav'].iloc[0:gravity.shape[0]].values.round(decimals=2)])
     if import_auxiliary:
         columns += ['AccBiasZ']
-        values = np.vstack([values, gravity['z_acc_bias'].values.round(decimals=7)])
-    df = pd.DataFrame(data=values.T, columns=columns, index=time)
+        out_array = np.vstack([out_array, gravity['z_acc_bias'].values.round(decimals=7)])
+    df = pd.DataFrame(data=out_array.T, columns=columns, index=time)
     df = df.apply(pd.to_numeric, errors='ignore')
     df.index = pd.to_datetime(trajectory.index)
     outfile = os.path.join(outdir,
-                           '{}_{}_{}_DGP.csv'.format(campaign, flight, str(begin_line.strftime('%Y%m%d_%H%Mz'))))
+                           '{}_{}_{}_DGS_FINAL.csv'.format(campaign, flight, str(begin_line.strftime('%Y%m%d_%H%Mz'))))
     df.to_csv(outfile)  # , na_rep=" ")
 
 ###########

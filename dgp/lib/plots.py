@@ -54,7 +54,7 @@ def timeseries_gravity_diagnostic(df, my_varlist, my_varunits, st, et, plottitle
     my_ls = '-'
     my_lw = 0.5
     my_marker = None
-    print('p  v')
+    # print('p  v')
     plt.subplots_adjust(hspace=0.000)
     plt.style.use('ggplot')
     number_of_subplots = np.shape(my_varlist)[0]
@@ -62,7 +62,7 @@ def timeseries_gravity_diagnostic(df, my_varlist, my_varunits, st, et, plottitle
     fig.suptitle(plottitle)
     for p, v in enumerate(my_varlist):
         p = p + 1
-        print('{}  {}'.format(p, v))
+        # print('{}  {}'.format(p, v))
         ax = plt.subplot(number_of_subplots, 1, p)
         ax.plot(df[v].loc[st:et].index, df[v].loc[st:et].values, color='black', label=v,
                 ls=my_ls, lw=my_lw, marker=my_marker)
