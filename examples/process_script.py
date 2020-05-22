@@ -32,7 +32,7 @@ except IndexError:
     config_file = os.path.join(proj_path, 'config_runtime.yaml')
     print(f"Reading default configuration file from {proj_path}")
 
-with open(config_file, 'r') as file:
+with open(config_file, 'r') as file:  #  TODO write a functino to get parameters from conig YAML all at once
     config = yaml.safe_load(file)
 print(f"\n~~~~~~~~~~~ Flight {config['flight']} ~~~~~~~~~~~")
 campaign = config['campaign']
@@ -88,6 +88,10 @@ if diagnostic:
 else:
     k_factor = read_meterconfig(meterconfig_file, 'kfactor')
 tie_gravity = read_meterconfig(meterconfig_file, 'TieGravity')
+if abs(tie_gravity / 980000) > 2:
+    print("Check your gravity tie units.")
+    exit()
+
 print(f"K-factor:    {k_factor}\nGravity-tie: {tie_gravity}\n")
 
 # Still Readings
@@ -119,12 +123,10 @@ gravity['meter_gravity'] = gravity['gravity']
 # align gravity and trajectory frames
 gravity, trajectory = align_frames(gravity, trajectory)
 
+# Check that arrays are same length
 if abs(gravity.shape[0] - trajectory.shape[0]) > 0:
-    print("For some reason align_frames resulted in two different sized dataframes...trimming last row.")
     trajectory = trajectory.iloc[0:gravity.shape[0]]
-    # TODO or check for duplicates
-    # trajectory = trajectory.drop_duplicates(keep='first')
-    # trajectory[trajectory.duplicated()]
+    # TODO or check for duplicates, like trajectory.drop_duplicates(keep='first')
 
 # adjust for crossing the prime meridian
 trajectory['long'] = trajectory['long'].where(trajectory['long'] > 0, trajectory['long'] + 360)
@@ -140,6 +142,12 @@ gravity['gravity'] += offset
 print('\nProcessing')
 g = AirbornePost(trajectory, gravity, begin_static=first_static, end_static=second_static)
 results = g.execute()
+
+# Check that arrays are same length
+if abs(gravity.shape[0] - results['corrected_grav'].shape[0]) != 0:
+    results['corrected_grav'] = results['corrected_grav'].iloc[0:gravity.shape[0]]
+if abs(gravity.shape[0] - results['filtered_grav'].shape[0]) != 0:
+    results['filtered_grav'] = results['filtered_grav'].iloc[0:gravity.shape[0]]
 
 # TODO: split this file up into a QC and Official output
 if write_out:
@@ -166,8 +174,8 @@ if write_out:
                        results['fac'].values.round(decimals=2),
                        results['total_corr'].values.round(decimals=2),
                        results['abs_grav'].values.round(decimals=2),
-                       results['corrected_grav'].iloc[0:gravity.shape[0]].values.round(decimals=2),
-                       results['filtered_grav'].iloc[0:gravity.shape[0]].values.round(decimals=2)])
+                       results['corrected_grav'].values.round(decimals=2),
+                       results['filtered_grav'].values.round(decimals=2)])
     if import_auxiliary:
         columns += ['AccBiasZ']
         out_array = np.vstack([out_array, gravity['z_acc_bias'].values.round(decimals=7)])
