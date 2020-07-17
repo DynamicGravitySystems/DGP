@@ -6,7 +6,6 @@ import pandas as pd
 import numpy as np
 import datetime
 
-from .context import dgp
 from dgp.lib import gravity_ingestor as gi
 
 
@@ -27,7 +26,7 @@ class TestGravityIngestor(unittest.TestCase):
         # test num columns specified less than num bits
         columns = ['test1', 'test2', 'test3', 'test4']
         unpacked = gi._extract_bits(status, columns=columns, as_bool=True)
-        array = np.array([[1, 0, 1, 0],]*5)
+        array = np.array([[1, 0, 1, 0],] * 5)
         expect = pd.DataFrame(data=array, columns=columns).astype(np.bool_)
         self.assertTrue(unpacked.equals(expect))
 
@@ -59,31 +58,31 @@ class TestGravityIngestor(unittest.TestCase):
         df = gi.read_at1a(os.path.abspath('tests/sample_gravity.csv'), fill_with_nans=False)
         self.assertEqual(df.shape, (9, 26))
 
-        fields = ['gravity', 'long', 'cross', 'beam', 'temp', 'status', 'pressure', 'Etemp', 'GPSweek', 'GPSweekseconds']
+        fields = ['gravity', 'long_accel', 'cross_accel', 'beam', 'temp', 'status', 'pressure', 'Etemp', 'GPSweek', 'GPSweekseconds']
         # Test and verify an arbitrary line of data against the same line in the pandas DataFrame
         line5 = [10061.171360, -0.026226, -0.094891, -0.093803, 62.253987, 21061, 39.690004, 52.263138, 1959, 219697.800]
         sample_line = dict(zip(fields, line5))
 
         self.assertEqual(df.gravity[4], sample_line['gravity'])
-        self.assertEqual(df.long[4], sample_line['long'])
+        self.assertEqual(df.long_accel[4], sample_line['long_accel'])
         self.assertFalse(df.gps_sync[8])
 
     def test_import_at1a_fill_nans(self):
         df = gi.read_at1a(os.path.abspath('tests/sample_gravity.csv'))
-        self.assertEqual(df.shape, (9, 26))
+        self.assertEqual(df.shape, (10, 26))
 
-        fields = ['gravity', 'long', 'cross', 'beam', 'temp', 'status', 'pressure', 'Etemp', 'GPSweek', 'GPSweekseconds']
+        fields = ['gravity', 'long_accel', 'cross', 'beam', 'temp', 'status', 'pressure', 'Etemp', 'GPSweek', 'GPSweekseconds']
         # Test and verify an arbitrary line of data against the same line in the pandas DataFrame
         line5 = [10061.171360, -0.026226, -0.094891, -0.093803, 62.253987, 21061, 39.690004, 52.263138, 1959, 219697.800]
         sample_line = dict(zip(fields, line5))
 
         self.assertEqual(df.gravity[5], sample_line['gravity'])
-        self.assertEqual(df.long[5], sample_line['long'])
+        self.assertEqual(df.long_accel[5], sample_line['long_accel'])
         self.assertTrue(df.iloc[[2]].isnull().values.all())
 
     def test_import_at1a_interp(self):
         df = gi.read_at1a(os.path.abspath('tests/sample_gravity.csv'), interp=True)
-        self.assertEqual(df.shape, (9, 26))
+        self.assertEqual(df.shape, (10, 26))
 
         # check whether NaNs were interpolated for numeric type fields
         self.assertTrue(df.iloc[[2]].notnull().values.any())

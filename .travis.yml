@@ -1,11 +1,25 @@
 language: python
+cache: pip
 python:
-  - "3.5"
   - "3.6"
+before_install:
+  - sudo apt-get install -y libgeos-dev
+  - sudo apt-get install -y proj-bin
 install:
+  - pip install Cython==0.28.3
   - pip install -r requirements.txt
-  - pip install coverage
+  - pip install -r test-requirements.txt
+before_script:
+  - "export DISPLAY=:99.0"
+  - "sh -e /etc/init.d/xvfb start"
+  - sleep 3
+  - python utils/build_uic.py
 script:
-  coverage run --source=dgp -m unittest discover
+  pytest --capture=no --cov=dgp tests
+after_success:
+  - coveralls
 notifications:
-    slack: polargeophysicsgroup:FO0QAgTctTetembHbEJq8hxP
+    slack:
+      rooms:
+        - polargeophysicsgroup:FO0QAgTctTetembHbEJq8hxP
+      on_success: change

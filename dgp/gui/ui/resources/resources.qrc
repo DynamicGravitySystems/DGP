@@ -1,0 +1,36 @@
+<RCC>
+  <qresource prefix="icons">
+    <file alias="open_in_new">open_in_new.png</file>
+    <file alias="select">select.png</file>
+    <file alias="console">console.png</file>
+    <file alias="chevron-left">chevron_left.png</file>
+    <file alias="chevron-up">chevron_up.png</file>
+    <file alias="dgp_notext">dgp_simple.png</file>
+    <file alias="dgp">dgp_icon.png</file>
+    <file alias="dgp_large">dgp_icon_large.png</file>
+    <file alias="grid_off">grid_off.png</file>
+    <file alias="grid_on">grid_on.png</file>
+    <file alias="settings">settings.png</file>
+    <file alias="info">info.png</file>
+    <file alias="help_outline">help_outline.png</file>
+    <file alias="delete">delete.png</file>
+    <file alias="line_mode">line_mode.png</file>
+    <file alias="plot_line">plot_line.png</file>
+    <file alias="folder_open">folder_open.png</file>
+    <file alias="autosize">autosize.png</file>
+    <file alias="new_file">new_file.png</file>
+    <file alias="sensor">sensor.png</file>
+    <file alias="save">save_project.png</file>
+    <file alias="gravity">grav_icon.png</file>
+    <file alias="gps">location.png</file>
+    <file alias="dgs">dgs_icon.xpm</file>
+    <file alias="tree">project_tree.png</file>
+    <file alias="marine">boat.png</file>
+    <file alias="chevron-down">chevron_down.png</file>
+    <file alias="airborne">flight.png</file>
+    <file alias="chevron-right">chevron_right.png</file>
+  </qresource>
+  <qresource prefix="images">
+    <file alias="geoid">geoid.png</file>
+  </qresource>
+</RCC>

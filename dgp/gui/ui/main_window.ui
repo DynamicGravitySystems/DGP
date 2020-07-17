@@ -20,249 +20,28 @@
    <string>Dynamic Gravity Processor</string>
   </property>
   <property name="windowIcon">
-   <iconset resource="resources.qrc">
-    <normaloff>:/images/assets/geoid_icon.png</normaloff>:/images/assets/geoid_icon.png</iconset>
+   <iconset resource="resources/resources.qrc">
+    <normaloff>:/images/geoid</normaloff>:/images/geoid</iconset>
   </property>
   <property name="tabShape">
    <enum>QTabWidget::Triangular</enum>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QHBoxLayout" name="horizontalLayout">
+    <property name="leftMargin">
+     <number>0</number>
+    </property>
+    <property name="topMargin">
+     <number>0</number>
+    </property>
+    <property name="rightMargin">
+     <number>0</number>
+    </property>
+    <property name="bottomMargin">
+     <number>0</number>
+    </property>
     <item>
-     <widget class="QSplitter" name="splitter">
-      <property name="orientation">
-       <enum>Qt::Vertical</enum>
-      </property>
-      <property name="childrenCollapsible">
-       <bool>false</bool>
-      </property>
-      <widget class="QWidget" name="tabContainerWidget" native="true">
-       <layout class="QVBoxLayout" name="verticalLayout">
-        <item>
-         <widget class="QTabWidget" name="dataPlotTabWidget">
-          <property name="minimumSize">
-           <size>
-            <width>0</width>
-            <height>500</height>
-           </size>
-          </property>
-          <property name="currentIndex">
-           <number>0</number>
-          </property>
-          <widget class="QWidget" name="gravity_tab">
-           <attribute name="title">
-            <string>Gravity</string>
-           </attribute>
-           <layout class="QVBoxLayout" name="verticalLayout_3">
-            <item>
-             <layout class="QVBoxLayout" name="gravity_plot_layout"/>
-            </item>
-           </layout>
-          </widget>
-          <widget class="QWidget" name="gps_tab">
-           <attribute name="title">
-            <string>GPS</string>
-           </attribute>
-           <layout class="QHBoxLayout" name="horizontalLayout_2">
-            <item>
-             <layout class="QVBoxLayout" name="gps_plot_layout"/>
-            </item>
-           </layout>
-          </widget>
-         </widget>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QFrame" name="bottom_frame">
-       <property name="minimumSize">
-        <size>
-         <width>0</width>
-         <height>100</height>
-        </size>
-       </property>
-       <layout class="QHBoxLayout" name="horizontalLayout_3">
-        <item alignment="Qt::AlignLeft">
-         <widget class="QFrame" name="info_frame">
-          <property name="sizeIncrement">
-           <size>
-            <width>1</width>
-            <height>0</height>
-           </size>
-          </property>
-          <property name="frameShape">
-           <enum>QFrame::StyledPanel</enum>
-          </property>
-          <property name="frameShadow">
-           <enum>QFrame::Raised</enum>
-          </property>
-          <layout class="QVBoxLayout" name="verticalLayout_5">
-           <item>
-            <widget class="QPlainTextEdit" name="text_info">
-             <property name="enabled">
-              <bool>true</bool>
-             </property>
-             <property name="sizeIncrement">
-              <size>
-               <width>1</width>
-               <height>0</height>
-              </size>
-             </property>
-             <property name="readOnly">
-              <bool>true</bool>
-             </property>
-             <property name="plainText">
-              <string/>
-             </property>
-             <property name="placeholderText">
-              <string>Selection Info</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-        </item>
-        <item>
-         <widget class="QFrame" name="console_frame">
-          <property name="sizeIncrement">
-           <size>
-            <width>2</width>
-            <height>0</height>
-           </size>
-          </property>
-          <property name="frameShape">
-           <enum>QFrame::StyledPanel</enum>
-          </property>
-          <property name="frameShadow">
-           <enum>QFrame::Raised</enum>
-          </property>
-          <layout class="QVBoxLayout" name="verticalLayout_2">
-           <item>
-            <widget class="QTextEdit" name="text_console">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="minimumSize">
-              <size>
-               <width>0</width>
-               <height>100</height>
-              </size>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>5000</width>
-               <height>400</height>
-              </size>
-             </property>
-             <property name="palette">
-              <palette>
-               <active>
-                <colorrole role="Base">
-                 <brush brushstyle="SolidPattern">
-                  <color alpha="255">
-                   <red>160</red>
-                   <green>160</green>
-                   <blue>160</blue>
-                  </color>
-                 </brush>
-                </colorrole>
-               </active>
-               <inactive>
-                <colorrole role="Base">
-                 <brush brushstyle="SolidPattern">
-                  <color alpha="255">
-                   <red>160</red>
-                   <green>160</green>
-                   <blue>160</blue>
-                  </color>
-                 </brush>
-                </colorrole>
-               </inactive>
-               <disabled>
-                <colorrole role="Base">
-                 <brush brushstyle="SolidPattern">
-                  <color alpha="255">
-                   <red>240</red>
-                   <green>240</green>
-                   <blue>240</blue>
-                  </color>
-                 </brush>
-                </colorrole>
-               </disabled>
-              </palette>
-             </property>
-             <property name="autoFillBackground">
-              <bool>true</bool>
-             </property>
-             <property name="frameShape">
-              <enum>QFrame::StyledPanel</enum>
-             </property>
-             <property name="readOnly">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <layout class="QGridLayout" name="console_btns_layout">
-             <item row="0" column="2">
-              <widget class="QComboBox" name="combo_console_verbosity">
-               <item>
-                <property name="text">
-                 <string>Debug</string>
-                </property>
-               </item>
-               <item>
-                <property name="text">
-                 <string>Info</string>
-                </property>
-               </item>
-               <item>
-                <property name="text">
-                 <string>Warning</string>
-                </property>
-               </item>
-               <item>
-                <property name="text">
-                 <string>Error</string>
-                </property>
-               </item>
-               <item>
-                <property name="text">
-                 <string>Critical</string>
-                </property>
-               </item>
-              </widget>
-             </item>
-             <item row="0" column="0">
-              <widget class="QPushButton" name="btn_clear_console">
-               <property name="maximumSize">
-                <size>
-                 <width>100</width>
-                 <height>16777215</height>
-                </size>
-               </property>
-               <property name="text">
-                <string>Clear</string>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="1">
-              <widget class="QLabel" name="label_logging_level">
-               <property name="text">
-                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;right&quot;&gt;Logging Level:&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-          </layout>
-         </widget>
-        </item>
-       </layout>
-      </widget>
-     </widget>
+     <widget class="WorkspaceWidget" name="workspace"/>
     </item>
    </layout>
   </widget>
@@ -289,20 +68,22 @@
     <property name="title">
      <string>Help</string>
     </property>
-    <addaction name="actionDocumentation"/>
+    <addaction name="action_docs"/>
+    <addaction name="action_about"/>
    </widget>
    <widget class="QMenu" name="menuView">
     <property name="title">
      <string>Panels</string>
     </property>
-    <addaction name="action_channel_dock"/>
     <addaction name="action_tool_dock"/>
+    <addaction name="action_info_dock"/>
    </widget>
    <widget class="QMenu" name="menuProject">
     <property name="title">
      <string>Project</string>
     </property>
-    <addaction name="action_import_data"/>
+    <addaction name="action_import_grav"/>
+    <addaction name="action_import_gps"/>
     <addaction name="action_add_flight"/>
     <addaction name="action_add_meter"/>
     <addaction name="action_project_info"/>
@@ -320,7 +101,7 @@
     <bool>true</bool>
    </property>
   </widget>
-  <widget class="QDockWidget" name="channelDock">
+  <widget class="QDockWidget" name="project_dock">
    <property name="enabled">
     <bool>true</bool>
    </property>
@@ -332,14 +113,14 @@
    </property>
    <property name="minimumSize">
     <size>
-     <width>300</width>
-     <height>632</height>
+     <width>198</width>
+     <height>165</height>
     </size>
    </property>
    <property name="maximumSize">
     <size>
-     <width>300</width>
-     <height>800</height>
+     <width>524287</width>
+     <height>524287</height>
     </size>
    </property>
    <property name="allowedAreas">
@@ -351,28 +132,55 @@
    <attribute name="dockWidgetArea">
     <number>1</number>
    </attribute>
-   <widget class="QWidget" name="dockWidgetContents">
+   <widget class="QWidget" name="project_dock_contents">
+    <property name="sizePolicy">
+     <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+      <horstretch>0</horstretch>
+      <verstretch>0</verstretch>
+     </sizepolicy>
+    </property>
     <layout class="QVBoxLayout" name="verticalLayout_4">
+     <property name="spacing">
+      <number>3</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
+      <number>0</number>
+     </property>
      <item>
-      <layout class="QGridLayout" name="gridLayout_2">
+      <layout class="QGridLayout" name="project_dock_grid" columnstretch="0,0">
        <property name="leftMargin">
         <number>5</number>
        </property>
-       <item row="3" column="0">
-        <widget class="QPushButton" name="prj_import_data">
-         <property name="text">
-          <string>Import Data</string>
-         </property>
-         <property name="icon">
-          <iconset resource="resources.qrc">
-           <normaloff>:/images/assets/geoid_icon.png</normaloff>:/images/assets/geoid_icon.png</iconset>
-         </property>
-        </widget>
-       </item>
+       <property name="spacing">
+        <number>3</number>
+       </property>
        <item row="0" column="0">
         <widget class="QLabel" name="label_prj_info">
          <property name="text">
           <string>Project Tree:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <widget class="QPushButton" name="prj_import_grav">
+         <property name="text">
+          <string>Import Gravity</string>
+         </property>
+         <property name="icon">
+          <iconset resource="resources/resources.qrc">
+           <normaloff>:/icons/gravity</normaloff>:/icons/gravity</iconset>
+         </property>
+         <property name="iconSize">
+          <size>
+           <width>16</width>
+           <height>16</height>
+          </size>
          </property>
         </widget>
        </item>
@@ -382,18 +190,37 @@
           <string>Add Flight</string>
          </property>
          <property name="icon">
-          <iconset resource="resources.qrc">
-           <normaloff>:/images/assets/flight_icon.png</normaloff>:/images/assets/flight_icon.png</iconset>
+          <iconset resource="resources/resources.qrc">
+           <normaloff>:/icons/airborne</normaloff>:/icons/airborne</iconset>
          </property>
         </widget>
        </item>
-       <item row="1" column="0">
-        <widget class="QFrame" name="frame">
-         <property name="frameShape">
-          <enum>QFrame::StyledPanel</enum>
+       <item row="4" column="0">
+        <widget class="QPushButton" name="prj_import_gps">
+         <property name="text">
+          <string>Import GPS</string>
          </property>
-         <property name="frameShadow">
-          <enum>QFrame::Raised</enum>
+         <property name="icon">
+          <iconset resource="resources/resources.qrc">
+           <normaloff>:/icons/gps</normaloff>:/icons/gps</iconset>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QPushButton" name="prj_add_meter">
+         <property name="text">
+          <string>Add Meter</string>
+         </property>
+         <property name="icon">
+          <iconset resource="resources/resources.qrc">
+           <normaloff>:/icons/sensor</normaloff>:/icons/sensor</iconset>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0" colspan="2">
+        <widget class="ProjectTreeView" name="project_tree">
+         <property name="editTriggers">
+          <set>QAbstractItemView::NoEditTriggers</set>
          </property>
         </widget>
        </item>
@@ -402,9 +229,285 @@
     </layout>
    </widget>
   </widget>
-  <action name="actionDocumentation">
+  <widget class="QToolBar" name="toolbar">
+   <property name="windowTitle">
+    <string>Toolbar</string>
+   </property>
+   <property name="floatable">
+    <bool>false</bool>
+   </property>
+   <attribute name="toolBarArea">
+    <enum>TopToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
+   <addaction name="action_file_new"/>
+   <addaction name="action_file_open"/>
+   <addaction name="action_file_save"/>
+   <addaction name="separator"/>
+   <addaction name="action_add_flight"/>
+   <addaction name="action_add_meter"/>
+   <addaction name="action_import_gps"/>
+   <addaction name="action_import_grav"/>
+   <addaction name="separator"/>
+   <addaction name="action_debug_Console"/>
+  </widget>
+  <widget class="QDockWidget" name="info_dock">
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
+   </property>
+   <property name="minimumSize">
+    <size>
+     <width>248</width>
+     <height>246</height>
+    </size>
+   </property>
+   <property name="maximumSize">
+    <size>
+     <width>524287</width>
+     <height>246</height>
+    </size>
+   </property>
+   <property name="sizeIncrement">
+    <size>
+     <width>0</width>
+     <height>0</height>
+    </size>
+   </property>
+   <property name="floating">
+    <bool>false</bool>
+   </property>
+   <property name="features">
+    <set>QDockWidget::AllDockWidgetFeatures</set>
+   </property>
+   <property name="allowedAreas">
+    <set>Qt::BottomDockWidgetArea|Qt::TopDockWidgetArea</set>
+   </property>
+   <property name="windowTitle">
+    <string>Console</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>8</number>
+   </attribute>
+   <widget class="QWidget" name="console_dock_contents">
+    <property name="sizePolicy">
+     <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+      <horstretch>0</horstretch>
+      <verstretch>0</verstretch>
+     </sizepolicy>
+    </property>
+    <layout class="QGridLayout" name="gridLayout">
+     <property name="leftMargin">
+      <number>5</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>5</number>
+     </property>
+     <property name="bottomMargin">
+      <number>0</number>
+     </property>
+     <property name="spacing">
+      <number>0</number>
+     </property>
+     <item row="0" column="0">
+      <widget class="QFrame" name="console_frame">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+         <horstretch>2</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="sizeIncrement">
+        <size>
+         <width>2</width>
+         <height>0</height>
+        </size>
+       </property>
+       <property name="frameShape">
+        <enum>QFrame::StyledPanel</enum>
+       </property>
+       <property name="frameShadow">
+        <enum>QFrame::Raised</enum>
+       </property>
+       <layout class="QVBoxLayout" name="verticalLayout_2">
+        <property name="spacing">
+         <number>5</number>
+        </property>
+        <property name="leftMargin">
+         <number>6</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
+         <number>0</number>
+        </property>
+        <item>
+         <widget class="QTextEdit" name="text_console">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="palette">
+           <palette>
+            <active>
+             <colorrole role="Base">
+              <brush brushstyle="SolidPattern">
+               <color alpha="255">
+                <red>160</red>
+                <green>160</green>
+                <blue>160</blue>
+               </color>
+              </brush>
+             </colorrole>
+            </active>
+            <inactive>
+             <colorrole role="Base">
+              <brush brushstyle="SolidPattern">
+               <color alpha="255">
+                <red>160</red>
+                <green>160</green>
+                <blue>160</blue>
+               </color>
+              </brush>
+             </colorrole>
+            </inactive>
+            <disabled>
+             <colorrole role="Base">
+              <brush brushstyle="SolidPattern">
+               <color alpha="255">
+                <red>240</red>
+                <green>240</green>
+                <blue>240</blue>
+               </color>
+              </brush>
+             </colorrole>
+            </disabled>
+           </palette>
+          </property>
+          <property name="autoFillBackground">
+           <bool>true</bool>
+          </property>
+          <property name="frameShape">
+           <enum>QFrame::StyledPanel</enum>
+          </property>
+          <property name="readOnly">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QGridLayout" name="console_btns_layout">
+          <item row="0" column="3">
+           <widget class="QComboBox" name="combo_console_verbosity">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <item>
+             <property name="text">
+              <string>Debug</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Info</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Warning</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Error</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Critical</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="0" column="0">
+           <widget class="QPushButton" name="btn_clear_console">
+            <property name="maximumSize">
+             <size>
+              <width>100</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>Clear</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="2">
+           <widget class="QLabel" name="label_logging_level">
+            <property name="text">
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;right&quot;&gt;Logging Level:&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <spacer name="horizontalSpacer">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <action name="action_docs">
+   <property name="icon">
+    <iconset resource="resources/resources.qrc">
+     <normaloff>:/icons/open_in_new</normaloff>:/icons/open_in_new</iconset>
+   </property>
    <property name="text">
     <string>Documentation</string>
+   </property>
+   <property name="toolTip">
+    <string>View Online Documentation</string>
    </property>
    <property name="shortcut">
     <string>F1</string>
@@ -416,20 +519,6 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+Q</string>
-   </property>
-  </action>
-  <action name="action_channel_dock">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="checked">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>Channels</string>
-   </property>
-   <property name="shortcut">
-    <string>Alt+1</string>
    </property>
   </action>
   <action name="action_tool_dock">
@@ -447,6 +536,10 @@
    </property>
   </action>
   <action name="action_file_new">
+   <property name="icon">
+    <iconset resource="resources/resources.qrc">
+     <normaloff>:/icons/new_file</normaloff>:/icons/new_file</iconset>
+   </property>
    <property name="text">
     <string>New Project...</string>
    </property>
@@ -455,6 +548,10 @@
    </property>
   </action>
   <action name="action_file_open">
+   <property name="icon">
+    <iconset resource="resources/resources.qrc">
+     <normaloff>:/icons/folder_open</normaloff>:/icons/folder_open</iconset>
+   </property>
    <property name="text">
     <string>Open Project</string>
    </property>
@@ -463,6 +560,10 @@
    </property>
   </action>
   <action name="action_file_save">
+   <property name="icon">
+    <iconset resource="resources/resources.qrc">
+     <normaloff>:/icons/save</normaloff>:/icons/save</iconset>
+   </property>
    <property name="text">
     <string>Save Project</string>
    </property>
@@ -471,6 +572,10 @@
    </property>
   </action>
   <action name="action_add_flight">
+   <property name="icon">
+    <iconset resource="resources/resources.qrc">
+     <normaloff>:/icons/airborne</normaloff>:/icons/airborne</iconset>
+   </property>
    <property name="text">
     <string>Add Flight</string>
    </property>
@@ -479,6 +584,10 @@
    </property>
   </action>
   <action name="action_add_meter">
+   <property name="icon">
+    <iconset resource="resources/resources.qrc">
+     <normaloff>:/icons/sensor</normaloff>:/icons/sensor</iconset>
+   </property>
    <property name="text">
     <string>Add Meter</string>
    </property>
@@ -487,6 +596,10 @@
    </property>
   </action>
   <action name="action_project_info">
+   <property name="icon">
+    <iconset resource="resources/resources.qrc">
+     <normaloff>:/icons/info</normaloff>:/icons/info</iconset>
+   </property>
    <property name="text">
     <string>Project Info...</string>
    </property>
@@ -494,27 +607,83 @@
     <string>Ctrl+I</string>
    </property>
   </action>
-  <action name="action_import_data">
+  <action name="action_info_dock">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
    <property name="text">
-    <string>Import Data</string>
+    <string>Console</string>
    </property>
    <property name="shortcut">
-    <string>Ctrl+O</string>
+    <string>Alt+3</string>
+   </property>
+  </action>
+  <action name="action_import_gps">
+   <property name="icon">
+    <iconset resource="resources/resources.qrc">
+     <normaloff>:/icons/gps</normaloff>:/icons/gps</iconset>
+   </property>
+   <property name="text">
+    <string>Import GPS</string>
+   </property>
+  </action>
+  <action name="action_import_grav">
+   <property name="icon">
+    <iconset resource="resources/resources.qrc">
+     <normaloff>:/icons/gravity</normaloff>:/icons/gravity</iconset>
+   </property>
+   <property name="text">
+    <string>Import Gravity</string>
+   </property>
+  </action>
+  <action name="action_debug_Console">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="resources/resources.qrc">
+     <normaloff>:/icons/console</normaloff>:/icons/console</iconset>
+   </property>
+   <property name="text">
+    <string>Debug Console</string>
+   </property>
+   <property name="toolTip">
+    <string>Toggle Debug Console</string>
+   </property>
+  </action>
+  <action name="action_about">
+   <property name="text">
+    <string>About</string>
    </property>
   </action>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>ProjectTreeView</class>
+   <extends>QTreeView</extends>
+   <header>dgp.gui.views.project_tree_view</header>
+  </customwidget>
+  <customwidget>
+   <class>WorkspaceWidget</class>
+   <extends>QTabWidget</extends>
+   <header>dgp.gui.widgets.workspace_widget</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
  <tabstops>
   <tabstop>prj_add_flight</tabstop>
-  <tabstop>dataPlotTabWidget</tabstop>
  </tabstops>
  <resources>
-  <include location="resources.qrc"/>
+  <include location="resources/resources.qrc"/>
  </resources>
  <connections>
   <connection>
-   <sender>action_channel_dock</sender>
+   <sender>action_info_dock</sender>
    <signal>toggled(bool)</signal>
-   <receiver>channelDock</receiver>
+   <receiver>info_dock</receiver>
    <slot>setVisible(bool)</slot>
    <hints>
     <hint type="sourcelabel">
@@ -522,24 +691,72 @@
      <y>-1</y>
     </hint>
     <hint type="destinationlabel">
-     <x>149</x>
-     <y>419</y>
+     <x>744</x>
+     <y>990</y>
     </hint>
    </hints>
   </connection>
   <connection>
-   <sender>channelDock</sender>
+   <sender>info_dock</sender>
    <signal>visibilityChanged(bool)</signal>
-   <receiver>action_channel_dock</receiver>
+   <receiver>action_info_dock</receiver>
    <slot>setChecked(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>149</x>
-     <y>419</y>
+     <x>744</x>
+     <y>973</y>
     </hint>
     <hint type="destinationlabel">
      <x>-1</x>
      <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>btn_clear_console</sender>
+   <signal>clicked()</signal>
+   <receiver>text_console</receiver>
+   <slot>clear()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>62</x>
+     <y>1101</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>750</x>
+     <y>987</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>info_dock</sender>
+   <signal>visibilityChanged(bool)</signal>
+   <receiver>action_debug_Console</receiver>
+   <slot>setChecked(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>744</x>
+     <y>991</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>action_debug_Console</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>info_dock</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>744</x>
+     <y>991</y>
     </hint>
    </hints>
   </connection>

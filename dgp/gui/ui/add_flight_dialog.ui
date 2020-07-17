@@ -6,210 +6,154 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>400</width>
-    <height>400</height>
+    <width>405</width>
+    <height>583</height>
    </rect>
   </property>
   <property name="maximumSize">
    <size>
-    <width>450</width>
-    <height>450</height>
+    <width>16777215</width>
+    <height>16777215</height>
    </size>
   </property>
   <property name="windowTitle">
    <string>Add Flight</string>
   </property>
   <property name="windowIcon">
-   <iconset resource="resources.qrc">
-    <normaloff>:/images/assets/flight_icon.png</normaloff>:/images/assets/flight_icon.png</iconset>
+   <iconset resource="resources/resources.qrc">
+    <normaloff>:/icons/airborne</normaloff>:/icons/airborne</iconset>
   </property>
-  <layout class="QFormLayout" name="formLayout">
-   <item row="0" column="0">
-    <widget class="QLabel" name="label_name">
-     <property name="text">
-      <string>Flight Name (Reference)*</string>
-     </property>
-     <property name="buddy">
-      <cstring>text_name</cstring>
-     </property>
-    </widget>
+  <property name="sizeGripEnabled">
+   <bool>true</bool>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <layout class="QFormLayout" name="qfl_flight_form">
+     <item row="0" column="0">
+      <widget class="QLabel" name="ql_flight_name">
+       <property name="text">
+        <string>Flight Name (Reference)*</string>
+       </property>
+       <property name="buddy">
+        <cstring>qle_flight_name</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="QLineEdit" name="qle_flight_name">
+       <property name="toolTip">
+        <string>Required: Specify a name/reference for this flight</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="0">
+      <widget class="QLabel" name="ql_flight_date">
+       <property name="text">
+        <string>Flight Date</string>
+       </property>
+       <property name="buddy">
+        <cstring>qde_flight_date</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="1">
+      <widget class="QDateEdit" name="qde_flight_date">
+       <property name="displayFormat">
+        <string>yyyy-MM-dd</string>
+       </property>
+       <property name="calendarPopup">
+        <bool>true</bool>
+       </property>
+       <property name="date">
+        <date>
+         <year>2017</year>
+         <month>1</month>
+         <day>1</day>
+        </date>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="0">
+      <widget class="QLabel" name="ql_sequence">
+       <property name="text">
+        <string>Flight Sequence</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="1">
+      <widget class="QSpinBox" name="qsb_sequence">
+       <property name="toolTip">
+        <string>[Optional] Set the flight sequence within the project</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="0">
+      <widget class="QLabel" name="ql_duration">
+       <property name="text">
+        <string>Flight Duration (hrs)</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="1">
+      <widget class="QSpinBox" name="qsb_duration">
+       <property name="toolTip">
+        <string>[Optional] Set the duration of the flight (hours)</string>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="0">
+      <widget class="QLabel" name="ql_notes">
+       <property name="text">
+        <string>Flight Notes</string>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="1">
+      <widget class="QTextEdit" name="qte_notes">
+       <property name="toolTip">
+        <string>[Optional] Add notes regarding this flight</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </item>
-   <item row="0" column="1">
-    <widget class="QLineEdit" name="text_name"/>
-   </item>
-   <item row="1" column="0">
-    <widget class="QLabel" name="label_date">
-     <property name="text">
-      <string>Flight Date</string>
-     </property>
-     <property name="buddy">
-      <cstring>date_flight</cstring>
-     </property>
-    </widget>
-   </item>
-   <item row="1" column="1">
-    <widget class="QDateEdit" name="date_flight">
-     <property name="displayFormat">
-      <string>yyyy-MM-dd</string>
-     </property>
-     <property name="calendarPopup">
-      <bool>true</bool>
-     </property>
-     <property name="date">
-      <date>
-       <year>2017</year>
-       <month>1</month>
-       <day>1</day>
-      </date>
-     </property>
-    </widget>
-   </item>
-   <item row="2" column="0">
-    <widget class="QLabel" name="label_meter">
-     <property name="text">
-      <string>Gravity Meter</string>
-     </property>
-     <property name="buddy">
-      <cstring>combo_meter</cstring>
-     </property>
-    </widget>
-   </item>
-   <item row="2" column="1">
-    <widget class="QComboBox" name="combo_meter"/>
-   </item>
-   <item row="6" column="0">
+   <item>
     <widget class="QLabel" name="label_flight_param">
      <property name="text">
       <string>Flight Parameters</string>
      </property>
-     <property name="buddy">
-      <cstring>table_flight_param</cstring>
-     </property>
     </widget>
    </item>
-   <item row="7" column="0" colspan="2">
-    <widget class="QTableWidget" name="table_flight_param">
-     <row>
-      <property name="text">
-       <string>Tie Value</string>
-      </property>
-     </row>
-     <row>
-      <property name="text">
-       <string>Tie Location</string>
-      </property>
-     </row>
-     <row>
-      <property name="text">
-       <string>Still Reading</string>
-      </property>
-     </row>
-     <column>
-      <property name="text">
-       <string>Pre Reading</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Post Reading</string>
-      </property>
-     </column>
-     <item row="0" column="0">
-      <property name="text">
-       <string/>
-      </property>
-      <property name="toolTip">
-       <string>Known Gravity Tie Value (mGal)</string>
-      </property>
-     </item>
-    </widget>
-   </item>
-   <item row="8" column="0">
-    <widget class="QDialogButtonBox" name="buttons_dialog">
-     <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-     </property>
-    </widget>
-   </item>
-   <item row="3" column="0">
-    <widget class="QLabel" name="label_uuid">
-     <property name="text">
-      <string>Flight UUID</string>
-     </property>
-    </widget>
-   </item>
-   <item row="3" column="1">
-    <widget class="QLineEdit" name="text_uuid">
+   <item>
+    <widget class="QTableView" name="flight_params">
      <property name="enabled">
       <bool>false</bool>
      </property>
-     <property name="readOnly">
-      <bool>true</bool>
-     </property>
     </widget>
    </item>
-   <item row="8" column="1">
+   <item>
     <widget class="QLabel" name="label_message">
      <property name="text">
       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;right&quot;&gt;*required fields&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
      </property>
     </widget>
    </item>
-   <item row="4" column="0">
-    <widget class="QLabel" name="label">
-     <property name="text">
-      <string>Gravity Data</string>
-     </property>
-     <property name="buddy">
-      <cstring>path_gravity</cstring>
-     </property>
-    </widget>
-   </item>
-   <item row="4" column="1">
-    <layout class="QHBoxLayout" name="horizontalLayout">
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_2">
      <item>
-      <widget class="QLineEdit" name="path_gravity"/>
-     </item>
-     <item>
-      <widget class="QPushButton" name="browse_grav">
-       <property name="maximumSize">
-        <size>
-         <width>30</width>
-         <height>16777215</height>
-        </size>
+      <widget class="QLabel" name="ql_validation_err">
+       <property name="styleSheet">
+        <string notr="true">QLabel { color: red; }</string>
        </property>
        <property name="text">
-        <string>...</string>
+        <string/>
        </property>
       </widget>
      </item>
-    </layout>
-   </item>
-   <item row="5" column="0">
-    <widget class="QLabel" name="label_2">
-     <property name="text">
-      <string>GPS Data</string>
-     </property>
-     <property name="buddy">
-      <cstring>lineEdit</cstring>
-     </property>
-    </widget>
-   </item>
-   <item row="5" column="1">
-    <layout class="QHBoxLayout" name="horizontalLayout_2">
      <item>
-      <widget class="QLineEdit" name="lineEdit"/>
-     </item>
-     <item>
-      <widget class="QPushButton" name="pushButton">
-       <property name="maximumSize">
-        <size>
-         <width>30</width>
-         <height>16777215</height>
-        </size>
-       </property>
-       <property name="text">
-        <string>...</string>
+      <widget class="QDialogButtonBox" name="qdbb_dialog_btns">
+       <property name="standardButtons">
+        <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
        </property>
       </widget>
      </item>
@@ -217,23 +161,12 @@
    </item>
   </layout>
  </widget>
- <tabstops>
-  <tabstop>text_name</tabstop>
-  <tabstop>date_flight</tabstop>
-  <tabstop>combo_meter</tabstop>
-  <tabstop>path_gravity</tabstop>
-  <tabstop>browse_grav</tabstop>
-  <tabstop>lineEdit</tabstop>
-  <tabstop>pushButton</tabstop>
-  <tabstop>table_flight_param</tabstop>
-  <tabstop>text_uuid</tabstop>
- </tabstops>
  <resources>
-  <include location="resources.qrc"/>
+  <include location="resources/resources.qrc"/>
  </resources>
  <connections>
   <connection>
-   <sender>buttons_dialog</sender>
+   <sender>qdbb_dialog_btns</sender>
    <signal>rejected()</signal>
    <receiver>NewFlight</receiver>
    <slot>reject()</slot>
@@ -249,7 +182,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>buttons_dialog</sender>
+   <sender>qdbb_dialog_btns</sender>
    <signal>accepted()</signal>
    <receiver>NewFlight</receiver>
    <slot>accept()</slot>
